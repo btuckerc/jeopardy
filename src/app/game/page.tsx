@@ -6,6 +6,14 @@ import { getGameCategories, saveGameHistory } from '../actions/game'
 import { checkAnswer } from '../lib/answer-checker'
 import { GameCategory } from '../types/game'
 
+// Type for the stored game state
+type StoredGameState = {
+    categories: GameCategory[]
+    answeredQuestions: string[]
+    totalScore: number
+    timestamp: number
+}
+
 export default function GamePage() {
     const { user } = useAuth()
     const [categories, setCategories] = useState<GameCategory[]>([])
@@ -23,8 +31,56 @@ export default function GamePage() {
     const [error, setError] = useState<string | null>(null)
     const [showingAnswer, setShowingAnswer] = useState(false)
     const [totalScore, setTotalScore] = useState(0)
+    const [loading, setLoading] = useState(true)
+    const [hasActiveGame, setHasActiveGame] = useState(false)
 
-    const fetchNewGame = async () => {
+    // Load game state from local storage
+    const loadGameState = () => {
+        const storedState = localStorage.getItem('gameState')
+        if (storedState) {
+            try {
+                const state: StoredGameState = JSON.parse(storedState)
+                // Check if the stored game is less than 24 hours old
+                if (Date.now() - state.timestamp < 24 * 60 * 60 * 1000) {
+                    setCategories(state.categories)
+                    setAnsweredQuestions(new Set(state.answeredQuestions))
+                    setTotalScore(state.totalScore)
+                    setHasActiveGame(true)
+                    return true
+                } else {
+                    localStorage.removeItem('gameState')
+                }
+            } catch (error) {
+                console.error('Error loading game state:', error)
+                localStorage.removeItem('gameState')
+            }
+        }
+        return false
+    }
+
+    // Save game state to local storage
+    const saveGameState = () => {
+        const state: StoredGameState = {
+            categories,
+            answeredQuestions: Array.from(answeredQuestions),
+            totalScore,
+            timestamp: Date.now()
+        }
+        localStorage.setItem('gameState', JSON.stringify(state))
+    }
+
+    const clearGameState = () => {
+        setCategories([])
+        setAnsweredQuestions(new Set())
+        setTotalScore(0)
+        setError(null)
+        setHasActiveGame(false)
+        localStorage.removeItem('gameState')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+
+    const startNewGame = async () => {
+        setLoading(true)
         try {
             const data = await getGameCategories()
             const sortedCategories = data.categories.map(category => ({
@@ -35,16 +91,31 @@ export default function GamePage() {
             setAnsweredQuestions(new Set())
             setTotalScore(0)
             setError(null)
+            setHasActiveGame(true)
             window.scrollTo({ top: 0, behavior: 'smooth' })
         } catch (error) {
             console.error('Error fetching categories:', error)
             setError('Failed to load categories')
+        } finally {
+            setLoading(false)
         }
     }
 
+    // Initial load
     useEffect(() => {
-        fetchNewGame()
+        const hasExistingGame = loadGameState()
+        if (!hasExistingGame) {
+            setHasActiveGame(false)
+        }
+        setLoading(false)
     }, [])
+
+    // Save game state whenever it changes
+    useEffect(() => {
+        if (hasActiveGame) {
+            saveGameState()
+        }
+    }, [categories, answeredQuestions, totalScore, hasActiveGame])
 
     const handleQuestionClick = (question: any) => {
         if (answeredQuestions.has(question.id)) return
@@ -106,17 +177,47 @@ export default function GamePage() {
         const totalQuestions = categories.reduce((sum, cat) => sum + cat.questions.length, 0)
         if (answeredQuestions.size === totalQuestions) {
             // Show game completion message or automatically start new game
-            fetchNewGame()
+            startNewGame()
         }
     }
 
-    const gridCols = Math.min(5, categories.length)
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <div className="text-xl">Loading...</div>
+            </div>
+        )
+    }
+
+    if (!hasActiveGame) {
+        return (
+            <div className="container mx-auto p-4">
+                <div className="text-center">
+                    <h1 className="text-2xl font-bold text-black dark:text-white mb-8">Welcome to Jeopardy!</h1>
+                    <button
+                        onClick={startNewGame}
+                        className="bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
+                    >
+                        Start New Game
+                    </button>
+                </div>
+            </div>
+        )
+    }
 
     return (
-        <div className="container mx-auto p-4 text-black dark:text-white">
+        <div className="container mx-auto p-4">
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-2xl font-bold text-black dark:text-white">Jeopardy Game</h1>
-                <div className="text-xl text-black dark:text-white">Score: ${totalScore}</div>
+                <div className="flex items-center gap-4">
+                    <div className="text-xl text-black dark:text-white">Score: ${totalScore}</div>
+                    <button
+                        onClick={clearGameState}
+                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
+                    >
+                        New Game
+                    </button>
+                </div>
             </div>
 
             {error && (
@@ -146,15 +247,6 @@ export default function GamePage() {
                         </div>
                     </div>
                 ))}
-            </div>
-
-            <div className="text-center">
-                <button
-                    onClick={fetchNewGame}
-                    className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600"
-                >
-                    Start New Game
-                </button>
             </div>
 
             {selectedQuestion && (
