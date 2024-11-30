@@ -1,312 +1,223 @@
-import fs from 'fs'
-import path from 'path'
 import axios from 'axios'
-import { load } from 'cheerio'
+import * as cheerio from 'cheerio'
+import { writeFileSync } from 'fs'
+import path from 'path'
+import crypto from 'crypto'
+import { KnowledgeCategory } from '@prisma/client'
 
-interface CategoryPattern {
-    name: string;
-    keywords: string[];
-}
-
-interface CategoryPatterns {
-    [key: string]: CategoryPattern;
-}
-
-interface Question {
+interface JeopardyGame {
+    id: string;
     question: string;
     answer: string;
     value: number;
-    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-    airDate: string;
-    source: string;
+    category: string;
+    knowledgeCategory: KnowledgeCategory;
+    airDate?: string;
+    season?: number;
+    episodeId?: string;
 }
 
-interface Category {
-    name: string;
-    questions: Question[];
-}
-
-// Define our category patterns
-const CATEGORY_PATTERNS: CategoryPatterns = {
-    HISTORY: {
-        name: 'HISTORY',
-        keywords: ['war', 'president', 'king', 'queen', 'empire', 'revolution', 'dynasty', 'historical', 'reign', 'throne']
+// Knowledge category patterns for classification
+const KNOWLEDGE_PATTERNS = {
+    [KnowledgeCategory.GEOGRAPHY_AND_HISTORY]: {
+        keywords: [
+            'country', 'capital', 'city', 'river', 'mountain', 'ocean', 'continent', 'island', 'state',
+            'war', 'president', 'king', 'queen', 'empire', 'revolution', 'dynasty', 'historical',
+            'century', 'ancient', 'civilization', 'archaeology', 'explorer', 'conquest'
+        ]
     },
-    GEOGRAPHY: {
-        name: 'GEOGRAPHY',
-        keywords: ['country', 'capital', 'city', 'river', 'mountain', 'ocean', 'continent', 'island', 'state', 'region', 'peninsula']
+    [KnowledgeCategory.ENTERTAINMENT]: {
+        keywords: [
+            'movie', 'film', 'actor', 'actress', 'director', 'oscar', 'hollywood', 'tv', 'show',
+            'series', 'sitcom', 'music', 'song', 'singer', 'band', 'album', 'celebrity', 'star',
+            'performance', 'concert', 'theater', 'musical', 'television', 'radio'
+        ]
     },
-    SCIENCE: {
-        name: 'SCIENCE',
-        keywords: ['element', 'chemical', 'physics', 'biology', 'scientist', 'theory', 'atom', 'molecule', 'cell', 'discovery', 'experiment']
+    [KnowledgeCategory.ARTS_AND_LITERATURE]: {
+        keywords: [
+            'painting', 'artist', 'museum', 'sculpture', 'composer', 'symphony', 'ballet', 'dance',
+            'opera', 'gallery', 'author', 'novel', 'book', 'poet', 'writer', 'play', 'shakespeare',
+            'poem', 'literary', 'literature', 'art', 'painting', 'sculpture', 'architecture'
+        ]
     },
-    ARTS: {
-        name: 'ARTS & CULTURE',
-        keywords: ['painting', 'artist', 'museum', 'sculpture', 'composer', 'symphony', 'ballet', 'dance', 'opera', 'gallery', 'watercolor']
+    [KnowledgeCategory.SCIENCE_AND_NATURE]: {
+        keywords: [
+            'science', 'biology', 'chemistry', 'physics', 'astronomy', 'space', 'planet', 'star',
+            'galaxy', 'atom', 'molecule', 'element', 'animal', 'plant', 'species', 'environment',
+            'climate', 'weather', 'technology', 'computer', 'internet', 'invention', 'discovery'
+        ]
     },
-    ENTERTAINMENT: {
-        name: 'ENTERTAINMENT',
-        keywords: ['movie', 'film', 'actor', 'actress', 'director', 'oscar', 'hollywood', 'tv', 'show', 'series', 'sitcom']
-    },
-    LITERATURE: {
-        name: 'LITERATURE',
-        keywords: ['author', 'novel', 'book', 'poet', 'writer', 'play', 'shakespeare', 'poem', 'literary', 'published', 'story']
-    },
-    SPORTS: {
-        name: 'SPORTS',
-        keywords: ['team', 'player', 'game', 'championship', 'olympic', 'sport', 'athlete', 'league', 'tournament', 'winner', 'match']
-    },
-    BUSINESS: {
-        name: 'BUSINESS & ECONOMICS',
-        keywords: ['company', 'business', 'stock', 'market', 'ceo', 'corporation', 'industry', 'trade', 'economic', 'financial', 'price']
+    [KnowledgeCategory.SPORTS_AND_LEISURE]: {
+        keywords: [
+            'sport', 'game', 'team', 'player', 'athlete', 'championship', 'olympic', 'tournament',
+            'baseball', 'football', 'basketball', 'soccer', 'tennis', 'golf', 'hockey', 'racing',
+            'score', 'winner', 'medal', 'recreation', 'hobby', 'leisure'
+        ]
     }
 }
 
-function determineDifficulty(value: number): 'EASY' | 'MEDIUM' | 'HARD' {
-    if (value <= 400) return 'EASY'
-    if (value <= 800) return 'MEDIUM'
-    return 'HARD'
-}
-
-function categorizeQuestion(question: string, answer: string): string {
-    // Combine question and answer text for analysis
-    const text = `${question} ${answer}`.toLowerCase()
+function determineKnowledgeCategory(question: string, answer: string, categoryName: string): KnowledgeCategory {
+    const text = `${question} ${answer} ${categoryName}`.toLowerCase()
 
     // Score each category based on keyword matches
-    const scores = Object.entries(CATEGORY_PATTERNS).map(([key, pattern]) => {
+    const scores = Object.entries(KNOWLEDGE_PATTERNS).map(([category, pattern]) => {
         const score = pattern.keywords.reduce((count, keyword) => {
-            // Count how many times each keyword appears
-            const regex = new RegExp(keyword.toLowerCase(), 'g')
+            const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'g')
             const matches = text.match(regex)
             return count + (matches ? matches.length : 0)
         }, 0)
-        return { category: key, score }
+        return { category, score }
     })
 
-    // Sort by score and get the highest scoring category
+    // Sort by score
     scores.sort((a, b) => b.score - a.score)
 
-    // If no category has a score > 0, try additional patterns
-    if (scores[0].score === 0) {
-        // Check for dates which might indicate HISTORY
-        if (text.match(/\b(1[0-9]{3}|20[0-2][0-9])\b/) ||
-            text.includes('century') ||
-            text.includes('ancient') ||
-            text.includes('dynasty')) {
-            return 'HISTORY'
-        }
-
-        // Check for place names which might indicate GEOGRAPHY
-        if (text.match(/\b(north|south|east|west|new|san|los|las)\b/i) ||
-            text.includes('capital') ||
-            text.includes('city') ||
-            text.includes('country')) {
-            return 'GEOGRAPHY'
-        }
-
-        // Default to GENERAL category if no clear match
-        return 'GENERAL'
+    // If we have a clear winner with a score > 0, use it
+    if (scores[0].score > 0 && scores[0].score > (scores[1]?.score || 0)) {
+        return scores[0].category as KnowledgeCategory
     }
 
-    // Only return a category if it has a significantly higher score than the next best
-    const bestScore = scores[0].score
-    const nextBestScore = scores[1]?.score || 0
-
-    if (bestScore > nextBestScore) {
-        return scores[0].category
+    // Additional pattern matching for specific cases
+    if (text.match(/\b(1[0-9]{3}|20[0-2][0-9])\b/) ||
+        text.includes('century') || 
+        text.includes('ancient')) {
+        return KnowledgeCategory.GEOGRAPHY_AND_HISTORY
     }
 
-    // If scores are tied or very close, default to GENERAL
-    return 'GENERAL'
+    // Default to general knowledge
+    return KnowledgeCategory.GENERAL_KNOWLEDGE
 }
 
-async function fetchWithRetry(url: string, retries = 3): Promise<string> {
-    for (let i = 0; i < retries; i++) {
-        try {
-            const response = await axios.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-            })
-            return response.data
-        } catch (error) {
-            console.error(`Attempt ${i + 1} failed:`, error instanceof Error ? error.message : 'Unknown error')
-            if (i === retries - 1) throw error
-            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
+    const response = await axios.get(url)
+    const $ = cheerio.load(response.data)
+    const games: JeopardyGame[] = []
+
+    // Extract season and episode info from URL
+    const urlMatch = url.match(/game_id=(\d+)/)
+    const gameId = urlMatch ? urlMatch[1] : null
+    let season: number | undefined
+    let episodeId: string | undefined
+
+    if (gameId) {
+        if (gameId.length >= 3) {
+            season = parseInt(gameId.slice(0, -2))
+            const episode = parseInt(gameId.slice(-2))
+            episodeId = `S${season.toString().padStart(2, '0')}E${episode.toString().padStart(3, '0')}`
         }
     }
-    throw new Error('All retry attempts failed')
-}
 
-async function fetchGameIds(count = 50): Promise<string[]> {
-    const baseUrl = 'https://j-archive.com/showseason.php?season='
-    const gameIds = new Set<string>()
-    let season = 38 // Recent season
+    // Extract air date
+    const airDateText = $('.title').text()
+    const airDateMatch = airDateText.match(/aired\s+([A-Za-z]+\s+\d+,\s+\d{4})/)
+    const airDate = airDateMatch ? new Date(airDateMatch[1]).toISOString().split('T')[0] : undefined
 
-    while (gameIds.size < count && season > 0) {
-        try {
-            console.log(`Fetching games from season ${season}...`)
-            const html = await fetchWithRetry(`${baseUrl}${season}`)
-            const $ = load(html)
+    // Process both Jeopardy and Double Jeopardy rounds
+    $('#jeopardy_round, #double_jeopardy_round').each((_, round) => {
+        const $round = $(round)
 
-            $('a[href*="game_id="]').each((_, el) => {
-                const href = $(el).attr('href')
-                if (href) {
-                    const match = href.match(/game_id=(\d+)/)
-                    if (match && match[1]) {
-                        gameIds.add(match[1])
-                    }
-                }
-            })
-
-            console.log(`Found ${gameIds.size} games so far`)
-        } catch (error) {
-            console.error(`Error fetching season ${season}:`, error instanceof Error ? error.message : 'Unknown error')
-        }
-        season--
-        await new Promise(resolve => setTimeout(resolve, 1000))
-    }
-
-    return Array.from(gameIds).slice(0, count)
-}
-
-async function scrapeGame(gameId: string): Promise<Category[]> {
-    try {
-        console.log(`\nScraping game ${gameId}...`)
-        const url = `https://j-archive.com/showgame.php?game_id=${gameId}`
-        const html = await fetchWithRetry(url)
-        const $ = load(html)
-
-        // Initialize categories map
-        const categorizedQuestions = new Map<string, Question[]>()
-        Object.keys(CATEGORY_PATTERNS).concat(['GENERAL']).forEach(cat => {
-            categorizedQuestions.set(cat, [])
+        // Get categories for this round
+        const categories: string[] = []
+        $round.find('.category_name').each((_, el) => {
+            categories.push($(el).text().trim())
         })
 
-        // Find all clue text elements directly
-        $('td[id^="clue_"][class="clue_text"]').each((_, clueText) => {
-            const $clueText = $(clueText)
-            const clueId = $clueText.attr('id')
-            if (!clueId) return
+        // Process each category's clues
+        categories.forEach((category, colIndex) => {
+            // Find all clues in this category's column
+            $round.find(`td.clue:nth-child(${colIndex + 1})`).each((_, clueCell) => {
+                const $cell = $(clueCell)
 
-            // Get the question text (from the main clue element)
-            const question = $clueText.text().trim()
+                // Get the clue value
+                const valueText = $cell.find('.clue_value').text().trim()
+                const value = parseInt(valueText.replace(/[$,]/g, '')) || 200
 
-            // Get the answer text (from the _r element)
-            const answerId = `${clueId}_r`
-            const $answerElem = $(`#${answerId}`)
-            let answer = ''
+                // Get the clue text
+                const $clueText = $cell.find('.clue_text')
+                const question = $clueText.text().trim()
+                    .replace(/\\"/g, '"')
+                    .replace(/\\'/g, "'")
 
-            if ($answerElem.length) {
-                const correctResponseMatch = $answerElem.html()?.match(/<em class="correct_response">(.*?)<\/em>/i)
-                if (correctResponseMatch) {
-                    answer = correctResponseMatch[1]
-                        .replace(/<\/?[^>]+(>|$)/g, '')
-                        .replace(/&quot;/g, '"')
-                        .replace(/&amp;/g, '&')
-                        .replace(/&lt;/g, '<')
-                        .replace(/&gt;/g, '>')
-                        .trim()
+                // Get the answer from the mouseover element
+                const $answerText = $cell.find('.correct_response')
+                let answer = $answerText.text().trim()
+                    .replace(/\\"/g, '"')
+                    .replace(/\\'/g, "'")
+
+                // If no direct answer text, try to find it in the mouseover/click elements
+                if (!answer) {
+                    const mouseoverMatch = $cell.html()?.match(/<em class="correct_response">(.*?)<\/em>/i)
+                    if (mouseoverMatch) {
+                        answer = mouseoverMatch[1]
+                            .replace(/<\/?[^>]+(>|$)/g, '')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&amp;/g, '&')
+                            .replace(/&lt;/g, '<')
+                            .replace(/&gt;/g, '>')
+                            .trim()
+                    }
                 }
-            }
 
-            // Find the clue container to get the value
-            const $clueContainer = $clueText.closest('tr').prev().find('.clue_value')
-            const valueText = $clueContainer.text().trim()
-            const value = parseInt(valueText.replace(/[^0-9]/g, '')) || 200
-
-            if (question && answer) {
-                // Determine the category based on content
-                const category = categorizeQuestion(question, answer)
-                const questions = categorizedQuestions.get(category)
-                if (questions) {
-                    questions.push({
+                if (question && answer) {
+                    const knowledgeCategory = determineKnowledgeCategory(question, answer, category)
+                    games.push({
+                        id: crypto.randomUUID(),
                         question,
                         answer,
                         value,
-                        difficulty: determineDifficulty(value),
-                        airDate: new Date().toISOString(),
-                        source: 'j-archive'
+                        category,
+                        knowledgeCategory,
+                        airDate,
+                        season,
+                        episodeId
                     })
                 }
-            }
+            })
         })
+    })
 
-        // Convert to our desired format and filter categories with enough questions
-        const validCategories = Array.from(categorizedQuestions.entries())
-            .filter(([_, questions]) => questions.length >= 3)
-            .map(([category, questions]) => ({
-                name: CATEGORY_PATTERNS[category]?.name || category,
-                questions: questions.map(q => ({ ...q }))
-            }))
-
-        console.log(`\nFound ${validCategories.length} valid categories in game ${gameId}`)
-        return validCategories
-    } catch (error) {
-        console.error(`Error scraping game ${gameId}:`, error instanceof Error ? error.message : 'Unknown error')
-        return []
-    }
+    return games
 }
 
 async function main() {
-    const args = process.argv.slice(2)
-    const categoryCount = parseInt(args[0]) || 50
-    const outputPath = args[1] || path.join(__dirname, '../../data/jeopardy-data.json')
-
     try {
-        console.log('Fetching game IDs...')
-        const gameIds = await fetchGameIds(Math.ceil(categoryCount / 6))
-        console.log(`Found ${gameIds.length} games`)
+        const numGames = process.argv[2] ? parseInt(process.argv[2]) : 10
+        console.log(`Fetching ${numGames} games...`)
 
-        const allCategories: Category[] = []
+        const games: JeopardyGame[] = []
         let gamesProcessed = 0
+
+        // Generate game IDs (starting from a more recent season)
+        const startId = 7000 // More recent games
+        const gameIds = Array.from({ length: numGames }, (_, i) => (startId + i).toString())
 
         for (const gameId of gameIds) {
             console.log(`Processing game ${++gamesProcessed}/${gameIds.length} (ID: ${gameId})`)
-            const categories = await scrapeGame(gameId)
-            allCategories.push(...categories)
-
-            // Break if we have enough categories
-            if (allCategories.length >= categoryCount * 2) {
-                console.log('Reached sufficient category count for deduplication')
-                break
+            const url = `https://j-archive.com/showgame.php?game_id=${gameId}`
+            try {
+                const newGames = await scrapeJeopardyArchive(url)
+                console.log(`Found ${newGames.length} questions in game ${gameId}`)
+                games.push(...newGames)
+            } catch (error) {
+                console.error(`Error processing game ${gameId}:`, error)
+                continue
             }
 
-            await new Promise(resolve => setTimeout(resolve, 2000))
+            // Add a delay to be nice to the server
+            await new Promise(resolve => setTimeout(resolve, 1000))
         }
 
-        // Deduplicate questions across all categories
-        const seenQuestions = new Set<string>()
-        const deduplicatedCategories = allCategories.map(category => ({
-            name: category.name,
-            questions: category.questions.filter(q => {
-                const key = `${q.question}|${q.answer}`
-                if (seenQuestions.has(key)) return false
-                seenQuestions.add(key)
-                return true
-            })
-        }))
-            .filter(cat => cat.questions.length >= 3)
+        // Save to file
+        const outputPath = path.join(__dirname, '../../data/jeopardy_questions.json')
+        writeFileSync(outputPath, JSON.stringify(games, null, 2))
+        console.log(`\nSaved ${games.length} questions to ${outputPath}`)
 
-        // Create directory if it doesn't exist
-        const dir = path.dirname(outputPath)
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true })
-        }
-
-        // Save only the requested number of categories, ensuring no duplicates
-        const uniqueCategories = Array.from(new Map(
-            deduplicatedCategories.map(cat => [cat.name, cat])
-        ).values())
-        const finalData = uniqueCategories.slice(0, categoryCount)
-
-        fs.writeFileSync(outputPath, JSON.stringify(finalData, null, 2))
-        console.log(`Successfully saved ${finalData.length} categories to ${outputPath}`)
     } catch (error) {
-        console.error('Error:', error instanceof Error ? error.message : 'Unknown error')
+        console.error('Error:', error)
+        process.exit(1)
     }
 }
 
 if (require.main === module) {
-    main()
+    main().catch(console.error)
 } 

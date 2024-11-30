@@ -121,32 +121,49 @@ export default function FreePractice() {
 
     return (
         <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold text-black mb-8">Free Play Mode</h1>
+            <div className="flex justify-between items-center mb-8">
+                <h1 className="text-2xl font-bold text-black">Free Play Mode</h1>
+                <button
+                    onClick={handleGlobalShuffle}
+                    className="p-2 text-purple-600 hover:text-purple-800 transition-colors flex items-center gap-2"
+                    title="Shuffle Random Question"
+                >
+                    <svg
+                        className="w-6 h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+                        />
+                    </svg>
+                    <span className="text-sm font-medium">Shuffle</span>
+                </button>
+            </div>
 
             {!selectedCategory ? (
-                <div className="space-y-8">
-                    <div className="text-center">
-                        <button
-                            onClick={handleGlobalShuffle}
-                            className="bg-purple-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-purple-700 transition-colors mb-8"
-                        >
-                            Shuffle Random Question from Any Category
-                        </button>
-                    </div>
-
-                    <div className="space-y-4">
-                        <h2 className="text-lg font-semibold text-black">Or Select a Category</h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                            {categories.map((category) => (
-                                <button
-                                    key={category.id}
-                                    onClick={() => handleCategorySelect(category.id)}
-                                    className="p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                >
-                                    {category.name}
-                                </button>
-                            ))}
-                        </div>
+                <div className="space-y-4">
+                    <h2 className="text-lg font-semibold text-black">Select a Category</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        {categories.map((category) => (
+                            <button
+                                key={category.id}
+                                onClick={() => handleCategorySelect(category.id)}
+                                className="p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                {category.name}
+                            </button>
+                        ))}
                     </div>
                 </div>
             ) : !selectedQuestion ? (

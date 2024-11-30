@@ -1,144 +1,99 @@
-'use server'
-
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, KnowledgeCategory } from '@prisma/client'
+import { readFileSync } from 'fs'
 import path from 'path'
-import fs from 'fs'
-
-interface Question {
-    question: string;
-    answer: string;
-    value: number;
-    difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-    airDate: string;
-    source: string;
-}
-
-interface Category {
-    name: string;
-    questions: Question[];
-}
+import crypto from 'crypto'
 
 const prisma = new PrismaClient()
 
-// Sample data as fallback
-const sampleCategories: Category[] = [
-    {
-        name: "SCIENCE & NATURE",
-        questions: [
-            {
-                question: "This element's atomic number 79 & symbol Au comes from the Latin word for 'shining dawn'",
-                answer: "Gold",
-                value: 400,
-                difficulty: "MEDIUM",
-                airDate: new Date().toISOString(),
-                source: "sample_data"
-            },
-            {
-                question: "The speed of light is approximately 186,282 of these units per second",
-                answer: "Miles",
-                value: 600,
-                difficulty: "MEDIUM",
-                airDate: new Date().toISOString(),
-                source: "sample_data"
-            }
-        ]
-    },
-    {
-        name: "BUSINESS & FINANCE",
-        questions: [
-            {
-                question: "This fruit-named tech company became the first U.S. company to reach a $1 trillion market cap",
-                answer: "Apple",
-                value: 800,
-                difficulty: "HARD",
-                airDate: new Date().toISOString(),
-                source: "sample_data"
-            },
-            {
-                question: "TSLA is the stock symbol for this electric car company",
-                answer: "Tesla",
-                value: 400,
-                difficulty: "EASY",
-                airDate: new Date().toISOString(),
-                source: "sample_data"
-            }
-        ]
-    },
-    {
-        name: "GEOGRAPHY",
-        questions: [
-            {
-                question: "The United Kingdom consists of Great Britain & this island to its west",
-                answer: "Ireland",
-                value: 200,
-                difficulty: "EASY",
-                airDate: new Date().toISOString(),
-                source: "sample_data"
-            },
-            {
-                question: "This city, nicknamed the 'Pearl of the Orient,' is China's largest",
-                answer: "Shanghai",
-                value: 600,
-                difficulty: "MEDIUM",
-                airDate: new Date().toISOString(),
-                source: "sample_data"
-            }
-        ]
-    }
-]
+interface JeopardyQuestion {
+    id: string;
+    question: string;
+    answer: string;
+    value: number;
+    category: string;
+    knowledgeCategory: KnowledgeCategory;
+    airDate?: string;
+    season?: number;
+    episodeId?: string;
+}
+
+function determineDifficulty(value: number): 'EASY' | 'MEDIUM' | 'HARD' {
+    if (value <= 200) return 'EASY'
+    if (value <= 600) return 'MEDIUM'
+    return 'HARD'
+}
 
 async function main() {
     try {
-        console.log('Starting database initialization...')
-
         // Clear existing data
-        await prisma.gameHistory.deleteMany()
-        await prisma.userProgress.deleteMany()
-        await prisma.question.deleteMany()
-        await prisma.category.deleteMany()
-        console.log('Cleared existing data')
+        console.log('Clearing existing data...')
+        await prisma.gameQuestion.deleteMany({})
+        await prisma.game.deleteMany({})
+        await prisma.userProgress.deleteMany({})
+        await prisma.gameHistory.deleteMany({})
+        await prisma.question.deleteMany({})
+        await prisma.category.deleteMany({})
+        await prisma.tag.deleteMany({})
 
-        // Load Jeopardy data
-        const dataPath = path.join(__dirname, '../../data/jeopardy-data.json')
-        let categories: Category[] = []
+        // Read the scraped data
+        const dataPath = path.join(__dirname, '../../data/jeopardy_questions.json')
+        const rawData = readFileSync(dataPath, 'utf-8')
+        const questions: JeopardyQuestion[] = JSON.parse(rawData)
 
-        if (fs.existsSync(dataPath)) {
-            console.log('Loading Jeopardy data...')
-            const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'))
-            categories = data
-        } else {
-            console.log('No Jeopardy data found, using sample data')
-            categories = sampleCategories
-        }
+        console.log(`Initializing database with ${questions.length} questions...`)
 
-        // Create categories and questions
-        for (const cat of categories) {
-            const category = await prisma.category.create({
-                data: {
-                    name: cat.name,
-                    questions: {
-                        create: cat.questions.map(q => ({
-                            question: q.question,
-                            answer: q.answer,
-                            value: q.value,
-                            difficulty: q.difficulty,
-                            source: q.source,
-                            airDate: q.airDate ? new Date(q.airDate) : null
-                        }))
-                    }
+        // Group questions by category
+        const categoriesMap = new Map<string, JeopardyQuestion[]>()
+        questions.forEach(q => {
+            const existing = categoriesMap.get(q.category) || []
+            existing.push(q)
+            categoriesMap.set(q.category, existing)
+        })
+
+        // Process each category
+        for (const [categoryName, categoryQuestions] of categoriesMap) {
+            console.log(`Processing category: ${categoryName}`)
+
+            // Create or update category
+            const category = await prisma.category.upsert({
+                where: {
+                    name: categoryName
+                },
+                update: {},
+                create: {
+                    id: crypto.randomUUID(),
+                    name: categoryName
                 }
             })
-            console.log(`Created category: ${category.name} with ${cat.questions.length} questions`)
+
+            // Add questions for this category
+            for (const q of categoryQuestions) {
+                await prisma.question.create({
+                    data: {
+                        id: q.id,
+                        question: q.question,
+                        answer: q.answer,
+                        value: q.value,
+                        categoryId: category.id,
+                        knowledgeCategory: q.knowledgeCategory || KnowledgeCategory.GENERAL_KNOWLEDGE,
+                        difficulty: determineDifficulty(q.value),
+                        airDate: q.airDate ? new Date(q.airDate) : null,
+                        season: q.season || null,
+                        episodeId: q.episodeId || null
+                    }
+                })
+            }
         }
 
-        console.log('Database initialization completed successfully')
+        console.log('Database initialization complete!')
     } catch (error) {
-        console.error('Error initializing database:', error instanceof Error ? error.message : 'Unknown error')
-    } finally {
-        await prisma.$disconnect()
+        console.error('Error initializing database:', error)
+        process.exit(1)
     }
 }
 
-if (require.main === module) {
-    main()
-} 
+main()
+    .catch(console.error)
+    .finally(async () => {
+        await prisma.$disconnect()
+    }) 
