@@ -11,6 +11,7 @@ type StoredGameState = {
     categories: GameCategory[]
     answeredQuestions: string[]
     totalScore: number
+    questionResults: Record<string, { correct: boolean, revealed: boolean }>
     timestamp: number
 }
 
@@ -33,6 +34,7 @@ export default function GamePage() {
     const [totalScore, setTotalScore] = useState(0)
     const [loading, setLoading] = useState(true)
     const [hasActiveGame, setHasActiveGame] = useState(false)
+    const [questionResults, setQuestionResults] = useState<Record<string, { correct: boolean, revealed: boolean }>>({})
 
     // Load game state from local storage
     const loadGameState = () => {
@@ -45,6 +47,7 @@ export default function GamePage() {
                     setCategories(state.categories)
                     setAnsweredQuestions(new Set(state.answeredQuestions))
                     setTotalScore(state.totalScore)
+                    setQuestionResults(state.questionResults || {})
                     setHasActiveGame(true)
                     return true
                 } else {
@@ -64,6 +67,7 @@ export default function GamePage() {
             categories,
             answeredQuestions: Array.from(answeredQuestions),
             totalScore,
+            questionResults,
             timestamp: Date.now()
         }
         localStorage.setItem('gameState', JSON.stringify(state))
@@ -118,7 +122,6 @@ export default function GamePage() {
     }, [categories, answeredQuestions, totalScore, hasActiveGame])
 
     const handleQuestionClick = (question: any) => {
-        if (answeredQuestions.has(question.id)) return
         setSelectedQuestion(question)
         setUserAnswer('')
         setIsAnswerRevealed(false)
@@ -127,9 +130,27 @@ export default function GamePage() {
         setShowingAnswer(false)
     }
 
+    const handleShowAnswer = () => {
+        if (!selectedQuestion || !user?.id) return
+        setShowingAnswer(true)
+        setIsAnswerRevealed(true)
+        setIsCorrect(null)
+
+        // Update question results
+        setQuestionResults(prev => ({
+            ...prev,
+            [selectedQuestion.id]: { correct: false, revealed: true }
+        }))
+
+        // Save to game history
+        if (user?.id) {
+            saveGameHistory(user.id, selectedQuestion.id, false, 0).catch(console.error)
+        }
+    }
+
     const handleSubmitAnswer = async () => {
         if (!selectedQuestion || !user?.id) {
-            setError('Something went wrong. Please try again.')
+            setError('You must be signed in to submit answers')
             return
         }
 
@@ -145,6 +166,12 @@ export default function GamePage() {
                 setTotalScore(prev => prev + selectedQuestion.value)
             }
 
+            // Update question results
+            setQuestionResults(prev => ({
+                ...prev,
+                [selectedQuestion.id]: { correct: result, revealed: true }
+            }))
+
             // Save the result
             const saveResult = await saveGameHistory(
                 user.id,
@@ -155,20 +182,13 @@ export default function GamePage() {
 
             if (saveResult.success) {
                 setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
+            } else {
+                console.error('Failed to save game history')
             }
         } catch (error) {
             console.error('Error processing answer:', error)
+            setError('Failed to save your answer. Please try again.')
         }
-    }
-
-    const handleShowAnswer = () => {
-        if (!selectedQuestion || !user?.id) return
-        setShowingAnswer(true)
-        setIsAnswerRevealed(true)
-        setIsCorrect(null)
-        setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
-        // Save the answer as incorrect when showing answer
-        saveGameHistory(user.id, selectedQuestion.id, false, 0).catch(console.error)
     }
 
     const handleContinue = () => {
@@ -193,7 +213,7 @@ export default function GamePage() {
         return (
             <div className="container mx-auto p-4">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold text-black dark:text-white mb-8">Welcome to Jeopardy!</h1>
+                    <h1 className="text-2xl font-bold text-black mb-8">Welcome to Jeopardy!</h1>
                     <button
                         onClick={startNewGame}
                         className="bg-blue-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-blue-700 transition-colors"
@@ -208,9 +228,9 @@ export default function GamePage() {
     return (
         <div className="container mx-auto p-4">
             <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold text-black dark:text-white">Jeopardy Game</h1>
+                <h1 className="text-2xl font-bold text-black">Jeopardy Game</h1>
                 <div className="flex items-center gap-4">
-                    <div className="text-xl text-black dark:text-white">Score: ${totalScore}</div>
+                    <div className="text-xl font-semibold text-black">Score: ${totalScore}</div>
                     <button
                         onClick={clearGameState}
                         className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors"
@@ -229,21 +249,33 @@ export default function GamePage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
                 {categories.map((category) => (
                     <div key={category.id} className="text-center">
-                        <h2 className="font-bold mb-2 text-blue-600">{category.name}</h2>
+                        <h2 className="font-bold mb-2 text-black">{category.name}</h2>
                         <div className="space-y-2">
-                            {category.questions.map((question) => (
-                                <button
-                                    key={question.id}
-                                    onClick={() => handleQuestionClick(question)}
-                                    className={`w-full p-2 ${answeredQuestions.has(question.id)
-                                            ? 'bg-gray-300 cursor-not-allowed opacity-50'
-                                            : 'bg-blue-500 hover:bg-blue-600'
-                                        } text-white rounded`}
-                                    disabled={answeredQuestions.has(question.id)}
-                                >
-                                    ${question.value}
-                                </button>
-                            ))}
+                            {category.questions.map((question) => {
+                                const result = questionResults[question.id]
+                                const isAnswered = result?.revealed
+                                const isCorrect = result?.correct
+
+                                return (
+                                    <button
+                                        key={question.id}
+                                        onClick={() => handleQuestionClick(question)}
+                                        className={`w-full p-2 ${isAnswered
+                                                ? isCorrect
+                                                    ? 'bg-green-600 hover:bg-green-700'
+                                                    : 'bg-red-600 hover:bg-red-700'
+                                                : 'bg-blue-600 hover:bg-blue-700'
+                                            } text-white rounded relative`}
+                                    >
+                                        ${question.value}
+                                        {isAnswered && (
+                                            <span className="absolute top-1 right-1 text-xs">
+                                                {isCorrect ? '✓' : '✗'}
+                                            </span>
+                                        )}
+                                    </button>
+                                )
+                            })}
                         </div>
                     </div>
                 ))}
@@ -251,7 +283,17 @@ export default function GamePage() {
 
             {selectedQuestion && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-lg p-8 max-w-2xl w-full">
+                    <div className="bg-white rounded-lg p-8 max-w-2xl w-full relative">
+                        <button
+                            onClick={() => setSelectedQuestion(null)}
+                            className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
+                            aria-label="Close"
+                        >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+
                         <h3 className="text-xl font-bold mb-4 text-black">
                             {selectedQuestion.category} - ${selectedQuestion.value}
                         </h3>
