@@ -1,6 +1,11 @@
+'use client'
+
 import Link from 'next/link'
+import { useAuth } from './lib/auth'
 
 export default function Home() {
+  const { user, loading } = useAuth()
+
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
@@ -43,12 +48,15 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="mt-16 text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Track Your Progress</h2>
-          <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-500">
-            Sign in to track your progress, see statistics, and get personalized category recommendations based on your performance.
-          </p>
-        </div>
+        {/* Only render this section after loading is complete and user is not logged in */}
+        {!loading && !user && (
+          <div className="mt-16 text-center opacity-0 animate-fade-in">
+            <h2 className="text-2xl font-bold text-gray-900">Track Your Progress</h2>
+            <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-500">
+              Sign in to track your progress, see statistics, and get personalized category recommendations based on your performance.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

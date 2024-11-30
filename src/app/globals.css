@@ -14,8 +14,86 @@
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  body {
+    @apply min-h-screen m-0 p-0 text-foreground bg-background font-sans;
+    }
+    }
+    
+    @layer components {
+      .game-grid {
+        @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4 max-w-7xl mx-auto;
+      }
+    
+      .category-card {
+        @apply bg-secondary rounded-lg p-4 text-center transform transition-transform hover:-translate-y-0.5 cursor-pointer;
+      }
+    
+      .question-card {
+        @apply bg-primary text-white rounded-lg p-6 m-4 text-center max-w-2xl w-full shadow-md;
+      }
+    
+      .answer-input {
+        @apply w-full p-2 my-4 border-2 border-secondary rounded bg-background text-foreground;
+      }
+    
+      .button {
+        @apply bg-primary text-white border-none rounded px-4 py-2 cursor-pointer text-base transition-colors hover:bg-primary-dark disabled:bg-secondary disabled:cursor-not-allowed;
+      }
+    
+      .correct {
+        @apply text-success font-bold;
+      }
+    
+      .incorrect {
+        @apply text-error font-bold;
+      }
+    
+      .stats {
+        @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 p-4 max-w-3xl mx-auto;
+      }
+    
+      .stat-card {
+        @apply bg-secondary rounded-lg p-4 text-center;
+      }
+    
+      .stat-value {
+        @apply text-4xl font-bold text-primary;
+      }
+    
+      .header {
+        @apply flex justify-between items-center p-4 bg-secondary mb-4;
+      }
+    
+      .nav-link {
+        @apply text-primary no-underline p-2 rounded transition-colors hover:bg-secondary;
+      }
+    
+      .container {
+        @apply max-w-7xl mx-auto p-4;
+      }
+    
+      .autocomplete {
+        @apply relative w-full;
+      }
+    
+      .suggestions {
+        @apply absolute top-full left-0 right-0 bg-background border border-secondary rounded max-h-48 overflow-y-auto z-10;
+      }
+    
+      .suggestion {
+        @apply p-2 cursor-pointer hover:bg-secondary;
+      }
+    
+      .practice-mode {
+        @apply flex flex-col items-center gap-4 p-4;
+      }
+    
+      .score {
+        @apply text-2xl font-bold text-primary;
+      }
+    
+      .feedback {
+        @apply mt-4 font-bold;
+      }
 }

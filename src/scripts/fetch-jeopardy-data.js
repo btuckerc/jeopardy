@@ -297,24 +297,35 @@ async function main() {
         const gameIds = await fetchGameIds(Math.ceil(categoryCount / 6))
         console.log(`Found ${gameIds.length} games`)
 
-        const processedData = []
+        const allCategories = []
         let gamesProcessed = 0
 
         for (const gameId of gameIds) {
             console.log(`Processing game ${++gamesProcessed}/${gameIds.length} (ID: ${gameId})`)
             const categories = await scrapeGame(gameId)
-            processedData.push(...categories)
-
-            console.log(`Total categories collected: ${processedData.length}`)
+            allCategories.push(...categories)
 
             // Break if we have enough categories
-            if (processedData.length >= categoryCount) {
-                console.log('Reached desired category count')
+            if (allCategories.length >= categoryCount * 2) {
+                console.log('Reached sufficient category count for deduplication')
                 break
             }
 
             await new Promise(resolve => setTimeout(resolve, 2000))
         }
+
+        // Deduplicate questions across all categories
+        const seenQuestions = new Set()
+        const deduplicatedCategories = allCategories.map(category => ({
+            name: category.name,
+            questions: category.questions.filter(q => {
+                const key = `${q.question}|${q.answer}`
+                if (seenQuestions.has(key)) return false
+                seenQuestions.add(key)
+                return true
+            })
+        }))
+            .filter(cat => cat.questions.length >= 3)
 
         // Create directory if it doesn't exist
         const dir = path.dirname(outputPath)
@@ -322,8 +333,12 @@ async function main() {
             fs.mkdirSync(dir, { recursive: true })
         }
 
-        // Save only the requested number of categories
-        const finalData = processedData.slice(0, categoryCount)
+        // Save only the requested number of categories, ensuring no duplicates
+        const uniqueCategories = Array.from(new Map(
+            deduplicatedCategories.map(cat => [cat.name, cat])
+        ).values())
+        const finalData = uniqueCategories.slice(0, categoryCount)
+
         fs.writeFileSync(outputPath, JSON.stringify(finalData, null, 2))
         console.log(`Successfully saved ${finalData.length} categories to ${outputPath}`)
     } catch (error) {

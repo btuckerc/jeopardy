@@ -35,6 +35,7 @@ export default function GamePage() {
             setAnsweredQuestions(new Set())
             setTotalScore(0)
             setError(null)
+            window.scrollTo({ top: 0, behavior: 'smooth' })
         } catch (error) {
             console.error('Error fetching categories:', error)
             setError('Failed to load categories')
@@ -112,10 +113,10 @@ export default function GamePage() {
     const gridCols = Math.min(5, categories.length)
 
     return (
-        <div className="container mx-auto p-4">
+        <div className="container mx-auto p-4 text-black dark:text-white">
             <div className="flex justify-between items-center mb-4">
-                <h1 className="text-2xl font-bold">Jeopardy Game</h1>
-                <div className="text-xl">Score: ${totalScore}</div>
+                <h1 className="text-2xl font-bold text-black dark:text-white">Jeopardy Game</h1>
+                <div className="text-xl text-black dark:text-white">Score: ${totalScore}</div>
             </div>
 
             {error && (
@@ -124,7 +125,7 @@ export default function GamePage() {
                 </div>
             )}
 
-            <div className={`grid grid-cols-${gridCols} gap-4 mb-8`}>
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
                 {categories.map((category) => (
                     <div key={category.id} className="text-center">
                         <h2 className="font-bold mb-2 text-blue-600">{category.name}</h2>
@@ -172,6 +173,11 @@ export default function GamePage() {
                                         type="text"
                                         value={userAnswer}
                                         onChange={(e) => setUserAnswer(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                handleSubmitAnswer();
+                                            }
+                                        }}
                                         className="w-full p-2 pl-24 border rounded text-black"
                                         placeholder="your answer..."
                                     />

@@ -3,3866 +3,11 @@
     "name": "HISTORY",
     "questions": [
       {
-        "question": "In 2022 this Florida governor signed a bill ending Disney World's special district status",
-        "answer": "DeSantis",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.166Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 2015 he said the health care program he began as governor of Massachusetts was the forerunner of Obamacare",
-        "answer": "Mitt Romney",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.173Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "She was born in Lansing, where she was sworn in as governor on Jan. 1, 2019",
-        "answer": "(Gretchen) Whitmer",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.185Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"The Devil in Iron\" & \"The Slithering Shadow\" are stories featuring this barbarian created by Robert E. Howard",
-        "answer": "Conan",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.192Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"King of Theory\"",
-        "answer": "King of Queens & The Big Bang Theory",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.193Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A chef of great skill, or the famed cooking school in Paris where Julia Child trained, the only woman in her class",
-        "answer": "Cordon Bleu",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.197Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In January 1536 this royal gave birth to a stillborn male child; by May she was deceased",
-        "answer": "Anne Boleyn",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.201Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "There's a synonym for a fisher in the title of this, Izaak Walton's classic 17th century treatise on fishing",
-        "answer": "The Compleat Angler",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.216Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GEOGRAPHY",
-    "questions": [
-      {
-        "question": "Michigan is all about peninsulas; the Old Mission & the Leelanau are sub-peninsulas of this one that takes up most of the state",
-        "answer": "the Lower Peninsula",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.157Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Since 1973 4 governors of this Midwest state have done time in prison, including George Ryan & Rod Blagojevich",
-        "answer": "Illinois",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.159Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The headquarters of the U.S. Pacific fleet has been on this island since February 1941",
-        "answer": "Oahu",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.172Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Take in different flavors of this island by reading some Pirandello as you eat glorious food in its capital of Palermo",
-        "answer": "Sicily",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.178Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "55 mi. from Siberia, the westernmost point of the North American continent is on this peninsula named for a man big in Alaskan history",
-        "answer": "the Seward Peninsula",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.184Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Agrarian reforms in this country beginning in 1915 involved the turnover of lands from haciendas to ejidos",
-        "answer": "Mexico",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.190Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Dido was the legendary founder of this Phoenician city-state later ruled by the Romans & Vandals",
-        "answer": "Carthage",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.207Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Spin Mr. Cooper\"",
-        "answer": "Spin City & Hangin' with Mr. Cooper",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.210Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Caroline in the Boat\"",
-        "answer": "Caroline in the City & Fresh Off the Boat",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.215Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "ARTS & CULTURE",
-    "questions": [
-      {
-        "question": "OPEX stands for these, the ongoing costs of running a business",
-        "answer": "operational expenses (operating expenses)",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.180Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "What's so surreal about this artist's watercolor of the \"Day of the Virgin\" is that it's not surreal",
-        "answer": "Dalí",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.205Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Works from seminal Aboriginal artist Albert Namatjira were celebrated in 2002 by the National Gallery in this capital",
-        "answer": "Canberra",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.211Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "ENTERTAINMENT",
-    "questions": [
-      {
-        "question": "It was Brian de Palma who suggested that this director add the now-iconic opening crawl to \"Star Wars\" to give the film's context",
-        "answer": "George Lucas",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.162Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The animators counted: In this film Carl Fredricksen's house floats thanks to 10,297 balloons",
-        "answer": "Up",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.169Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To portray the \"spice\" on Arrakis, the sound designers on this 2021 sci-fi film sprinkled sand with Rice Krispies",
-        "answer": "Dune",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.175Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This movie starring Alicia Silverstone as Cher Horowitz was inspired by Jane Austen's \"Emma\"",
-        "answer": "Clueless",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.181Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Also done by movie directors, it's the act of swinging a fishing rod to throw out a lure",
-        "answer": "casting",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.195Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "SPORTS",
-    "questions": [
-      {
-        "question": "Take the L out of a beer league sport (in an alley) & you get an act of showing respect",
-        "answer": "bowing & bowling",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.163Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Take the L out of a beer league sport (on ice) & you get an act of healing a disease",
-        "answer": "curling & curing",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.170Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This popular sport fish gets its name from its pink, blue, green & yellow coloring",
-        "answer": "a rainbow trout",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.212Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "BUSINESS & ECONOMICS",
-    "questions": [
-      {
-        "question": "The way sales of a product change in relation to its price is its P.E.D., or price elasticity of this",
-        "answer": "demand",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.168Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A company's profits divided by its outstanding units of stock are its E.P.S., this",
-        "answer": "earnings per share",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.186Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A statue of a speakers' wagon stands in this Chicago square to commemorate the 1886 riot that occurred there",
-        "answer": "Haymarket Square",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.213Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GENERAL",
-    "questions": [
-      {
-        "question": "Getting a car loan? Check that APR, this",
-        "answer": "annual percentage rate",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.161Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "With a pillow & mattress made from this \"spring-back\" foam; perhaps you recall that engineer Charles Yost invented it",
-        "answer": "memory foam",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.164Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Sunny destinations on this peninsula include Tulum, Playa del Carmen & of course, Cancun",
-        "answer": "the Yucatán",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.165Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The pineal gland in my brain is secreting the right amount of this hormone that's also an antioxidant, so just fine",
-        "answer": "melatonin",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.171Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Made up of a bundle of home loans, an MBS is a this-backed security",
-        "answer": "mortgage",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.174Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The sticker identifying the contents of a bottle drops an L to be a doomed man in the Bible",
-        "answer": "label & Abel",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.176Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Better now that I've got these window coverings that sound like they simulate a power outage to stop all light from coming in",
-        "answer": "blackout curtains",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.177Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1994 Angus King ran as an independent & won the governorship of this state, defeating Susan Collins",
-        "answer": "Maine",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.179Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Another term for a merry-go-round loses an L to go party & get its drink on in a big way",
-        "answer": "carousel & carouse",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.182Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Really well after a hot bath infused with the essential oil of this fragrant purple flower, a noted natural sleep aid",
-        "answer": "lavender",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.183Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "John McCain had a cameo as an invited guest in this Vince Vaughn/Owen Wilson comedy",
-        "answer": "Wedding Crashers",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.187Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A word describing mild weather mildly drops an L to become a major part of concrete",
-        "answer": "clement & cement",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.187Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Like millions of other Americans with the mask known by this 4-letter name to combat my sleep apnea",
-        "answer": "a CPAP",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.189Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The best of the best, also repetitive in French",
-        "answer": "crème de la crème",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.191Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Gustave Moreau's watercolor of this Queen of the Nile is perfect for Caesar's Palace",
-        "answer": "Cleopatra",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.194Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 2001 55-year-old Birendra Bir Bikram Shah Dev, this country's king, was assassinated in Kathmandu by his own son",
-        "answer": "Nepal",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.196Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Will & Greg\"",
-        "answer": "Will & Grace & Dharma & Greg",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.199Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "She not only provided the story for creations like Benjamin Bunny, but also vivid watercolors",
-        "answer": "Beatrix Potter",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.200Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This word for a small float on a fishing line describes its up-&-down motion in the water",
-        "answer": "a bob (a bobber)",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:14.201Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The kid isn't really escaping from the picture frame; it's this style, meant to fool the eye",
-        "answer": "trompe-l'œil",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.203Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "She's the heroine of \"Wuthering Heights\" & Alex Trebek loved to imitate Laurence Olivier repeating her name",
-        "answer": "Catherine (Earnshaw)",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:14.203Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Father Knows Geeks\"",
-        "answer": "Father Knows Best & Freaks and Geeks",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.204Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Going this type of fishing? Don't forget your auger & your slush scoop",
-        "answer": "ice fishing",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.206Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Full discretionary power or freedom, like being handed a blank paper",
-        "answer": "carte blanche",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.207Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A passionate plea, it literally translates as \"cry of the heart\"",
-        "answer": "cri de coeur",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.213Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Members of this family in works by William Faulkner include Benjy, Quentin & Caddy",
-        "answer": "the Compsons",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.214Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Van Gogh lived in the \"Yellow House\" with Gauguin in this French city, where his output included watercolors",
-        "answer": "Arles",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:14.215Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "HISTORY",
-    "questions": [
-      {
-        "question": "For issue 1 in 1982, as many a front page had Lebanon's pres. getting blown up, USA Today led with the death of this princess from Philly",
-        "answer": "Princess Grace of Monaco (Grace Kelly)",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.367Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The New York times (\"The Gray Lady\") remarked on USA Today's \"brazen\" use of this, in all 4 sections from July 2, 1984",
-        "answer": "color",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.377Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 2020 Taylor Swift had a No. 1 song named for this clothing item",
-        "answer": "a cardigan",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.382Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Stories by USA Today's Christine Brennan helped get this golf club to admit its first female members in 2012",
-        "answer": "Augusta",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.383Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1837 William Fothergill Cooke & Charles Wheatstone got a patent on this communications system using wires & needle pointers",
-        "answer": "the telegraph",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.386Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This warm current flows northeast & roughly parallel along the southern U.S. Atlantic coast",
-        "answer": "the Gulf Stream",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.389Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This West Virginia town was still part of regular Virginia when its arsenal was overrun on Oct. 16, 1859",
-        "answer": "Harpers Ferry",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.390Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A mass trial in 1813 resulted in many hangings for these machine-smashing foes of the changes the Industrial Revolution brought",
-        "answer": "the Luddites",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.391Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "USA Today's Leslie Cauley wrote about this agency storing Americans' phone records before Edward Snowden worked there",
-        "answer": "the NSA",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.394Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "On July 4, 1862 he picnicked with Alice Liddell & her sisters, so it could have been \"Edith\" or \"Lorina in Wonderland\"",
-        "answer": "Charles Dodgson (or Lewis Carroll)",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.396Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Bell Hooks inspired her great-granddaughter Gloria, so Gloria took Bell's name professionally, making this change",
-        "answer": "spelled her name in lowercase",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.405Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "2nd century B.C. efforts by Syrian King Antiochus IV to suppress Judaism led to a revolt by this family, including Judah",
-        "answer": "the Maccabees",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.406Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Reigning for 50 years in the 19th century, Pōmare IV was queen of this Polynesian island, resisting European influences there",
-        "answer": "Tahiti",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.411Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Looking Glass: \"You're a fine girl, what a good wife you would be\"",
-        "answer": "\"Brandy\"",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.414Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In the late 1500s, Henry IV of France converted to Catholicism to help unify his nation, & ruled as the first of this dynasty",
-        "answer": "the Bourbons",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.416Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In mythology this Trojan warrior was second only to Hector in bravery",
-        "answer": "Aeneas",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.418Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Simon & Garfunkel: \"You're breaking my heart, you're shaking my confidence daily\"",
-        "answer": "\"Cecilia\"",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.419Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GEOGRAPHY",
-    "questions": [
-      {
-        "question": "Marc Brunel's tunneling shield solved the problem of tunneling underwater, first used under this river in London",
-        "answer": "the Thames",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.364Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "These wide-legged pants resemble those worn by South American cowboys, hence their name",
-        "answer": "gaucho pants",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.366Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "West Virginia's motto is \"Montani Semper Liberi\", translated as these people \"Are Always Free\"",
-        "answer": "Mountaineers",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.379Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Ottoman sultan Murad IV is known for restoring order to his lawless realm & for reconquering this Iraqi city then held by the Persians",
-        "answer": "Baghdad",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.402Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "LITERATURE",
-    "questions": [
-      {
-        "question": "In 1986 USA Today became the youngest publication parodied by this Harvard mag, including a story on sending Qaddafi thousands of pizzas",
-        "answer": "the Lampoon",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.388Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Charleston's Intl. Airport is named for this test pilot, a West Virginian who sounded off & made history in 1947",
-        "answer": "(Chuck) Yeager",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.395Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Asked whether she'd call \"A Wrinkle in Time\" science fiction or fantasy, this author suggested \"science fantasy\"",
-        "answer": "Madeleine L'Engle",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.410Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This author of visionary sci-fi tales like \"The Minority Report\" could turn out 120 words a minute on a manual typewriter",
-        "answer": "Philip K. Dick",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.415Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GENERAL",
-    "questions": [
-      {
-        "question": "Fans of the Green Bay Packers have this nickname, after an unusual hat",
-        "answer": "Cheeseheads",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.365Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A sturdy piece of timber, or a ray of sunshine",
-        "answer": "beam",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.369Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This office building in Virginia has nearly 18 miles of corridors but you can walk between any 2 points of it in about 7 minutes",
-        "answer": "the Pentagon",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.370Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The invention known as the spinning Jenny turned wool or cotton into this 4-letter product",
-        "answer": "yarn",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.371Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's the canine name for a pattern of broken or jagged checks",
-        "answer": "houndstooth",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.376Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Ponzi is one type of this secretive plan",
-        "answer": "a scheme",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.378Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1761 a canal linking Manchester, England to the Worsley mine dropped the price of this fuel in the city by half",
-        "answer": "coal",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.380Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The \"Cameron Crazies\" are students who show undying support for this university's Blue Devils basketball teams",
-        "answer": "Duke",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.381Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A form of rule or government; hopefully it's not dictatorial",
-        "answer": "a regime",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.384Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Virginia boasts about 554 miles of this scenic trail, seen here being scenic indeed with McAfee Knob",
-        "answer": "the Appalachian Trail",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.385Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The \"Junior Nation\" drove up support for this NASCAR legend",
-        "answer": "Dale Earnhardt Jr.",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.387Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This 10-letter neckline is also a term of endearment",
-        "answer": "sweetheart",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.388Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Fans of golfer Arnold Palmer are part of this military outfit",
-        "answer": "Arnie's Army",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.392Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "An aesthetic called this simple house \"core\" embraces eyelet blouses & frilly Laura Ashley dresses",
-        "answer": "cottage",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.393Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's a common European food fish",
-        "answer": "bream",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.394Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The man born Nicholas Breakspear ruled as Adrian IV, the only Englishman to ever hold this job",
-        "answer": "pope",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.397Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Listen, pal, this 3-letter protuberance on a stem may develop into a flower or leaf",
-        "answer": "a bud",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.398Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Makes sense that the B-R in the Baskin-Robbins logo incorporates this 2-digit number",
-        "answer": "31",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.399Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Some swallows build nests of mud beneath these parts of a roof",
-        "answer": "eaves",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.399Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "ABBA: \"Can you hear the drums\"",
-        "answer": "\"Fernando\"",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.400Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A 1903 courthouse in this state is preserved as a museum because as a young girl, Harper Lee watched her dad argue cases there",
-        "answer": "Alabama",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:16.401Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The jumping cholla species of this has detachable spines with barbs that resemble a porcupine's quill",
-        "answer": "a cactus",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.402Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The logo of this Japanese car brand is a caliper that resembles the letter \"A\"",
-        "answer": "Acura",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.403Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Dolly Parton: \"I'm begging of you, please don't take my man\"",
-        "answer": "\"Jolene\"",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:16.405Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Ruminate on this--since the 1870s its trademark logo has featured a leaping ruminant, not a plow or tractor",
-        "answer": "John Deere",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.408Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This controversial end-of-life practice derives its name from Greek for \"easy death\"",
-        "answer": "euthanasia",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.409Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Lady Gaga: \"But I just can't be with you like this anymore\"",
-        "answer": "\"Alejandro\"",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.409Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The word for a flower's collection of petals, it's also Toyota's all-time bestselling car",
-        "answer": "a corolla",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.412Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This clothing line's crocodile logo goes back to the 1920s & its founder, who was nicknamed \"The Crocodile\", on the tennis court",
-        "answer": "Lacoste",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.413Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's not exactly the same but for a quick, easy way to make this, combine mayo, garlic & lemon juice",
-        "answer": "aioli",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:16.413Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "HISTORY",
-    "questions": [
-      {
-        "question": "This group got a 2017 Lasker Award for providing \"essential health services & reproductive care\"",
-        "answer": "Planned Parenthood",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.603Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Nicknamed \"Little Mo\", this Grand Slam tennis champ of the 1950s was honored on a stamp in 2019",
-        "answer": "Maureen Connolly",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.604Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A \"chopper\" is one of these with a long fork & a front wheel placed forward of the handlebars",
-        "answer": "a motorcycle",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.609Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "After he murdered his brother Bleda in the middle of the fifth century A.D., he was the undisputed leader of the Huns",
-        "answer": "Attila",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.611Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Betty Williams & Mairead Corrigan won the Nobel Peace Prize in 1976 for trying to end the violence here",
-        "answer": "Northern Ireland",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.611Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "15th century Tibetan abbot Gedun Drupa was posthumously named the first of this title",
-        "answer": "the Dalai Lama",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.616Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In full prosthetic makeup, convicted killer Pam Hupp in 2022's \"The Thing About Pam\"",
-        "answer": "Renée Zellweger",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.627Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GEOGRAPHY",
-    "questions": [
-      {
-        "question": "Natchez was an early capital of this state",
-        "answer": "Mississippi",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.574Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "If you're searching for El Dorado, the city is located about 80 miles from Hope in this state",
-        "answer": "Arkansas",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.581Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "North Carolina has 2 national seashores: Cape Lookout & this other cape",
-        "answer": "Hatteras",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.594Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's slang for basic training of new military recruits",
-        "answer": "boot camp",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.610Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This North American marsupial has a gestation period of as little as 12 days",
-        "answer": "an opossum",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.613Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1549 the first Governor-General of this Portuguese colony selected Bahia as its capital",
-        "answer": "Brazil",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.621Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This type of sturdy horse-drawn wagon of early America, got its name from the Pennsylvania region where it was developed",
-        "answer": "a Conestoga wagon",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.624Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "LITERATURE",
-    "questions": [
-      {
-        "question": "The story \"January 1999: Rocket Summer\" leads off this Ray Bradbury book of \"Chronicles\"",
-        "answer": "The Martian Chronicles",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.575Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This 1931 Pearl Buck novel became a Broadway play the next year with Claude Rains as Wang Lung",
-        "answer": "The Good Earth",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.582Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Protesting the Jim Crow system, Richard Wright's first book was titled this Stowe character's \"Children\"",
-        "answer": "Uncle Tom",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.589Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This Anthony Doerr novel is tied together by the idea of a paradise for birds, also found in an Aristophanes play",
-        "answer": "Cloud Cuckoo Land",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.601Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Living in Mytilene on Lesbos, this ancient poet wrote of a community called a thiasos",
-        "answer": "Sappho",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.606Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "1616 saw the death of William Shakespeare at New place, in this place where he was born",
-        "answer": "Stratford-upon-Avon",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.626Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "SPORTS",
-    "questions": [
-      {
-        "question": "\"Rafa\" is the nickname of this winner of more than 20 Grand Slam titles",
-        "answer": "Rafael Nadal",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.579Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This Czech-born woman had a pretty good 1983, winning 86 of 87 matches & 3 Grand Slam titles",
-        "answer": "Martina Navratilova",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.586Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 2020, it was back to Midgar in this game's \"VII Remake\"",
-        "answer": "Final Fantasy",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.597Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GENERAL",
-    "questions": [
-      {
-        "question": "I've lost hours on this site, the \"leading destination for short-term mobile video\"; fittingly, Kesha is a creator",
-        "answer": "TikTok",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.577Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Big bovine",
-        "answer": "ox",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.580Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Sweet! I just downloaded the \"Saga\" version of this app with a confectionary name; not sweet: there are over 11,000 levels",
-        "answer": "Candy Crush",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.584Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Chicago is practically synonymous with this special type of culinary delight",
-        "answer": "deep dish (pizza)",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.585Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "An aboveground railway",
-        "answer": "el",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.587Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's estimated that there are as many as 70 streets in Atlanta with this fruity 9-letter name",
-        "answer": "Peachtree",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.588Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "secretrickroll.com allows my annoying friend to create sneaky links to Rick Astley singing this song; I always fall for it",
-        "answer": "\"Never Gonna Give You Up\"",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.590Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "First & last name of the woman in a tongue twister who \"bought some butter, 'but', she said, 'the butter's bitter\"'",
-        "answer": "Betty Botter",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.591Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Mark \"Eddo\" Edmondson in 1976 is the last men's singles winner of this major who's from the country where it's played",
-        "answer": "the Australian Open",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.592Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "George Takei's 2-word catchphrase",
-        "answer": "oh my",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.593Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Even this Tolstoy heroine thinks it's weird that her husband & lover are both named Alexei",
-        "answer": "Anna Karenina",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.595Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In women's tennis, 1930s star Alice Marble pioneered this 3-word aggressive style named for a way to begin a point",
-        "answer": "serve and volley",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.598Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Special\" is one type of this short form",
-        "answer": "ed",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.599Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To see the Crimson Tide play football at Bryant-Denny Stadium, head to this city",
-        "answer": "Tuscaloosa",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.600Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Companies convey offers via these \"notifications\", pop-ups on your device that perchance annoy",
-        "answer": "push notifications (pushes)",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.602Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "COVID variant names skipped nu & this 14th Greek letter",
-        "answer": "xi",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.605Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Mork from Ork",
-        "answer": "Robin Williams",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.607Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Most species of this color-changing lizard are native to Africa, like Botswana's flap-necked variety",
-        "answer": "chameleons",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:18.608Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Godmother on \"Fleabag\"",
-        "answer": "Olivia Colman",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.612Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "These alliterative & inflatable recreational vessels are long, narrow & often yellow",
-        "answer": "banana boats",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:18.614Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Steph Curry & Chelsea Clinton are 2 typical people who got early education at a school bearing her name",
-        "answer": "Montessori",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.617Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Elliot Alderson on \"Mr. Robot\"",
-        "answer": "Rami Malek",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.617Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Despite being apex predators, great white sharks are hunted by these cetaceans, which remove & eat their livers",
-        "answer": "killer whales (orcas)",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.618Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Greek for \"circle\" gives us the name of this helicopter relative",
-        "answer": "a gyrocopter",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.619Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's one of the few animals commonly called by its genus and species names",
-        "answer": "a Boa constrictor",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.620Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Formerly known by this numerical name, the Opportunity in Education Act now bears Hawaii Representative Patsy Mink's name",
-        "answer": "Title IX",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.622Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Real-life crime boss Bumpy Johnson on \"Godfather of Harlem\"",
-        "answer": "Forest Whitaker",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.622Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Adult insects have 6 legs, all attached to this body section",
-        "answer": "the thorax",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.623Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's the Chinese veggie seen  here",
-        "answer": "bok choy",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.625Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Sea parrot is another name for this Atlantic seabird with black-&-white plumage & a triangular bill",
-        "answer": "a puffin",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.628Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This type of sailing vessel with a 4-letter name is still common in the Red Sea",
-        "answer": "a dhow",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.629Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The statue seen here of this emperor of Rome's golden age was created around the time of his Germanic campaigns",
-        "answer": "(Marcus) Aurelius",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:18.630Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "HISTORY",
-    "questions": [
-      {
-        "question": "In June 1215 King John accepted the Articles of the Barons, a basis for this document",
-        "answer": "the Magna Carta",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.781Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Circle Of Life\" is the opening number of this musical & not so surprisingly, closes it as well",
-        "answer": "The Lion King",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.792Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The lares were statues of household gods in ancient Rome; the lararium was this, at which they were worshiped",
-        "answer": "an altar (a shrine)",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.820Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Finley & Breese were the middle names of this 19th century American inventor & painter",
-        "answer": "(Samuel F.B.) Morse",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.822Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Biblical middle name of the man said to be the richest person in the U.S. at his death in 1848",
-        "answer": "Jacob",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.832Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This middle name of Jackie Robinson honored the president who died the year he was born, 1919",
-        "answer": "Roosevelt",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.837Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GEOGRAPHY",
-    "questions": [
-      {
-        "question": "You are welcome to know that the knobbed whelk is New Jersey's state one of these",
-        "answer": "a sea shell",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.784Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Around 630 B.C. this militaristic city-state basically turned Messenia's people into serfs",
-        "answer": "Sparta",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.789Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "You'd have to expect that this would be Maryland's state bird",
-        "answer": "the Baltimore oriole",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.791Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1586 the first colony on this island went back to England with Sir Francis Drake; no one knows where a later colony went",
-        "answer": "Roanoke",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.802Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Appalachian this is Kentucky's state instrument",
-        "answer": "the dulcimer",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.804Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Its state insect is the honey bee & its state emblem is a beehive",
-        "answer": "Utah",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.810Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "They extend over 4,000 miles from Venezuela to South America's southern tip",
-        "answer": "the Andes",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.814Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 988 Vladimir I, grand prince of this now-Ukrainian city, converted to Christianity & cast its pagan idols into the Dnieper River",
-        "answer": "Kiev",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.815Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Some 20 monasteries & dependencies, including the Great Lavra, are located on Mount Athos, a holy mountain in this country",
-        "answer": "Greece",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.819Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Snowy Mountains, which include Mount Kosciuszko, form the \"roof of\" this country",
-        "answer": "Australia",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.824Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The third law of thermodynamics says entropy tends to reduce as the temperature approaches this 2-word state",
-        "answer": "absolute zero",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.826Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Goûter Refuge offers a place to rest for climbers en route to the top of this mountain on the border between France & Italy",
-        "answer": "Mont Blanc",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.829Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This Canadian mountain is second only to Denali as the highest peak in North America",
-        "answer": "Mount Logan",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.834Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In the 7th century this Middle East city was said to be home to as many as 360 idols, including the moon god Hubal",
-        "answer": "Mecca",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.835Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "ENTERTAINMENT",
-    "questions": [
-      {
-        "question": "Damon Wayans took on the Danny Glover role when this buddy cop movie came to the small screen",
-        "answer": "Lethal Weapon",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.817Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "There can only be one Adrian Paul as the immortal title hero Duncan MacLeod in the TV version of this epic film",
-        "answer": "Highlander",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.822Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Nia Vardalos' nuptial hit \"My Big Fat Greek Wedding\" settled down on TV as \"My Big Fat Greek\" this",
-        "answer": "Life",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.828Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In the TV version of \"The Exorcist\", Geena Davis was this character all grown up, but with a possessed daughter of her own",
-        "answer": "Regan",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.832Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "We saw the early life of a psycho in the sort of TV prequel \"Bates Motel\", with this actor as young Norman",
-        "answer": "Freddie Highmore",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.838Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "LITERATURE",
-    "questions": [
-      {
-        "question": "You may be right, I may be this man who periodically gets his own channel; in 2022, his \"52nd Street\" got played track by track",
-        "answer": "Billy Joel",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.786Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "From a line in Shakespeare: ____ & ____ are Dead\"",
-        "answer": "Rosencrantz and Guildenstern",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.803Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This playwright did not have \"Three Sisters\" but he did have the middle name Pavlovich",
-        "answer": "Chekhov",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.827Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "SPORTS",
-    "questions": [
-      {
-        "question": "Place your bets! Big wheel keep on turning in this game",
-        "answer": "roulette",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.785Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A Tony winner: \"The ____ Incident of the Dog in the Night-Time\"",
-        "answer": "Curious",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.790Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Fans must have gone \"wild\" when this was named Minnesota's official sport",
-        "answer": "ice hockey",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.797Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Whatever you feel like doing, or \"whatever\" does this, a rhyming phrase involving a transport",
-        "answer": "floats your boat",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.801Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "John Von Neumann pioneered game theory, starting by analyzing this game where bluffing is commonplace",
-        "answer": "poker",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.821Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GENERAL",
-    "questions": [
-      {
-        "question": "By August Wilson: \"The ____ Lesson\"",
-        "answer": "the Piano",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.782Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "You've lost \"track\" of reality & have \"loco motives\" if you've gone \"off\" these",
-        "answer": "the rails",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.788Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The music of this late, great Heartbreaker leader who also traveled as Charlie T. Wilbury Jr. gets its own channel",
-        "answer": "Tom Petty",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.793Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Could I interest you in some of the same-named whiskey on this overnight flight?",
-        "answer": "Red Eye",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.794Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "From the 1600s to the 1780s, \"guests\" were sent to this structure, a state prison, via lettre de cachet, a direct order from the king",
-        "answer": "the Bastille",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.795Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A reptilian title: Tennessee Williams' \"The Night of the ____\"",
-        "answer": "the Iguana",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.796Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's the oxymoronic slang term for a wrestling ring",
-        "answer": "a squared circle",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.799Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "You don't need a miracle to listen to Jerry, Bob, Phil, Bill & Mickey of this jam band... you can just dial up their channel, man",
-        "answer": "the Grateful Dead",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.800Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Despite the various colors, the circles of this cereal favored by Toucan Sam were found to have the same flavor",
-        "answer": "Froot Loops",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.805Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This icon who can \"Prove It All Night\" has some \"Glory Days\" on his dedicated channel",
-        "answer": "\"the Boss\", Bruce Springsteen",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.806Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This alliterative phrase refers to a difficult time or journey as well as a delicious type of ice cream",
-        "answer": "rocky road",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.807Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "I am this pharaoh I, founder of the 19th Dynasty! How did my mummy spend years in the Niagara Falls Museum?",
-        "answer": "Ramses I",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.808Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Exploring the relationship between a teacher & his deaf student: \"Children of a ____ ____\"",
-        "answer": "Lesser God",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.809Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Jennifer Jason Leigh was the title Mrs. in a movie about this writer & her \"Vicious Circle\"",
-        "answer": "Dorothy Parker (Mrs. Parker)",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.810Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"What Would You Say\" if I told you this man, seen here along with his band, had their own channel, or have I said \"Too Much\"?",
-        "answer": "Dave Matthews",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.811Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To have your first drink after abstaining for a long time is to do this tumble",
-        "answer": "to fall off the wagon",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.812Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This first lady's middle name LaVaughn honors her paternal grandmother",
-        "answer": "Michelle Obama",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.816Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "If you're ichthyophagous, your meals consist of these",
-        "answer": "fish",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:20.818Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Those that are galactophagous get their sustenance via this liquid",
-        "answer": "milk",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:20.823Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "After coming down from Mount Sinai, Moses destroys the golden calf, an idol fashioned by this brother of his",
-        "answer": "Aaron",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.825Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "If you're apivorous, you get by dining on these",
-        "answer": "bees",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.828Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Ahab was okay with Jezebel's idol worship of this 4-letter fertility deity",
-        "answer": "Baal",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.830Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Mycophagists are people who eat these in the wild, avoiding the autumn skullcap",
-        "answer": "mushrooms",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.833Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Legend says this Greek ran naked through Syracuse after discovering his buoyancy principle",
-        "answer": "Archimedes",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.836Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Saurophagous is a description for those that eat these, tails & all",
-        "answer": "lizards",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:20.839Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "HISTORY",
-    "questions": [
-      {
-        "question": "Enjoy that muesli--I'll be having this Quaker Oats cereal that debuted in 1963 along with its sailing man mascot",
-        "answer": "Cap'n Crunch",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.973Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Now written in the Latin alphabet, Moldova's language used to be written in this alphabet named for a 9th century priest",
-        "answer": "Cyrillic",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.983Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Alma River entered history when Russia lost an 1854 battle there during this war",
-        "answer": "the Crimean War",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.988Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Sir David Brewster invented this optical device & patented it in 1817",
-        "answer": "a kaleidoscope",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.999Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 2007 a bust of this physicist was unveiled at the newly opened Centre for Theoretical Cosmology at Cambridge",
-        "answer": "Stephen Hawking",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:23.003Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 2012 Merriam-Webster added this phrase about inspiration popularized by Oprah",
-        "answer": "aha moment",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:23.005Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Bam!\" says this man who opened his first self-named restaurant in 1990 in New Orleans",
-        "answer": "Emeril (Lagasse)",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.014Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GEOGRAPHY",
-    "questions": [
-      {
-        "question": "Roman emperor Trajan made Dacia a Roman province, hence this country's very Roman name",
-        "answer": "Romania",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.973Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Bulgaria is one of many countries on this peninsula that won freedom by breaking the cruel Ottoman yoke",
-        "answer": "the Balkan Peninsula",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:22.992Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The 8 Florida parishes in this state were once part of Spanish West Florida",
-        "answer": "Louisiana",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.997Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Bowling Green, Kentucky & Bismarck, North Dakota are both in this time zone",
-        "answer": "the Central Time Zone",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:23.001Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Seen here, Shoshone Falls, on this river in Idaho has been called \"The Niagara of the  West\"",
-        "answer": "the Snake River",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.006Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Monongahela joins this river in Pittsburgh to form the Ohio",
-        "answer": "the Allegheny",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.010Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Major cities in New Hampshire include Dover & this port that also shares its name with a historic port of southern England",
-        "answer": "Portsmouth",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.016Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Here's a bust of this French premier by fellow countryman Rodin",
-        "answer": "Georges Clemenceau",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.017Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In Zen Buddhism, it's a paradoxical statement or question; a well-known one involves the sound of one hand clapping",
-        "answer": "a koan",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.018Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "ENTERTAINMENT",
-    "questions": [
-      {
-        "question": "Tonya Harding's movie mom & Anna Faris' TV \"Mom\"",
-        "answer": "Allison Janney",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.977Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Danny Tanner on 2 TV series",
-        "answer": "Bob Saget",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.987Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Running for 6 months on Broadway, the musical \"Timbuktu!\" was based on this other show whose name means \"fate\"",
-        "answer": "Kismet",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.008Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "LITERATURE",
-    "questions": [
-      {
-        "question": "Some of the earliest known examples of these 14-line poems are by Giacomo da Lentini, who wrote in the 1200s",
-        "answer": "a sonnet",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.998Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The allegory \"Everyman\" from the late 1400s is one of the best known of these \"plays\" that stressed salvation & personal virtues",
-        "answer": "morality plays",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.007Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This \"venerable\" guy completed his \"Ecclesiastical History of the English People\" around 731",
-        "answer": "Bede",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.016Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "SPORTS",
-    "questions": [
-      {
-        "question": "Of the 4 swim strokes used in the Olympics, this one with a body part in its name is the slowest",
-        "answer": "the breaststroke",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.986Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "How about a spot of this? Espresso with a thin foam of steamed milk, from Italian for \"spotted\"",
-        "answer": "a macchiato",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.988Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A draw in sports",
-        "answer": "a tie",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.010Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GENERAL",
-    "questions": [
-      {
-        "question": "Paper container for more paper",
-        "answer": "an envelope",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.974Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "We're not sure which is the slowest but this thick sticky syrup can be made from carob or dates as well as from sugar cane",
-        "answer": "molasses",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.976Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Winston Churchill gave the speech that mentioned this ideological barrier that separated Eastern Europe",
-        "answer": "the Iron Curtain",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.978Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Nothing better than one of these classic donuts that shares its name with a venerable whiskey cocktail",
-        "answer": "an old-fashioned",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.979Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A formal hearing with a big shot, or a group of spectators",
-        "answer": "audience",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.979Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The lipids, which include fats & oils, are organic compounds that don't appreciably interact with this",
-        "answer": "water",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.980Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In Exodus he says, \"I am slow of speech, and of a slow tongue\"",
-        "answer": "Moses",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.981Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Brüno & Borat",
-        "answer": "Sacha Baron Cohen",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.982Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A traditional Japanese breakfast might include this soup made with the same-named soybean paste as well as tofu & scallions",
-        "answer": "miso",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.984Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This adjective can mean related to debate or related to legal issues, like how somebody died",
-        "answer": "forensic",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.984Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The human body produces this vitamin when a sterol in the skin absorbs radiation",
-        "answer": "vitamin D",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.985Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Located near a coast, like some oil rigs",
-        "answer": "offshore",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.989Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "We all know it, exercise can boost a slow this, the rate at which the body expends energy & burns calories",
-        "answer": "metabolism",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.991Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The title roles in \"Blue Jasmine\" & \"Where'd You Go, Bernadette\"",
-        "answer": "Cate Blanchett",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:22.991Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This Hawaiian dish with a rhyming name is white rice topped with hamburger, a fried egg & gravy",
-        "answer": "loco moco",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:22.993Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Not bad, not great, just sufficient, from Latin for \"equal\"",
-        "answer": "adequate",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:22.994Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Acids & bases are among these current conductors; using a solid instead of a liquid one reduces the risk of fire in batteries",
-        "answer": "electrolytes",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:22.994Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The planet farthest from the Sun, it takes this ice giant 165 years to orbit it",
-        "answer": "Neptune",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:22.995Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Marty Kaan on \"House of Lies\" & Rhodey, also known as War Machine in the Avengers movies",
-        "answer": "Don Cheadle",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:22.996Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Here's a bust of this Founding Father who sat for the great French sculptor Jean-Antoine Houdon",
-        "answer": "Jefferson",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:22.998Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To summon someone over a loudspeaker in a public place",
-        "answer": "to page",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:23.000Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In a 2021 movie version of a medieval tale, Dev Patel plays Sir Gawain, journeying to meet this title character",
-        "answer": "the Green Knight",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:23.002Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This, usually spicy pickled cabbage, is the national dish of Korea",
-        "answer": "kimchi",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:23.004Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Made a hole in the earth",
-        "answer": "dug",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:23.005Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In the painting seen here, Rembrandt depicted Aristotle contemplating a bust of this poet",
-        "answer": "Homer",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:23.007Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Heidi Klum made this German phrase her signature goodbye to losing contestants on \"Project Runway\"",
-        "answer": "auf Wiedersehen",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.009Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The \"Chanson de\" or \"Song of\" this hero tells of his death & the vengeance taken on the traitor Ganelon",
-        "answer": "Roland",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.011Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The name of this cloth, a colorful fabric of Ghanaian origin, comes from a word meaning \"basket\"",
-        "answer": "kente cloth",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.014Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To get smaller, or especially to get less bright, like the Moon",
-        "answer": "wane",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.015Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Another One\" is a catchphrase of this deejay & record producer",
-        "answer": "DJ Khaled",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.019Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "4-letter word for the piece that slides into notches on a ratchet to pause the mechanism",
-        "answer": "a pawl",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:23.019Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "HISTORY",
-    "questions": [
-      {
-        "question": "Pre-20th Amendment, Zachary Taylor is inaugurated as president",
-        "answer": "March",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.171Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Jack, seen at the right in a 19th century illustration, is earning this title",
-        "answer": "the Giant Slayer (a giant killer)",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.172Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This psychiatrist liked his brother's wife \"from a distance... like the Sun. Maris is like the Sun. Except without the warmth\"",
-        "answer": "Frasier",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.176Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Yubari King type of these gourd fruits are dazzlingly sweet & sometimes go for $5,000 or more each",
-        "answer": "melons",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.180Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Airtight, like an alibi, or an old armor-plated warship",
-        "answer": "ironclad",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.191Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In addition to fiction portraying herself & her sisters, she penned \"Hospital Sketches\" from her time as a Civil War nurse",
-        "answer": "Louisa May Alcott",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.194Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This term for Northerners opposed to the Civil War likened them to a snake in the grass",
-        "answer": "Copperheads",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.201Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Mexican General Pablo Gonzalez organized the fatal ambush of this Guerrilla & revolutionary in 1919",
-        "answer": "Zapata",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.202Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1961 4 French generals attempted a coup to prevent it from gaining its independence",
-        "answer": "Algeria",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.204Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GEOGRAPHY",
-    "questions": [
-      {
-        "question": "The College of the Holy Cross is in this Massachusetts city about a 50-mile drive from Boston",
-        "answer": "Worcester",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.186Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This Texas statesman has a city named for him & a university, SHSU",
-        "answer": "Sam Houston",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.192Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Parts of this country are subject to violent windstorms called pamperos",
-        "answer": "Argentina",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.193Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Flagler College in this state, named for an industrialist & developer, has as its main hall the Hotel Ponce de León which he built",
-        "answer": "Florida",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.198Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Taj Mahal is only one of this city's many historic sites",
-        "answer": "Agra",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.198Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "His lavish estate east of Medellin called Hacienda Napoles had an airstrip & soccer field",
-        "answer": "(Pablo) Escobar",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.207Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This university's May 4th Legacy Scholarships were established to honor 4 students who were killed on campus May 4, 1970",
-        "answer": "Kent State",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.208Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This private Catholic university in New Jersey was named for a woman who was one of the first American-born saints",
-        "answer": "Seton Hall",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.212Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "ENTERTAINMENT",
-    "questions": [
-      {
-        "question": "In the Japanese TV show \"Old Enough\", kids as young as 2 run errands, using a yellow flag to help them do this",
-        "answer": "cross the street",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.175Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Her O: Best Supporting Actress for \"Ghost\"",
-        "answer": "Whoopi Goldberg",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.190Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "3 Es as Outstanding Guest Actor for \"Mad About You\"; a Comedy Album G for \"The 2000 Year Old Man in the Year 2000\"",
-        "answer": "Mel Brooks",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.195Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "LITERATURE",
-    "questions": [
-      {
-        "question": "Geoffrey of Monmouth told a story of Merlin using magic to bring stones to build this prehistoric site",
-        "answer": "Stonehenge",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.165Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This French author's \"From the Earth to the Moon\" features a rocket ship shot out of a cannon",
-        "answer": "Jules Verne",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.189Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A story of fortunes lost & attained, \"The Adventures of Philip\" was the last complete work by this \"Vanity Fair\" novelist",
-        "answer": "William Makepeace Thackeray",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.209Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This singer/songwriter/producer's O: Best Original Song for \"Glory\", from \"Selma\"",
-        "answer": "John Legend",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.210Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GENERAL",
-    "questions": [
-      {
-        "question": "Capone's guys dress like cops & kill Bugs Moran's men in a garage",
-        "answer": "February",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.157Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Robin Hood is associated with this wooded expanse in Nottinghamshire",
-        "answer": "Sherwood Forest",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.158Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "From Spanish, it's a small donkey used as a pack animal",
-        "answer": "burro",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.159Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "One of these bivalve mollusks from Coffin Bay, Australia can weigh over 2 pounds & sell for $100",
-        "answer": "oysters",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.160Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Using an unwashed knife on fruit after cutting up this for your poulet a la Bretonne risks cross-contamination",
-        "answer": "chicken",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.162Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Guilty of being the god of mischief? Yes. guilty of finding all this incredibly tedious? Yes\"",
-        "answer": "Loki",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.163Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "FDR reports \"The attack yesterday... caused severe damage to American naval & military forces\"",
-        "answer": "December",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.164Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Got milk? A cow does, in this baglike mammary organ",
-        "answer": "udder",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.166Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "From animals reared & fed according to strict guidelines, the Wagyu variety of this meat can set you back $75 for a 4-ounce serving",
-        "answer": "beef",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.167Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The type of view seen here, it can also mean a representative sample from a group",
-        "answer": "cross section",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.168Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "I spy this spy said, \"Lana... Lana... Lana... Lanaaaaaaaaa...! Danger zone\"",
-        "answer": "(Sterling) Archer",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.170Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A set of religious principles or beliefs; the Apostles' is one",
-        "answer": "creed",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.173Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "At only one farm in Sweden, cheese is made from the milk of this largest deer, known as elk over there",
-        "answer": "a moose",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.174Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Guy Fawkes blows it--or rather, doesn't blow it--& gets arrested",
-        "answer": "November",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.177Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Covered only by her long hair, she rode through Coventry to win a reduction in taxes for its residents",
-        "answer": "Lady Godiva",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.178Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To mend shoes",
-        "answer": "to cobble",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.179Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Roscoe Turner, who entertained folks when he flew with his lion pal, is one of the few civilian pilots to earn this medal",
-        "answer": "the Distinguished Flying Cross",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.181Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"I can kill a man, dismember his body, & be home in time for Letterman. But knowing what to say when my girlfriend's feeling insecure...\"",
-        "answer": "Dexter",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.182Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Tet Offensive begins, surprising U.S. commanders",
-        "answer": "January",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.183Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Glastonbury thorn seen here reputedly grew from the staff of this man, also said to have brought the Grail to England",
-        "answer": "Joseph of Arimathea",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.184Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In feudalism, it was someone given a \"fief\", land & workers, in return for services to a lord",
-        "answer": "vassals",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.185Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Noted for its sweet aroma & with a name originally from Arabic, this exotic spice can cost thousands of dollars per pound",
-        "answer": "saffron",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.186Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This physician: \"I need 36 vicodin & change for a dollar\"",
-        "answer": "House (M.D.)",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.187Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Pablo Picasso had one of these elegant hounds that he fittingly named Kaboul",
-        "answer": "an Afghan Hound",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:25.191Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It can be a simple remedy for a difficult problem, or what's needed to kill a werewolf",
-        "answer": "silver bullet",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.196Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Part of poet Pablo Neruda's storied career involved serving as this country's ambassador to France",
-        "answer": "Chile",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:25.197Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "2 cousins vie for a noble lady's hand in \"Castle Richmond\" by Anthony Trollope, set in this nation during its 1840s famine",
-        "answer": "Ireland",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.199Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Her G: Best Children's Album for \"The Electric Company\"; her O: Best Supporting Actress for \"West Side Story\"",
-        "answer": "Rita Moreno",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.200Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Students & alumni from this prestigious College of Music in Boston took part in the making of the movie \"CODA\"",
-        "answer": "Berklee",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.203Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "His rags-to-riches tales about street urchins, newsboys & the like, included \"Frank's Campaign\" & \"Paul Prescott's Charge\"",
-        "answer": "(Horatio) Alger",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.204Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "One of Marvin Hamlisch's 3 Os: Best Original Song for the memorable theme to this Redford-Streisand pairing",
-        "answer": "The Way We Were",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.205Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Copper mining is a chief source of revenue in this Chilean desert",
-        "answer": "the Atacama",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.208Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A song in \"Guys & Dolls\" is called \"Fugue For\" these, slang for gamblers with more flash than cash",
-        "answer": "Tinhorns",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.211Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This Asian portion of Turkey is also known as Asia Minor",
-        "answer": "Anatolia",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:25.213Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "HISTORY",
-    "questions": [
-      {
-        "question": "In 2022 the Golden Bears swam & dove to an NCAA title for this Pac-12 school",
-        "answer": "Cal Berkeley",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.393Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This Triple Crown racetrack that opened in 1875 was named for the landowners, not for a future British prime minister",
-        "answer": "Churchill Downs",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.404Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Before becoming sheriff of this South Dakota town, Seth Bullock opened a hardware store there with partner Sol Star",
-        "answer": "Deadwood",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.406Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1879 the first of  several NYC venues to bear this name featured birds,  flowers & fountains, so the name made more sense",
-        "answer": "Madison Square Garden",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.409Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1957 this famed soccer club moved into Camp Nou, Catalan for \"New Ground\"",
-        "answer": "FC Barcelona",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.414Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This 2-word term meaning the lowest spot you can \"hit\" originated in mining in the 19th century",
-        "answer": "rock bottom",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.421Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1955 13-year-old Susie asked her dad about an easier way to treat her asthma; dad ran Riker Labs & presto! the metered dose this device",
-        "answer": "an inhaler",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.422Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "By age 75, half of white Americans have this eye condition that can feel like looking through a fogged-up window",
-        "answer": "cataracts",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.432Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GEOGRAPHY",
-    "questions": [
-      {
-        "question": "The museum has lots from the ancient Near East, this between-rivers region gave us yon beast",
-        "answer": "Mesopotamia",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.408Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Prospector John Bozeman blazed a trail to gold-rush towns in what is now this state",
-        "answer": "Montana",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.411Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The type of bear named for this Alaskan island tips the scales at 1,700 pounds",
-        "answer": "Kodiak",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.416Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Extending more than 1,500 miles, these mountains separate the Indian subcontinent from the remainder of Asia",
-        "answer": "Himalayas",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.419Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Lebanon is tucked into what would be the coast of this country & separated from it by the Anti-Lebanon Mountains",
-        "answer": "Syria",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.424Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "About 3/4 of Mongolia is made up of the forest, desert, mountain & grass types of these plains",
-        "answer": "steppes",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.429Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Long, skinny Lake Balkhash extends over nearly 400 miles of the eastern part of this country",
-        "answer": "Kazakhstan",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.433Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Originally referring to a type of barrier, it's another name for some of the toll roads on the East Coast",
-        "answer": "a turnpike",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.434Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This nickname for the area around the U.S. State Department partly comes from industrial smoke once found there",
-        "answer": "Foggy Bottom",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.435Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Laccadive Sea separates the Maldives & this other island country from the Asian mainland",
-        "answer": "Sri Lanka",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.438Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "ARTS & CULTURE",
-    "questions": [
-      {
-        "question": "Some call the museum's Costume Institute insufficiently arty, but it gets millions every year from this glamorous party",
-        "answer": "the Met Gala",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.397Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "His painting \"The Death of Socrates\" is one of the museum's bigs; he's French, so say his name like that of singing actor Diggs",
-        "answer": "David",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.403Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A Haydn symphony nicknamed \"The Bear\" has a passage that sounds like music for bears to do this--perhaps a minuet?",
-        "answer": "dance",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.405Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "When Butch & Sundance & their Wild Bunch gang hid in the Wyoming spot seen here, they were part of this gang named for it",
-        "answer": "the Hole-in-the-Wall Gang",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.417Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GENERAL",
-    "questions": [
-      {
-        "question": "Siegfrieds & Salomes had better learn their parts to sing at the Met in this center \"for the Performing Arts\"",
-        "answer": "Lincoln Center",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.390Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A diamond jubilee can celebrate a 60th anniversary or this odd number",
-        "answer": "75",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.392Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This type of wagon was where food was served; its name referred to grub, & no one eats until cookie calls",
-        "answer": "a chuck wagon",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.395Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To suspend an object over something",
-        "answer": "to dangle",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.396Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In craps, these are the 2 possible winning numbers on a come out roll",
-        "answer": "7 & 11",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.399Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This \"greater bear\" constellation contains the group known as the Big Dipper",
-        "answer": "Ursa Major",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.400Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Wild Bill Hickok stopped a man from beating this other famous Bill who was 11 at the time & the two became lifelong friends",
-        "answer": "Buffalo Bill (Cody)",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.401Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To round up cattle",
-        "answer": "wrangle",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.402Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "You do this to your keys to make a harsh sound",
-        "answer": "jangle",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.407Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In the 1930s the .357 became the first of these extra-powerful rounds of ammo",
-        "answer": "a magnum",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.410Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Before he was president, Volodymyr Zelensky voiced this marmalade-loving bear in the Ukrainian dub of 2 recent films",
-        "answer": "Paddington",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.411Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "An ornamental bracelet",
-        "answer": "bangle",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.412Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "She was Greek, she loved Onassis, she could really sing, her longtime boss around the Met was named Sir Rudolf Bing",
-        "answer": "(Maria) Callas",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.413Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Start counting in your head! It's the next prime number after 23",
-        "answer": "29",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.415Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In addition to being a verb meaning to mutilate, it's also a word for an old-timey machine to iron laundry",
-        "answer": "mangle",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.418Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "It's a group of women with a common interest & maybe some traveling pants",
-        "answer": "a sisterhood",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.420Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"In My Feelings\" & \"Nice For What\"",
-        "answer": "Drake",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.421Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"I think of Dean Moriarty, I even think of old Dean Moriarty the father we never found, I think of Dean Moriarty\"",
-        "answer": "On the Road",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.423Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "As seen here, it's a fun way to work out",
-        "answer": "kickboxing",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.424Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Not a positive term used of people, bottom-feeder works for these, like channel variety seen here",
-        "answer": "a catfish",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.425Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Stayin' Alive\" & \"Too Much Heaven\"",
-        "answer": "the Bee Gees",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.426Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Type I of this disorder once called manic depression has manic episodes of at least a week & depressive episodes of twice that long",
-        "answer": "bipolar disorder",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:27.427Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"The creatures outside looked from pig to man, and from man to pig... but already it was impossible to say which was which\"",
-        "answer": "Animal Farm",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:27.428Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The name of this illegally distilled liquor goes back to when it was made under the cover of darkness",
-        "answer": "moonshine",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.429Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A song from \"Annie\" reminds us that \"the sun'll come out tomorrow\" & that you should therefore bet this",
-        "answer": "your bottom dollar",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.430Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Break Up With Your Girlfriend, I'm Bored\" & \"Positions\"",
-        "answer": "Ariana Grande",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.431Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Max... sailed back... into the night of his very own room where he found his supper waiting for him and it was still hot\"",
-        "answer": "Where the Wild Things Are",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.432Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Eyes Without A Face\" & \"White Wedding\"",
-        "answer": "Billy Idol",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.436Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The most common form of this ailment is the plaque type, named for the patches it forms on the skin",
-        "answer": "psoriasis",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.437Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"'Darling,' replied Valentine, 'Has not the Count just told us that all human wisdom is summed up in two words?--'Wait and hope\"'",
-        "answer": "The Count of Monte Cristo",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.437Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Derived from German, it's a strong passion for traveling & seeing the world",
-        "answer": "wanderlust",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.439Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Echo is an important type of this device that tells mariners how far down the bottom is",
-        "answer": "a depth finder (a depth sounder)",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.440Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Dark Horse\" & \"Wide Awake\"",
-        "answer": "Katy Perry",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.440Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Pregnant women need 600 mcg of this B9 vitamin daily to help prevent birth defects like spina bifida",
-        "answer": "folic acid",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.441Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"So we beat on, boats against the current, borne back ceaselessly into the past\"",
-        "answer": "The Great Gatsby",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:27.442Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "HISTORY",
-    "questions": [
-      {
-        "question": "Bird: Chosen in 1782, it can live up to 30 years in the wild",
-        "answer": "bald eagle",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.590Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Motto: This 4-word phrase, signed into law by Eisenhower in 1956; \"E pluribus unum\" had been used unofficially",
-        "answer": "In God We Trust",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.598Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Symbol of the USA itself: In 1950 the nation said, \"I want you\" to this finger-pointer",
-        "answer": "Uncle Sam",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.604Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "March: This \"eternal\" Sousa piece got the gig in 1987",
-        "answer": "\"The Stars And Stripes Forever\"",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.617Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Emancipation Park & Trench Town Culture Yard",
-        "answer": "Kingston",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.619Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In a legal morass for decades, 1987's \"Superstar\" uses Barbie dolls to tell of this singer & her tragic battle with anorexia",
-        "answer": "Karen Carpenter",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.622Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The action of going to a drinking establishment located in a basement gave rise to this term for an unsavory tavern",
-        "answer": "a dive bar",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.625Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1474 at the age of 23, this queen began her rule of the Spanish kingdom of Castile",
-        "answer": "Isabella",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.625Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Charles Lamb's 1823 \"The Tombs in the Abbey\" argued that the poor shouldn't be charged admittance to visit this London spot",
-        "answer": "Westminster Abbey",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.632Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1916 this illustrator created his first of more than 300 covers for the Saturday Evening Post",
-        "answer": "Norman Rockwell",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.639Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "During this 1870-71 war, Napoleon III was captured & eventually deposed & Paris fell to a neighboring nation's army",
-        "answer": "the Franco-Prussian War",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.641Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1939, after she was denied a stage at Constitution Hall, she sang to a crowd of 75,000 at the Lincoln Memorial",
-        "answer": "Marian Anderson",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.644Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The word \"essay\" came into English in a 1597 work by this Sir Francis, last name not Drake",
-        "answer": "Bacon",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.647Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GEOGRAPHY",
-    "questions": [
-      {
-        "question": "China pledged to leave this region's system in place for 50 years after 1997",
-        "answer": "Hong Kong",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.631Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "San Francisco hosts a parade honoring this late labor union activist & champion of farm workers near his March 31st birthday",
-        "answer": "Chavez",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.634Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This 5th century B.C. leader of Athens strengthened its leadership of Greece's city-states & had the Parthenon built",
-        "answer": "Pericles",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.645Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "ENTERTAINMENT",
-    "questions": [
-      {
-        "question": "For decades this venue has been the summer home of the Los Angeles Philharmonic",
-        "answer": "the Hollywood Bowl",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.601Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "One of Pixar's first animated shorts was \"Luxo Jr.\"; Luxo is this, still seen in the opening of Pixar films",
-        "answer": "a desk lamp",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.603Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "John Lennon & this woman made a 1970 short film in which a fly walks over a nude body",
-        "answer": "Yoko Ono",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.616Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "2022 marks the 60th anniversary of this Hollywood icon's death at 36; she's only become more famous since her passing",
-        "answer": "Marilyn Monroe",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.624Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A star attraction of Wild West shows, she was once billed as \"The Peerless Lady Wing-shot\"",
-        "answer": "Annie Oakley",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.629Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To wait patiently, like a movie \"Dude\"",
-        "answer": "to abide",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.648Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "LITERATURE",
-    "questions": [
-      {
-        "question": "Winning a Pulitzer Prize in 1940, \"The Grapes of Wrath\" has been called \"the greatest novel about\" this subject",
-        "answer": "the Dust Bowl",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.614Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Alexander Pope's poem \"An Essay on Man\" gave us the phrase this \"springs eternal\"",
-        "answer": "hope",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.627Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This 1929 essay says a woman must have a dedicated personal space in order to become a fiction writer",
-        "answer": "A Room of One's Own",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.642Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "SPORTS",
-    "questions": [
-      {
-        "question": "It's Team Ruff vs. Team Fluff & a whole lot of cuteness when Animal Planet presents this competition",
-        "answer": "the Puppy Bowl",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.607Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "I was 22 for 23 on my Oscar ballot in 2022 but missed Documentary Short Subject: \"The Queen of\" this team sport, about Lusia Harris",
-        "answer": "basketball",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.609Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"If no one is around you say 'baby, I love you', if you ain't runnin' game...\"",
-        "answer": "\"Say My Name\"",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.646Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "GENERAL",
-    "questions": [
-      {
-        "question": "A ballerina's stage costume typically includes this skirt",
-        "answer": "tutu",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.592Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Sanrio Puroland & the Ginza shopping district",
-        "answer": "Tokyo",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.593Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Part of a tea set, or a college football game first played in 1935",
-        "answer": "a sugar bowl",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.594Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Not Donald but he is tormented by an all-powerful animator in the classic short \"Duck Amuck\"",
-        "answer": "Daffy Duck",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.596Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "An abnormal sound of the heart, or to say something in a very quiet voice",
-        "answer": "murmur",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.599Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Spanish Steps & the Pyramid of Cestius",
-        "answer": "Rome",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.600Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Farmers burning fields after harvest would chant this creature, \"fly away home, your house is on fire, and your children will burn\"",
-        "answer": "ladybug",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.602Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Centro Cultural Kirchner; Monumento a Eva Peron",
-        "answer": "Buenos Aires",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.606Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Deer ones cause Lyme disease in the U.S.; the chillingly named Australian paralysis ones, anaphylactic shock",
-        "answer": "ticks",
-        "value": 600,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.608Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Floral emblem: In proclaiming it, Reagan pointed out the White House has a garden of them",
-        "answer": "roses",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.610Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Roy's, a Hawaiian fine-dining destination, serves macadamia crusted this fish",
-        "answer": "mahi-mahi",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.611Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Muzey Kino & the Laika Monument",
-        "answer": "Moscow",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.613Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Pillbugs are also called tiggy-hogs & more familiarly, by this rhyming name",
-        "answer": "roly-polies",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.615Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Something fancy & frilly, or the name of a character in \"The Aristocats\"",
-        "answer": "froufrou",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.618Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "This holiday drink whose name derives from an Old Norse toast to health is traditionally served in a large bowl of the same name",
-        "answer": "a wassail",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.620Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Papaya & European cherry precede this alliterative term, a nuisance in the fields & in the kitchen",
-        "answer": "fruit flies",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.621Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"And I'm just like oh-oh oh-oh oh-oh oh-oh oh-oh you need to just stop like can you just not step on my gown?\"",
-        "answer": "\"You Need To Calm Down\"",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.626Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "To give up completely, or to flee a ship",
-        "answer": "abandon",
-        "value": 400,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.628Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Beef & reef\" is another term for this type of restaurant that also has a rhyming name",
-        "answer": "surf & turf",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.630Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"I know that I can't take no more it ain't no lie I wanna see you out that door baby...\"",
-        "answer": "\"Bye Bye Bye\"",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.632Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A kidnapper, or a muscle that pulls away from the middle",
-        "answer": "abductor",
-        "value": 800,
-        "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:29.633Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Military types can have food & fun at one of these, also a term for something carried to drink water",
-        "answer": "a canteen",
-        "value": 200,
-        "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:29.635Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In 1453 the fall of the city then called this marked the end of the Byzantine Dynasty",
-        "answer": "Constantinople",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.636Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Have your friends collect your records and then change your number, I guess that I don't need that though, now you're just...\"",
-        "answer": "\"Somebody That I Used To Know\"",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.637Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Higher Laws\" & \"The Pond in Winter\" are 2 of the 18 essays in this collection by Thoreau",
-        "answer": "Walden",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.637Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "In a monastery, he's the boss",
-        "answer": "the abbot",
-        "value": 1200,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.638Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "The Internet is on tap at this place with a 1-word name suggesting you can get a cup of joe there as well",
-        "answer": "a cybercafe",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.640Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "\"Just gonna stand there and hear me cry? Well that's all right because I...\"",
-        "answer": "\"Love The Way You Lie\"",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.641Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "Irritating & grating, or a substance used to grate away by friction",
-        "answer": "an abrasive",
-        "value": 1600,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.643Z",
-        "source": "j-archive"
-      },
-      {
-        "question": "A word for \"treat\" gives us the name for this type of Italian restaurant",
-        "answer": "a trattoria",
-        "value": 2000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:29.645Z",
-        "source": "j-archive"
-      }
-    ]
-  },
-  {
-    "name": "HISTORY",
-    "questions": [
-      {
         "question": "In 1954 Senator Joe McCarthy provoked televised hearings after accusing the army of \"coddling\" these people",
         "answer": "communists",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.814Z",
+        "airDate": "2024-11-30T22:06:51.939Z",
         "source": "j-archive"
       },
       {
@@ -3870,7 +15,7 @@
         "answer": "the Challenger",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.821Z",
+        "airDate": "2024-11-30T22:06:51.945Z",
         "source": "j-archive"
       },
       {
@@ -3878,7 +23,7 @@
         "answer": "Scopes",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.833Z",
+        "airDate": "2024-11-30T22:06:51.956Z",
         "source": "j-archive"
       },
       {
@@ -3886,7 +31,7 @@
         "answer": "the Animaniacs",
         "value": 1000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.837Z",
+        "airDate": "2024-11-30T22:06:51.960Z",
         "source": "j-archive"
       },
       {
@@ -3894,7 +39,7 @@
         "answer": "Woolworth's",
         "value": 1000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.838Z",
+        "airDate": "2024-11-30T22:06:51.961Z",
         "source": "j-archive"
       },
       {
@@ -3902,7 +47,7 @@
         "answer": "a warlock",
         "value": 1000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.840Z",
+        "airDate": "2024-11-30T22:06:51.962Z",
         "source": "j-archive"
       },
       {
@@ -3910,7 +55,7 @@
         "answer": "Jordan Peele",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.843Z",
+        "airDate": "2024-11-30T22:06:51.976Z",
         "source": "j-archive"
       },
       {
@@ -3918,7 +63,7 @@
         "answer": "candidate",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.847Z",
+        "airDate": "2024-11-30T22:06:51.983Z",
         "source": "j-archive"
       },
       {
@@ -3926,7 +71,7 @@
         "answer": "Sofia Coppola",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.849Z",
+        "airDate": "2024-11-30T22:06:51.990Z",
         "source": "j-archive"
       },
       {
@@ -3934,7 +79,7 @@
         "answer": "Prince Albert",
         "value": 1200,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.853Z",
+        "airDate": "2024-11-30T22:06:51.996Z",
         "source": "j-archive"
       },
       {
@@ -3942,7 +87,7 @@
         "answer": "load-bearing",
         "value": 1200,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.855Z",
+        "airDate": "2024-11-30T22:06:51.997Z",
         "source": "j-archive"
       },
       {
@@ -3950,7 +95,7 @@
         "answer": "Chloé Zhao",
         "value": 1600,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.859Z",
+        "airDate": "2024-11-30T22:06:52.001Z",
         "source": "j-archive"
       },
       {
@@ -3958,7 +103,7 @@
         "answer": "a valley",
         "value": 1600,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.861Z",
+        "airDate": "2024-11-30T22:06:52.002Z",
         "source": "j-archive"
       },
       {
@@ -3966,7 +111,7 @@
         "answer": "leprosy",
         "value": 1600,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.863Z",
+        "airDate": "2024-11-30T22:06:52.003Z",
         "source": "j-archive"
       },
       {
@@ -3974,7 +119,7 @@
         "answer": "Fellini",
         "value": 2000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.865Z",
+        "airDate": "2024-11-30T22:06:52.005Z",
         "source": "j-archive"
       }
     ]
@@ -3987,7 +132,7 @@
         "answer": "Mount St. Helens",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.827Z",
+        "airDate": "2024-11-30T22:06:51.951Z",
         "source": "j-archive"
       },
       {
@@ -3995,7 +140,7 @@
         "answer": "Audubon",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.835Z",
+        "airDate": "2024-11-30T22:06:51.958Z",
         "source": "j-archive"
       },
       {
@@ -4003,7 +148,7 @@
         "answer": "a llama & an alpaca",
         "value": 1000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.839Z",
+        "airDate": "2024-11-30T22:06:51.962Z",
         "source": "j-archive"
       },
       {
@@ -4011,7 +156,7 @@
         "answer": "Wales",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.843Z",
+        "airDate": "2024-11-30T22:06:51.967Z",
         "source": "j-archive"
       },
       {
@@ -4019,7 +164,7 @@
         "answer": "the Statue of Liberty",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.851Z",
+        "airDate": "2024-11-30T22:06:51.995Z",
         "source": "j-archive"
       },
       {
@@ -4027,7 +172,7 @@
         "answer": "a tuxedo",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.852Z",
+        "airDate": "2024-11-30T22:06:51.995Z",
         "source": "j-archive"
       },
       {
@@ -4035,7 +180,7 @@
         "answer": "Philadelphia",
         "value": 1200,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.857Z",
+        "airDate": "2024-11-30T22:06:51.999Z",
         "source": "j-archive"
       },
       {
@@ -4043,7 +188,7 @@
         "answer": "South Africa",
         "value": 2000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.864Z",
+        "airDate": "2024-11-30T22:06:52.004Z",
         "source": "j-archive"
       },
       {
@@ -4051,7 +196,7 @@
         "answer": "Marseille",
         "value": 2000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.867Z",
+        "airDate": "2024-11-30T22:06:52.008Z",
         "source": "j-archive"
       }
     ]
@@ -4064,7 +209,7 @@
         "answer": "Comic-Con",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.811Z",
+        "airDate": "2024-11-30T22:06:51.937Z",
         "source": "j-archive"
       },
       {
@@ -4072,7 +217,7 @@
         "answer": "Saint Peter",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.824Z",
+        "airDate": "2024-11-30T22:06:51.948Z",
         "source": "j-archive"
       },
       {
@@ -4080,36 +225,126 @@
         "answer": "Dr. Seuss",
         "value": 600,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.825Z",
+        "airDate": "2024-11-30T22:06:51.949Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "An aria from this opera says, \"Put on your costume & apply make-up to your face. The people pay & they want to laugh\"",
+        "answer": "Pagliacci",
+        "value": 200,
+        "difficulty": "EASY",
+        "airDate": "2024-11-30T22:06:52.010Z",
         "source": "j-archive"
       }
     ]
   },
   {
-    "name": "LITERATURE",
+    "name": "ENTERTAINMENT",
     "questions": [
       {
-        "question": "(Dagmar Midcap of NBC 7 in San Diego presents the clue.) In February 1983, Queen Elizabeth visited San Diego, stopping in Balboa Park to unveil a statue of William Shakespeare at this theater, named for the historic one in London where many of Shakespeare’s plays were first performed",
-        "answer": "the Globe",
-        "value": 1000,
-        "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.836Z",
+        "question": "For decades this venue has been the summer home of the Los Angeles Philharmonic",
+        "answer": "the Hollywood Bowl",
+        "value": 400,
+        "difficulty": "EASY",
+        "airDate": "2024-11-30T22:06:49.752Z",
         "source": "j-archive"
       },
       {
-        "question": "In this novel, the intelligent horses called Houyhnhnms have no words for evil",
-        "answer": "Gulliver's Travels",
+        "question": "One of Pixar's first animated shorts was \"Luxo Jr.\"; Luxo is this, still seen in the opening of Pixar films",
+        "answer": "a desk lamp",
+        "value": 400,
+        "difficulty": "EASY",
+        "airDate": "2024-11-30T22:06:49.754Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "John Lennon & this woman made a 1970 short film in which a fly walks over a nude body",
+        "answer": "Yoko Ono",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.851Z",
+        "airDate": "2024-11-30T22:06:49.765Z",
         "source": "j-archive"
       },
       {
-        "question": "Aslan gives animals the ability to talk in this book in which Narnia is created",
-        "answer": "The Magician's Nephew",
-        "value": 1600,
+        "question": "2022 marks the 60th anniversary of this Hollywood icon's death at 36; she's only become more famous since her passing",
+        "answer": "Marilyn Monroe",
+        "value": 400,
+        "difficulty": "EASY",
+        "airDate": "2024-11-30T22:06:49.770Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "A star attraction of Wild West shows, she was once billed as \"The Peerless Lady Wing-shot\"",
+        "answer": "Annie Oakley",
+        "value": 800,
+        "difficulty": "MEDIUM",
+        "airDate": "2024-11-30T22:06:49.775Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "To wait patiently, like a movie \"Dude\"",
+        "answer": "to abide",
+        "value": 2000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.862Z",
+        "airDate": "2024-11-30T22:06:49.794Z",
+        "source": "j-archive"
+      }
+    ]
+  },
+  {
+    "name": "SPORTS",
+    "questions": [
+      {
+        "question": "It's Team Ruff vs. Team Fluff & a whole lot of cuteness when Animal Planet presents this competition",
+        "answer": "the Puppy Bowl",
+        "value": 600,
+        "difficulty": "MEDIUM",
+        "airDate": "2024-11-30T22:06:49.757Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "I was 22 for 23 on my Oscar ballot in 2022 but missed Documentary Short Subject: \"The Queen of\" this team sport, about Lusia Harris",
+        "answer": "basketball",
+        "value": 600,
+        "difficulty": "MEDIUM",
+        "airDate": "2024-11-30T22:06:49.759Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "\"If no one is around you say 'baby, I love you', if you ain't runnin' game...\"",
+        "answer": "\"Say My Name\"",
+        "value": 2000,
+        "difficulty": "HARD",
+        "airDate": "2024-11-30T22:06:49.793Z",
+        "source": "j-archive"
+      }
+    ]
+  },
+  {
+    "name": "BUSINESS & ECONOMICS",
+    "questions": [
+      {
+        "question": "The way sales of a product change in relation to its price is its P.E.D., or price elasticity of this",
+        "answer": "demand",
+        "value": 400,
+        "difficulty": "EASY",
+        "airDate": "2024-11-30T22:06:34.384Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "A company's profits divided by its outstanding units of stock are its E.P.S., this",
+        "answer": "earnings per share",
+        "value": 1000,
+        "difficulty": "HARD",
+        "airDate": "2024-11-30T22:06:34.397Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "A statue of a speakers' wagon stands in this Chicago square to commemorate the 1886 riot that occurred there",
+        "answer": "Haymarket Square",
+        "value": 2000,
+        "difficulty": "HARD",
+        "airDate": "2024-11-30T22:06:34.416Z",
         "source": "j-archive"
       }
     ]
@@ -4122,7 +357,7 @@
         "answer": "Popeye",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.813Z",
+        "airDate": "2024-11-30T22:06:51.938Z",
         "source": "j-archive"
       },
       {
@@ -4130,7 +365,7 @@
         "answer": "a zebra & a donkey",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.815Z",
+        "airDate": "2024-11-30T22:06:51.940Z",
         "source": "j-archive"
       },
       {
@@ -4138,7 +373,7 @@
         "answer": "a footlocker",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.816Z",
+        "airDate": "2024-11-30T22:06:51.941Z",
         "source": "j-archive"
       },
       {
@@ -4146,7 +381,7 @@
         "answer": "Fort McHenry",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.818Z",
+        "airDate": "2024-11-30T22:06:51.943Z",
         "source": "j-archive"
       },
       {
@@ -4154,7 +389,7 @@
         "answer": "Yogi Bear",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.820Z",
+        "airDate": "2024-11-30T22:06:51.945Z",
         "source": "j-archive"
       },
       {
@@ -4162,7 +397,7 @@
         "answer": "a cow & a buffalo",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.822Z",
+        "airDate": "2024-11-30T22:06:51.946Z",
         "source": "j-archive"
       },
       {
@@ -4170,7 +405,7 @@
         "answer": "lockstep",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.823Z",
+        "airDate": "2024-11-30T22:06:51.947Z",
         "source": "j-archive"
       },
       {
@@ -4178,7 +413,7 @@
         "answer": "Transformers",
         "value": 600,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.826Z",
+        "airDate": "2024-11-30T22:06:51.950Z",
         "source": "j-archive"
       },
       {
@@ -4186,7 +421,7 @@
         "answer": "a Chihuahua & a dachshund",
         "value": 600,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.828Z",
+        "airDate": "2024-11-30T22:06:51.952Z",
         "source": "j-archive"
       },
       {
@@ -4194,7 +429,7 @@
         "answer": "a hemlock",
         "value": 600,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.829Z",
+        "airDate": "2024-11-30T22:06:51.953Z",
         "source": "j-archive"
       },
       {
@@ -4202,7 +437,7 @@
         "answer": "Dora the Explorer",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.832Z",
+        "airDate": "2024-11-30T22:06:51.955Z",
         "source": "j-archive"
       },
       {
@@ -4210,7 +445,7 @@
         "answer": "a Great Dane & a mastiff",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.834Z",
+        "airDate": "2024-11-30T22:06:51.957Z",
         "source": "j-archive"
       },
       {
@@ -4218,7 +453,7 @@
         "answer": "deadlocked",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.835Z",
+        "airDate": "2024-11-30T22:06:51.958Z",
         "source": "j-archive"
       },
       {
@@ -4226,7 +461,7 @@
         "answer": "Kiwanis International",
         "value": 1000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.841Z",
+        "airDate": "2024-11-30T22:06:51.964Z",
         "source": "j-archive"
       },
       {
@@ -4234,7 +469,7 @@
         "answer": "Charlotte's Web",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.845Z",
+        "airDate": "2024-11-30T22:06:51.980Z",
         "source": "j-archive"
       },
       {
@@ -4242,7 +477,7 @@
         "answer": "40",
         "value": 400,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.846Z",
+        "airDate": "2024-11-30T22:06:51.982Z",
         "source": "j-archive"
       },
       {
@@ -4250,7 +485,7 @@
         "answer": "a tiger",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.848Z",
+        "airDate": "2024-11-30T22:06:51.986Z",
         "source": "j-archive"
       },
       {
@@ -4258,7 +493,7 @@
         "answer": "studs",
         "value": 800,
         "difficulty": "MEDIUM",
-        "airDate": "2024-11-30T21:32:31.850Z",
+        "airDate": "2024-11-30T22:06:51.992Z",
         "source": "j-archive"
       },
       {
@@ -4266,7 +501,7 @@
         "answer": "Frank Capra",
         "value": 1200,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.854Z",
+        "airDate": "2024-11-30T22:06:51.997Z",
         "source": "j-archive"
       },
       {
@@ -4274,7 +509,7 @@
         "answer": "Angela's Ashes",
         "value": 1200,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.856Z",
+        "airDate": "2024-11-30T22:06:51.998Z",
         "source": "j-archive"
       },
       {
@@ -4282,7 +517,7 @@
         "answer": "a phonograph",
         "value": 1200,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.857Z",
+        "airDate": "2024-11-30T22:06:51.999Z",
         "source": "j-archive"
       },
       {
@@ -4290,7 +525,7 @@
         "answer": "Finland",
         "value": 1600,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.858Z",
+        "airDate": "2024-11-30T22:06:52.000Z",
         "source": "j-archive"
       },
       {
@@ -4298,7 +533,7 @@
         "answer": "Schnauzer",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.863Z",
+        "airDate": "2024-11-30T22:06:52.004Z",
         "source": "j-archive"
       },
       {
@@ -4306,7 +541,7 @@
         "answer": "a cantilever",
         "value": 2000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.866Z",
+        "airDate": "2024-11-30T22:06:52.006Z",
         "source": "j-archive"
       },
       {
@@ -4314,7 +549,7 @@
         "answer": "All the King's Men",
         "value": 200,
         "difficulty": "EASY",
-        "airDate": "2024-11-30T21:32:31.866Z",
+        "airDate": "2024-11-30T22:06:52.007Z",
         "source": "j-archive"
       },
       {
@@ -4322,7 +557,36 @@
         "answer": "loophole",
         "value": 2000,
         "difficulty": "HARD",
-        "airDate": "2024-11-30T21:32:31.868Z",
+        "airDate": "2024-11-30T22:06:52.009Z",
+        "source": "j-archive"
+      }
+    ]
+  },
+  {
+    "name": "LITERATURE",
+    "questions": [
+      {
+        "question": "(Dagmar Midcap of NBC 7 in San Diego presents the clue.) In February 1983, Queen Elizabeth visited San Diego, stopping in Balboa Park to unveil a statue of William Shakespeare at this theater, named for the historic one in London where many of Shakespeare’s plays were first performed",
+        "answer": "the Globe",
+        "value": 1000,
+        "difficulty": "HARD",
+        "airDate": "2024-11-30T22:06:51.959Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "In this novel, the intelligent horses called Houyhnhnms have no words for evil",
+        "answer": "Gulliver's Travels",
+        "value": 800,
+        "difficulty": "MEDIUM",
+        "airDate": "2024-11-30T22:06:51.993Z",
+        "source": "j-archive"
+      },
+      {
+        "question": "Aslan gives animals the ability to talk in this book in which Narnia is created",
+        "answer": "The Magician's Nephew",
+        "value": 1600,
+        "difficulty": "HARD",
+        "airDate": "2024-11-30T22:06:52.002Z",
         "source": "j-archive"
       }
     ]
