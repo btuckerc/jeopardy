@@ -22,22 +22,27 @@ export default function GamePage() {
     const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
     const [error, setError] = useState<string | null>(null)
     const [showingAnswer, setShowingAnswer] = useState(false)
+    const [totalScore, setTotalScore] = useState(0)
+
+    const fetchNewGame = async () => {
+        try {
+            const data = await getGameCategories()
+            const sortedCategories = data.categories.map(category => ({
+                ...category,
+                questions: [...category.questions].sort((a, b) => a.value - b.value)
+            }))
+            setCategories(sortedCategories)
+            setAnsweredQuestions(new Set())
+            setTotalScore(0)
+            setError(null)
+        } catch (error) {
+            console.error('Error fetching categories:', error)
+            setError('Failed to load categories')
+        }
+    }
 
     useEffect(() => {
-        async function fetchCategories() {
-            try {
-                const data = await getGameCategories()
-                const sortedCategories = data.categories.map(category => ({
-                    ...category,
-                    questions: [...category.questions].sort((a, b) => a.value - b.value)
-                }))
-                setCategories(sortedCategories)
-            } catch (error) {
-                console.error('Error fetching categories:', error)
-                setError('Failed to load categories')
-            }
-        }
-        fetchCategories()
+        fetchNewGame()
     }, [])
 
     const handleQuestionClick = (question: any) => {
@@ -63,6 +68,11 @@ export default function GamePage() {
             setIsCorrect(result)
             setIsAnswerRevealed(true)
 
+            // Update score if correct
+            if (result) {
+                setTotalScore(prev => prev + selectedQuestion.value)
+            }
+
             // Save the result
             const saveResult = await saveGameHistory(
                 user.id,
@@ -75,7 +85,6 @@ export default function GamePage() {
                 setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
             }
         } catch (error) {
-            // Log the error but don't affect the user experience
             console.error('Error processing answer:', error)
         }
     }
@@ -85,19 +94,37 @@ export default function GamePage() {
         setShowingAnswer(true)
         setIsAnswerRevealed(true)
         setIsCorrect(null)
+        setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
         // Save the answer as incorrect when showing answer
         saveGameHistory(user.id, selectedQuestion.id, false, 0).catch(console.error)
     }
 
+    const handleContinue = () => {
+        setSelectedQuestion(null)
+        // Check if all questions are answered
+        const totalQuestions = categories.reduce((sum, cat) => sum + cat.questions.length, 0)
+        if (answeredQuestions.size === totalQuestions) {
+            // Show game completion message or automatically start new game
+            fetchNewGame()
+        }
+    }
+
+    const gridCols = Math.min(5, categories.length)
+
     return (
         <div className="container mx-auto p-4">
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold">Jeopardy Game</h1>
+                <div className="text-xl">Score: ${totalScore}</div>
+            </div>
+
             {error && (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
                     {error}
                 </div>
             )}
 
-            <div className="grid grid-cols-6 gap-4 mb-8">
+            <div className={`grid grid-cols-${gridCols} gap-4 mb-8`}>
                 {categories.map((category) => (
                     <div key={category.id} className="text-center">
                         <h2 className="font-bold mb-2 text-blue-600">{category.name}</h2>
@@ -107,8 +134,8 @@ export default function GamePage() {
                                     key={question.id}
                                     onClick={() => handleQuestionClick(question)}
                                     className={`w-full p-2 ${answeredQuestions.has(question.id)
-                                        ? 'bg-gray-300 cursor-not-allowed'
-                                        : 'bg-blue-500 hover:bg-blue-600'
+                                            ? 'bg-gray-300 cursor-not-allowed opacity-50'
+                                            : 'bg-blue-500 hover:bg-blue-600'
                                         } text-white rounded`}
                                     disabled={answeredQuestions.has(question.id)}
                                 >
@@ -118,6 +145,15 @@ export default function GamePage() {
                         </div>
                     </div>
                 ))}
+            </div>
+
+            <div className="text-center">
+                <button
+                    onClick={fetchNewGame}
+                    className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600"
+                >
+                    Start New Game
+                </button>
             </div>
 
             {selectedQuestion && (
@@ -157,9 +193,9 @@ export default function GamePage() {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <div className={`p-4 rounded-lg ${showingAnswer ? 'bg-gray-100' :
+                                    <div className={`p-4 rounded-lg ${showingAnswer ? 'bg-gray-100' :
                                     isCorrect ? 'bg-green-100' : 'bg-red-100'
-                                    }`}>
+                                        }`}>
                                     <div className="flex items-center gap-2">
                                         {!showingAnswer && isCorrect === true && (
                                             <span className="text-green-600 text-xl">✓</span>
@@ -173,7 +209,7 @@ export default function GamePage() {
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => setSelectedQuestion(null)}
+                                        onClick={handleContinue}
                                     className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
                                 >
                                     Continue

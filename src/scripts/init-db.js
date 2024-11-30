@@ -1,7 +1,10 @@
 const { PrismaClient } = require('@prisma/client')
+const path = require('path')
+const fs = require('fs')
 
 const prisma = new PrismaClient()
 
+// Sample data as fallback
 const sampleCategories = [
     {
         name: "SCIENCE & NATURE",
@@ -10,13 +13,17 @@ const sampleCategories = [
                 question: "This element's atomic number 79 & symbol Au comes from the Latin word for 'shining dawn'",
                 answer: "Gold",
                 value: 400,
-                difficulty: "MEDIUM"
+                difficulty: "MEDIUM",
+                airDate: new Date().toISOString(),
+                source: "sample_data"
             },
             {
                 question: "The speed of light is approximately 186,282 of these units per second",
                 answer: "Miles",
                 value: 600,
-                difficulty: "MEDIUM"
+                difficulty: "MEDIUM",
+                airDate: new Date().toISOString(),
+                source: "sample_data"
             }
         ]
     },
@@ -27,13 +34,17 @@ const sampleCategories = [
                 question: "This fruit-named tech company became the first U.S. company to reach a $1 trillion market cap",
                 answer: "Apple",
                 value: 800,
-                difficulty: "HARD"
+                difficulty: "HARD",
+                airDate: new Date().toISOString(),
+                source: "sample_data"
             },
             {
                 question: "TSLA is the stock symbol for this electric car company",
                 answer: "Tesla",
                 value: 400,
-                difficulty: "EASY"
+                difficulty: "EASY",
+                airDate: new Date().toISOString(),
+                source: "sample_data"
             }
         ]
     },
@@ -44,13 +55,17 @@ const sampleCategories = [
                 question: "The United Kingdom consists of Great Britain & this island to its west",
                 answer: "Ireland",
                 value: 200,
-                difficulty: "EASY"
+                difficulty: "EASY",
+                airDate: new Date().toISOString(),
+                source: "sample_data"
             },
             {
                 question: "This city, nicknamed the 'Pearl of the Orient,' is China's largest",
                 answer: "Shanghai",
                 value: 600,
-                difficulty: "MEDIUM"
+                difficulty: "MEDIUM",
+                airDate: new Date().toISOString(),
+                source: "sample_data"
             }
         ]
     }
@@ -67,8 +82,21 @@ async function main() {
         await prisma.category.deleteMany()
         console.log('Cleared existing data')
 
+        // Load Jeopardy data
+        const dataPath = path.join(__dirname, '../../data/jeopardy-data.json')
+        let categories = []
+
+        if (fs.existsSync(dataPath)) {
+            console.log('Loading Jeopardy data...')
+            const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'))
+            categories = data
+        } else {
+            console.log('No Jeopardy data found, using sample data')
+            categories = sampleCategories
+        }
+
         // Create categories and questions
-        for (const cat of sampleCategories) {
+        for (const cat of categories) {
             const category = await prisma.category.create({
                 data: {
                     name: cat.name,
@@ -78,12 +106,13 @@ async function main() {
                             answer: q.answer,
                             value: q.value,
                             difficulty: q.difficulty,
-                            source: 'sample_data'
+                            source: q.source,
+                            airDate: q.airDate ? new Date(q.airDate) : null
                         }))
                     }
                 }
             })
-            console.log(`Created category: ${category.name}`)
+            console.log(`Created category: ${category.name} with ${cat.questions.length} questions`)
         }
 
         console.log('Database initialization completed successfully')
@@ -94,4 +123,6 @@ async function main() {
     }
 }
 
-main() 
+if (require.main === module) {
+    main()
+} 
