@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  gameHistory   GameHistory[]
+  userProgress  UserProgress[]
+}
+
+model Question {
+  id           String         @id @default(uuid())
+  question     String
+  answer      String
+  value       Int?
+  category    Category       @relation(fields: [categoryId], references: [id])
+  categoryId  String
+  tags        Tag[]
+  difficulty  Difficulty
+  source      String?
+  airDate     DateTime?
+  gameHistory GameHistory[]
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String
+  questions Question[]
+  progress  UserProgress[]
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  questions Question[]
+}
+
+model GameHistory {
+  id         String    @id @default(uuid())
+  userId     String
+  questionId String
+  correct    Boolean
+  points     Int       @default(0)
+  timestamp  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+  question   Question  @relation(fields: [questionId], references: [id])
+}
+
+model UserProgress {
+  id         String   @id @default(uuid())
+  userId     String
+  categoryId String
+  correct    Int      @default(0)
+  total      Int      @default(0)
+  user       User     @relation(fields: [userId], references: [id])
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  @@unique([userId, categoryId])
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+} 
