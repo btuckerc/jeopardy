@@ -72,7 +72,29 @@ export async function saveGameHistory(
 
     try {
         const result = await prisma.$transaction(async (tx) => {
-            // First find the question to get the category
+            // First ensure user exists
+            const user = await tx.user.upsert({
+                where: { id: userId },
+                update: {},
+                create: {
+                    id: userId,
+                    email: '', // We'll update this later if needed
+                }
+            })
+
+            // Check if this question has already been answered correctly
+            const existingHistory = await tx.gameHistory.findFirst({
+                where: {
+                    userId: user.id,
+                    questionId,
+                    correct: true
+                }
+            })
+
+            // If already answered correctly, don't add points
+            const shouldAwardPoints = isCorrect && !existingHistory
+
+            // Then find the question to get the category
             const question = await tx.question.findUnique({
                 where: { id: questionId },
                 include: { category: true }
@@ -85,32 +107,33 @@ export async function saveGameHistory(
             // Create game history entry
             await tx.gameHistory.create({
                 data: {
-                    userId,
+                    userId: user.id,
                     questionId,
                     correct: isCorrect,
-                    points
+                    points: shouldAwardPoints ? points : 0
                 }
             })
 
             // Update or create user progress
-            await tx.userProgress.upsert({
+            const progress = await tx.userProgress.upsert({
                 where: {
                     userId_categoryId: {
-                        userId,
+                        userId: user.id,
                         categoryId: question.categoryId
                     }
                 },
                 update: {
-                    correct: { increment: isCorrect ? 1 : 0 },
-                    total: { increment: 1 },
-                    points: { increment: points }
+                    correct: { increment: shouldAwardPoints ? 1 : 0 },
+                    total: { increment: !existingHistory ? 1 : 0 },
+                    points: { increment: shouldAwardPoints ? points : 0 }
                 },
                 create: {
-                    userId,
+                    id: crypto.randomUUID(),
+                    userId: user.id,
                     categoryId: question.categoryId,
-                    correct: isCorrect ? 1 : 0,
+                    correct: shouldAwardPoints ? 1 : 0,
                     total: 1,
-                    points
+                    points: shouldAwardPoints ? points : 0
                 }
             })
 

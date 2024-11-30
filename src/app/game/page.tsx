@@ -79,6 +79,7 @@ export default function GamePage() {
         setTotalScore(0)
         setError(null)
         setHasActiveGame(false)
+        setQuestionResults({})
         localStorage.removeItem('gameState')
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
@@ -96,6 +97,7 @@ export default function GamePage() {
             setTotalScore(0)
             setError(null)
             setHasActiveGame(true)
+            setQuestionResults({})
             window.scrollTo({ top: 0, behavior: 'smooth' })
         } catch (error) {
             console.error('Error fetching categories:', error)
@@ -110,6 +112,7 @@ export default function GamePage() {
         const hasExistingGame = loadGameState()
         if (!hasExistingGame) {
             setHasActiveGame(false)
+            setQuestionResults({})
         }
         setLoading(false)
     }, [])

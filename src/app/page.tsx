@@ -37,9 +37,9 @@ export default function Home() {
               <Link href="/practice" className="block">
                 <div className="rounded-lg shadow-lg overflow-hidden transform transition duration-200 hover:scale-105">
                   <div className="bg-green-600 p-8">
-                    <h3 className="text-2xl font-bold text-white">Practice Mode</h3>
+                    <h3 className="text-2xl font-bold text-white">Free Play Mode</h3>
                     <p className="mt-2 text-white">
-                      Study with flashcards and focused practice on specific categories.
+                      Study with flashcards and explore specific categories at your own pace.
                     </p>
                   </div>
                 </div>

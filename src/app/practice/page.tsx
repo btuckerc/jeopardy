@@ -6,16 +6,31 @@ import { getCategories, getQuestion, saveAnswer } from '../actions/practice'
 import { checkAnswer } from '../lib/answer-checker'
 import { AutocompleteInput } from '../components/AutocompleteInput'
 
-export default function PracticePage() {
+type Question = {
+    id: string
+    question: string
+    answer: string
+    value: number
+    categoryName: string
+    originalCategory: string
+}
+
+type CategoryQuestions = {
+    id: string
+    name: string
+    questions: Question[]
+}
+
+export default function FreePractice() {
     const { user } = useAuth()
-    const [categories, setCategories] = useState([])
-    const [selectedCategory, setSelectedCategory] = useState('')
-    const [selectedDifficulty, setSelectedDifficulty] = useState('ALL')
-    const [currentQuestion, setCurrentQuestion] = useState(null)
+    const [categories, setCategories] = useState<CategoryQuestions[]>([])
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+    const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
     const [userAnswer, setUserAnswer] = useState('')
-    const [isCorrect, setIsCorrect] = useState(null)
+    const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [showAnswer, setShowAnswer] = useState(false)
     const [loading, setLoading] = useState(true)
+    const [answeredQuestions, setAnsweredQuestions] = useState<Record<string, boolean>>({})
 
     useEffect(() => {
         const loadCategories = async () => {
@@ -31,36 +46,72 @@ export default function PracticePage() {
         loadCategories()
     }, [user?.id])
 
-    const handleCategorySelect = async (categoryId: string) => {
+    useEffect(() => {
+        // Load answered questions from localStorage
+        const savedAnswers = localStorage.getItem('answeredQuestions')
+        if (savedAnswers) {
+            setAnsweredQuestions(JSON.parse(savedAnswers))
+        }
+    }, [])
+
+    const handleCategorySelect = (categoryId: string) => {
         setSelectedCategory(categoryId)
-        await fetchNewQuestion(categoryId)
+        setSelectedQuestion(null)
+        setShowAnswer(false)
+        setIsCorrect(null)
     }
 
-    const fetchNewQuestion = async (categoryId: string = selectedCategory) => {
-        if (!categoryId) return
-        try {
-            setLoading(true)
-            const question = await getQuestion(categoryId, selectedDifficulty, user?.id)
-            setCurrentQuestion(question)
+    const handleQuestionSelect = (question: Question) => {
+        setSelectedQuestion(question)
+        setUserAnswer('')
+        setShowAnswer(false)
+        setIsCorrect(null)
+    }
+
+    const handleGlobalShuffle = () => {
+        if (!categories.length) return
+
+        // Flatten all questions from all categories
+        const allQuestions = categories.flatMap(category => category.questions)
+
+        // Filter for unanswered questions first
+        const unansweredQuestions = allQuestions.filter(q => !answeredQuestions[q.id])
+
+        // Choose from unanswered questions if available, otherwise from all questions
+        const questionPool = unansweredQuestions.length > 0 ? unansweredQuestions : allQuestions
+        const randomIndex = Math.floor(Math.random() * questionPool.length)
+        const selectedQuestion = questionPool[randomIndex]
+
+        // Find the category this question belongs to
+        const category = categories.find(c =>
+            c.questions.some(q => q.id === selectedQuestion.id)
+        )
+
+        if (category) {
+            setSelectedCategory(category.id)
+            setSelectedQuestion(selectedQuestion)
             setUserAnswer('')
-            setIsCorrect(null)
             setShowAnswer(false)
-        } catch (error) {
-            console.error('Error fetching question:', error)
-        } finally {
-            setLoading(false)
+            setIsCorrect(null)
         }
     }
 
     const handleSubmitAnswer = async () => {
-        if (!currentQuestion || !userAnswer.trim()) return
+        if (!selectedQuestion || !userAnswer.trim()) return
 
-        const result = checkAnswer(userAnswer, currentQuestion.answer)
+        const result = checkAnswer(userAnswer, selectedQuestion.answer)
         setIsCorrect(result)
         setShowAnswer(true)
 
+        if (result) {
+            // Update answered questions in state and localStorage
+            const newAnsweredQuestions = { ...answeredQuestions, [selectedQuestion.id]: true }
+            setAnsweredQuestions(newAnsweredQuestions)
+            localStorage.setItem('answeredQuestions', JSON.stringify(newAnsweredQuestions))
+        }
+
         if (user?.id) {
-            await saveAnswer(user.id, currentQuestion.id, selectedCategory, result)
+            await saveAnswer(user.id, selectedQuestion.id, selectedCategory!, result)
         }
     }
 
@@ -70,46 +121,103 @@ export default function PracticePage() {
 
     return (
         <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold text-black mb-8">Practice Mode</h1>
+            <h1 className="text-2xl font-bold text-black mb-8">Free Play Mode</h1>
 
-            {!currentQuestion ? (
-                <div className="space-y-4">
-                    <h2 className="text-lg font-semibold text-black">Select a Category</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {categories.map((category: any) => (
-                            <button
-                                key={category.id}
-                                onClick={() => handleCategorySelect(category.id)}
-                                className="p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                {category.name}
-                                {category.progress && (
-                                    <div className="text-sm mt-2">
-                                        Progress: {category.progress[0]?.correct || 0}/{category.progress[0]?.total || 0}
-                                    </div>
-                                )}
-                            </button>
-                        ))}
+            {!selectedCategory ? (
+                <div className="space-y-8">
+                    <div className="text-center">
+                        <button
+                            onClick={handleGlobalShuffle}
+                            className="bg-purple-600 text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-purple-700 transition-colors mb-8"
+                        >
+                            Shuffle Random Question from Any Category
+                        </button>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h2 className="text-lg font-semibold text-black">Or Select a Category</h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            {categories.map((category) => (
+                                <button
+                                    key={category.id}
+                                    onClick={() => handleCategorySelect(category.id)}
+                                    className="p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    {category.name}
+                                </button>
+                            ))}
+                        </div>
                     </div>
                 </div>
+            ) : !selectedQuestion ? (
+                <div className="space-y-4">
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-lg font-semibold text-black">
+                            {categories.find(c => c.id === selectedCategory)?.name}
+                        </h2>
+                        <button
+                            onClick={() => setSelectedCategory(null)}
+                            className="text-blue-600 hover:text-blue-800"
+                        >
+                            ← Back to Categories
+                        </button>
+                    </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {categories
+                                .find(c => c.id === selectedCategory)
+                                ?.questions.map((question) => (
+                                    <button
+                                        key={question.id}
+                                        onClick={() => handleQuestionSelect(question)}
+                                        className={`p-4 rounded-lg transition-colors ${answeredQuestions[question.id]
+                                            ? 'bg-green-600 hover:bg-green-700'
+                                            : 'bg-blue-600 hover:bg-blue-700'
+                                            } text-white`}
+                                    >
+                                        {question.originalCategory} for ${question.value}
+                                    </button>
+                                ))}
+                    </div>
+                        <div className="mt-6 text-center">
+                            <button
+                                onClick={handleGlobalShuffle}
+                                className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors"
+                            >
+                                Shuffle Random Question
+                            </button>
+                        </div>
+                </div>
             ) : (
-                    <div className="max-w-2xl mx-auto space-y-6">
-                        <div className="bg-white shadow-lg rounded-lg p-6">
-                            <h2 className="text-xl font-semibold text-black mb-4">{currentQuestion.category.name}</h2>
-                            <p className="text-lg text-black mb-6">{currentQuestion.question}</p>
+                        <div className="max-w-2xl mx-auto space-y-6">
+                            <div className="bg-white shadow-lg rounded-lg p-6">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-xl font-semibold text-black">
+                                        {selectedQuestion.originalCategory} - ${selectedQuestion.value}
+                                    </h2>
+                                    <button
+                                        onClick={() => setSelectedQuestion(null)}
+                                        className="text-blue-600 hover:text-blue-800"
+                                    >
+                                        ← Back to Questions
+                                    </button>
+                                </div>
+                                <p className="text-lg text-black mb-6">{selectedQuestion.question}</p>
 
-                            <div className="space-y-4">
-                                <AutocompleteInput
-                                    value={userAnswer}
-                                    onChange={setUserAnswer}
-                                    onSubmit={handleSubmitAnswer}
-                                    question={currentQuestion.question}
-                                    answer={currentQuestion.answer}
-                                    disabled={showAnswer}
-                                    placeholder="Type your answer..."
-                                />
-
-                                {!showAnswer ? (
+                                <div className="space-y-4">
+                                    {!showAnswer ? (
+                                        <div className="space-y-4">
+                                            <input
+                                                type="text"
+                                                value={userAnswer}
+                                                onChange={(e) => setUserAnswer(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        handleSubmitAnswer();
+                                                    }
+                                                }}
+                                                className="w-full p-3 border rounded-lg text-black"
+                                                placeholder="Your answer..."
+                                            />
                                     <div className="flex space-x-4">
                                         <button
                                             onClick={handleSubmitAnswer}
@@ -124,26 +232,35 @@ export default function PracticePage() {
                                             Show Answer
                                         </button>
                                     </div>
-                                ) : (
-                                    <div className="space-y-4">
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
                                             <div className={`p-4 rounded-lg ${isCorrect === null ? 'bg-gray-100' :
-                                                    isCorrect ? 'bg-green-100' : 'bg-red-100'
+                                                isCorrect ? 'bg-green-100' : 'bg-red-100'
                                                 }`}>
                                                 <p className="font-medium text-black">
-                                                    Correct answer: {currentQuestion.answer}
-                                                </p>
-                                            </div>
-                                            <button
-                                            onClick={() => fetchNewQuestion()}
+                                                        Correct answer: {selectedQuestion.answer}
+                                                    </p>
+                                                </div>
+                                                <div className="flex space-x-4">
+                                                    <button
+                                                        onClick={handleGlobalShuffle}
+                                                        className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+                                                    >
+                                                        Next Random Question
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setSelectedQuestion(null)}
                                             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                                         >
-                                            Next Question
+                                                        Back to Questions
                                         </button>
                                     </div>
-                                )}
+                                            </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
             )}
         </div>
     )

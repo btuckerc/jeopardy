@@ -18,12 +18,14 @@ type Stats = {
 }
 
 export default function StatsPage() {
-    const { user } = useAuth()
+    const { user, loading: authLoading } = useAuth()
     const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
         const fetchStats = async () => {
+            if (authLoading) return
+
             if (!user) {
                 setLoading(false)
                 return
@@ -41,10 +43,15 @@ export default function StatsPage() {
         }
 
         fetchStats()
-    }, [user])
+    }, [user, authLoading])
 
-    if (loading) {
-        return <div className="text-center p-4">Loading...</div>
+    // Show loading state while either auth or stats are loading
+    if (authLoading || loading) {
+        return (
+            <div className="flex justify-center items-center min-h-[60vh]">
+                <div className="text-xl text-black">Loading statistics...</div>
+            </div>
+        )
     }
 
     if (!user) {
