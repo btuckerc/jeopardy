@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import { Providers } from './providers'
 import { AuthButton } from './components/AuthButton'
 import { Toaster } from 'react-hot-toast'
+import Link from 'next/link'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -40,6 +41,9 @@ export default function RootLayout({
                       </a>
                       <a href="/stats" className="text-white hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">
                         Statistics
+                      </a>
+                      <a href="/settings" className="text-white hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">
+                        Settings
                       </a>
                     </div>
                   </div>

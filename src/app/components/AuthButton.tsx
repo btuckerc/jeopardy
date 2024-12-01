@@ -1,150 +1,157 @@
 'use client'
 
-import { useState } from 'react'
-import { useAuth } from '../lib/auth'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import SpoilerSettings from '@/components/SpoilerSettings'
 
 export function AuthButton() {
-    const { user, loading, signIn, signOut } = useAuth()
+    const [showUserMenu, setShowUserMenu] = useState(false)
+    const [showSettings, setShowSettings] = useState(false)
+    const [user, setUser] = useState<any>(null)
     const [email, setEmail] = useState('')
-    const [showModal, setShowModal] = useState(false)
-    const [showDropdown, setShowDropdown] = useState(false)
-    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [showEmailInput, setShowEmailInput] = useState(false)
+    const [loading, setLoading] = useState(false)
+    const [message, setMessage] = useState<string | null>(null)
+    const router = useRouter()
+    const supabase = createClientComponentClient()
+
+    useEffect(() => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            setUser(user)
+        }
+        getUser()
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null)
+        })
+
+        return () => subscription.unsubscribe()
+    }, [supabase.auth])
 
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault()
-        setIsSubmitting(true)
+        setLoading(true)
+        setMessage(null)
+
         try {
-            await signIn(email)
-            setShowModal(false)
-            setEmail('')
-        } catch (error) {
-            console.error('Error signing in:', error)
+            const { error } = await supabase.auth.signInWithOtp({
+                email,
+                options: {
+                    emailRedirectTo: `${location.origin}/auth/callback`,
+                }
+            })
+
+            if (error) throw error
+
+            setMessage('Check your email for the login link!')
+        } catch (error: any) {
+            setMessage(error?.message || 'An error occurred')
         } finally {
-            setIsSubmitting(false)
+            setLoading(false)
         }
     }
 
-    const handleResetHistory = async () => {
-        if (!user) return
-
-        if (window.confirm('Are you sure you want to reset your game history? This cannot be undone.')) {
-            try {
-                // We'll implement this functionality later
-                alert('Game history has been reset successfully!')
-            } catch (error) {
-                console.error('Error resetting game history:', error)
-            }
-        }
-        setShowDropdown(false)
+    const handleSignOut = async () => {
+        await supabase.auth.signOut()
+        router.refresh()
+        setShowUserMenu(false)
     }
 
-    // Don't render anything during initial load
-    if (loading) {
-        return <div className="w-24" /> // Placeholder with same width as button to prevent layout shift
+    if (!user) {
+        if (!showEmailInput) {
+            return (
+                <div className="relative">
+                    <button
+                        onClick={() => setShowEmailInput(true)}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium"
+                    >
+                        Sign in
+                    </button>
+                </div>
+            )
+        }
+
+        return (
+            <div className="relative inline-block">
+                <form onSubmit={handleSignIn} className="absolute right-0 top-0 mt-2 bg-white p-4 rounded-lg shadow-lg w-64">
+                    <input
+                        type="email"
+                        placeholder="Your email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="w-full px-3 py-2 border rounded mb-2"
+                        required
+                    />
+                    <div className="flex gap-2">
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
+                        >
+                            {loading ? 'Sending...' : 'Send Magic Link'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowEmailInput(false)}
+                            className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded text-sm font-medium"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                    {message && (
+                        <p className={`mt-2 text-sm ${message.includes('error') ? 'text-red-600' : 'text-green-600'}`}>
+                            {message}
+                        </p>
+                    )}
+                </form>
+            </div>
+        )
     }
 
     return (
-        <div className="relative opacity-0 animate-fade-in">
-            {user ? (
-                <div className="relative">
-                    <button
-                        onClick={() => setShowDropdown(!showDropdown)}
-                        className="flex items-center space-x-2 text-white hover:text-gray-300"
-                    >
-                        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium">
-                                {user.email?.[0].toUpperCase() || '?'}
-                            </span>
-                        </div>
-                        <svg
-                            className={`h-5 w-5 transition-transform ${showDropdown ? 'rotate-180' : ''}`}
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        <>
+            <div className="relative">
+                <button
+                    type="button"
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="relative flex rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
+                >
+                    <span className="absolute -inset-1.5" />
+                    <span className="sr-only">Open user menu</span>
+                    <div className="h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                         </svg>
-                    </button>
+                    </div>
+                </button>
 
-                    {showDropdown && (
-                        <>
-                            {/* Overlay to capture clicks outside dropdown */}
-                            <div
-                                className="fixed inset-0 z-40"
-                                onClick={() => setShowDropdown(false)}
-                            />
-
-                            {/* Dropdown menu */}
-                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-50">
-                                <div className="py-1">
-                                    <div className="px-4 py-2 text-sm text-gray-700 border-b">
-                                        Signed in as<br />
-                                        <span className="font-medium">{user.email}</span>
-                                    </div>
-                                    <button
-                                        onClick={handleResetHistory}
-                                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                    >
-                                        Reset Game History
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            signOut()
-                                            setShowDropdown(false)
-                                        }}
-                                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                                    >
-                                        Sign Out
-                                    </button>
-                                </div>
-                            </div>
-                        </>
-                    )}
-                </div>
-            ) : (
-                <>
-                    <button
-                        onClick={() => setShowModal(true)}
-                            className="text-white hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium"
+                {showUserMenu && (
+                    <div className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                        <button
+                            onClick={() => {
+                                setShowSettings(true)
+                                setShowUserMenu(false)
+                            }}
+                            className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
                         >
-                            Sign In
+                            Settings
                         </button>
+                        <button
+                            onClick={handleSignOut}
+                            className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                            Sign out
+                        </button>
+                    </div>
+                )}
+            </div>
 
-                        {showModal && (
-                            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                                <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-                                    <h2 className="text-xl font-bold mb-4 text-gray-900">Sign In</h2>
-                                    <form onSubmit={handleSignIn}>
-                                        <input
-                                            type="email"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            placeholder="Enter your email"
-                                            className="w-full p-2 border rounded mb-4 text-gray-900"
-                                            required
-                                        />
-                                        <div className="flex justify-end space-x-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowModal(false)}
-                                                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                disabled={isSubmitting}
-                                                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-400"
-                                            >
-                                                {isSubmitting ? 'Sending...' : 'Send Magic Link'}
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
-                    </>
-            )}
-        </div>
+            <SpoilerSettings
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+            />
+        </>
     )
 } 

@@ -29,14 +29,17 @@ enum KnowledgeCategory {
 }
 
 model User {
-  id           String         @id @default(uuid())
-  email        String         @unique
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  role         UserRole       @default(USER)
-  gameHistory  GameHistory[]
-  userProgress UserProgress[]
-  games        Game[]
+  id                    String         @id @default(uuid())
+  email                 String         @unique
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  role                  UserRole       @default(USER)
+  gameHistory           GameHistory[]
+  userProgress          UserProgress[]
+  games                 Game[]
+  spoilerBlockDate      DateTime?      // Date up to which user wants to see questions
+  spoilerBlockEnabled   Boolean        @default(true)  // Toggle for current day's games
+  lastSpoilerPrompt     DateTime?      // Last time we asked about updating spoiler settings
 }
 
 model Question {

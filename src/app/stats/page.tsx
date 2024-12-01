@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type CategoryStats = {
     categoryName: string
@@ -21,32 +22,46 @@ export default function StatsPage() {
     const { user, loading: authLoading } = useAuth()
     const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
+    const supabase = createClientComponentClient()
 
     useEffect(() => {
+        let mounted = true
+
         const fetchStats = async () => {
-            if (authLoading) return
-
-            if (!user) {
-                setLoading(false)
-                return
-            }
-
             try {
-                const response = await fetch(`/api/stats?userId=${user.id}`)
+                const { data: { session } } = await supabase.auth.getSession()
+
+                if (!mounted) return
+
+                if (!session?.user) {
+                    setLoading(false)
+                    return
+                }
+
+                const response = await fetch(`/api/stats?userId=${session.user.id}`)
+                if (!response.ok) {
+                    console.error('Stats API error:', await response.text())
+                    return
+                }
+
+                if (!mounted) return
+
                 const data = await response.json()
                 setStats(data)
             } catch (error) {
                 console.error('Error fetching stats:', error)
             } finally {
-                setLoading(false)
+                if (mounted) {
+                    setLoading(false)
+                }
             }
         }
 
         fetchStats()
-    }, [user, authLoading])
+        return () => { mounted = false }
+    }, [supabase.auth])
 
-    // Show loading state while either auth or stats are loading
-    if (authLoading || loading) {
+    if (loading) {
         return (
             <div className="flex justify-center items-center min-h-[60vh]">
                 <div className="text-xl text-black">Loading statistics...</div>

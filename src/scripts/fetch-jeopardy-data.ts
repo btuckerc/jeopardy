@@ -119,25 +119,26 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
         }
     }
 
-    // Extract air date
-    const airDateText = $('.title').text()
-    const airDateMatch = airDateText.match(/aired\s+([A-Za-z]+\s+\d+,\s+\d{4})/)
-    const airDate = airDateMatch ? new Date(airDateMatch[1]).toISOString().split('T')[0] : undefined
+    // Extract air date from title
+    const titleText = $('title').text()
+    const airDateMatch = titleText.match(/aired\s+(\d{4})-(\d{2})-(\d{2})/)
+    const airDate = airDateMatch ? `${airDateMatch[1]}-${airDateMatch[2]}-${airDateMatch[3]}` : undefined
+
+    // Check if this is a pre-2001 game (when values were doubled)
+    const isPreDoubledValues = airDate ? new Date(airDate) < new Date('2001-11-26') : false
+    const valueMultiplier = isPreDoubledValues ? 2 : 1 // Double old values to normalize them
 
     // Process both Jeopardy and Double Jeopardy rounds
     $('#jeopardy_round, #double_jeopardy_round').each((_, round) => {
         const $round = $(round)
         const isDoubleJeopardy = $round.attr('id') === 'double_jeopardy_round'
-        const baseValue = isDoubleJeopardy ? 400 : 200 // Base values are doubled in Double Jeopardy
+        const baseValue = isDoubleJeopardy ? 400 : 200 // Modern base values
 
         // Get categories for this round
         const categories: string[] = []
         $round.find('.category_name').each((_, el) => {
             categories.push($(el).text().trim())
         })
-
-        console.log(`\nProcessing ${isDoubleJeopardy ? 'Double Jeopardy' : 'Jeopardy'} round:`)
-        console.log('Categories:', categories)
 
         // Process each category's clues
         categories.forEach((category, categoryIndex) => {
@@ -162,14 +163,13 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
                     if ($valueCell.length) {
                         const valueText = $valueCell.text().trim()
                         const match = valueText.match(/\$(\d+)/)
-                        value = match ? parseInt(match[1]) : baseValue * (rowIndex + 1)
+                        const rawValue = match ? parseInt(match[1]) : baseValue * (rowIndex + 1)
+                        value = rawValue * valueMultiplier // Normalize pre-2001 values
                     } else {
-                        // Calculate value based on row position (1-based index)
-                        value = baseValue * (rowIndex + 1)
+                        value = baseValue * (rowIndex + 1) * valueMultiplier
                     }
                 } else {
-                    // Calculate value based on row position (1-based index)
-                    value = baseValue * (rowIndex + 1)
+                    value = baseValue * (rowIndex + 1) * valueMultiplier
                 }
 
                 // Get the clue text (question)
@@ -190,7 +190,6 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
                 }
 
                 if (question && answer) {
-                    console.log(`Found clue: "${question}" -> "${answer}" (Value: $${value})`)
                     const knowledgeCategory = determineKnowledgeCategory(question, answer, category)
                     games.push({
                         id: crypto.randomUUID(),
@@ -219,7 +218,7 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
 async function main() {
     try {
         const numGames = process.argv[2] ? parseInt(process.argv[2]) : 10
-        console.log(`Fetching ${numGames} games...`)
+        console.log(`Starting to fetch ${numGames} games...`)
 
         const games: JeopardyGame[] = []
         let gamesProcessed = 0
@@ -229,11 +228,10 @@ async function main() {
         const gameIds = Array.from({ length: numGames }, (_, i) => (startId + i).toString())
 
         for (const gameId of gameIds) {
-            console.log(`\nProcessing game ${++gamesProcessed}/${gameIds.length} (ID: ${gameId})`)
             const url = `https://j-archive.com/showgame.php?game_id=${gameId}`
             try {
                 const newGames = await scrapeJeopardyArchive(url)
-                console.log(`Found ${newGames.length} questions in game ${gameId}`)
+                console.log(`Game ${gameId}: Found ${newGames.length} questions (Aired: ${newGames[0]?.airDate || 'unknown'})`)
                 games.push(...newGames)
             } catch (error) {
                 console.error(`Error processing game ${gameId}:`, error)
@@ -247,7 +245,7 @@ async function main() {
         // Save to file
         const outputPath = path.join(__dirname, '../../data/jeopardy_questions.json')
         writeFileSync(outputPath, JSON.stringify(games, null, 2))
-        console.log(`\nSaved ${games.length} questions to ${outputPath}`)
+        console.log(`\nSuccessfully saved ${games.length} questions from ${gamesProcessed} games to ${outputPath}`)
 
     } catch (error) {
         console.error('Error:', error)
