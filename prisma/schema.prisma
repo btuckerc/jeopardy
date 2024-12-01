@@ -51,6 +51,8 @@ model Question {
   airDate           DateTime?
   season            Int?
   episodeId         String?
+  wasTripleStumper  Boolean          @default(false)
+  isDoubleJeopardy  Boolean          @default(false)
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
   userProgress      UserProgress[]
