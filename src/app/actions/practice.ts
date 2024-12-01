@@ -2,18 +2,19 @@
 
 import { prisma } from '../lib/prisma'
 import crypto from 'crypto'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
+import { cookies } from 'next/headers'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 
-type QuestionWithGameHistory = Prisma.QuestionGetPayload<{
-    include: {
-        category: true;
-        gameHistory: true;
-    }
-}>
+// Create a server-side Supabase client that includes auth context
+async function getSupabase() {
+    const cookieStore = cookies()
+    return createServerComponentClient({ cookies: () => cookieStore })
+}
 
 export async function getCategories(userId?: string) {
     try {
-        // Get knowledge categories with their question counts
+        // Use Prisma for now until we fully set up Supabase
         const categories = await prisma.$queryRaw`
             SELECT 
                 q."knowledgeCategory",
@@ -73,11 +74,11 @@ export async function getKnowledgeCategoryDetails(knowledgeCategoryId: string, u
             }
         })
 
-        return categories.map((cat: any) => ({
+        return categories.map(cat => ({
             id: cat.id,
             name: cat.name,
             totalQuestions: cat.questions.length,
-            correctQuestions: userId ? cat.questions.filter((q: any) => q.gameHistory?.length > 0).length : 0
+            correctQuestions: userId ? cat.questions.filter(q => q.gameHistory?.length > 0).length : 0
         }))
     } catch (error) {
         console.error('Error fetching category details:', error)
@@ -121,10 +122,10 @@ export async function getRandomQuestion(knowledgeCategoryId?: string, categoryId
                 category: true,
                 gameHistory: userId ? {
                     where: {
-                        userId: userId,
+                        userId: userId
                     },
                     orderBy: {
-                        createdAt: 'desc'
+                        timestamp: 'desc'
                     }
                 } : false
             },
@@ -133,11 +134,11 @@ export async function getRandomQuestion(knowledgeCategoryId?: string, categoryId
 
         if (!question) return null
 
-        // Get incorrect attempts
-        const incorrectAttempts = userId && (question as QuestionWithGameHistory).gameHistory?.length > 0
-            ? (question as QuestionWithGameHistory).gameHistory
+        const gameHistory = question.gameHistory || []
+        const incorrectAttempts = userId && gameHistory.length > 0
+            ? gameHistory
                 .filter(h => !h.correct)
-                .map(h => h.createdAt)
+                .map(h => h.timestamp)
                 .sort((a, b) => b.getTime() - a.getTime())
                 .slice(0, 5)
             : []
@@ -151,8 +152,8 @@ export async function getRandomQuestion(knowledgeCategoryId?: string, categoryId
             categoryName: question.knowledgeCategory,
             originalCategory: question.category.name,
             airDate: question.airDate,
-            answered: userId ? (question as QuestionWithGameHistory).gameHistory?.length > 0 : false,
-            correct: userId ? (question as QuestionWithGameHistory).gameHistory?.some(h => h.correct) : false,
+            answered: userId ? gameHistory.length > 0 : false,
+            correct: userId ? gameHistory.some(h => h.correct) : false,
             incorrectAttempts
         }
     } catch (error) {
@@ -170,59 +171,57 @@ export async function saveAnswer(
     if (!userId || !questionId || !categoryId) return
 
     try {
-        await prisma.$transaction(async (prismaClient: PrismaClient) => {
-            // Ensure user exists
-            const user = await prismaClient.user.upsert({
-                where: { id: userId },
-                update: {},
-                create: {
-                    id: userId,
-                    email: '', // We'll update this later if needed
+        await prisma.$transaction(async (tx) => {
+            // First check if this question has been answered correctly before
+            const existingHistory = await tx.gameHistory.findFirst({
+                where: {
+                    userId,
+                    questionId,
+                    correct: true
                 }
             })
 
-            // Get the question to get its category
-            const question = await prismaClient.question.findUnique({
-                where: { id: questionId },
-                select: { categoryId: true }
-            })
-
-            if (!question) throw new Error('Question not found')
+            // Only award points if this is the first correct answer
+            const shouldAwardPoints = isCorrect && !existingHistory
 
             // Create game history entry
-            await prismaClient.gameHistory.create({
+            await tx.gameHistory.create({
                 data: {
-                    userId: user.id,
+                    userId,
                     questionId,
                     correct: isCorrect,
-                    points: isCorrect ? 200 : 0 // Default value for practice mode
+                    points: shouldAwardPoints ? 200 : 0
                 }
             })
 
             // Update or create user progress
-            await prismaClient.userProgress.upsert({
+            await tx.userProgress.upsert({
                 where: {
                     userId_categoryId: {
-                        userId: user.id,
-                        categoryId: question.categoryId
+                        userId,
+                        categoryId
                     }
                 },
                 update: {
-                    correct: { increment: isCorrect ? 1 : 0 },
-                    total: { increment: 1 },
-                    points: { increment: isCorrect ? 200 : 0 }
+                    correct: { increment: shouldAwardPoints ? 1 : 0 },
+                    total: { increment: existingHistory ? 0 : 1 },
+                    points: { increment: shouldAwardPoints ? 200 : 0 }
                 },
                 create: {
                     id: crypto.randomUUID(),
-                    userId: user.id,
-                    categoryId: question.categoryId,
+                    userId,
+                    categoryId,
                     questionId,
-                    correct: isCorrect ? 1 : 0,
+                    correct: shouldAwardPoints ? 1 : 0,
                     total: 1,
-                    points: isCorrect ? 200 : 0
+                    points: shouldAwardPoints ? 200 : 0
                 }
             })
         })
+
+        return {
+            success: true
+        }
     } catch (error) {
         console.error('Error saving answer:', error)
         throw error
@@ -243,17 +242,18 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
                         userId: userId
                     },
                     orderBy: {
-                        createdAt: 'desc'
+                        timestamp: 'desc'
                     }
                 } : false
             }
         })
 
         return questions.map(question => {
-            const incorrectAttempts = userId && (question as QuestionWithGameHistory).gameHistory?.length > 0
-                ? (question as QuestionWithGameHistory).gameHistory
+            const gameHistory = question.gameHistory || []
+            const incorrectAttempts = userId && gameHistory.length > 0
+                ? gameHistory
                     .filter(h => !h.correct)
-                    .map(h => h.createdAt)
+                    .map(h => h.timestamp)
                     .sort((a, b) => b.getTime() - a.getTime())
                     .slice(0, 5)
                 : []
@@ -267,8 +267,8 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
                 categoryName: question.knowledgeCategory,
                 originalCategory: question.category.name,
                 airDate: question.airDate,
-                answered: userId ? (question as QuestionWithGameHistory).gameHistory?.length > 0 : false,
-                correct: userId ? (question as QuestionWithGameHistory).gameHistory?.some(h => h.correct) : false,
+                answered: userId ? gameHistory.length > 0 : false,
+                correct: userId ? gameHistory.some(h => h.correct) : false,
                 incorrectAttempts
             }
         })

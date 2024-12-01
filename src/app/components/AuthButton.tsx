@@ -1,30 +1,76 @@
 'use client'
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import SpoilerSettings from '@/components/SpoilerSettings'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import UserSettings from '@/components/UserSettings'
+import UserAvatar from '@/components/UserAvatar'
+import { User as SupabaseUser } from '@supabase/supabase-js'
+
+type User = {
+    id: string;
+    email: string;
+}
 
 export function AuthButton() {
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
-    const [user, setUser] = useState<any>(null)
+    const [user, setUser] = useState<User | null>(null)
+    const [displayName, setDisplayName] = useState<string | null>(null)
+    const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
     const [email, setEmail] = useState('')
     const [showEmailInput, setShowEmailInput] = useState(false)
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(true)
     const [message, setMessage] = useState<string | null>(null)
     const router = useRouter()
     const supabase = createClientComponentClient()
 
     useEffect(() => {
         const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            setUser(user)
+            const { data: { user: supabaseUser } } = await supabase.auth.getUser()
+            if (supabaseUser?.email) {
+                setUser({
+                    id: supabaseUser.id,
+                    email: supabaseUser.email
+                })
+                // Fetch display name and icon
+                try {
+                    const response = await fetch(`/api/user/display-name`)
+                    if (response.ok) {
+                        const data = await response.json()
+                        setDisplayName(data.displayName)
+                        setSelectedIcon(data.selectedIcon)
+                    }
+                } catch (err) {
+                    console.error('Error fetching display name:', err)
+                }
+            }
+            setLoading(false)
         }
         getUser()
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null)
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (session?.user?.email) {
+                setUser({
+                    id: session.user.id,
+                    email: session.user.email
+                })
+                try {
+                    const response = await fetch(`/api/user/display-name`)
+                    if (response.ok) {
+                        const data = await response.json()
+                        setDisplayName(data.displayName)
+                        setSelectedIcon(data.selectedIcon)
+                    }
+                } catch (err) {
+                    console.error('Error fetching display name:', err)
+                }
+            } else {
+                setUser(null)
+                setDisplayName(null)
+                setSelectedIcon(null)
+            }
+            setLoading(false)
         })
 
         return () => subscription.unsubscribe()
@@ -59,6 +105,10 @@ export function AuthButton() {
         setShowUserMenu(false)
     }
 
+    if (loading) {
+        return <div className="w-[72px] h-[40px]" />
+    }
+
     if (!user) {
         if (!showEmailInput) {
             return (
@@ -81,7 +131,7 @@ export function AuthButton() {
                         placeholder="Your email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-3 py-2 border rounded mb-2"
+                        className="w-full px-3 py-2 border rounded mb-2 text-gray-900"
                         required
                     />
                     <div className="flex gap-2">
@@ -114,43 +164,44 @@ export function AuthButton() {
         <>
             <div className="relative">
                 <button
-                    type="button"
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="relative flex rounded-full bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800"
+                    className="flex items-center space-x-3 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium"
                 >
-                    <span className="absolute -inset-1.5" />
-                    <span className="sr-only">Open user menu</span>
-                    <div className="h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                        </svg>
-                    </div>
+                    <UserAvatar email={user.email} displayName={displayName} selectedIcon={selectedIcon} size="sm" />
+                    <span>{displayName || 'User'}</span>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                 </button>
 
                 {showUserMenu && (
-                    <div className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                        <button
-                            onClick={() => {
-                                setShowSettings(true)
-                                setShowUserMenu(false)
-                            }}
-                            className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                            Settings
-                        </button>
-                        <button
-                            onClick={handleSignOut}
-                            className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
-                        >
-                            Sign out
-                        </button>
+                    <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
+                        <div className="py-1">
+                            <button
+                                onClick={() => {
+                                    setShowSettings(true)
+                                    setShowUserMenu(false)
+                                }}
+                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                                Settings
+                            </button>
+                            <button
+                                onClick={handleSignOut}
+                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                            >
+                                Sign out
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
 
-            <SpoilerSettings
+            <UserSettings
                 isOpen={showSettings}
                 onClose={() => setShowSettings(false)}
+                onDisplayNameUpdate={(newDisplayName: string) => setDisplayName(newDisplayName)}
+                onIconUpdate={(newIcon: string | null) => setSelectedIcon(newIcon)}
             />
         </>
     )

@@ -8,6 +8,113 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model User {
+  id                  String         @id @default(uuid())
+  email               String         @unique
+  displayName         String?        @map("displayName")
+  selectedIcon        String?        @map("selectedIcon")
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  role                UserRole       @default(USER)
+  lastSpoilerPrompt   DateTime?
+  spoilerBlockDate    DateTime?
+  spoilerBlockEnabled Boolean        @default(true)
+  games               Game[]
+  gameHistory         GameHistory[]
+  userProgress        UserProgress[]
+
+  @@map("User")
+}
+
+model Question {
+  id                String            @id @default(uuid())
+  question          String
+  answer            String
+  value             Int
+  difficulty        Difficulty
+  categoryId        String
+  knowledgeCategory KnowledgeCategory
+  airDate           DateTime?
+  season            Int?
+  episodeId         String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  wasTripleStumper  Boolean           @default(false)
+  isDoubleJeopardy  Boolean           @default(false)
+  gameHistory       GameHistory[]
+  games             GameQuestion[]
+  category          Category          @relation(fields: [categoryId], references: [id])
+  userProgress      UserProgress[]
+  tags              Tag[]             @relation("QuestionTags")
+}
+
+model Category {
+  id           String         @id @default(uuid())
+  name         String         @unique
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  questions    Question[]
+  userProgress UserProgress[]
+}
+
+model Tag {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  questions Question[] @relation("QuestionTags")
+}
+
+model GameHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  questionId String
+  correct    Boolean
+  points     Int      @default(0)
+  timestamp  DateTime @default(now())
+  question   Question @relation(fields: [questionId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model UserProgress {
+  id         String   @id @default(uuid())
+  userId     String
+  categoryId String
+  questionId String
+  correct    Int      @default(0)
+  total      Int      @default(0)
+  points     Int      @default(0)
+  category   Category @relation(fields: [categoryId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, categoryId])
+}
+
+model Game {
+  id                     String         @id @default(uuid())
+  userId                 String
+  useKnowledgeCategories Boolean        @default(false)
+  score                  Int            @default(0)
+  completed              Boolean        @default(false)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  user                   User           @relation(fields: [userId], references: [id])
+  questions              GameQuestion[]
+}
+
+model GameQuestion {
+  id         String   @id @default(uuid())
+  gameId     String
+  questionId String
+  answered   Boolean  @default(false)
+  correct    Boolean?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  game       Game     @relation(fields: [gameId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id])
+
+  @@unique([gameId, questionId])
+}
+
 enum Difficulty {
   EASY
   MEDIUM
@@ -26,107 +133,4 @@ enum KnowledgeCategory {
   SCIENCE_AND_NATURE
   SPORTS_AND_LEISURE
   GENERAL_KNOWLEDGE
-}
-
-model User {
-  id                    String         @id @default(uuid())
-  email                 String         @unique
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  role                  UserRole       @default(USER)
-  gameHistory           GameHistory[]
-  userProgress          UserProgress[]
-  games                 Game[]
-  spoilerBlockDate      DateTime?      // Date up to which user wants to see questions
-  spoilerBlockEnabled   Boolean        @default(true)  // Toggle for current day's games
-  lastSpoilerPrompt     DateTime?      // Last time we asked about updating spoiler settings
-}
-
-model Question {
-  id                String            @id @default(uuid())
-  question          String
-  answer            String
-  value             Int
-  difficulty        Difficulty
-  category          Category          @relation(fields: [categoryId], references: [id])
-  categoryId        String
-  knowledgeCategory KnowledgeCategory
-  airDate           DateTime?
-  season            Int?
-  episodeId         String?
-  wasTripleStumper  Boolean          @default(false)
-  isDoubleJeopardy  Boolean          @default(false)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  userProgress      UserProgress[]
-  gameHistory       GameHistory[]
-  games             GameQuestion[]
-  tags              Tag[]             @relation("QuestionTags")
-}
-
-model Category {
-  id           String         @id @default(uuid())
-  name         String         @unique
-  questions    Question[]
-  userProgress UserProgress[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-}
-
-model Tag {
-  id        String     @id @default(uuid())
-  name      String     @unique
-  questions Question[] @relation("QuestionTags")
-}
-
-model GameHistory {
-  id         String   @id @default(uuid())
-  userId     String
-  questionId String
-  correct    Boolean
-  points     Int      @default(0)
-  timestamp  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
-  question   Question @relation(fields: [questionId], references: [id])
-}
-
-model UserProgress {
-  id         String   @id @default(uuid())
-  userId     String
-  categoryId String
-  questionId String
-  correct    Int      @default(0)
-  total      Int      @default(0)
-  points     Int      @default(0)
-  user       User     @relation(fields: [userId], references: [id])
-  category   Category @relation(fields: [categoryId], references: [id])
-  question   Question @relation(fields: [questionId], references: [id])
-
-  @@unique([userId, categoryId])
-}
-
-model Game {
-  id                     String         @id @default(uuid())
-  userId                 String
-  user                   User           @relation(fields: [userId], references: [id])
-  questions              GameQuestion[]
-  useKnowledgeCategories Boolean        @default(false)
-  score                  Int            @default(0)
-  completed              Boolean        @default(false)
-  createdAt              DateTime       @default(now())
-  updatedAt              DateTime       @updatedAt
-}
-
-model GameQuestion {
-  id         String   @id @default(uuid())
-  game       Game     @relation(fields: [gameId], references: [id])
-  gameId     String
-  question   Question @relation(fields: [questionId], references: [id])
-  questionId String
-  answered   Boolean  @default(false)
-  correct    Boolean?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@unique([gameId, questionId])
 }

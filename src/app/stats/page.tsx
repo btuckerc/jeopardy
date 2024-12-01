@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAuth } from '../lib/auth'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
 
 type CategoryStats = {
     categoryName: string
@@ -19,37 +19,44 @@ type Stats = {
 }
 
 export default function StatsPage() {
-    const { user, loading: authLoading } = useAuth()
     const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState<string | null>(null)
     const supabase = createClientComponentClient()
+    const router = useRouter()
 
     useEffect(() => {
         let mounted = true
 
         const fetchStats = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession()
+                const { data: { session }, error: authError } = await supabase.auth.getSession()
 
-                if (!mounted) return
+                if (authError) throw authError
 
                 if (!session?.user) {
-                    setLoading(false)
+                    if (mounted) {
+                        setLoading(false)
+                        setError('Please sign in to view your statistics.')
+                    }
                     return
                 }
 
                 const response = await fetch(`/api/stats?userId=${session.user.id}`)
                 if (!response.ok) {
-                    console.error('Stats API error:', await response.text())
-                    return
+                    throw new Error(await response.text())
                 }
 
-                if (!mounted) return
-
                 const data = await response.json()
-                setStats(data)
-            } catch (error) {
-                console.error('Error fetching stats:', error)
+                if (mounted) {
+                    setStats(data)
+                    setError(null)
+                }
+            } catch (err) {
+                console.error('Error fetching stats:', err)
+                if (mounted) {
+                    setError(err instanceof Error ? err.message : 'An error occurred')
+                }
             } finally {
                 if (mounted) {
                     setLoading(false)
@@ -58,8 +65,16 @@ export default function StatsPage() {
         }
 
         fetchStats()
-        return () => { mounted = false }
-    }, [supabase.auth])
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+            fetchStats()
+        })
+
+        return () => {
+            mounted = false
+            subscription.unsubscribe()
+        }
+    }, [supabase, router])
 
     if (loading) {
         return (
@@ -69,10 +84,10 @@ export default function StatsPage() {
         )
     }
 
-    if (!user) {
+    if (error) {
         return (
             <div className="text-center p-4">
-                <p className="text-lg text-black">Please sign in to view your statistics.</p>
+                <p className="text-lg text-black">{error}</p>
             </div>
         )
     }
@@ -92,7 +107,7 @@ export default function StatsPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <div className="bg-blue-200 p-6 rounded-lg shadow-md">
                     <h2 className="text-lg font-semibold mb-2 text-black">Total Points</h2>
-                    <p className="text-3xl font-bold text-black">${stats.totalPoints}</p>
+                    <p className="text-3xl font-bold text-black">{stats.totalPoints}</p>
                 </div>
                 <div className="bg-blue-200 p-6 rounded-lg shadow-md">
                     <h2 className="text-lg font-semibold mb-2 text-black">Questions Answered</h2>
@@ -108,21 +123,24 @@ export default function StatsPage() {
                 </div>
             </div>
 
-            <h2 className="text-xl font-semibold mb-4 text-black">Category Breakdown</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {stats.categoryStats.map((category) => (
-                    <div key={category.categoryName} className="bg-blue-200 p-4 rounded-lg shadow-md">
-                        <h3 className="font-semibold mb-2 text-black">{category.categoryName}</h3>
-                        <div className="space-y-2 text-black">
-                            <p>Correct: {category.correct}/{category.total}</p>
-                            <p>Success Rate: {category.total > 0
-                                ? Math.round((category.correct / category.total) * 100)
-                                : 0}%</p>
-                            <p>Points: ${category.points}</p>
-                        </div>
+            {stats.categoryStats.length > 0 && (
+                <div>
+                    <h2 className="text-xl font-semibold mb-4 text-black">Category Breakdown</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {stats.categoryStats.map((category) => (
+                            <div key={category.categoryName} className="bg-white p-4 rounded-lg shadow">
+                                <h3 className="font-semibold text-black">{category.categoryName}</h3>
+                                <p className="text-gray-600">
+                                    {category.correct} / {category.total} correct ({category.total > 0
+                                        ? Math.round((category.correct / category.total) * 100)
+                                        : 0}%)
+                                </p>
+                                <p className="text-gray-600">Points: {category.points}</p>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
+                </div>
+            )}
         </div>
     )
 } 

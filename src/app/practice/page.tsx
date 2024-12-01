@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { getCategories, getKnowledgeCategoryDetails, getRandomQuestion, saveAnswer, getCategoryQuestions } from '../actions/practice'
 import { checkAnswer } from '../lib/answer-checker'
 import { format } from 'date-fns'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type Question = {
     id: string
@@ -36,6 +37,12 @@ type KnowledgeCategory = {
 
 type ShuffleLevel = 'all' | 'knowledge' | 'category' | null
 
+type QuestionState = {
+    incorrectAttempts: Date[];
+    correct: boolean;
+    lastAttemptDate?: Date;
+};
+
 export default function FreePractice() {
     const { user } = useAuth()
     const [knowledgeCategories, setKnowledgeCategories] = useState<KnowledgeCategory[]>([])
@@ -50,6 +57,8 @@ export default function FreePractice() {
     const [loading, setLoading] = useState(true)
     const [loadingQuestions, setLoadingQuestions] = useState(false)
     const [shuffleLevel, setShuffleLevel] = useState<ShuffleLevel>(null)
+    const [questionStates, setQuestionStates] = useState<Record<string, QuestionState>>({});
+    const supabase = createClientComponentClient();
 
     useEffect(() => {
         const loadKnowledgeCategories = async () => {
@@ -64,6 +73,48 @@ export default function FreePractice() {
         }
         loadKnowledgeCategories()
     }, [])
+
+    // Load question states from local storage and merge with database state
+    useEffect(() => {
+        const loadQuestionStates = async () => {
+            if (!user) return;
+
+            // Load from local storage first
+            const storedStates = localStorage.getItem(`questionStates_${user.id}`);
+            const localStates = storedStates ? JSON.parse(storedStates) : {};
+
+            // Load from database
+            const { data: gameHistory } = await supabase
+                .from('game_history')
+                .select('*')
+                .eq('user_id', user.id);
+
+            // Merge states, preferring database state for correctness
+            const mergedStates: Record<string, QuestionState> = {};
+
+            if (gameHistory) {
+                gameHistory.forEach((history: any) => {
+                    const existingState = localStates[history.question_id] || {};
+                    mergedStates[history.question_id] = {
+                        incorrectAttempts: existingState.incorrectAttempts || [],
+                        correct: history.correct,
+                        lastAttemptDate: history.created_at
+                    };
+                });
+            }
+
+            setQuestionStates(mergedStates);
+        };
+
+        loadQuestionStates();
+    }, [user, supabase]);
+
+    // Save states to local storage whenever they change
+    useEffect(() => {
+        if (user) {
+            localStorage.setItem(`questionStates_${user.id}`, JSON.stringify(questionStates));
+        }
+    }, [questionStates, user]);
 
     const handleKnowledgeCategorySelect = async (categoryId: string) => {
         setSelectedKnowledgeCategory(categoryId)
@@ -100,12 +151,16 @@ export default function FreePractice() {
 
     const handleBackToQuestions = async () => {
         setSelectedQuestion(null)
-        if (selectedKnowledgeCategory && selectedCategory) {
+        if (selectedKnowledgeCategory && selectedCategory && user?.id) {
             setLoadingQuestions(true)
             try {
                 // Refresh the categories when going back
-                const categories = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user?.id)
+                const categories = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user.id)
                 setCategories(categories)
+
+                // Refresh the questions
+                const questions = await getCategoryQuestions(selectedCategory, selectedKnowledgeCategory, user.id)
+                setQuestions(questions)
             } catch (error) {
                 console.error('Error refreshing categories:', error)
             } finally {
@@ -209,33 +264,69 @@ export default function FreePractice() {
         setShowAnswer(true)
 
         if (user?.id) {
-            await saveAnswer(user.id, selectedQuestion.id, selectedCategory, result)
+            try {
+                await saveAnswer(user.id, selectedQuestion.id, selectedCategory, result)
 
-            // Update questions state with new attempt
-            setQuestions(prev => prev.map(q =>
-                q.id === selectedQuestion.id
-                    ? {
-                        ...q,
-                        answered: true,
-                        correct: result || q.correct, // Keep correct if it was correct before
+                // Update questions state with new attempt
+                setQuestions(prev => prev.map(q =>
+                    q.id === selectedQuestion.id
+                        ? {
+                            ...q,
+                            answered: true,
+                            correct: result || q.correct, // Keep correct if it was correct before
+                            incorrectAttempts: !result
+                                ? [...(q.incorrectAttempts || []), new Date()].slice(-5)
+                                : q.incorrectAttempts
+                        }
+                        : q
+                ))
+
+                // Update selected question state
+                setSelectedQuestion(prev => prev ? {
+                    ...prev,
+                    answered: true,
+                    correct: result || prev.correct, // Keep correct if it was correct before
+                    incorrectAttempts: !result
+                        ? [...(prev.incorrectAttempts || []), new Date()].slice(-5)
+                        : prev.incorrectAttempts
+                } : null)
+
+                // Update question states
+                setQuestionStates(prev => ({
+                    ...prev,
+                    [selectedQuestion.id]: {
                         incorrectAttempts: !result
-                            ? [...(q.incorrectAttempts || []), new Date()].slice(-5)
-                            : q.incorrectAttempts
+                            ? [...(prev[selectedQuestion.id]?.incorrectAttempts || []), new Date()].slice(-5)
+                            : prev[selectedQuestion.id]?.incorrectAttempts || [],
+                        correct: result || prev[selectedQuestion.id]?.correct || false,
+                        lastAttemptDate: new Date()
                     }
-                    : q
-            ))
+                }));
 
-            // Update selected question state
-            setSelectedQuestion(prev => prev ? {
-                ...prev,
-                answered: true,
-                correct: result || prev.correct, // Keep correct if it was correct before
-                incorrectAttempts: !result
-                    ? [...(prev.incorrectAttempts || []), new Date()].slice(-5)
-                    : prev.incorrectAttempts
-            } : null)
+                // Refresh categories to update statistics
+                if (selectedKnowledgeCategory) {
+                    const updatedCategories = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user.id)
+                    setCategories(updatedCategories)
+                }
+
+                // Refresh questions to update their state
+                if (selectedCategory && selectedKnowledgeCategory) {
+                    const updatedQuestions = await getCategoryQuestions(selectedCategory, selectedKnowledgeCategory, user.id)
+                    setQuestions(updatedQuestions)
+                }
+            } catch (error) {
+                console.error('Error saving answer:', error);
+            }
         }
     }
+
+    const isQuestionDisabled = (questionId: string) => {
+        const state = questionStates[questionId];
+        if (!state?.incorrectAttempts?.length) return false;
+
+        const lastAttempt = new Date(state.incorrectAttempts[state.incorrectAttempts.length - 1]);
+        return new Date().getTime() - lastAttempt.getTime() < 30 * 60 * 1000;
+    };
 
     if (loading) {
         return <div className="text-center p-4">Loading...</div>
@@ -471,8 +562,7 @@ export default function FreePractice() {
                                                     }}
                                                     className="w-full p-3 border rounded-lg text-black"
                                                     placeholder="Your answer..."
-                                                    disabled={selectedQuestion?.incorrectAttempts?.length &&
-                                                        (new Date().getTime() - new Date(selectedQuestion.incorrectAttempts[selectedQuestion.incorrectAttempts.length - 1]).getTime() < 30 * 60 * 1000)}
+                                                    disabled={isQuestionDisabled(selectedQuestion?.id)}
                                                 />
                                     <div className="flex space-x-4">
                                         <button

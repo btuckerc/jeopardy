@@ -39,12 +39,18 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
         }
 
-        const user = await prisma.user.update({
+        const user = await prisma.user.upsert({
             where: { id: userId },
-            data: {
+            update: {
                 spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
                 spoilerBlockEnabled: spoilerBlockEnabled !== undefined ? spoilerBlockEnabled : undefined,
                 lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : undefined
+            },
+            create: {
+                id: userId,
+                spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
+                spoilerBlockEnabled: spoilerBlockEnabled !== undefined ? spoilerBlockEnabled : false,
+                lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null
             },
             select: {
                 spoilerBlockDate: true,

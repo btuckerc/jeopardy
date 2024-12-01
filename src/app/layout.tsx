@@ -37,13 +37,10 @@ export default function RootLayout({
                         Play Game
                       </a>
                       <a href="/practice" className="text-white hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">
-                        Practice Mode
+                        Free Play
                       </a>
                       <a href="/stats" className="text-white hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">
                         Statistics
-                      </a>
-                      <a href="/settings" className="text-white hover:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">
-                        Settings
                       </a>
                     </div>
                   </div>

@@ -1,9 +1,17 @@
-import { PrismaClient, KnowledgeCategory } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import { readFileSync } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
 const prisma = new PrismaClient()
+
+type KnowledgeCategory =
+    | 'GEOGRAPHY_AND_HISTORY'
+    | 'ENTERTAINMENT'
+    | 'ARTS_AND_LITERATURE'
+    | 'SCIENCE_AND_NATURE'
+    | 'SPORTS_AND_LEISURE'
+    | 'GENERAL_KNOWLEDGE'
 
 interface JeopardyQuestion {
     id: string;
@@ -50,9 +58,12 @@ async function main() {
             categoriesMap.set(q.category, existing)
         })
 
-        // Process each category
+        // Process each category in batches
+        const batchSize = 100
+        let processedCategories = 0
+
         for (const [categoryName, categoryQuestions] of categoriesMap) {
-            console.log(`Processing category: ${categoryName}`)
+            console.log(`Processing category: ${categoryName} (${processedCategories + 1}/${categoriesMap.size})`)
 
             // Create or update category
             const category = await prisma.category.upsert({
@@ -66,23 +77,31 @@ async function main() {
                 }
             })
 
-            // Add questions for this category
-            for (const q of categoryQuestions) {
-                await prisma.question.create({
-                    data: {
-                        id: q.id,
-                        question: q.question,
-                        answer: q.answer,
-                        value: q.value,
-                        categoryId: category.id,
-                        knowledgeCategory: q.knowledgeCategory || KnowledgeCategory.GENERAL_KNOWLEDGE,
-                        difficulty: determineDifficulty(q.value),
-                        airDate: q.airDate ? new Date(q.airDate) : null,
-                        season: q.season || null,
-                        episodeId: q.episodeId || null
-                    }
-                })
+            // Process questions in batches
+            for (let i = 0; i < categoryQuestions.length; i += batchSize) {
+                const batch = categoryQuestions.slice(i, i + batchSize)
+                await Promise.all(
+                    batch.map(q =>
+                        prisma.question.create({
+                            data: {
+                                id: q.id,
+                                question: q.question,
+                                answer: q.answer,
+                                value: q.value,
+                                categoryId: category.id,
+                                knowledgeCategory: q.knowledgeCategory || 'GENERAL_KNOWLEDGE',
+                                difficulty: determineDifficulty(q.value),
+                                airDate: q.airDate ? new Date(q.airDate) : null,
+                                season: q.season || null,
+                                episodeId: q.episodeId || null
+                            }
+                        })
+                    )
+                )
+                console.log(`Processed ${i + batch.length}/${categoryQuestions.length} questions in ${categoryName}`)
             }
+
+            processedCategories++
         }
 
         console.log('Database initialization complete!')

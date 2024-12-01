@@ -50,7 +50,7 @@ export default function Home() {
 
         {/* Only render this section after loading is complete and user is not logged in */}
         {!loading && !user && (
-          <div className="mt-16 text-center opacity-0 animate-fade-in">
+          <div className="mt-16 text-center">
             <h2 className="text-2xl font-bold text-gray-900">Track Your Progress</h2>
             <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-500">
               Sign in to track your progress, see statistics, and get personalized category recommendations based on your performance.
