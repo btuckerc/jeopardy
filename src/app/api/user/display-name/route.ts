@@ -14,6 +14,20 @@ function generateRandomDisplayName(): string {
     return `${randomAdjective}${randomNoun}`
 }
 
+async function syncUserData(supabase: any, userId: string, data: { displayName?: string, selectedIcon?: string | null }) {
+    try {
+        await supabase.auth.updateUser({
+            data: {
+                display_name: data.displayName,
+                avatar_icon: data.selectedIcon
+            }
+        })
+    } catch (error) {
+        console.error('Error syncing with Supabase:', error)
+        // Continue execution even if Supabase sync fails
+    }
+}
+
 export async function GET(request: Request) {
     const supabase = createRouteHandlerClient({ cookies })
     const { data: { session } } = await supabase.auth.getSession()
@@ -23,6 +37,8 @@ export async function GET(request: Request) {
     }
 
     try {
+        // First try to get user data from Supabase
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
         let user = await prisma.user.findUnique({
             where: { id: session.user.id },
             select: {
@@ -31,22 +47,46 @@ export async function GET(request: Request) {
             }
         })
 
-        if (!user?.displayName) {
-            // Generate and save a random display name
-            const displayName = generateRandomDisplayName()
-            user = await prisma.user.upsert({
+        // If data exists in Supabase but not in Prisma, sync to Prisma
+        if (supabaseUser?.user_metadata?.display_name && !user?.displayName) {
+            user = await prisma.user.update({
                 where: { id: session.user.id },
-                update: { displayName },
-                create: {
-                    id: session.user.id,
-                    email: session.user.email!,
-                    displayName,
-                    selectedIcon: '👤'  // Set default icon
+                data: {
+                    displayName: supabaseUser.user_metadata.display_name,
+                    selectedIcon: supabaseUser.user_metadata.avatar_icon || '👤'
                 },
                 select: {
                     displayName: true,
                     selectedIcon: true
                 }
+            })
+        }
+        // If no data in either system, create new
+        else if (!user?.displayName) {
+            const displayName = generateRandomDisplayName()
+            const defaultIcon = '👤'
+
+            user = await prisma.user.upsert({
+                where: { id: session.user.id },
+                update: {
+                    displayName,
+                    selectedIcon: defaultIcon
+                },
+                create: {
+                    id: session.user.id,
+                    email: session.user.email!,
+                    displayName,
+                    selectedIcon: defaultIcon
+                },
+                select: {
+                    displayName: true,
+                    selectedIcon: true
+                }
+            })
+
+            await syncUserData(supabase, session.user.id, {
+                displayName: user.displayName,
+                selectedIcon: user.selectedIcon
             })
         }
 
@@ -72,45 +112,50 @@ export async function POST(request: Request) {
     }
 
     try {
-        const { displayName } = await request.json()
+        const { displayName, selectedIcon } = await request.json()
 
-        if (!displayName || typeof displayName !== 'string') {
+        if (displayName && typeof displayName !== 'string') {
             return NextResponse.json(
-                { error: 'Display name is required' },
+                { error: 'Display name must be a string' },
                 { status: 400 }
             )
         }
 
-        if (displayName.length < 3) {
+        if (displayName && (displayName.length < 3 || displayName.length > 20)) {
             return NextResponse.json(
-                { error: 'Display name must be at least 3 characters' },
+                { error: 'Display name must be between 3 and 20 characters' },
                 { status: 400 }
             )
         }
 
-        if (displayName.length > 20) {
-            return NextResponse.json(
-                { error: 'Display name cannot exceed 20 characters' },
-                { status: 400 }
-            )
-        }
+        const updateData: any = {}
+        if (displayName) updateData.displayName = displayName
+        if (selectedIcon !== undefined) updateData.selectedIcon = selectedIcon
 
         const user = await prisma.user.upsert({
             where: { id: session.user.id },
-            update: { displayName },
+            update: updateData,
             create: {
                 id: session.user.id,
                 email: session.user.email!,
-                displayName
+                ...updateData
             },
-            select: { displayName: true }
+            select: {
+                displayName: true,
+                selectedIcon: true
+            }
         })
 
-        return NextResponse.json({ displayName: user.displayName })
+        await syncUserData(supabase, session.user.id, {
+            displayName: user.displayName,
+            selectedIcon: user.selectedIcon
+        })
+
+        return NextResponse.json(user)
     } catch (error) {
-        console.error('Error updating display name:', error)
+        console.error('Error updating user data:', error)
         return NextResponse.json(
-            { error: 'Failed to update display name' },
+            { error: 'Failed to update user data' },
             { status: 500 }
         )
     }

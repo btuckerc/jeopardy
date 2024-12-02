@@ -16,7 +16,6 @@
     "db:seed": "ts-node --project tsconfig.json src/scripts/init-db.ts",
     "db:fetch": "ts-node --project tsconfig.json src/scripts/fetch-jeopardy-data.ts",
     "db:setup": "npm run db:generate && npm run db:migrate && npm run db:seed",
-    "db:update": "npm run db:generate && npm run db:migrate",
     "prepare": "npm run db:generate"
   },
   "dependencies": {
