@@ -5,35 +5,24 @@ import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import UserSettings from '@/components/UserSettings'
 import UserAvatar from '@/components/UserAvatar'
-import { User as SupabaseUser } from '@supabase/supabase-js'
-
-type User = {
-    id: string;
-    email: string;
-}
+import { useAuth } from '@/app/lib/auth'
 
 export function AuthButton() {
+    const { user, loading: authLoading, signIn, signOut } = useAuth()
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
-    const [user, setUser] = useState<User | null>(null)
     const [displayName, setDisplayName] = useState<string | null>(null)
     const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
     const [email, setEmail] = useState('')
     const [showEmailInput, setShowEmailInput] = useState(false)
-    const [loading, setLoading] = useState(true)
     const [message, setMessage] = useState<string | null>(null)
+    const [userDataLoading, setUserDataLoading] = useState(true)
     const router = useRouter()
-    const supabase = createClientComponentClient()
 
     useEffect(() => {
-        const getUser = async () => {
-            const { data: { user: supabaseUser } } = await supabase.auth.getUser()
-            if (supabaseUser?.email) {
-                setUser({
-                    id: supabaseUser.id,
-                    email: supabaseUser.email
-                })
-                // Fetch display name and icon
+        const fetchUserData = async () => {
+            if (user?.email) {
+                setUserDataLoading(true)
                 try {
                     const response = await fetch(`/api/user/display-name`)
                     if (response.ok) {
@@ -43,69 +32,37 @@ export function AuthButton() {
                     }
                 } catch (err) {
                     console.error('Error fetching display name:', err)
-                }
-            }
-            setLoading(false)
-        }
-        getUser()
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (session?.user?.email) {
-                setUser({
-                    id: session.user.id,
-                    email: session.user.email
-                })
-                try {
-                    const response = await fetch(`/api/user/display-name`)
-                    if (response.ok) {
-                        const data = await response.json()
-                        setDisplayName(data.displayName)
-                        setSelectedIcon(data.selectedIcon)
-                    }
-                } catch (err) {
-                    console.error('Error fetching display name:', err)
+                } finally {
+                    setUserDataLoading(false)
                 }
             } else {
-                setUser(null)
                 setDisplayName(null)
                 setSelectedIcon(null)
+                setUserDataLoading(false)
             }
-            setLoading(false)
-        })
-
-        return () => subscription.unsubscribe()
-    }, [supabase.auth])
+        }
+        fetchUserData()
+    }, [user])
 
     const handleSignIn = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
         setMessage(null)
 
         try {
-            const { error } = await supabase.auth.signInWithOtp({
-                email,
-                options: {
-                    emailRedirectTo: `${location.origin}/auth/callback`,
-                }
-            })
-
-            if (error) throw error
-
+            await signIn(email)
             setMessage('Check your email for the login link!')
         } catch (error: any) {
             setMessage(error?.message || 'An error occurred')
-        } finally {
-            setLoading(false)
         }
     }
 
     const handleSignOut = async () => {
-        await supabase.auth.signOut()
+        await signOut()
         router.refresh()
         setShowUserMenu(false)
     }
 
-    if (loading) {
+    if (authLoading) {
         return <div className="w-[72px] h-[40px]" />
     }
 
@@ -137,10 +94,10 @@ export function AuthButton() {
                     <div className="flex gap-2">
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={authLoading}
                             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
                         >
-                            {loading ? 'Sending...' : 'Send Magic Link'}
+                            {authLoading ? 'Sending...' : 'Send Magic Link'}
                         </button>
                         <button
                             type="button"
@@ -160,6 +117,17 @@ export function AuthButton() {
         )
     }
 
+    if (userDataLoading) {
+        return (
+            <div className="flex items-center space-x-3 bg-blue-500 text-white px-4 py-2 rounded-md">
+                <div className="animate-pulse flex items-center space-x-3">
+                    <div className="w-6 h-6 bg-blue-400 rounded-full"></div>
+                    <div className="h-4 w-20 bg-blue-400 rounded"></div>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <>
             <div className="relative">
@@ -167,7 +135,7 @@ export function AuthButton() {
                     onClick={() => setShowUserMenu(!showUserMenu)}
                     className="flex items-center space-x-3 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium"
                 >
-                    <UserAvatar email={user.email} displayName={displayName} selectedIcon={selectedIcon} size="sm" />
+                    <UserAvatar email={user.email ?? ''} displayName={displayName} selectedIcon={selectedIcon} size="sm" />
                     <span>{displayName || 'User'}</span>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

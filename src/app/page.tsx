@@ -2,9 +2,14 @@
 
 import Link from 'next/link'
 import { useAuth } from './lib/auth'
+import { useEffect } from 'react'
 
 export default function Home() {
   const { user, loading } = useAuth()
+
+  useEffect(() => {
+    console.log('Home page state:', { loading, isLoggedIn: !!user })
+  }, [loading, user])
 
   return (
     <div className="min-h-screen bg-gray-100">

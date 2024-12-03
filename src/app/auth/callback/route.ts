@@ -9,18 +9,38 @@ export async function GET(request: Request) {
 
     if (code) {
         const supabase = createRouteHandlerClient({ cookies })
-        const { data: { user } } = await supabase.auth.exchangeCodeForSession(code)
+        try {
+            const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
 
-        if (user) {
-            // Create or update user in our database
-            await prisma.user.upsert({
-                where: { id: user.id },
-                update: { email: user.email },
-                create: {
-                    id: user.id,
-                    email: user.email!,
-                }
-            })
+            if (error) {
+                console.error('Error exchanging code for session:', error)
+                return NextResponse.redirect(`${requestUrl.origin}?error=auth`)
+            }
+
+            if (session?.user) {
+                // Create or update user in our database
+                await prisma.user.upsert({
+                    where: { id: session.user.id },
+                    update: { email: session.user.email },
+                    create: {
+                        id: session.user.id,
+                        email: session.user.email!,
+                    }
+                })
+
+                // Set the auth cookie
+                const response = NextResponse.redirect(requestUrl.origin)
+                response.cookies.set('supabase-auth-token', session.access_token, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'lax',
+                    path: '/'
+                })
+                return response
+            }
+        } catch (error) {
+            console.error('Error in auth callback:', error)
+            return NextResponse.redirect(`${requestUrl.origin}?error=auth`)
         }
     }
 

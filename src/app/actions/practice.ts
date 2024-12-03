@@ -2,9 +2,14 @@
 
 import { prisma } from '../lib/prisma'
 import crypto from 'crypto'
-import { PrismaClient, Prisma } from '@prisma/client'
+import { PrismaClient, Prisma, KnowledgeCategory, GameHistory } from '@prisma/client'
 import { cookies } from 'next/headers'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+
+type GameHistoryWithTimestamp = {
+    correct: boolean;
+    timestamp: Date;
+}
 
 // Create a server-side Supabase client that includes auth context
 async function getSupabase() {
@@ -42,44 +47,53 @@ export async function getCategories(userId?: string) {
 
 export async function getKnowledgeCategoryDetails(knowledgeCategoryId: string, userId?: string) {
     try {
-        // Get categories with their question counts and correct answers
         const categories = await prisma.category.findMany({
             where: {
                 questions: {
                     some: {
-                        knowledgeCategory: knowledgeCategoryId
+                        knowledgeCategory: knowledgeCategoryId as KnowledgeCategory
                     }
                 }
             },
-            select: {
-                id: true,
-                name: true,
+            include: {
                 questions: {
                     where: {
-                        knowledgeCategory: knowledgeCategoryId
+                        knowledgeCategory: knowledgeCategoryId as KnowledgeCategory
                     },
-                    select: {
-                        id: true,
+                    orderBy: {
+                        airDate: 'desc'
+                    },
+                    include: {
                         gameHistory: userId ? {
                             where: {
-                                userId,
-                                correct: true
+                                userId: userId
                             }
                         } : false
                     }
                 }
-            },
-            orderBy: {
-                name: 'asc'
             }
         })
 
-        return categories.map(cat => ({
-            id: cat.id,
-            name: cat.name,
-            totalQuestions: cat.questions.length,
-            correctQuestions: userId ? cat.questions.filter(q => q.gameHistory?.length > 0).length : 0
-        }))
+        // Sort categories by their most recent question's air date
+        return categories
+            .map(cat => ({
+                id: cat.id,
+                name: cat.name,
+                totalQuestions: cat.questions.length,
+                correctQuestions: userId ? cat.questions.filter(q =>
+                    q.gameHistory && Array.isArray(q.gameHistory) &&
+                    q.gameHistory.some(h => h.correct)
+                ).length : 0,
+                mostRecentAirDate: cat.questions.reduce((latest, q) =>
+                    q.airDate && (!latest || q.airDate > latest) ? q.airDate : latest,
+                    null as Date | null
+                )
+            }))
+            .sort((a, b) => {
+                if (!a.mostRecentAirDate) return 1;
+                if (!b.mostRecentAirDate) return -1;
+                return b.mostRecentAirDate.getTime() - a.mostRecentAirDate.getTime();
+            });
     } catch (error) {
         console.error('Error fetching category details:', error)
         throw error
@@ -233,7 +247,10 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
         const questions = await prisma.question.findMany({
             where: {
                 categoryId,
-                knowledgeCategory: knowledgeCategoryId
+                knowledgeCategory: knowledgeCategoryId as KnowledgeCategory
+            },
+            orderBy: {
+                airDate: 'desc'
             },
             include: {
                 category: true,
@@ -249,7 +266,7 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
         })
 
         return questions.map(question => {
-            const gameHistory = question.gameHistory || []
+            const gameHistory = (question.gameHistory || []) as GameHistoryWithTimestamp[]
             const incorrectAttempts = userId && gameHistory.length > 0
                 ? gameHistory
                     .filter(h => !h.correct)

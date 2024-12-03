@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:prod": "NODE_ENV=production next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -16,7 +17,8 @@
     "db:seed": "ts-node --project tsconfig.json src/scripts/init-db.ts",
     "db:fetch": "ts-node --project tsconfig.json src/scripts/fetch-jeopardy-data.ts",
     "db:setup": "npm run db:generate && npm run db:migrate && npm run db:seed",
-    "prepare": "npm run db:generate"
+    "prepare": "npm run db:generate",
+    "migrate-prod": "ts-node scripts/migrate-prod.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
