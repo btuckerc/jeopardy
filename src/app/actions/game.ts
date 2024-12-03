@@ -131,6 +131,7 @@ export async function saveGameHistory(
                     id: crypto.randomUUID(),
                     userId: user.id,
                     categoryId: question.categoryId,
+                    questionId: question.id,
                     correct: shouldAwardPoints ? 1 : 0,
                     total: 1,
                     points: shouldAwardPoints ? points : 0
