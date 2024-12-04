@@ -319,7 +319,7 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
                                 <div className="border-b border-gray-200 pb-4">
                                     <h4 className="text-sm font-medium text-gray-900 mb-1">Daily Episode Protection</h4>
                                     <p className="text-sm text-gray-500">
-                                        Automatically hide questions from today's episode to prevent spoilers
+                                        Automatically hide questions from today&apos;s episode to prevent spoilers
                                     </p>
                                 </div>
 

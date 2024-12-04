@@ -53,7 +53,7 @@ export default function SpoilerSettings({ userId, spoilerBlockEnabled = true, sp
                 <div>
                     <h3 className="text-lg font-medium">Block Recent Questions</h3>
                     <p className="text-sm text-gray-500">
-                        When enabled, questions that aired after your block date won't appear
+                        When enabled, questions that aired after your block date won&apos;t appear
                     </p>
                 </div>
                 <button
