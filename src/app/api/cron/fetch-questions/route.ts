@@ -7,7 +7,7 @@ import { parse } from 'node-html-parser'
 // Remove edge runtime since we need Node.js features
 // export const runtime = 'edge'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // 5 minutes
+export const maxDuration = 60 // Maximum allowed duration for hobby plan (in seconds)
 
 interface JeopardyQuestion {
     id: string
