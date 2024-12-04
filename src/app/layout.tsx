@@ -15,17 +15,23 @@ export const metadata = {
       : 'http://localhost:3000'
   ),
   title: 'trivrdy - Study Jeopardy Online | Practice Trivia Game',
-  description: 'Practice Jeopardy-style trivia with trivrdy. Features game mode, practice mode, and leaderboards. Created by Tucker Craig.',
-  keywords: 'jeopardy, trivia game, study jeopardy, practice trivia, trivrdy, jeopardy simulator, tucker craig',
+  description: 'Master trivia with trivrdy\'s Jeopardy study platform. Play authentic questions, track progress, and compete on leaderboards. Features practice mode and full game simulations. Created by Tucker Craig.',
+  keywords: 'jeopardy, trivia game, study jeopardy, practice trivia, trivrdy, jeopardy simulator, jeopardy practice, trivia practice, quiz game, knowledge quiz, online trivia, jeopardy questions, trivia study, tucker craig, game show practice',
   authors: [{ name: 'Tucker Craig', url: 'https://tuckercraig.com' }],
   creator: 'Tucker Craig',
+  publisher: 'Tucker Craig',
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: 'https://trivrdy.com',
     siteName: 'trivrdy',
     title: 'trivrdy - Study Jeopardy Online | Practice Trivia Game',
-    description: 'Practice Jeopardy-style trivia with trivrdy. Features game mode, practice mode, and leaderboards. Created by Tucker Craig.',
+    description: 'Master trivia with trivrdy\'s Jeopardy study platform. Play authentic questions, track progress, and compete on leaderboards. Features practice mode and full game simulations.',
     images: [
       {
         url: '/og-image.png',
@@ -38,12 +44,13 @@ export const metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'trivrdy - Study Jeopardy Online',
-    description: 'Practice Jeopardy-style trivia with trivrdy. Features game mode, practice mode, and leaderboards.',
+    description: 'Master trivia with trivrdy. Practice authentic Jeopardy questions, track progress, and compete globally.',
     images: ['/og-image.png'],
     creator: '@btuckerc',
     site: '@btuckerc',
   },
   alternates: {
+    canonical: 'https://trivrdy.com',
     types: {
       'application/atom+xml': 'https://bsky.app/profile/btuckerc.com',
     },
@@ -51,13 +58,24 @@ export const metadata = {
   robots: {
     index: true,
     follow: true,
+    nocache: true,
     googleBot: {
       index: true,
       follow: true,
       'max-video-preview': -1,
       'max-image-preview': 'large',
-      'max-snippet': -1,
+      'max-snippet': 400,
+      noimageindex: false,
     },
+  },
+  other: {
+    'apple-mobile-web-app-capable': 'yes',
+    'apple-mobile-web-app-title': 'trivrdy',
+    'format-detection': 'telephone=no',
+    'mobile-web-app-capable': 'yes',
+    'msapplication-TileColor': '#1E40AF',
+    'msapplication-tap-highlight': 'no',
+    'theme-color': '#1E40AF'
   }
 }
 
