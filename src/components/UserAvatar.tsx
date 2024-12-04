@@ -10,7 +10,7 @@ interface UserAvatarProps {
 
 const PROFILE_ICONS = {
     '🎓': 'Person',
-    '📓': 'Scholar',
+    '📖': 'Scholar',
     '🧠': 'Brain',
     '🎯': 'Target',
     '⭐': 'Star',
@@ -23,7 +23,18 @@ const PROFILE_ICONS = {
     '❓': 'Question',
     '💭': 'Thinking',
     '🎪': 'Show',
-    '🎤': 'Host'
+    '🎤': 'Host',
+    '🕵️‍♂️': 'Detective',
+    '🧑‍🏫': 'Teacher',
+    '🌍': 'Globe',
+    '🔬': 'Microscope',
+    '🕒': 'Clock',
+    '🕹️': 'Joystick',
+    '🎭': 'Masks',
+    '🎥': 'Camera',
+    '🚀': 'Rocket',
+    '🌀': 'Cyclone',
+    '🌟': 'Sparkles'
 }
 
 export default function UserAvatar({ email, displayName, selectedIcon, size = 'md', className = '' }: UserAvatarProps) {

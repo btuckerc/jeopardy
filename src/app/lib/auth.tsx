@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { supabase } from './supabase'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type AuthContextType = {
     user: User | null
@@ -16,40 +16,42 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
     const [loading, setLoading] = useState(true)
+    const supabase = createClientComponentClient()
 
     useEffect(() => {
-        let mounted = true
-
         // Check active sessions and sets the user
         const initializeAuth = async () => {
             try {
+                // Get session from Supabase
                 const { data: { session } } = await supabase.auth.getSession()
-                if (mounted) {
-                    setUser(session?.user ?? null)
-                    setLoading(false)
-                }
+                setUser(session?.user ?? null)
+                setLoading(false)
 
-                // Set up auth state change listener
-                const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-                    if (mounted) {
+                // Listen for auth changes
+                const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+                    console.log('Auth state changed:', event, session?.user?.email)
+
+                    if (event === 'SIGNED_IN') {
+                        setUser(session?.user ?? null)
+                    } else if (event === 'SIGNED_OUT') {
+                        setUser(null)
+                    } else if (event === 'TOKEN_REFRESHED') {
                         setUser(session?.user ?? null)
                     }
                 })
 
                 return () => {
-                    mounted = false
                     subscription.unsubscribe()
                 }
             } catch (error) {
-                if (mounted) {
-                    setUser(null)
-                    setLoading(false)
-                }
+                console.error('Error initializing auth:', error)
+                setUser(null)
+                setLoading(false)
             }
         }
 
         initializeAuth()
-    }, [])
+    }, [supabase])
 
     const signIn = async (email: string) => {
         const { error } = await supabase.auth.signInWithOtp({
@@ -64,11 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const signOut = async () => {
-        const { error } = await supabase.auth.signOut()
-        if (error) {
+        try {
+            const { error } = await supabase.auth.signOut()
+            if (error) throw error
+            setUser(null)
+            window.location.href = '/'
+        } catch (error) {
+            console.error('Error signing out:', error)
             throw error
         }
-        setUser(null)
     }
 
     return (

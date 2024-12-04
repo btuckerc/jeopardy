@@ -1,27 +1,24 @@
 'use client'
 
-import { useState } from 'react';
-import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
-import SpoilerSettings from '@/components/SpoilerSettings';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import UserAvatar from '@/components/UserAvatar'
 
 export default async function SettingsPage() {
-    const [isOpen, setIsOpen] = useState(false);
-    const session = await getServerSession();
+    const supabase = createServerComponentClient({ cookies })
+    const { data: { session } } = await supabase.auth.getSession()
 
-    if (!session?.user) {
-        redirect('/api/auth/signin');
+    if (!session) {
+        redirect('/login')
     }
 
     return (
-        <main className="container mx-auto px-4 py-8">
+        <div className="container mx-auto p-4">
             <h1 className="text-2xl font-bold mb-8">Settings</h1>
-
-            <div className="max-w-2xl">
-                <SpoilerSettings isOpen={isOpen} onClose={() => setIsOpen(false)} />
-
-                {/* Add other settings components here */}
+            <div className="bg-white rounded-lg shadow p-6">
+                <UserAvatar />
             </div>
-        </main>
-    );
+        </div>
+    )
 } 

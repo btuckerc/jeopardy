@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, KnowledgeCategory } from '@prisma/client'
 import path from 'path'
 import fs from 'fs'
 
@@ -11,7 +11,7 @@ interface RawQuestion {
     value?: number
     airDate?: string
     source?: string
-    knowledgeCategory?: string
+    knowledgeCategory?: KnowledgeCategory
 }
 
 async function loadQuestions(filePath: string) {
@@ -52,7 +52,7 @@ async function loadQuestions(filePath: string) {
             // Process each air date group
             for (const [_, groupQuestions] of dateGroups) {
                 // Ensure all questions in the group share the same knowledge category
-                const knowledgeCategory = groupQuestions[0].knowledgeCategory
+                const knowledgeCategory = groupQuestions[0].knowledgeCategory || KnowledgeCategory.GENERAL_KNOWLEDGE
 
                 // Process questions in batches
                 const batchSize = 100
@@ -66,7 +66,7 @@ async function loadQuestions(filePath: string) {
                         airDate: q.airDate ? new Date(q.airDate) : null,
                         source: q.source || 'jeopardy_archive',
                         categoryId: category.id,
-                        knowledgeCategory: knowledgeCategory || 'GENERAL_KNOWLEDGE'
+                        knowledgeCategory: knowledgeCategory
                     }))
 
                     await prisma.question.createMany({

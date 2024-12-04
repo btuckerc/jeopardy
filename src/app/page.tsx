@@ -12,10 +12,10 @@ export default function Home() {
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
-            Practice Jeopardy
+            Study Jeopardy Online with trivrdy
           </h1>
           <p className="mt-5 max-w-xl mx-auto text-xl text-gray-500">
-            Improve your trivia skills with our Jeopardy practice app. Choose your mode and start learning!
+            Practice your trivia skills with our Jeopardy-style learning app. Choose between game mode for a full game simulation or practice mode for focused study.
           </p>
         </div>
 
@@ -25,9 +25,9 @@ export default function Home() {
               <Link href="/game" className="block">
                 <div className="rounded-lg shadow-xl overflow-hidden transform transition duration-200 hover:scale-105 hover:shadow-2xl">
                   <div className="bg-blue-600 p-12 text-center">
-                    <h3 className="text-3xl font-bold text-white mb-6">Game Mode</h3>
+                    <h2 className="text-3xl font-bold text-white mb-6">Game Mode</h2>
                     <p className="mt-4 text-lg text-white">
-                      Play a simulated Jeopardy game with categories and varying difficulty levels.
+                      Experience a complete Jeopardy simulation with authentic categories, varying difficulty levels, and competitive scoring.
                     </p>
                   </div>
                 </div>
@@ -38,9 +38,9 @@ export default function Home() {
               <Link href="/practice" className="block">
                 <div className="rounded-lg shadow-xl overflow-hidden transform transition duration-200 hover:scale-105 hover:shadow-2xl">
                   <div className="bg-green-600 p-12 text-center">
-                    <h3 className="text-3xl font-bold text-white mb-6">Free Play Mode</h3>
+                    <h2 className="text-3xl font-bold text-white mb-6">Practice Mode</h2>
                     <p className="mt-4 text-lg text-white">
-                      Study with flashcards and explore specific categories at your own pace.
+                      Study at your own pace with our comprehensive flashcard system. Focus on specific categories and track your progress.
                     </p>
                   </div>
                 </div>
@@ -53,10 +53,20 @@ export default function Home() {
           <div className="mt-16 text-center">
             <h2 className="text-2xl font-bold text-gray-900">Track Your Progress</h2>
             <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-500">
-              Sign in to track your progress, see statistics, and get personalized category recommendations based on your performance.
+              Sign in to track your progress, compete on the leaderboard, and get personalized category recommendations based on your performance.
             </p>
           </div>
         )}
+
+        <div className="mt-16 text-center text-sm text-gray-500">
+          <p>
+            trivrdy is a Jeopardy study tool created by{' '}
+            <a href="https://tuckercraig.com" className="text-blue-600 hover:text-blue-800" target="_blank" rel="noopener noreferrer">
+              Tucker Craig
+            </a>
+            . Practice with real questions, compete with others, and improve your trivia knowledge.
+          </p>
+        </div>
       </div>
     </div>
   )

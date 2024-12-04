@@ -2,6 +2,7 @@
 
 import { prisma } from '../lib/prisma'
 import type { Prisma } from '@prisma/client'
+import crypto from 'crypto'
 
 type GameCategory = {
     id: string
@@ -16,47 +17,178 @@ type GameCategory = {
     }[]
 }
 
-export async function getGameCategories(): Promise<{ categories: GameCategory[] }> {
+export async function createNewGame(userId: string): Promise<{ gameId: string, categories: GameCategory[] }> {
     try {
-        const categories = await prisma.category.findMany({
-            take: 6,
-            orderBy: {
-                name: 'asc'
+        // Get user's spoiler settings
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                spoilerBlockDate: true,
+                spoilerBlockEnabled: true
+            }
+        })
+
+        // First get all categories with their question counts and respect spoiler settings
+        const categoriesWithCounts = await prisma.category.findMany({
+            where: {
+                questions: {
+                    some: user?.spoilerBlockEnabled ? {
+                        airDate: {
+                            lt: user.spoilerBlockDate ?? undefined
+                        }
+                    } : {}
+                }
             },
             include: {
-                questions: {
-                    select: {
-                        id: true,
-                        question: true,
-                        answer: true,
-                        value: true,
-                        difficulty: true
+                _count: {
+                    select: { 
+                        questions: {
+                            where: user?.spoilerBlockEnabled ? {
+                                airDate: {
+                                    lt: user.spoilerBlockDate ?? undefined
+                                }
+                            } : undefined
+                        }
                     }
                 }
             }
         })
 
-        if (!categories || categories.length === 0) {
-            return { categories: [] }
+        // Filter to categories with at least 5 questions
+        const eligibleCategories = categoriesWithCounts.filter(
+            category => category._count.questions >= 5
+        )
+
+        if (eligibleCategories.length < 5) {
+            throw new Error('Not enough eligible categories')
         }
 
+        // Randomly select 5 categories
+        const selectedCategories = eligibleCategories
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 5)
+
+        // Create a new game
+        const game = await prisma.game.create({
+            data: {
+                id: crypto.randomUUID(),
+                userId,
+                useKnowledgeCategories: false,
+                score: 0,
+                completed: false
+            }
+        })
+
+        // Get questions for each category and create GameQuestion entries
+        const categoriesWithQuestions = await Promise.all(
+            selectedCategories.map(async (category) => {
+                const questions = await prisma.question.findMany({
+                    where: {
+                        categoryId: category.id,
+                        ...(user?.spoilerBlockEnabled ? {
+                            airDate: {
+                                lt: user.spoilerBlockDate ?? undefined
+                            }
+                        } : {})
+                    },
+                    orderBy: {
+                        value: 'asc'
+                    },
+                    take: 5
+                })
+
+                // Create GameQuestion entries
+                await prisma.gameQuestion.createMany({
+                    data: questions.map(q => ({
+                        id: crypto.randomUUID(),
+                        gameId: game.id,
+                        questionId: q.id,
+                        answered: false
+                    }))
+                })
+
+                return {
+                    id: category.id,
+                    name: category.name,
+                    questions: questions.map(q => ({
+                        id: q.id,
+                        question: q.question,
+                        answer: q.answer,
+                        value: q.value,
+                        category: category.name,
+                        difficulty: q.difficulty
+                    }))
+                }
+            })
+        )
+
         return {
-            categories: categories.map(cat => ({
-                id: cat.id,
-                name: cat.name,
-                questions: cat.questions.map(q => ({
-                    id: q.id,
-                    question: q.question,
-                    answer: q.answer,
-                    value: q.value || 200,
-                    category: cat.name,
-                    difficulty: q.difficulty
-                }))
-            }))
+            gameId: game.id,
+            categories: categoriesWithQuestions
         }
     } catch (error) {
-        console.error('Error fetching game categories:', error)
-        return { categories: [] }
+        console.error('Error creating new game:', error)
+        throw error
+    }
+}
+
+export async function getCurrentGame(userId: string): Promise<{ gameId: string, categories: GameCategory[] } | null> {
+    try {
+        // Find the most recent incomplete game for the user
+        const game = await prisma.game.findFirst({
+            where: {
+                userId,
+                completed: false
+            },
+            orderBy: {
+                createdAt: 'desc'
+            },
+            include: {
+                questions: {
+                    include: {
+                        question: {
+                            include: {
+                                category: true
+                            }
+                        }
+                    }
+                }
+            }
+        })
+
+        if (!game) return null
+
+        // Group questions by category
+        const categoriesMap = new Map<string, GameCategory>()
+
+        game.questions.forEach(gq => {
+            const category = gq.question.category
+            if (!categoriesMap.has(category.id)) {
+                categoriesMap.set(category.id, {
+                    id: category.id,
+                    name: category.name,
+                    questions: []
+                })
+            }
+
+            const categoryData = categoriesMap.get(category.id)!
+            categoryData.questions.push({
+                id: gq.question.id,
+                question: gq.question.question,
+                answer: gq.question.answer,
+                value: gq.question.value,
+                category: category.name,
+                difficulty: gq.question.difficulty
+            })
+        })
+
+        return {
+            gameId: game.id,
+            categories: Array.from(categoriesMap.values())
+        }
+    } catch (error) {
+        console.error('Error fetching current game:', error)
+        throw error
     }
 }
 
@@ -64,37 +196,48 @@ export async function saveGameHistory(
     userId: string,
     questionId: string,
     isCorrect: boolean,
-    points: number
+    points: number,
+    gameId: string
 ): Promise<{ success: boolean }> {
-    if (!userId || !questionId) {
+    if (!userId || !questionId || !gameId) {
         return { success: false }
     }
 
     try {
-        const result = await prisma.$transaction(async (tx) => {
-            // First ensure user exists
-            const user = await tx.user.upsert({
-                where: { id: userId },
-                update: {},
-                create: {
-                    id: userId,
-                    email: '', // We'll update this later if needed
-                }
-            })
-
-            // Check if this question has already been answered correctly
-            const existingHistory = await tx.gameHistory.findFirst({
+        await prisma.$transaction(async (tx) => {
+            // Update game question status
+            await tx.gameQuestion.updateMany({
                 where: {
-                    userId: user.id,
-                    questionId,
-                    correct: true
+                    gameId,
+                    questionId
+                },
+                data: {
+                    answered: true,
+                    correct: isCorrect
                 }
             })
 
-            // If already answered correctly, don't add points
-            const shouldAwardPoints = isCorrect && !existingHistory
+            // Update game score
+            if (isCorrect) {
+                await tx.game.update({
+                    where: { id: gameId },
+                    data: {
+                        score: { increment: points }
+                    }
+                })
+            }
 
-            // Then find the question to get the category
+            // Create game history entry
+            await tx.gameHistory.create({
+                data: {
+                    userId,
+                    questionId,
+                    correct: isCorrect,
+                    points: isCorrect ? points : 0
+                }
+            })
+
+            // Get the question to update user progress
             const question = await tx.question.findUnique({
                 where: { id: questionId },
                 include: { category: true }
@@ -104,48 +247,34 @@ export async function saveGameHistory(
                 throw new Error('Question not found')
             }
 
-            // Create game history entry
-            await tx.gameHistory.create({
-                data: {
-                    userId: user.id,
-                    questionId,
-                    correct: isCorrect,
-                    points: shouldAwardPoints ? points : 0
-                }
-            })
-
-            // Update or create user progress
-            const progress = await tx.userProgress.upsert({
+            // Update user progress
+            await tx.userProgress.upsert({
                 where: {
                     userId_categoryId: {
-                        userId: user.id,
+                        userId,
                         categoryId: question.categoryId
                     }
                 },
                 update: {
-                    correct: { increment: shouldAwardPoints ? 1 : 0 },
-                    total: { increment: !existingHistory ? 1 : 0 },
-                    points: { increment: shouldAwardPoints ? points : 0 }
+                    correct: { increment: isCorrect ? 1 : 0 },
+                    total: { increment: 1 },
+                    points: { increment: isCorrect ? points : 0 }
                 },
                 create: {
                     id: crypto.randomUUID(),
-                    userId: user.id,
+                    userId,
                     categoryId: question.categoryId,
                     questionId: question.id,
-                    correct: shouldAwardPoints ? 1 : 0,
+                    correct: isCorrect ? 1 : 0,
                     total: 1,
-                    points: shouldAwardPoints ? points : 0
+                    points: isCorrect ? points : 0
                 }
             })
-
-            return true
         })
 
-        return { success: result }
+        return { success: true }
     } catch (error) {
-        if (error instanceof Error) {
-            console.error('Error in saveGameHistory:', error.message)
-        }
+        console.error('Error saving game history:', error)
         return { success: false }
     }
 } 

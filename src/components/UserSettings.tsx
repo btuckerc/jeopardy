@@ -235,31 +235,33 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Profile Icon
                                 </label>
-                                <div className="flex items-center gap-4">
+                                <div className="flex items-start gap-6">
                                     <UserAvatar
                                         email={userEmail}
                                         displayName={displayName}
                                         selectedIcon={selectedIcon}
                                         size="lg"
                                     />
-                                    <div className="grid grid-cols-5 gap-2 flex-1">
-                                        <button
-                                            onClick={() => handleUpdateIcon(null)}
-                                            className={`p-2 rounded-md text-gray-900 ${!selectedIcon ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
-                                            title="Default"
-                                        >
-                                            👤
-                                        </button>
-                                        {Object.entries(PROFILE_ICONS).map(([icon, name]) => (
+                                    <div className="flex-1 max-h-48 overflow-y-auto pr-2 rounded-md border border-gray-200">
+                                        <div className="grid grid-cols-4 gap-3 p-3">
                                             <button
-                                                key={icon}
-                                                onClick={() => handleUpdateIcon(icon)}
-                                                className={`p-2 rounded-md text-gray-900 ${selectedIcon === icon ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
-                                                title={name}
+                                                onClick={() => handleUpdateIcon(null)}
+                                                className={`p-3 text-2xl rounded-md text-gray-900 transition-colors ${!selectedIcon ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                                                title="Default"
                                             >
-                                                {icon}
+                                                👤
                                             </button>
-                                        ))}
+                                            {Object.entries(PROFILE_ICONS).map(([icon, name]) => (
+                                                <button
+                                                    key={icon}
+                                                    onClick={() => handleUpdateIcon(icon)}
+                                                    className={`p-3 text-2xl rounded-md text-gray-900 transition-colors ${selectedIcon === icon ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                                                    title={name}
+                                                >
+                                                    {icon}
+                                                </button>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -298,30 +300,36 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
                         </div>
 
                         {/* Spoiler Protection */}
-                        <div>
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Spoiler Protection</h3>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <label className="font-medium text-gray-900">Block Today's Questions</label>
-                                        <p className="text-sm text-gray-500">Prevent spoilers from today's episode</p>
-                                    </div>
-                                    <button
-                                        onClick={() => updateSettings({ spoilerBlockEnabled: !settings.spoilerBlockEnabled })}
-                                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${settings.spoilerBlockEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
-                                    >
-                                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${settings.spoilerBlockEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
-                                    </button>
+                        <div className="bg-gray-50 rounded-lg p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <h3 className="text-lg font-semibold text-gray-900">Spoiler Protection</h3>
+                                <button
+                                    onClick={() => updateSettings({ spoilerBlockEnabled: !settings.spoilerBlockEnabled })}
+                                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${settings.spoilerBlockEnabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+                                    aria-label="Toggle spoiler protection"
+                                >
+                                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${settings.spoilerBlockEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
+
+                            <div className="space-y-6">
+                                <div className="border-b border-gray-200 pb-4">
+                                    <h4 className="text-sm font-medium text-gray-900 mb-1">Daily Episode Protection</h4>
+                                    <p className="text-sm text-gray-500">
+                                        Automatically hide questions from today's episode to prevent spoilers
+                                    </p>
                                 </div>
 
                                 <div>
-                                    <label className="font-medium text-gray-900">Block Questions Before</label>
-                                    <p className="text-sm text-gray-500 mb-2">Hide questions from episodes you haven't watched yet</p>
+                                    <h4 className="text-sm font-medium text-gray-900 mb-1">Custom Date Protection</h4>
+                                    <p className="text-sm text-gray-500 mb-3">
+                                        Hide questions from all episodes that aired after your selected date
+                                    </p>
                                     <input
                                         type="date"
                                         value={settings.spoilerBlockDate ? format(settings.spoilerBlockDate, 'yyyy-MM-dd') : ''}
                                         onChange={(e) => updateSettings({ spoilerBlockDate: e.target.value ? new Date(e.target.value) : null })}
-                                        className="rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-gray-900"
+                                        className="w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-gray-900 shadow-sm"
                                     />
                                 </div>
                             </div>

@@ -170,13 +170,17 @@ export default function StatsPage() {
             try {
                 const { data: { session }, error: authError } = await supabase.auth.getSession()
 
-                if (authError) throw authError
+                if (authError) {
+                    console.error('Auth error:', authError)
+                    if (mounted) {
+                        setError('Authentication error occurred')
+                        setLoading(false)
+                    }
+                    return
+                }
 
                 if (!session?.user) {
-                    if (mounted) {
-                        setLoading(false)
-                        setError('Please sign in to view your statistics.')
-                    }
+                    router.push('/login')
                     return
                 }
 
@@ -202,10 +206,18 @@ export default function StatsPage() {
             }
         }
 
+        // Initial fetch
         fetchStats()
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-            fetchStats()
+        // Subscribe to auth changes
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN') {
+                fetchStats()
+            } else if (event === 'SIGNED_OUT') {
+                router.push('/login')
+            }
         })
 
         return () => {

@@ -15,7 +15,7 @@ export function PageTitle() {
                 pageTitle = `${baseTitle} - game mode`
                 break
             case '/practice':
-                pageTitle = `${baseTitle} - free play mode`
+                pageTitle = `${baseTitle} - practice mode`
                 break
             case '/stats':
                 pageTitle = `${baseTitle} - statistics`

@@ -8,7 +8,9 @@ export async function GET(request: Request) {
     const code = requestUrl.searchParams.get('code')
 
     if (code) {
-        const supabase = createRouteHandlerClient({ cookies })
+        const cookieStore = cookies()
+        const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+
         try {
             const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
 
@@ -21,21 +23,35 @@ export async function GET(request: Request) {
                 // Create or update user in our database
                 await prisma.user.upsert({
                     where: { id: session.user.id },
-                    update: { email: session.user.email },
+                    update: {
+                        email: session.user.email
+                    },
                     create: {
                         id: session.user.id,
-                        email: session.user.email!,
+                        email: session.user.email!
                     }
                 })
 
-                // Set the auth cookie
+                // Redirect to home page with auth state
                 const response = NextResponse.redirect(requestUrl.origin)
-                response.cookies.set('supabase-auth-token', session.access_token, {
+
+                // Set auth cookie with proper options
+                response.cookies.set('sb-access-token', session.access_token, {
                     httpOnly: true,
                     secure: process.env.NODE_ENV === 'production',
                     sameSite: 'lax',
-                    path: '/'
+                    path: '/',
+                    maxAge: 60 * 60 * 24 * 7 // 1 week
                 })
+
+                response.cookies.set('sb-refresh-token', session.refresh_token!, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'lax',
+                    path: '/',
+                    maxAge: 60 * 60 * 24 * 7 // 1 week
+                })
+
                 return response
             }
         } catch (error) {

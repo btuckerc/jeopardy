@@ -94,7 +94,30 @@ function CategoryCard({ category, onSelect, isKnowledgeCategory = false }: {
     )
 }
 
-function QuestionCard({ question, onClick }: { question: Question; onClick: () => void }) {
+function SpoilerWarning({ airDate }: { airDate: Date }) {
+    return (
+        <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+            <div className="flex">
+                <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                </div>
+                <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                        This question aired on {new Date(airDate).toLocaleDateString()}. Viewing it may spoil a recent episode.
+                    </p>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+function QuestionCard({ question, onClick, spoilerDate }: {
+    question: Question;
+    onClick: () => void;
+    spoilerDate: Date | null;
+}) {
     const hasReachedMaxAttempts = (question.incorrectAttempts?.length ?? 0) >= 5
     const mostRecentAttempt = question.incorrectAttempts?.length
         ? new Date(Math.max(...question.incorrectAttempts.map(d => new Date(d).getTime())))
@@ -106,38 +129,45 @@ function QuestionCard({ question, onClick }: { question: Question; onClick: () =
         mostRecentAttempt &&
         timeSinceLastAttempt < 30 * 60 * 1000
 
+    const isSpoiler = spoilerDate && question.airDate && new Date(question.airDate) >= spoilerDate
+
     const buttonClass = isLockedOut
         ? 'bg-gray-400 cursor-not-allowed opacity-50'
-        : question.correct
-            ? 'bg-green-600 hover:bg-green-700'
-            : question.incorrectAttempts && question.incorrectAttempts.length > 0
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-blue-600 hover:bg-blue-700'
+        : isSpoiler
+            ? 'bg-yellow-600 hover:bg-yellow-700'
+            : question.correct
+                ? 'bg-green-600 hover:bg-green-700'
+                : question.incorrectAttempts && question.incorrectAttempts.length > 0
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
 
     return (
-        <button
-            onClick={onClick}
-            disabled={!!isLockedOut}
-            className={`p-6 rounded-lg transition-colors ${buttonClass} text-white text-center text-xl font-bold relative w-full h-32 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200`}
-        >
-            ${question.value}
-            {isLockedOut && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
-                    <span className="text-sm">
-                        {hasReachedMaxAttempts
-                            ? 'Max attempts'
-                            : `Locked (${Math.ceil((30 * 60 * 1000 - timeSinceLastAttempt) / 60000)}m)`}
-                    </span>
-                </div>
-            )}
-            {!isLockedOut && (question.incorrectAttempts?.length ?? 0) > 0 && (
-                <div className="absolute top-2 right-2 bg-black/50 rounded-full px-2 py-1">
-                    <span className="text-xs">
-                        {question.incorrectAttempts?.length ?? 0}/5
-                    </span>
-                </div>
-            )}
-        </button>
+        <div className="space-y-2">
+            {isSpoiler && <SpoilerWarning airDate={question.airDate!} />}
+            <button
+                onClick={onClick}
+                disabled={!!isLockedOut}
+                className={`p-6 rounded-lg transition-colors ${buttonClass} text-white text-center text-xl font-bold relative w-full h-32 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200`}
+            >
+                ${question.value}
+                {isLockedOut && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
+                        <span className="text-sm">
+                            {hasReachedMaxAttempts
+                                ? 'Max attempts'
+                                : `Locked (${Math.ceil((30 * 60 * 1000 - timeSinceLastAttempt) / 60000)}m)`}
+                        </span>
+                    </div>
+                )}
+                {!isLockedOut && (question.incorrectAttempts?.length ?? 0) > 0 && (
+                    <div className="absolute top-2 right-2 bg-black/50 rounded-full px-2 py-1">
+                        <span className="text-xs">
+                            {question.incorrectAttempts?.length ?? 0}/5
+                        </span>
+                    </div>
+                )}
+            </button>
+        </div>
     )
 }
 
@@ -161,6 +191,7 @@ export default function FreePractice() {
     const [hasMore, setHasMore] = useState(false)
     const loadMoreRef = useRef<HTMLDivElement>(null)
     const supabase = createClientComponentClient()
+    const [spoilerDate, setSpoilerDate] = useState<Date | null>(null)
 
     useEffect(() => {
         const loadKnowledgeCategories = async () => {
@@ -501,6 +532,22 @@ export default function FreePractice() {
     // Sort questions by value when displaying
     const sortedQuestions = [...questions].sort((a, b) => a.value - b.value)
 
+    useEffect(() => {
+        if (user?.id) {
+            // Fetch user's spoiler settings
+            fetch('/api/user/spoiler-settings')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.spoilerBlockEnabled && data.spoilerBlockDate) {
+                        setSpoilerDate(new Date(data.spoilerBlockDate))
+                    } else {
+                        setSpoilerDate(null)
+                    }
+                })
+                .catch(console.error)
+        }
+    }, [user])
+
     if (loading) {
         return <div className="text-center p-4">Loading...</div>
     }
@@ -508,7 +555,7 @@ export default function FreePractice() {
     return (
         <div className="container mx-auto px-4 py-8">
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold text-gray-900">Free Play Mode</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Practice Mode</h1>
                 <button
                     onClick={handleShuffle}
                     disabled={loadingQuestions}
@@ -591,6 +638,7 @@ export default function FreePractice() {
                                 key={question.id}
                                 question={question}
                                 onClick={() => handleQuestionSelect(question)}
+                                spoilerDate={spoilerDate}
                             />
                         ))}
                     </div>
@@ -629,18 +677,21 @@ export default function FreePractice() {
 
                         {!showAnswer ? (
                             <div className="space-y-4">
-                                <input
-                                    type="text"
-                                    value={userAnswer}
-                                    onChange={(e) => setUserAnswer(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            handleSubmitAnswer();
-                                        }
-                                    }}
-                                    className="w-full p-3 border rounded-lg"
-                                    placeholder="Your answer..."
-                                />
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={userAnswer}
+                                        onChange={(e) => setUserAnswer(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                handleSubmitAnswer();
+                                            }
+                                        }}
+                                        className="w-full p-3 border rounded-lg text-black"
+                                        placeholder="What is..."
+                                        defaultValue="What is..."
+                                    />
+                                </div>
                                 <div className="flex space-x-4">
                                     <button
                                         onClick={handleSubmitAnswer}

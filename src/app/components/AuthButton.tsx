@@ -133,13 +133,21 @@ export function AuthButton() {
             <div className="relative">
                 <button
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center space-x-3 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium"
+                    className="flex items-center space-x-3 bg-blue-500 hover:bg-blue-600 text-white px-4 rounded-md text-sm font-medium h-10"
                 >
-                    <UserAvatar email={user.email ?? ''} displayName={displayName} selectedIcon={selectedIcon} size="sm" />
-                    <span>{displayName || 'User'}</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                    <div className="flex items-center">
+                        <UserAvatar
+                            email={user.email ?? ''}
+                            displayName={displayName}
+                            selectedIcon={selectedIcon}
+                            size="md"
+                            className="cursor-pointer hover:opacity-80"
+                        />
+                        <span className="ml-3">{displayName || 'User'}</span>
+                        <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
                 </button>
 
                 {showUserMenu && (
