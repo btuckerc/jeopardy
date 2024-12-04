@@ -81,9 +81,14 @@ function CategoryCard({ category, onSelect, isKnowledgeCategory = false }: {
                         style={{ width: `${progressPercentage}%` }}
                     />
                 </div>
-                <p className="text-sm mt-2 text-white/90">
-                    {category.correctQuestions} / {category.totalQuestions} completed
-                </p>
+                <div className="mt-2 flex justify-between items-center text-white/90">
+                    <p className="text-sm">
+                        {category.correctQuestions.toLocaleString()} / {category.totalQuestions.toLocaleString()} questions
+                    </p>
+                    <p className="text-sm font-medium">
+                        {progressPercentage}%
+                    </p>
+                </div>
             </div>
         </button>
     )
@@ -162,6 +167,21 @@ export default function FreePractice() {
             try {
                 const data = await getCategories()
                 setKnowledgeCategories(data)
+
+                // Get URL parameters
+                const params = new URLSearchParams(window.location.search)
+                const knowledgeCategoryParam = params.get('knowledgeCategory')
+                const categoryParam = params.get('category')
+
+                // If we have a knowledge category, select it
+                if (knowledgeCategoryParam) {
+                    await handleKnowledgeCategorySelect(knowledgeCategoryParam)
+
+                    // If we also have a category, select it to show questions
+                    if (categoryParam) {
+                        await handleCategorySelect(categoryParam)
+                    }
+                }
             } catch (error) {
                 console.error('Error loading knowledge categories:', error)
             } finally {
@@ -335,15 +355,16 @@ export default function FreePractice() {
     const handleShuffle = async () => {
         setLoadingQuestions(true)
         try {
-            // Set shuffle level based on current view
-            const level = !selectedKnowledgeCategory ? 'all' :
-                !selectedCategory ? 'knowledge' : 'category'
+            // Set shuffle level based on current view if not already set
+            const level = shuffleLevel || (!selectedKnowledgeCategory ? 'all' :
+                !selectedCategory ? 'knowledge' : 'category')
             setShuffleLevel(level)
 
             const randomQuestion = await getRandomQuestion(
                 selectedKnowledgeCategory || undefined,
                 selectedCategory || undefined,
-                user?.id
+                user?.id,
+                selectedQuestion?.id // Exclude current question
             )
 
             if (!randomQuestion) {
@@ -383,12 +404,26 @@ export default function FreePractice() {
 
     const getShuffleButtonText = () => {
         if (!selectedKnowledgeCategory) return 'Shuffle All Questions'
+
+        // If we're at the knowledge category level
         if (!selectedCategory) {
             const category = knowledgeCategories.find(c => c.id === selectedKnowledgeCategory)
             return `Shuffle in ${category?.name || ''}`
         }
+
+        // If we're at the category or question level
         const category = categories.find(c => c.id === selectedCategory)
-        return `Shuffle in ${category?.name || ''}`
+        if (category) {
+            return `Shuffle in ${category.name}`
+        }
+
+        // If we don't have the category in state (e.g., after a random shuffle),
+        // use the selected question's category name
+        if (selectedQuestion) {
+            return `Shuffle in ${selectedQuestion.originalCategory}`
+        }
+
+        return 'Shuffle Questions'
     }
 
     const handleSubmitAnswer = async () => {

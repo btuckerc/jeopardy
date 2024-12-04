@@ -21,12 +21,22 @@ export async function getCategories(userId?: string) {
     try {
         // Get total questions and correct questions per knowledge category
         const categories = await prisma.$queryRaw`
+            WITH LatestCorrectAnswers AS (
+                SELECT DISTINCT ON (gh."questionId")
+                    gh."questionId",
+                    gh.correct
+                FROM "GameHistory" gh
+                WHERE gh."userId" = ${userId}
+                ORDER BY gh."questionId", gh.timestamp DESC
+            )
             SELECT 
                 q."knowledgeCategory",
                 COUNT(DISTINCT q.id) as total_questions,
-                COUNT(DISTINCT CASE WHEN gh.correct = true AND gh."userId" = ${userId} THEN q.id END) as correct_questions
+                COUNT(DISTINCT CASE 
+                    WHEN lca.correct = true THEN q.id 
+                    END) as correct_questions
             FROM "Question" q
-            LEFT JOIN "GameHistory" gh ON gh."questionId" = q.id AND gh."userId" = ${userId}
+            LEFT JOIN LatestCorrectAnswers lca ON lca."questionId" = q.id
             GROUP BY q."knowledgeCategory"
             ORDER BY q."knowledgeCategory"
         ` as Array<{ knowledgeCategory: string; total_questions: number; correct_questions: number }>
@@ -133,50 +143,108 @@ export async function getKnowledgeCategoryDetails(
     }
 }
 
-export async function getRandomQuestion(knowledgeCategoryId?: string, categoryId?: string, userId?: string) {
+export async function getRandomQuestion(
+    knowledgeCategoryId?: string,
+    categoryId?: string,
+    userId?: string,
+    excludeQuestionId?: string
+) {
     try {
         // Build the where clause based on provided filters
         const where: any = {}
         if (knowledgeCategoryId) where.knowledgeCategory = knowledgeCategoryId
         if (categoryId) where.categoryId = categoryId
+        if (excludeQuestionId) where.NOT = { id: excludeQuestionId }
 
-        // Get total count for random selection
-        const totalCount = await prisma.question.count({ where })
-        if (totalCount === 0) return null
-
-        // First try to get a random unanswered question
-        const unansweredQuestion = await prisma.question.findFirst({
+        // Get all eligible question IDs first
+        const eligibleQuestions = await prisma.question.findMany({
             where: {
                 ...where,
                 NOT: {
-                    gameHistory: {
+                    gameHistory: userId ? {
                         some: {
-                            userId: userId
+                            userId: userId,
+                            correct: true
                         }
-                    }
+                    } : undefined,
+                    ...(excludeQuestionId ? { id: excludeQuestionId } : {})
                 }
             },
-            include: {
-                category: true
-            },
-            skip: Math.floor(Math.random() * totalCount)
+            select: { id: true }
         })
 
-        // If no unanswered questions, get any random question
-        const question = unansweredQuestion || await prisma.question.findFirst({
-            where,
+        if (eligibleQuestions.length === 0) {
+            // If no unanswered questions, get all questions except the excluded one
+            const allQuestions = await prisma.question.findMany({
+                where: {
+                    ...where,
+                    NOT: excludeQuestionId ? { id: excludeQuestionId } : undefined
+                },
+                select: { id: true }
+            })
+
+            if (allQuestions.length === 0) return null
+
+            // Get a truly random question from the available ones
+            const randomIndex = Math.floor(Math.random() * allQuestions.length)
+            const randomId = allQuestions[randomIndex].id
+
+            const question = await prisma.question.findUnique({
+                where: { id: randomId },
+                include: {
+                    category: true,
+                    gameHistory: userId ? {
+                        where: { userId },
+                        orderBy: { timestamp: 'desc' }
+                    } : undefined
+                }
+            })
+
+            if (!question) return null
+
+            type QuestionWithRelations = Question & {
+                category: Category;
+                gameHistory?: GameHistory[];
+            }
+
+            const typedQuestion = question as QuestionWithRelations
+            const gameHistory = typedQuestion.gameHistory || []
+            const incorrectAttempts = userId && gameHistory.length > 0
+                ? gameHistory
+                    .filter((h: GameHistory) => !h.correct)
+                    .map((h: GameHistory) => h.timestamp)
+                    .sort((a: Date, b: Date) => b.getTime() - a.getTime())
+                    .slice(0, 5)
+                : []
+
+            return {
+                id: typedQuestion.id,
+                question: typedQuestion.question,
+                answer: typedQuestion.answer,
+                value: typedQuestion.value || 200,
+                categoryId: typedQuestion.categoryId,
+                categoryName: typedQuestion.knowledgeCategory,
+                originalCategory: typedQuestion.category.name,
+                airDate: typedQuestion.airDate,
+                answered: userId ? gameHistory.length > 0 : false,
+                correct: userId ? gameHistory.some((h: GameHistory) => h.correct) : false,
+                incorrectAttempts
+            }
+        }
+
+        // Get a truly random question from the eligible ones
+        const randomIndex = Math.floor(Math.random() * eligibleQuestions.length)
+        const randomId = eligibleQuestions[randomIndex].id
+
+        const question = await prisma.question.findUnique({
+            where: { id: randomId },
             include: {
                 category: true,
                 gameHistory: userId ? {
-                    where: {
-                        userId: userId
-                    },
-                    orderBy: {
-                        timestamp: 'desc'
-                    }
+                    where: { userId },
+                    orderBy: { timestamp: 'desc' }
                 } : undefined
-            },
-            skip: Math.floor(Math.random() * totalCount)
+            }
         })
 
         if (!question) return null

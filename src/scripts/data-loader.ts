@@ -11,6 +11,7 @@ interface RawQuestion {
     value?: number
     airDate?: string
     source?: string
+    knowledgeCategory?: string
 }
 
 async function loadQuestions(filePath: string) {
@@ -20,17 +21,27 @@ async function loadQuestions(filePath: string) {
 
         console.log(`Processing ${questions.length} questions...`)
 
-        // Group questions by category
-        const categoriesMap = new Map<string, RawQuestion[]>()
+        // Group questions by category and air date
+        const categoryGroups = new Map<string, Map<string, RawQuestion[]>>()
         questions.forEach(q => {
-            if (!categoriesMap.has(q.category)) {
-                categoriesMap.set(q.category, [])
+            const key = `${q.category}_${q.airDate || 'unknown'}`
+            if (!categoryGroups.has(key)) {
+                categoryGroups.set(key, new Map())
             }
-            categoriesMap.get(q.category)!.push(q)
+            const dateGroup = categoryGroups.get(key)!
+
+            // Group by air date
+            const dateKey = q.airDate || 'unknown'
+            if (!dateGroup.has(dateKey)) {
+                dateGroup.set(dateKey, [])
+            }
+            dateGroup.get(dateKey)!.push(q)
         })
 
-        // Process each category
-        for (const [categoryName, categoryQuestions] of categoriesMap) {
+        // Process each category group
+        for (const [categoryKey, dateGroups] of categoryGroups) {
+            const categoryName = categoryKey.split('_')[0]
+
             // Find or create category
             const category = await prisma.category.upsert({
                 where: { name: categoryName },
@@ -38,27 +49,31 @@ async function loadQuestions(filePath: string) {
                 update: {}
             })
 
-            // Process questions in batches
-            const batchSize = 100
-            for (let i = 0; i < categoryQuestions.length; i += batchSize) {
-                const batch = categoryQuestions.slice(i, i + batchSize)
-                const createQuestions = batch.map(q => ({
-                    question: q.question,
-                    answer: q.answer,
-                    value: q.value || determineDifficulty(q.value).value,
-                    difficulty: determineDifficulty(q.value).difficulty,
-                    airDate: q.airDate ? new Date(q.airDate) : null,
-                    source: q.source || 'jeopardy_archive',
-                    categoryId: category.id
-                }))
+            // Process each air date group
+            for (const [_, groupQuestions] of dateGroups) {
+                // Ensure all questions in the group share the same knowledge category
+                const knowledgeCategory = groupQuestions[0].knowledgeCategory
 
-                await prisma.question.createMany({
-                    data: createQuestions.map(q => ({
-                        ...q,
-                        knowledgeCategory: 'GENERAL_KNOWLEDGE'
-                    })),
-                    skipDuplicates: true
-                })
+                // Process questions in batches
+                const batchSize = 100
+                for (let i = 0; i < groupQuestions.length; i += batchSize) {
+                    const batch = groupQuestions.slice(i, i + batchSize)
+                    const createQuestions = batch.map(q => ({
+                        question: q.question,
+                        answer: q.answer,
+                        value: q.value || determineDifficulty(q.value).value,
+                        difficulty: determineDifficulty(q.value).difficulty,
+                        airDate: q.airDate ? new Date(q.airDate) : null,
+                        source: q.source || 'jeopardy_archive',
+                        categoryId: category.id,
+                        knowledgeCategory: knowledgeCategory || 'GENERAL_KNOWLEDGE'
+                    }))
+
+                    await prisma.question.createMany({
+                        data: createQuestions,
+                        skipDuplicates: true
+                    })
+                }
             }
 
             console.log(`Processed category: ${categoryName}`)

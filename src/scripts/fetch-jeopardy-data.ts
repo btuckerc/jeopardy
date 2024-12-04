@@ -78,13 +78,14 @@ function analyzeContent(text: string): KnowledgeCategory {
     return 'GENERAL_KNOWLEDGE'
 }
 
-function determineKnowledgeCategory(question: string, answer: string, categoryName: string): KnowledgeCategory {
-    // Combine all text for analysis
-    const combinedText = `${categoryName} ${question} ${answer}`
+function determineKnowledgeCategoryForQuestions(questions: { question: string; answer: string }[], categoryName: string): KnowledgeCategory {
+    // Combine all questions and answers for better category determination
+    const combinedText = questions
+        .map(q => `${q.question} ${q.answer}`)
+        .join(' ') + ' ' + categoryName
 
     // Use content analysis to determine category
-    const category = analyzeContent(combinedText)
-    return category
+    return analyzeContent(combinedText)
 }
 
 function cleanText(text: string): string {
@@ -146,6 +147,9 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
             const $categoryRow = $categoryCell.closest('tr')
             const categoryColumn = $categoryCell.index() + 1
 
+            // Collect all questions for this category first
+            const categoryQuestions: { question: string; answer: string; value: number; wasTripleStumper: boolean }[] = []
+
             // Get all clue rows after the category row
             let $currentRow = $categoryRow.next()
             let rowIndex = 0
@@ -187,7 +191,19 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
                 }
 
                 if (question && answer) {
-                    const knowledgeCategory = determineKnowledgeCategory(question, answer, category)
+                    categoryQuestions.push({ question, answer, value, wasTripleStumper })
+                }
+
+                $currentRow = $currentRow.next()
+                rowIndex++
+            }
+
+            // Determine knowledge category for all questions in this category
+            if (categoryQuestions.length > 0) {
+                const knowledgeCategory = determineKnowledgeCategoryForQuestions(categoryQuestions, category)
+
+                // Add all questions with the same knowledge category
+                categoryQuestions.forEach(({ question, answer, value, wasTripleStumper }) => {
                     games.push({
                         id: crypto.randomUUID(),
                         question,
@@ -201,10 +217,7 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
                         wasTripleStumper,
                         isDoubleJeopardy
                     })
-                }
-
-                $currentRow = $currentRow.next()
-                rowIndex++
+                })
             }
         })
     })
