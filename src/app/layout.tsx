@@ -71,7 +71,6 @@ export const metadata = {
     },
   },
 
-  // Mobile App Configuration
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
