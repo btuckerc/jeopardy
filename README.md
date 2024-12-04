@@ -58,37 +58,37 @@ trivrdy is a modern, interactive Jeopardy study platform that helps you improve 
 ### Installation
 
 1. Clone the repository:
-\`\`\`bash
+```bash
 git clone https://github.com/yourusername/trivrdy.git
 cd trivrdy
-\`\`\`
+```
 
 2. Install dependencies:
-\`\`\`bash
+```bash
 npm install
-\`\`\`
+```
 
 3. Set up environment variables:
-\`\`\`env
+```env
 DATABASE_URL="postgresql://..."
 DIRECT_URL="postgresql://..."
 NEXT_PUBLIC_SUPABASE_URL="your-supabase-url"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
-\`\`\`
+```
 
 4. Initialize the database:
-\`\`\`bash
+```bash
 npm run db:setup
-\`\`\`
+```
 
 5. Start development server:
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 
 ## 📦 Available Scripts
 
-\`\`\`bash
+```bash
 # Development
 npm run dev          # Start development server
 npm run build        # Build for production
@@ -104,7 +104,7 @@ npm run db:migrate   # Run migrations
 npm run db:generate  # Generate Prisma client
 npm run db:seed      # Seed initial data
 npm run db:fetch     # Fetch new questions
-\`\`\`
+```
 
 ## 🔄 Update Cycle
 
