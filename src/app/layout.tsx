@@ -20,11 +20,6 @@ export const metadata = {
   authors: [{ name: 'Tucker Craig', url: 'https://tuckercraig.com' }],
   creator: 'Tucker Craig',
   publisher: 'Tucker Craig',
-  formatDetection: {
-    email: false,
-    address: false,
-    telephone: false,
-  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -68,11 +63,30 @@ export const metadata = {
       noimageindex: false,
     },
   },
+
+  // Mobile App Configuration
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'trivrdy',
+  },
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
   other: {
     'apple-mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-title': 'trivrdy',
-    'format-detection': 'telephone=no',
     'mobile-web-app-capable': 'yes',
+    'apple-touch-fullscreen': 'yes',
     'msapplication-TileColor': '#1E40AF',
     'msapplication-tap-highlight': 'no',
     'theme-color': '#1E40AF'
@@ -89,6 +103,7 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/favicon.ico" />
         <link rel="canonical" href="https://trivrdy.com" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
       </head>
       <body className={inter.className}>
         <Providers>
