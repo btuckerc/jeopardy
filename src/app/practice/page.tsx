@@ -158,7 +158,7 @@ function QuestionCard({ question, onClick, spoilerDate }: {
                 >
                     <div className="flex items-center justify-center space-x-2">
                         <span>${question.value}</span>
-                        {(question.hasIncorrectAttempts || question.isLocked) && (
+                        {question.isLocked && (
                             <svg className="w-5 h-5 text-white/75" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
@@ -531,6 +531,7 @@ export default function FreePractice() {
 
         const isAnswerCorrect = checkAnswer(userAnswer, selectedQuestion.answer);
         setIsCorrect(isAnswerCorrect);
+        setShowAnswer(true);
 
         if (user?.id && selectedQuestion.id) {
             await saveAnswer(
@@ -539,6 +540,29 @@ export default function FreePractice() {
                 selectedQuestion.categoryId,
                 isAnswerCorrect
             );
+
+            const newIncorrectAttempts = !isAnswerCorrect
+                ? [new Date(), ...(selectedQuestion.incorrectAttempts || [])]
+                : selectedQuestion.incorrectAttempts;
+
+            // Update the selected question state
+            setSelectedQuestion(prev => {
+                if (!prev) return null;
+                return {
+                    ...prev,
+                    correct: isAnswerCorrect || prev.correct,
+                    gameHistory: [
+                        {
+                            timestamp: new Date(),
+                            correct: isAnswerCorrect
+                        },
+                        ...prev.gameHistory
+                    ],
+                    incorrectAttempts: newIncorrectAttempts,
+                    isLocked: !isAnswerCorrect,
+                    hasIncorrectAttempts: !isAnswerCorrect || prev.hasIncorrectAttempts
+                };
+            });
 
             // Update questions state with new game history
             setQuestions(prevQuestions =>
@@ -554,10 +578,8 @@ export default function FreePractice() {
                                 },
                                 ...q.gameHistory
                             ],
-                            incorrectAttempts: !isAnswerCorrect
-                                ? [new Date(), ...q.incorrectAttempts]
-                                : q.incorrectAttempts,
-                            isLocked: !isAnswerCorrect && new Date().getTime() - new Date(q.incorrectAttempts[0] || 0).getTime() < 30 * 60 * 1000,
+                            incorrectAttempts: newIncorrectAttempts,
+                            isLocked: !isAnswerCorrect,
                             hasIncorrectAttempts: !isAnswerCorrect || q.hasIncorrectAttempts
                         }
                         : q
@@ -568,9 +590,28 @@ export default function FreePractice() {
 
     const handleShowAnswer = () => {
         if (!selectedQuestion) return;
-        setShowAnswer(true);
 
-        // Update questions state to mark the question as locked
+        const newIncorrectAttempts = [new Date(), ...(selectedQuestion.incorrectAttempts || [])];
+
+        // Update the selected question state
+        setSelectedQuestion(prev => {
+            if (!prev) return null;
+            return {
+                ...prev,
+                gameHistory: [
+                    {
+                        timestamp: new Date(),
+                        correct: false
+                    },
+                    ...prev.gameHistory
+                ],
+                incorrectAttempts: newIncorrectAttempts,
+                isLocked: true,
+                hasIncorrectAttempts: true
+            };
+        });
+
+        // Update questions state
         setQuestions(prevQuestions =>
             transformQuestions(prevQuestions.map(q =>
                 q.id === selectedQuestion.id
@@ -583,13 +624,15 @@ export default function FreePractice() {
                             },
                             ...q.gameHistory
                         ],
-                        incorrectAttempts: [new Date(), ...q.incorrectAttempts],
+                        incorrectAttempts: newIncorrectAttempts,
                         isLocked: true,
                         hasIncorrectAttempts: true
                     }
                     : q
             ))
         );
+
+        setShowAnswer(true);
     };
 
     const handleShuffle = async () => {
