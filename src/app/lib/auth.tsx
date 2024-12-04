@@ -54,13 +54,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [supabase])
 
     const signIn = async (email: string) => {
-        const { error } = await supabase.auth.signInWithOtp({
-            email,
-            options: {
-                emailRedirectTo: `${window.location.origin}/auth/callback`,
-            },
-        })
-        if (error) {
+        try {
+            const { error } = await supabase.auth.signInWithOtp({
+                email,
+                options: {
+                    emailRedirectTo: process.env.NODE_ENV === 'production'
+                        ? 'https://www.trivrdy.com/auth/callback'
+                        : 'http://localhost:3000/auth/callback'
+                }
+            })
+            if (error) throw error
+        } catch (error) {
+            console.error('Error signing in:', error)
             throw error
         }
     }
