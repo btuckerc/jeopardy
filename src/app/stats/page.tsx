@@ -353,7 +353,7 @@ export default function StatsPage() {
                 </div>
                 <div className="bg-yellow-200 p-6 rounded-lg shadow-md lg:col-start-2 lg:col-end-3 xl:col-auto">
                     <div className="flex items-center">
-                        <h2 className="text-lg font-semibold mb-2 text-black">Triple Stumpers Answered</h2>
+                        <h2 className="text-lg font-semibold mb-2 text-black">Triple Stumpers</h2>
                         <InfoTooltip content="Triple Stumpers are questions that none of the original Jeopardy! contestants answered correctly. Getting these right is extra impressive!" />
                     </div>
                     <p className="text-3xl font-bold text-black">{stats.tripleStumpersAnswered.toLocaleString()}</p>
