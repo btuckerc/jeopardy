@@ -29,60 +29,163 @@ interface JeopardyGame {
 // Content analysis patterns for knowledge categories
 function analyzeContent(text: string): KnowledgeCategory {
     const lowercaseText = text.toLowerCase()
-
-    // Geography and History patterns
-    if (
-        /\b(1[0-9]{3}|20[0-2][0-9])\b/.test(text) || // Years
-        /\b(century|ancient|historical|history|war|empire|kingdom|dynasty)\b/i.test(text) ||
-        /\b(country|city|capital|state|continent|river|mountain|geography)\b/i.test(text)
-    ) {
-        return 'GEOGRAPHY_AND_HISTORY'
+    let scores = {
+        GEOGRAPHY_AND_HISTORY: 0,
+        ENTERTAINMENT: 0,
+        ARTS_AND_LITERATURE: 0,
+        SCIENCE_AND_NATURE: 0,
+        SPORTS_AND_LEISURE: 0,
+        GENERAL_KNOWLEDGE: 0
     }
 
-    // Entertainment patterns
+    // Literature-specific patterns
     if (
-        /\b(movie|film|actor|actress|tv|television|show|music|song|band|celebrity)\b/i.test(text) ||
-        /\b(oscar|emmy|grammy|award|hollywood|broadway|theatre|concert)\b/i.test(text) ||
-        /\b(director|producer|star|performance|entertainment|series)\b/i.test(text)
+        /\b(novel|book|author|poem|poetry|playwright|fiction|literature|literary|chapter|verse)\b/i.test(text) ||
+        /\b(shakespeare|dickens|novel|story|writer|poet|character)\b/i.test(text) ||
+        /\b(bestseller|paperback|hardcover|publisher|anthology|trilogy|series)\b/i.test(text)
     ) {
-        return 'ENTERTAINMENT'
+        scores.ARTS_AND_LITERATURE += 3
     }
 
-    // Arts and Literature patterns
+    // Arts-specific patterns
     if (
-        /\b(book|novel|author|poet|writer|literature|literary|poem|poetry)\b/i.test(text) ||
         /\b(art|artist|painting|sculpture|museum|gallery|exhibition)\b/i.test(text) ||
-        /\b(shakespeare|dickens|twain|hemingway|fitzgerald)\b/i.test(text)
+        /\b(canvas|palette|curator|masterpiece|portrait|landscape|abstract)\b/i.test(text) ||
+        /\b(renaissance|baroque|impressionist|modern art|contemporary art)\b/i.test(text)
     ) {
-        return 'ARTS_AND_LITERATURE'
+        scores.ARTS_AND_LITERATURE += 3
     }
 
-    // Science and Nature patterns
+    // Geography patterns - more specific
     if (
-        /\b(science|scientific|biology|chemistry|physics|astronomy)\b/i.test(text) ||
-        /\b(animal|plant|species|nature|environment|climate|weather)\b/i.test(text) ||
-        /\b(technology|computer|internet|invention|discovery|research)\b/i.test(text)
+        /\b(capital|continent|river|mountain range|ocean|sea|peninsula|gulf)\b/i.test(text) ||
+        /\b(border|territory|region|province|hemisphere|latitude|longitude)\b/i.test(text) ||
+        /\b(europe|asia|africa|america|australia|antarctic)\w*\b/i.test(text)
     ) {
-        return 'SCIENCE_AND_NATURE'
+        scores.GEOGRAPHY_AND_HISTORY += 2
     }
 
-    // Sports and Leisure patterns
+    // History patterns - more context-aware
     if (
-        /\b(sport|game|team|player|athlete|championship|tournament)\b/i.test(text) ||
+        /\b(ancient|historical|empire|dynasty|civilization|archaeology)\b/i.test(text) ||
+        /\b(revolution|colonial|medieval|renaissance|reformation|conquest)\b/i.test(text) ||
+        (/\b(1[0-9]{3}|20[0-2][0-9])\b/.test(text) &&
+            /\b(war|battle|treaty|revolution|president|emperor|reign)\b/i.test(text))
+    ) {
+        scores.GEOGRAPHY_AND_HISTORY += 2
+    }
+
+    // Entertainment - more specific to media and performance
+    if (
+        /\b(movie|film|cinema|actor|actress|director|producer)\b/i.test(text) ||
+        /\b(tv show|television series|sitcom|drama series|reality show)\b/i.test(text) ||
+        /\b(oscar|emmy|grammy|golden globe|billboard|box office)\b/i.test(text) ||
+        /\b(song|album|band|singer|musician|concert|tour|chart)\b/i.test(text)
+    ) {
+        scores.ENTERTAINMENT += 3
+    }
+
+    // Science patterns - more technical
+    if (
+        /\b(biology|chemistry|physics|astronomy|geology|mathematics)\b/i.test(text) ||
+        /\b(scientist|experiment|theory|hypothesis|research|discovery)\b/i.test(text) ||
+        /\b(element|molecule|atom|cell|gene|species|evolution)\b/i.test(text) ||
+        /\b(technology|invention|innovation|patent|engineering)\b/i.test(text)
+    ) {
+        scores.SCIENCE_AND_NATURE += 3
+    }
+
+    // Nature patterns
+    if (
+        /\b(animal|plant|species|ecosystem|habitat|environment)\b/i.test(text) ||
+        /\b(wildlife|marine|forest|jungle|desert|climate|weather)\b/i.test(text) ||
+        /\b(endangered|extinct|conservation|biodiversity|natural)\b/i.test(text)
+    ) {
+        scores.SCIENCE_AND_NATURE += 2
+    }
+
+    // Sports patterns - more specific
+    if (
         /\b(baseball|football|basketball|soccer|tennis|golf|hockey)\b/i.test(text) ||
-        /\b(olympic|medal|score|winner|coach|league|stadium)\b/i.test(text)
+        /\b(olympics?|medal|championship|tournament|league|world cup)\b/i.test(text) ||
+        /\b(athlete|player|team|coach|stadium|record|score)\b/i.test(text) ||
+        /\b(sport|game|match|competition|victory|defeat|title)\b/i.test(text)
     ) {
-        return 'SPORTS_AND_LEISURE'
+        scores.SPORTS_AND_LEISURE += 3
     }
 
-    return 'GENERAL_KNOWLEDGE'
+    // Category name specific boosts - increased weight and more specific patterns
+    const categoryPatterns = {
+        GEOGRAPHY_AND_HISTORY: {
+            patterns: [
+                /\b(geography|cartography|maps?|atlas)\b/i,
+                /\b(history|historical|ancient|medieval)\b/i,
+                /\b(world|countries|nations|capitals)\b/i
+            ],
+            boost: 4
+        },
+        ENTERTAINMENT: {
+            patterns: [
+                /\b(movies?|films?|cinema)\b/i,
+                /\b(television|tv shows?|series)\b/i,
+                /\b(music|songs?|albums?|bands?)\b/i
+            ],
+            boost: 4
+        },
+        ARTS_AND_LITERATURE: {
+            patterns: [
+                /\b(literature|literary|books?)\b/i,
+                /\b(arts?|artistic|paintings?)\b/i,
+                /\b(authors?|writers?|poets?)\b/i
+            ],
+            boost: 4
+        },
+        SCIENCE_AND_NATURE: {
+            patterns: [
+                /\b(science|scientific|laboratory)\b/i,
+                /\b(nature|natural|wildlife)\b/i,
+                /\b(biology|chemistry|physics)\b/i
+            ],
+            boost: 4
+        },
+        SPORTS_AND_LEISURE: {
+            patterns: [
+                /\b(sports?|sporting|athletics)\b/i,
+                /\b(games?|gaming|recreation)\b/i,
+                /\b(leisure|hobbies|pastimes)\b/i
+            ],
+            boost: 4
+        }
+    }
+
+    // Apply category name boosts with more sophisticated matching
+    for (const [category, config] of Object.entries(categoryPatterns)) {
+        const matchCount = config.patterns.reduce((count, pattern) =>
+            count + (pattern.test(text) ? 1 : 0), 0)
+        if (matchCount > 0) {
+            scores[category as keyof typeof scores] += config.boost * matchCount
+        }
+    }
+
+    // Find the category with the highest score
+    let maxScore = 0
+    let selectedCategory: KnowledgeCategory = 'GENERAL_KNOWLEDGE'
+
+    for (const [category, score] of Object.entries(scores)) {
+        if (score > maxScore) {
+            maxScore = score
+            selectedCategory = category as KnowledgeCategory
+        }
+    }
+
+    // Higher threshold for classification
+    return maxScore > 2 ? selectedCategory : 'GENERAL_KNOWLEDGE'
 }
 
 function determineKnowledgeCategoryForQuestions(questions: { question: string; answer: string }[], categoryName: string): KnowledgeCategory {
-    // Combine all questions and answers for better category determination
-    const combinedText = questions
-        .map(q => `${q.question} ${q.answer}`)
-        .join(' ') + ' ' + categoryName
+    // Combine all questions and answers with extra weight on category name
+    const combinedText = `${categoryName} ${categoryName} ${categoryName} ` +
+        questions.map(q => `${q.question} ${q.answer}`).join(' ')
 
     // Use content analysis to determine category
     return analyzeContent(combinedText)
@@ -225,24 +328,218 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
     return games
 }
 
+interface FetchOptions {
+    startDate?: string;
+    endDate?: string;
+    numGames?: number;
+    maxAttempts?: number;
+    searchDirection?: 'forward' | 'backward';
+}
+
+interface GameMatch {
+    id: string;
+    date: Date;
+}
+
+async function checkGameDate(gameId: string): Promise<Date | null> {
+    const url = `https://j-archive.com/showgame.php?game_id=${gameId}`
+    try {
+        const response = await axios.get(url, {
+            maxRedirects: 5,
+            validateStatus: null,
+            timeout: 5000
+        })
+
+        if (response.status !== 200) {
+            console.log(`Game ${gameId}: Got status ${response.status}`)
+            return null
+        }
+
+        const titleMatch = response.data.match(/<title>[^#]*#\d+,\s*aired\s+(\d{4}-\d{2}-\d{2})/i)
+        if (titleMatch && titleMatch[1]) {
+            const dateStr = titleMatch[1].trim()
+            const date = new Date(dateStr)
+            if (!isNaN(date.getTime())) {
+                return date
+            }
+        }
+
+        const titleText = response.data.match(/<title>(.*?)<\/title>/i)?.[1] || 'No title found'
+        console.log(`Game ${gameId}: Could not parse date from title: "${titleText}"`)
+        return null
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            console.error(`Game ${gameId}: Network error - ${error.message}`)
+        } else {
+            console.error(`Game ${gameId}: Unexpected error - ${error}`)
+        }
+        return null
+    }
+}
+
+async function findCurrentSeason(): Promise<number> {
+    try {
+        const response = await axios.get('https://j-archive.com/listseasons.php')
+        const seasonMatches = response.data.match(/season=(\d+)/g)
+        if (seasonMatches) {
+            // First map to convert strings to numbers
+            const seasonNumbers: number[] = seasonMatches
+                .map((m: string) => parseInt(m.replace('season=', '')))
+                .filter((n: number) => !isNaN(n))
+
+            // Then create a Set of unique values
+            const uniqueSeasons: number[] = [...new Set(seasonNumbers)]
+
+            if (uniqueSeasons.length > 0) {
+                return Math.max(...uniqueSeasons)
+            }
+        }
+    } catch (error) {
+        console.error('Error finding current season:', error)
+    }
+    return 40 // Fallback to season 40 if we can't determine current season
+}
+
+async function findGameIdsForSeason(season: number): Promise<number[]> {
+    try {
+        const url = `https://j-archive.com/showseason.php?season=${season}`
+        const response = await axios.get(url)
+
+        const gameIds: number[] = []
+        const matches = response.data.matchAll(/game_id=(\d+)/g)
+        for (const match of matches) {
+            const id = parseInt(match[1])
+            if (!isNaN(id)) {
+                gameIds.push(id)
+            }
+        }
+
+        return gameIds.sort((a: number, b: number) => b - a) // Sort in descending order
+    } catch (error) {
+        console.error(`Error fetching season ${season}:`, error)
+        return []
+    }
+}
+
+async function findRelevantGameIds(startDate: string, endDate: string): Promise<number[]> {
+    const gameIds: number[] = []
+    const startYear = new Date(startDate).getFullYear()
+    const endYear = new Date(endDate).getFullYear()
+
+    const currentSeason = await findCurrentSeason()
+    console.log(`Current season is ${currentSeason}`)
+
+    const startSeason = Math.floor((startYear - 1984) * (365 / 365)) + 1
+    const endSeason = Math.ceil((endYear - 1984) * (365 / 365)) + 1
+    const maxSeason = Math.min(endSeason, currentSeason)
+
+    console.log(`Scanning seasons ${startSeason} to ${maxSeason} for games...`)
+
+    for (let season = maxSeason; season >= startSeason; season--) {
+        console.log(`Scanning season ${season}...`)
+        const seasonGameIds = await findGameIdsForSeason(season)
+        if (seasonGameIds.length > 0) {
+            console.log(`Found ${seasonGameIds.length} games in season ${season}`)
+            gameIds.push(...seasonGameIds)
+        }
+        await new Promise(resolve => setTimeout(resolve, 500))
+    }
+
+    return gameIds.sort((a: number, b: number) => a - b)
+}
+
 async function main() {
     try {
-        const numGames = process.argv[2] ? parseInt(process.argv[2]) : 10
-        console.log(`Starting to fetch ${numGames} games...`)
+        // Parse command line arguments
+        const options: FetchOptions = {
+            maxAttempts: 1000,
+            searchDirection: 'forward'
+        }
+
+        // Parse arguments
+        for (let i = 2; i < process.argv.length; i += 2) {
+            const arg = process.argv[i]
+            const value = process.argv[i + 1]
+
+            switch (arg) {
+                case '--start-date':
+                    options.startDate = value
+                    break
+                case '--end-date':
+                    options.endDate = value
+                    break
+                case '--num-games':
+                    options.numGames = parseInt(value)
+                    break
+                case '--max-attempts':
+                    options.maxAttempts = parseInt(value)
+                    break
+            }
+        }
+
+        if (!options.startDate || !options.endDate) {
+            console.error('Both --start-date and --end-date are required')
+            process.exit(1)
+        }
+
+        console.log('Finding games between', options.startDate, 'and', options.endDate)
+
+        // First, find all relevant game IDs from the season pages
+        const gameIds = await findRelevantGameIds(options.startDate, options.endDate)
+        console.log(`Found ${gameIds.length} potential games to check`)
 
         const games: JeopardyGame[] = []
         let gamesProcessed = 0
-
-        // Generate game IDs (starting from a more recent season)
-        const startId = 7000 // More recent games
-        const gameIds = Array.from({ length: numGames }, (_, i) => (startId + i).toString())
+        let gamesFound = 0
+        let consecutiveErrors = 0
 
         for (const gameId of gameIds) {
-            const url = `https://j-archive.com/showgame.php?game_id=${gameId}`
+            if (consecutiveErrors >= 5) {
+                console.log('Too many consecutive errors, stopping search...')
+                break
+            }
+
+            // Quick check of the game date first
+            const gameDate = await checkGameDate(gameId.toString())
+            if (!gameDate) {
+                consecutiveErrors++
+                continue
+            }
+
+            // Reset error counter on successful date check
+            consecutiveErrors = 0
+
+            // Check if date is in range
+            if (gameDate < new Date(options.startDate)) {
+                console.log(`Game ${gameId} from ${gameDate.toLocaleDateString()}: Too early, skipping...`)
+                continue
+            }
+
+            if (gameDate > new Date(options.endDate)) {
+                console.log(`Game ${gameId} from ${gameDate.toLocaleDateString()}: Too late, skipping...`)
+                continue
+            }
+
+            // If date is in range, fetch the full game
+            console.log(`Game ${gameId} from ${gameDate.toLocaleDateString()}: In range, fetching questions...`)
             try {
-                const newGames = await scrapeJeopardyArchive(url)
-                console.log(`Game ${gameId}: Found ${newGames.length} questions (Aired: ${newGames[0]?.airDate || 'unknown'})`)
-                games.push(...newGames)
+                const newGames = await scrapeJeopardyArchive(`https://j-archive.com/showgame.php?game_id=${gameId}`)
+
+                if (newGames.length > 0) {
+                    console.log(`  ✓ Found ${newGames.length} questions`)
+                    games.push(...newGames)
+                    gamesFound++
+                } else {
+                    console.log('  ✗ No questions found in game')
+                }
+
+                gamesProcessed++
+
+                // Stop if we've found enough games (only if numGames is specified)
+                if (options.numGames && gamesFound >= options.numGames) {
+                    console.log(`Reached target number of games (${options.numGames}), stopping search...`)
+                    break
+                }
             } catch (error) {
                 console.error(`Error processing game ${gameId}:`, error)
                 continue
@@ -255,7 +552,8 @@ async function main() {
         // Save to file
         const outputPath = path.join(__dirname, '../../data/jeopardy_questions.json')
         writeFileSync(outputPath, JSON.stringify(games, null, 2))
-        console.log(`\nSuccessfully saved ${games.length} questions from ${gamesProcessed} games to ${outputPath}`)
+        console.log(`\nSuccessfully saved ${games.length} questions from ${gamesFound} games to ${outputPath}`)
+        console.log(`Processed ${gamesProcessed} total games`)
 
     } catch (error) {
         console.error('Error:', error)
@@ -264,8 +562,8 @@ async function main() {
 }
 
 if (require.main === module) {
-    main().catch((error) => {
+    main().catch((error: Error) => {
         console.error('Error:', error)
         process.exit(1)
     })
-} 
+}

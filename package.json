@@ -21,18 +21,22 @@
     "migrate-prod": "ts-node src/scripts/migrate-prod.ts"
   },
   "dependencies": {
+    "@headlessui/react": "^1.7.17",
+    "@heroicons/react": "^2.0.18",
     "@prisma/client": "^6.0.1",
     "@supabase/auth-helpers-nextjs": "^0.8.7",
     "@supabase/supabase-js": "^2.39.0",
     "@tanstack/react-query": "^5.12.2",
     "@types/bad-words": "^3.0.3",
     "@types/cheerio": "^0.22.35",
+    "@types/react-datepicker": "^6.2.0",
     "axios": "^1.7.8",
     "bad-words": "^4.0.0",
     "cheerio": "^1.0.0",
     "date-fns": "^4.1.0",
     "next": "14.0.3",
     "react": "^18",
+    "react-datepicker": "^7.5.0",
     "react-dom": "^18",
     "react-hot-toast": "^2.4.1",
     "zod": "^3.22.4"

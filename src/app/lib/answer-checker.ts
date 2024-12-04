@@ -123,6 +123,21 @@ function normalizeArticles(text: string): string {
         .join(' ')
 }
 
+// Function to handle parenthetical names
+function handleParentheticalName(answer: string): string[] {
+    const variants: string[] = [answer];
+
+    // Match text within parentheses and the surrounding text
+    const match = answer.match(/\(([^)]+)\)\s*(\w+)/) || answer.match(/(\w+)\s*\(([^)]+)\)/);
+    if (match) {
+        const withoutParens = answer.replace(/[()]/g, '').trim();
+        const withoutParenContent = answer.replace(/\([^)]+\)/g, '').trim();
+        variants.push(withoutParens, withoutParenContent);
+    }
+
+    return variants;
+}
+
 // Main answer checking function
 export function checkAnswer(userAnswer: string, correctAnswer: string): boolean {
     let normalizedUser = normalizeText(userAnswer)
@@ -134,6 +149,12 @@ export function checkAnswer(userAnswer: string, correctAnswer: string): boolean 
     // Normalize articles
     normalizedUser = normalizeArticles(normalizedUser)
     normalizedCorrect = normalizeArticles(normalizedCorrect)
+
+    // Handle parenthetical names
+    const correctVariants = handleParentheticalName(normalizedCorrect);
+    if (correctVariants.some(variant => normalizedUser === normalizeText(variant))) {
+        return true;
+    }
 
     // Direct match after normalization
     if (normalizedUser === normalizedCorrect) return true
