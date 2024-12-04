@@ -302,6 +302,14 @@ export async function saveAnswer(
                 }
             })
 
+            // Get the question to determine its value
+            const question = await tx.question.findUnique({
+                where: { id: questionId },
+                select: { value: true }
+            })
+
+            const questionValue = question?.value || 200
+
             // Only award points if this is the first correct answer
             const shouldAwardPoints = isCorrect && !existingHistory
 
@@ -311,7 +319,7 @@ export async function saveAnswer(
                     userId,
                     questionId,
                     correct: isCorrect,
-                    points: shouldAwardPoints ? 200 : 0
+                    points: shouldAwardPoints ? questionValue : 0
                 }
             })
 
@@ -326,7 +334,7 @@ export async function saveAnswer(
                 update: {
                     correct: { increment: shouldAwardPoints ? 1 : 0 },
                     total: { increment: existingHistory ? 0 : 1 },
-                    points: { increment: shouldAwardPoints ? 200 : 0 }
+                    points: { increment: shouldAwardPoints ? questionValue : 0 }
                 },
                 create: {
                     id: crypto.randomUUID(),
@@ -335,7 +343,7 @@ export async function saveAnswer(
                     questionId,
                     correct: shouldAwardPoints ? 1 : 0,
                     total: 1,
-                    points: shouldAwardPoints ? 200 : 0
+                    points: shouldAwardPoints ? questionValue : 0
                 }
             })
         })

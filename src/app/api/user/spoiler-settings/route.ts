@@ -1,13 +1,19 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-type SpoilerSettings = {
-    spoilerBlockDate: Date | null;
-    spoilerBlockEnabled: boolean;
-    lastSpoilerPrompt: Date | null;
-}
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+        auth: {
+            autoRefreshToken: false,
+            persistSession: false
+        }
+    }
+);
 
 export async function GET(request: Request) {
     const supabase = createRouteHandlerClient({ cookies });
@@ -18,23 +24,22 @@ export async function GET(request: Request) {
     }
 
     try {
-        // Get or create user settings
-        const settings = await prisma.user.upsert({
-            where: { id: session.user.id },
-            create: {
+        // Use service role client for database operations
+        const { data: userData, error: userError } = await supabaseAdmin
+            .from('User')
+            .upsert({
                 id: session.user.id,
                 email: session.user.email!,
                 spoilerBlockEnabled: true
-            },
-            update: {},
-            select: {
-                spoilerBlockDate: true,
-                spoilerBlockEnabled: true,
-                lastSpoilerPrompt: true
-            }
-        });
+            }, {
+                onConflict: 'id'
+            })
+            .select('spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt')
+            .single();
 
-        return NextResponse.json(settings);
+        if (userError) throw userError;
+
+        return NextResponse.json(userData);
     } catch (error) {
         console.error('Error fetching spoiler settings:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -53,29 +58,24 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt } = body;
 
-        // Update user settings with upsert
-        const settings = await prisma.user.upsert({
-            where: { id: session.user.id },
-            create: {
+        // Use service role client for database operations
+        const { data: userData, error: userError } = await supabaseAdmin
+            .from('User')
+            .upsert({
                 id: session.user.id,
                 email: session.user.email!,
                 spoilerBlockEnabled: spoilerBlockEnabled ?? true,
-                spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
-                lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null
-            },
-            update: {
-                spoilerBlockEnabled: spoilerBlockEnabled ?? undefined,
-                spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
-                lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null
-            },
-            select: {
-                spoilerBlockDate: true,
-                spoilerBlockEnabled: true,
-                lastSpoilerPrompt: true
-            }
-        });
+                spoilerBlockDate: spoilerBlockDate,
+                lastSpoilerPrompt: lastSpoilerPrompt
+            }, {
+                onConflict: 'id'
+            })
+            .select('spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt')
+            .single();
 
-        return NextResponse.json(settings);
+        if (userError) throw userError;
+
+        return NextResponse.json(userData);
     } catch (error) {
         console.error('Error updating spoiler settings:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
