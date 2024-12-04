@@ -37,58 +37,21 @@ export async function GET(request: Request) {
     }
 
     try {
-        // First try to get user data from Supabase
-        const { data: { user: supabaseUser } } = await supabase.auth.getUser()
-        let user = await prisma.user.findUnique({
+        // Use upsert to ensure user exists and get their data
+        const user = await prisma.user.upsert({
             where: { id: session.user.id },
+            create: {
+                id: session.user.id,
+                email: session.user.email!,
+                displayName: generateRandomDisplayName(),
+                selectedIcon: '👤'
+            },
+            update: {},
             select: {
                 displayName: true,
                 selectedIcon: true
             }
         })
-
-        // If data exists in Supabase but not in Prisma, sync to Prisma
-        if (supabaseUser?.user_metadata?.display_name && !user?.displayName) {
-            user = await prisma.user.update({
-                where: { id: session.user.id },
-                data: {
-                    displayName: supabaseUser.user_metadata.display_name,
-                    selectedIcon: supabaseUser.user_metadata.avatar_icon || '👤'
-                },
-                select: {
-                    displayName: true,
-                    selectedIcon: true
-                }
-            })
-        }
-        // If no data in either system, create new
-        else if (!user?.displayName) {
-            const displayName = generateRandomDisplayName()
-            const defaultIcon = '👤'
-
-            user = await prisma.user.upsert({
-                where: { id: session.user.id },
-                update: {
-                    displayName,
-                    selectedIcon: defaultIcon
-                },
-                create: {
-                    id: session.user.id,
-                    email: session.user.email!,
-                    displayName,
-                    selectedIcon: defaultIcon
-                },
-                select: {
-                    displayName: true,
-                    selectedIcon: true
-                }
-            })
-
-            await syncUserData(supabase, session.user.id, {
-                displayName: user.displayName ?? null,
-                selectedIcon: user.selectedIcon ?? null
-            })
-        }
 
         return NextResponse.json({
             displayName: user.displayName,
@@ -128,19 +91,26 @@ export async function POST(request: Request) {
             )
         }
 
-        const updateData: any = {}
-        if (displayName) updateData.displayName = displayName
-        if (selectedIcon !== undefined) updateData.selectedIcon = selectedIcon
-
-        const user = await prisma.user.update({
+        // Use upsert instead of update to handle potential race conditions
+        const user = await prisma.user.upsert({
             where: { id: session.user.id },
-            data: updateData,
+            create: {
+                id: session.user.id,
+                email: session.user.email!,
+                displayName: displayName || generateRandomDisplayName(),
+                selectedIcon: selectedIcon || '👤'
+            },
+            update: {
+                displayName: displayName || undefined,
+                selectedIcon: selectedIcon === null ? null : selectedIcon || undefined
+            },
             select: {
                 displayName: true,
                 selectedIcon: true
             }
         })
 
+        // Sync with Supabase
         await syncUserData(supabase, session.user.id, {
             displayName: user.displayName ?? null,
             selectedIcon: user.selectedIcon ?? null

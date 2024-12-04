@@ -167,7 +167,7 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
             const response = await fetch('/api/user/display-name', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ localDisplayName })
+                body: JSON.stringify({ displayName: localDisplayName })
             })
 
             if (!response.ok) {
