@@ -8,7 +8,7 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 
 type GameHistoryWithTimestamp = {
     correct: boolean;
-    timestamp: Date;
+    timestamp: string | Date;
 }
 
 // Create a server-side Supabase client that includes auth context
@@ -60,86 +60,117 @@ export async function getKnowledgeCategoryDetails(
     knowledgeCategoryId: string,
     userId?: string,
     page: number = 1,
-    pageSize: number = 20
+    pageSize: number = 20,
+    searchQuery?: string
 ) {
     try {
-        // First, get total count for pagination
-        const totalCount = await prisma.category.count({
-            where: {
-                questions: {
-                    some: {
-                        knowledgeCategory: knowledgeCategoryId as KnowledgeCategory
-                    }
-                }
-            }
-        });
+        // Get categories with their questions and game history
+        const result = await prisma.$queryRaw<Array<{
+            id: string;
+            name: string;
+            totalQuestions: number;
+            correctQuestions: number;
+            mostRecentAirDate: Date | null;
+            questions: Array<{
+                id: string;
+                airDate: Date | null;
+                gameHistory: Array<{
+                    timestamp: Date;
+                    correct: boolean;
+                }>;
+            }>;
+        }>>`
+            WITH CategoryQuestions AS (
+                SELECT 
+                    c.id as category_id,
+                    c.name as category_name,
+                    q.id as question_id,
+                    q."airDate",
+                    COUNT(q.id) OVER (PARTITION BY c.id) as total_questions,
+                    MAX(q."airDate") OVER (PARTITION BY c.id) as most_recent_air_date
+                FROM "Category" c
+                JOIN "Question" q ON q."categoryId" = c.id
+                WHERE q."knowledgeCategory"::text = ${knowledgeCategoryId}
+                ${searchQuery ? Prisma.sql`AND c.name ILIKE ${`%${searchQuery}%`}` : Prisma.empty}
+            ),
+            QuestionHistory AS (
+                SELECT 
+                    gh."questionId",
+                    gh.timestamp,
+                    gh.correct
+                FROM "GameHistory" gh
+                WHERE gh."userId" = ${userId}
+                ORDER BY gh.timestamp DESC
+            )
+            SELECT 
+                cq.category_id as id,
+                cq.category_name as name,
+                cq.total_questions::integer as "totalQuestions",
+                COUNT(DISTINCT CASE WHEN qh.correct THEN cq.question_id END)::integer as "correctQuestions",
+                cq.most_recent_air_date as "mostRecentAirDate",
+                json_agg(json_build_object(
+                    'id', cq.question_id,
+                    'airDate', cq."airDate",
+                    'gameHistory', (
+                        SELECT json_agg(json_build_object(
+                            'timestamp', qh.timestamp,
+                            'correct', qh.correct
+                        ))
+                        FROM QuestionHistory qh
+                        WHERE qh."questionId" = cq.question_id
+                    )
+                )) as questions
+            FROM CategoryQuestions cq
+            LEFT JOIN QuestionHistory qh ON qh."questionId" = cq.question_id
+            GROUP BY cq.category_id, cq.category_name, cq.total_questions, cq.most_recent_air_date
+            ORDER BY cq.most_recent_air_date DESC NULLS LAST
+            OFFSET ${(page - 1) * pageSize}
+            LIMIT ${pageSize}
+        `;
 
-        // Then get paginated categories with question counts
-        const categories = await prisma.category.findMany({
-            where: {
-                questions: {
-                    some: {
-                        knowledgeCategory: knowledgeCategoryId as KnowledgeCategory
-                    }
-                }
-            },
-            include: {
-                questions: {
-                    where: {
-                        knowledgeCategory: knowledgeCategoryId as KnowledgeCategory
-                    },
-                    orderBy: {
-                        airDate: 'desc'
-                    },
-                    include: {
-                        gameHistory: userId ? {
-                            where: {
-                                userId: userId
-                            }
-                        } : false
-                    }
-                }
-            },
-            skip: (page - 1) * pageSize,
-            take: pageSize,
-        });
+        // Process the results to include attempt information
+        const categories = result.map(category => ({
+            id: category.id,
+            name: category.name,
+            totalQuestions: category.totalQuestions,
+            correctQuestions: category.correctQuestions,
+            mostRecentAirDate: category.mostRecentAirDate,
+            questions: category.questions.map(q => ({
+                id: q.id,
+                airDate: q.airDate,
+                gameHistory: q.gameHistory || [],
+                incorrectAttempts: q.gameHistory
+                    ?.filter(h => !h.correct)
+                    ?.map(h => h.timestamp) || [],
+                correct: q.gameHistory?.some(h => h.correct) || false,
+                isLocked: q.gameHistory
+                    ?.filter(h => !h.correct)
+                    ?.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                    ?.slice(0, 1)
+                    ?.some(h => new Date().getTime() - new Date(h.timestamp).getTime() < 10 * 60 * 1000) || false,
+                hasIncorrectAttempts: q.gameHistory?.some(h => !h.correct) || false
+            }))
+        }));
 
-        // Process categories with completion status
-        const processedCategories = categories.map(cat => {
-            const totalQuestions = cat.questions.length;
-            const correctQuestions = userId ? cat.questions.filter(q =>
-                q.gameHistory && Array.isArray(q.gameHistory) &&
-                q.gameHistory.some(h => h.correct)
-            ).length : 0;
+        const totalCount = await prisma.$queryRaw<[{ count: number }]>`
+            SELECT COUNT(DISTINCT c.id)::integer as count
+            FROM "Category" c
+            JOIN "Question" q ON q."categoryId" = c.id
+            WHERE q."knowledgeCategory"::text = ${knowledgeCategoryId}
+            ${searchQuery ? Prisma.sql`AND c.name ILIKE ${`%${searchQuery}%`}` : Prisma.empty}
+        `;
 
-            return {
-                id: cat.id,
-                name: cat.name,
-                totalQuestions,
-                correctQuestions,
-                mostRecentAirDate: cat.questions.reduce((latest, q) =>
-                    q.airDate && (!latest || q.airDate > latest) ? q.airDate : latest,
-                    null as Date | null
-                )
-            };
-        });
-
-        // Sort by most recent air date
-        const sortedCategories = processedCategories.sort((a, b) => {
-            if (!a.mostRecentAirDate) return 1;
-            if (!b.mostRecentAirDate) return -1;
-            return b.mostRecentAirDate.getTime() - a.mostRecentAirDate.getTime();
-        });
+        const count = Number(totalCount[0].count);
 
         return {
-            categories: sortedCategories,
-            totalPages: Math.ceil(totalCount / pageSize),
+            categories,
+            totalPages: Math.ceil(count / pageSize),
             currentPage: page,
-            hasMore: page * pageSize < totalCount
+            hasMore: page * pageSize < count
         };
     } catch (error) {
-        console.error('Error fetching category details:', error)
-        throw error
+        console.error('Error fetching knowledge category details:', error);
+        throw error;
     }
 }
 
@@ -213,7 +244,7 @@ export async function getRandomQuestion(
                 ? gameHistory
                     .filter((h: GameHistory) => !h.correct)
                     .map((h: GameHistory) => h.timestamp)
-                    .sort((a: Date, b: Date) => b.getTime() - a.getTime())
+                    .sort((a: Date, b: Date) => new Date(b).getTime() - new Date(a).getTime())
                     .slice(0, 5)
                 : []
 
@@ -260,7 +291,7 @@ export async function getRandomQuestion(
             ? gameHistory
                 .filter((h: GameHistory) => !h.correct)
                 .map((h: GameHistory) => h.timestamp)
-                .sort((a: Date, b: Date) => b.getTime() - a.getTime())
+                .sort((a: Date, b: Date) => new Date(b).getTime() - new Date(a).getTime())
                 .slice(0, 5)
             : []
 
@@ -386,9 +417,12 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
                 ? gameHistory
                     .filter(h => !h.correct)
                     .map(h => h.timestamp)
-                    .sort((a, b) => b.getTime() - a.getTime())
+                    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
                     .slice(0, 5)
                 : []
+
+            const isLocked = incorrectAttempts.length > 0 &&
+                new Date().getTime() - new Date(incorrectAttempts[0]).getTime() < 10 * 60 * 1000
 
             return {
                 id: question.id,
@@ -399,9 +433,15 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
                 categoryName: question.knowledgeCategory,
                 originalCategory: question.category.name,
                 airDate: question.airDate,
-                answered: userId ? gameHistory.length > 0 : false,
-                correct: userId ? gameHistory.some(h => h.correct) : false,
-                incorrectAttempts
+                gameHistory: gameHistory.map(h => ({
+                    timestamp: h.timestamp,
+                    correct: h.correct
+                })),
+                incorrectAttempts,
+                answered: gameHistory.length > 0,
+                correct: gameHistory.some(h => h.correct),
+                isLocked,
+                hasIncorrectAttempts: gameHistory.some(h => !h.correct)
             }
         })
     } catch (error) {

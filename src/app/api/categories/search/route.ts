@@ -27,13 +27,39 @@ export async function GET(request: NextRequest) {
             }
         }) : null
 
-        // Search categories with pagination
+        // Search categories with pagination and fuzzy matching
         const categories = await prisma.category.findMany({
             where: {
-                name: {
-                    contains: query,
-                    mode: 'insensitive'
-                },
+                OR: [
+                    // Exact match (case insensitive)
+                    {
+                        name: {
+                            equals: query,
+                            mode: 'insensitive'
+                        }
+                    },
+                    // Starts with (case insensitive)
+                    {
+                        name: {
+                            startsWith: query,
+                            mode: 'insensitive'
+                        }
+                    },
+                    // Contains (case insensitive)
+                    {
+                        name: {
+                            contains: query,
+                            mode: 'insensitive'
+                        }
+                    },
+                    // Contains words (case insensitive)
+                    {
+                        name: {
+                            contains: query.replace(/\s+/g, ' ').trim(),
+                            mode: 'insensitive'
+                        }
+                    }
+                ],
                 ...(user?.spoilerBlockEnabled ? {
                     questions: {
                         some: {
@@ -58,7 +84,10 @@ export async function GET(request: NextRequest) {
                 }
             },
             orderBy: [
-                { name: 'asc' }
+                // Prioritize exact matches and starts with
+                {
+                    name: 'asc'
+                }
             ],
             skip: (page - 1) * limit,
             take: limit

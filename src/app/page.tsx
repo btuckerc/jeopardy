@@ -8,8 +8,8 @@ export default function Home() {
   const { user, loading } = useAuth()
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex flex-col">
+      <div className="flex-grow container mx-auto px-4 py-8">
         <div className="text-center">
           <h1 className="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
             Study Jeopardy Online with trivrdy
@@ -57,16 +57,9 @@ export default function Home() {
             </p>
           </div>
         )}
-
-        <div className="mt-16 text-center text-sm text-gray-500">
-          <p>
-            trivrdy is a Jeopardy study tool created by{' '}
-            <a href="https://tuckercraig.com" className="text-blue-600 hover:text-blue-800" target="_blank" rel="noopener noreferrer">
-              Tucker Craig
-            </a>
-            . Practice with real questions, compete with others, and improve your trivia knowledge.
-          </p>
-        </div>
+      </div>
+      <div className="container mx-auto px-4 py-8 text-center text-gray-600">
+        <p>Trivrdy is a Jeopardy study tool created by Tucker Craig. Practice with real questions, compete with others, and improve your trivia knowledge.</p>
       </div>
     </div>
   )

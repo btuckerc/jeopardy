@@ -55,18 +55,20 @@ export async function GET(request: Request) {
                 // Set auth cookie with proper options
                 response.cookies.set('sb-access-token', session.access_token, {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
+                    secure: true,
                     sameSite: 'lax',
                     path: '/',
-                    maxAge: 60 * 60 * 24 * 7 // 1 week
+                    maxAge: 60 * 60 * 24 * 7, // 1 week
+                    domain: process.env.NODE_ENV === 'production' ? '.trivrdy.com' : undefined
                 })
 
                 response.cookies.set('sb-refresh-token', session.refresh_token!, {
                     httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
+                    secure: true,
                     sameSite: 'lax',
                     path: '/',
-                    maxAge: 60 * 60 * 24 * 7 // 1 week
+                    maxAge: 60 * 60 * 24 * 7, // 1 week
+                    domain: process.env.NODE_ENV === 'production' ? '.trivrdy.com' : undefined
                 })
 
                 return response
