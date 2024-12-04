@@ -43,8 +43,8 @@ export default function LeaderboardPage() {
         return (
             <div className="container mx-auto px-4 py-8">
                 <div className="text-center">
-                    <h1 className="text-2xl font-bold mb-4">Leaderboard</h1>
-                    <p>Please sign in to view the leaderboard.</p>
+                    <h1 className="text-3xl font-bold mb-8 text-center text-gray-900">Leaderboard</h1>
+                    <p className="text-gray-500">Please sign in to view the leaderboard.</p>
                 </div>
             </div>
         );
