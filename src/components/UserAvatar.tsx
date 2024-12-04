@@ -1,22 +1,55 @@
 'use client'
 
-import { User } from '@supabase/supabase-js'
-
 interface UserAvatarProps {
-    user: User
-    size?: number
+    email?: string;
+    displayName?: string | null;
+    selectedIcon?: string | null;
+    size?: 'sm' | 'md' | 'lg';
+    className?: string;
 }
 
-export default function UserAvatar({ user, size = 32 }: UserAvatarProps) {
-    const displayName = user.user_metadata?.displayName || user.email?.split('@')[0] || 'User'
-    const selectedIcon = user.user_metadata?.selectedIcon || '👤'
+export const PROFILE_ICONS = {
+    '🎓': 'Person',
+    '📖': 'Scholar',
+    '🧠': 'Brain',
+    '🎯': 'Target',
+    '⭐': 'Star',
+    '🏆': 'Trophy',
+    '📚': 'Books',
+    '💡': 'Idea',
+    '🎮': 'Game',
+    '🎲': 'Dice',
+    '🔍': 'Search',
+    '❓': 'Question',
+    '💭': 'Thinking',
+    '🎪': 'Show',
+    '🎤': 'Host',
+    '🕵️‍♂️': 'Detective',
+    '🧑‍🏫': 'Teacher',
+    '🌍': 'Globe',
+    '🔬': 'Microscope',
+    '🕒': 'Clock',
+    '🕹️': 'Joystick',
+    '🎭': 'Masks',
+    '🎥': 'Camera',
+    '🚀': 'Rocket',
+    '🌀': 'Cyclone',
+    '🌟': 'Sparkles'
+} as const
+
+export default function UserAvatar({ email, displayName, selectedIcon, size = 'md', className = '' }: UserAvatarProps) {
+    const firstLetter = displayName ? displayName.charAt(0).toUpperCase() : email?.charAt(0).toUpperCase()
+    const sizeClasses = {
+        sm: 'w-8 h-8 text-sm',
+        md: 'w-10 h-10 text-base',
+        lg: 'w-12 h-12 text-lg'
+    }
 
     return (
         <div 
-            className="flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full"
-            style={{ width: size, height: size }}
+            className={`${sizeClasses[size]} rounded-full bg-blue-500 text-white flex items-center justify-center font-semibold ${className}`}
         >
-            <span style={{ fontSize: size * 0.5 }}>{selectedIcon}</span>
+            {selectedIcon || '👤'}
         </div>
     )
 } 

@@ -15,11 +15,14 @@ interface SpoilerSettings {
 interface Props {
     isOpen: boolean;
     onClose: () => void;
-    onDisplayNameUpdate: (displayName: string) => void;
-    onIconUpdate?: (icon: string | null) => void;
+    onDisplayNameUpdate: (newDisplayName: string) => void;
+    onIconUpdate: (newIcon: string | null) => void;
+    email?: string;
+    displayName?: string | null;
+    selectedIcon?: string | null;
 }
 
-export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onIconUpdate }: Props) {
+export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onIconUpdate, email, displayName, selectedIcon }: Props) {
     const [settings, setSettings] = useState<SpoilerSettings>({
         spoilerBlockDate: null,
         spoilerBlockEnabled: true
@@ -29,8 +32,8 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
     const [isResetting, setIsResetting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [userEmail, setUserEmail] = useState<string>('');
-    const [displayName, setDisplayName] = useState('');
-    const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
+    const [localDisplayName, setLocalDisplayName] = useState(displayName || '');
+    const [localSelectedIcon, setLocalSelectedIcon] = useState<string | null>(selectedIcon || null);
     const [displayNameError, setDisplayNameError] = useState<string | null>(null);
     const [isUpdatingDisplayName, setIsUpdatingDisplayName] = useState(false);
     const supabase = createClientComponentClient();
@@ -53,8 +56,8 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
                 const displayNameResponse = await fetch(`/api/user/display-name`);
                 if (displayNameResponse.ok) {
                     const data = await displayNameResponse.json();
-                    setDisplayName(data.displayName || '');
-                    setSelectedIcon(data.selectedIcon || null);
+                    setLocalDisplayName(data.displayName || '');
+                    setLocalSelectedIcon(data.selectedIcon || null);
                 }
 
                 // Fetch spoiler settings
@@ -164,7 +167,7 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
             const response = await fetch('/api/user/display-name', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ displayName })
+                body: JSON.stringify({ localDisplayName })
             })
 
             if (!response.ok) {
@@ -173,7 +176,7 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
             }
 
             const data = await response.json()
-            setDisplayName(data.displayName)
+            setLocalDisplayName(data.displayName)
             onDisplayNameUpdate(data.displayName)
         } catch (err) {
             setDisplayNameError(err instanceof Error ? err.message : 'Failed to update display name')
@@ -183,7 +186,7 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
     }
 
     const handleUpdateIcon = async (icon: string | null) => {
-        setSelectedIcon(icon);
+        setLocalSelectedIcon(icon);
         try {
             const response = await fetch('/api/user/update-icon', {
                 method: 'POST',
@@ -238,15 +241,15 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
                                 <div className="flex items-start gap-6">
                                     <UserAvatar
                                         email={userEmail}
-                                        displayName={displayName}
-                                        selectedIcon={selectedIcon}
+                                        displayName={localDisplayName}
+                                        selectedIcon={localSelectedIcon}
                                         size="lg"
                                     />
                                     <div className="flex-1 max-h-48 overflow-y-auto pr-2 rounded-md border border-gray-200">
                                         <div className="grid grid-cols-4 gap-3 p-3">
                                             <button
                                                 onClick={() => handleUpdateIcon(null)}
-                                                className={`p-3 text-2xl rounded-md text-gray-900 transition-colors ${!selectedIcon ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                                                className={`p-3 text-2xl rounded-md text-gray-900 transition-colors ${!localSelectedIcon ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
                                                 title="Default"
                                             >
                                                 👤
@@ -255,7 +258,7 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
                                                 <button
                                                     key={icon}
                                                     onClick={() => handleUpdateIcon(icon)}
-                                                    className={`p-3 text-2xl rounded-md text-gray-900 transition-colors ${selectedIcon === icon ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                                                    className={`p-3 text-2xl rounded-md text-gray-900 transition-colors ${localSelectedIcon === icon ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
                                                     title={name}
                                                 >
                                                     {icon}
@@ -274,23 +277,23 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
                                 <div className="flex rounded-md shadow-sm">
                                     <input
                                         type="text"
-                                        value={displayName}
-                                        onChange={(e) => setDisplayName(e.target.value.slice(0, 20))}
+                                        value={localDisplayName}
+                                        onChange={(e) => setLocalDisplayName(e.target.value.slice(0, 20))}
                                         maxLength={20}
                                         className="flex-1 rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-gray-900"
                                         placeholder="Enter display name"
                                     />
                                     <button
                                         onClick={handleUpdateDisplayName}
-                                        disabled={isUpdatingDisplayName || displayName.length < 3 || displayName.length > 20}
+                                        disabled={isUpdatingDisplayName || localDisplayName.length < 3 || localDisplayName.length > 20}
                                         className="ml-3 inline-flex justify-center rounded-md border border-transparent bg-blue-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
                                     >
                                         {isUpdatingDisplayName ? 'Updating...' : 'Update'}
                                     </button>
                                 </div>
                                 <div className="mt-1 flex justify-between text-sm">
-                                    <span className={displayName.length > 20 ? 'text-red-600' : 'text-gray-500'}>
-                                        {displayName.length}/20 characters
+                                    <span className={localDisplayName.length > 20 ? 'text-red-600' : 'text-gray-500'}>
+                                        {localDisplayName.length}/20 characters
                                     </span>
                                     {displayNameError && (
                                         <span className="text-red-600">{displayNameError}</span>

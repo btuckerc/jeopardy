@@ -1,4 +1,4 @@
-import { ImageResponse } from 'next/server'
+import { ImageResponse } from 'next/og'
 import { Fredoka } from 'next/font/google'
 
 export const runtime = 'edge'
