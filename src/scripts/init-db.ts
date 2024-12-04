@@ -34,7 +34,6 @@ function determineDifficulty(value: number): 'EASY' | 'MEDIUM' | 'HARD' {
 async function main() {
     try {
         // Clear existing data
-        console.log('Clearing existing data...')
         await prisma.gameQuestion.deleteMany({})
         await prisma.game.deleteMany({})
         await prisma.userProgress.deleteMany({})
@@ -47,8 +46,6 @@ async function main() {
         const dataPath = path.join(__dirname, '../../data/jeopardy_questions.json')
         const rawData = readFileSync(dataPath, 'utf-8')
         const questions: JeopardyQuestion[] = JSON.parse(rawData)
-
-        console.log(`Initializing database with ${questions.length} questions...`)
 
         // Group questions by category
         const categoriesMap = new Map<string, JeopardyQuestion[]>()
@@ -63,8 +60,6 @@ async function main() {
         let processedCategories = 0
 
         for (const [categoryName, categoryQuestions] of categoriesMap) {
-            console.log(`Processing category: ${categoryName} (${processedCategories + 1}/${categoriesMap.size})`)
-
             // Create or update category
             const category = await prisma.category.upsert({
                 where: {
@@ -98,13 +93,10 @@ async function main() {
                         })
                     )
                 )
-                console.log(`Processed ${i + batch.length}/${categoryQuestions.length} questions in ${categoryName}`)
             }
 
             processedCategories++
         }
-
-        console.log('Database initialization complete!')
     } catch (error) {
         console.error('Error initializing database:', error)
         process.exit(1)
@@ -112,7 +104,11 @@ async function main() {
 }
 
 main()
-    .catch(console.error)
+    .then(() => process.exit(0))
+    .catch((error) => {
+        console.error('Error initializing database:', error)
+        process.exit(1)
+    })
     .finally(async () => {
         await prisma.$disconnect()
     }) 

@@ -84,7 +84,6 @@ function determineKnowledgeCategory(question: string, answer: string, categoryNa
 
     // Use content analysis to determine category
     const category = analyzeContent(combinedText)
-    console.log(`Categorized "${categoryName}" as ${category}`)
     return category
 }
 
@@ -142,8 +141,6 @@ async function scrapeJeopardyArchive(url: string): Promise<JeopardyGame[]> {
 
         // Process each category's clues
         categories.forEach((category, categoryIndex) => {
-            console.log(`\nProcessing category: ${category}`)
-
             // Find all clues for this category
             const $categoryCell = $round.find('.category').eq(categoryIndex)
             const $categoryRow = $categoryCell.closest('tr')
@@ -254,5 +251,8 @@ async function main() {
 }
 
 if (require.main === module) {
-    main().catch(console.error)
+    main().catch((error) => {
+        console.error('Error:', error)
+        process.exit(1)
+    })
 } 

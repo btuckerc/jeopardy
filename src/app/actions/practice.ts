@@ -19,7 +19,7 @@ async function getSupabase() {
 
 export async function getCategories(userId?: string) {
     try {
-        // Use Prisma for now until we fully set up Supabase
+        // Get total questions and correct questions per knowledge category
         const categories = await prisma.$queryRaw`
             SELECT 
                 q."knowledgeCategory",
@@ -28,6 +28,7 @@ export async function getCategories(userId?: string) {
             FROM "Question" q
             LEFT JOIN "GameHistory" gh ON gh."questionId" = q.id AND gh."userId" = ${userId}
             GROUP BY q."knowledgeCategory"
+            ORDER BY q."knowledgeCategory"
         ` as Array<{ knowledgeCategory: string; total_questions: number; correct_questions: number }>
 
         return categories.map(cat => ({
@@ -45,8 +46,25 @@ export async function getCategories(userId?: string) {
     }
 }
 
-export async function getKnowledgeCategoryDetails(knowledgeCategoryId: string, userId?: string) {
+export async function getKnowledgeCategoryDetails(
+    knowledgeCategoryId: string,
+    userId?: string,
+    page: number = 1,
+    pageSize: number = 20
+) {
     try {
+        // First, get total count for pagination
+        const totalCount = await prisma.category.count({
+            where: {
+                questions: {
+                    some: {
+                        knowledgeCategory: knowledgeCategoryId as KnowledgeCategory
+                    }
+                }
+            }
+        });
+
+        // Then get paginated categories with question counts
         const categories = await prisma.category.findMany({
             where: {
                 questions: {
@@ -71,29 +89,44 @@ export async function getKnowledgeCategoryDetails(knowledgeCategoryId: string, u
                         } : false
                     }
                 }
-            }
-        })
+            },
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+        });
 
-        // Sort categories by their most recent question's air date
-        return categories
-            .map(cat => ({
+        // Process categories with completion status
+        const processedCategories = categories.map(cat => {
+            const totalQuestions = cat.questions.length;
+            const correctQuestions = userId ? cat.questions.filter(q =>
+                q.gameHistory && Array.isArray(q.gameHistory) &&
+                q.gameHistory.some(h => h.correct)
+            ).length : 0;
+
+            return {
                 id: cat.id,
                 name: cat.name,
-                totalQuestions: cat.questions.length,
-                correctQuestions: userId ? cat.questions.filter(q =>
-                    q.gameHistory && Array.isArray(q.gameHistory) &&
-                    q.gameHistory.some(h => h.correct)
-                ).length : 0,
+                totalQuestions,
+                correctQuestions,
                 mostRecentAirDate: cat.questions.reduce((latest, q) =>
                     q.airDate && (!latest || q.airDate > latest) ? q.airDate : latest,
                     null as Date | null
                 )
-            }))
-            .sort((a, b) => {
-                if (!a.mostRecentAirDate) return 1;
-                if (!b.mostRecentAirDate) return -1;
-                return b.mostRecentAirDate.getTime() - a.mostRecentAirDate.getTime();
-            });
+            };
+        });
+
+        // Sort by most recent air date
+        const sortedCategories = processedCategories.sort((a, b) => {
+            if (!a.mostRecentAirDate) return 1;
+            if (!b.mostRecentAirDate) return -1;
+            return b.mostRecentAirDate.getTime() - a.mostRecentAirDate.getTime();
+        });
+
+        return {
+            categories: sortedCategories,
+            totalPages: Math.ceil(totalCount / pageSize),
+            currentPage: page,
+            hasMore: page * pageSize < totalCount
+        };
     } catch (error) {
         console.error('Error fetching category details:', error)
         throw error

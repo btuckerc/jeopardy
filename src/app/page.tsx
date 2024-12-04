@@ -7,10 +7,6 @@ import { useEffect } from 'react'
 export default function Home() {
   const { user, loading } = useAuth()
 
-  useEffect(() => {
-    console.log('Home page state:', { loading, isLoggedIn: !!user })
-  }, [loading, user])
-
   return (
     <div className="min-h-screen bg-gray-100">
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
@@ -27,10 +23,10 @@ export default function Home() {
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
             <div className="relative group">
               <Link href="/game" className="block">
-                <div className="rounded-lg shadow-lg overflow-hidden transform transition duration-200 hover:scale-105">
-                  <div className="bg-blue-600 p-8">
-                    <h3 className="text-2xl font-bold text-white">Game Mode</h3>
-                    <p className="mt-2 text-white">
+                <div className="rounded-lg shadow-xl overflow-hidden transform transition duration-200 hover:scale-105 hover:shadow-2xl">
+                  <div className="bg-blue-600 p-12 text-center">
+                    <h3 className="text-3xl font-bold text-white mb-6">Game Mode</h3>
+                    <p className="mt-4 text-lg text-white">
                       Play a simulated Jeopardy game with categories and varying difficulty levels.
                     </p>
                   </div>
@@ -40,10 +36,10 @@ export default function Home() {
 
             <div className="relative group">
               <Link href="/practice" className="block">
-                <div className="rounded-lg shadow-lg overflow-hidden transform transition duration-200 hover:scale-105">
-                  <div className="bg-green-600 p-8">
-                    <h3 className="text-2xl font-bold text-white">Free Play Mode</h3>
-                    <p className="mt-2 text-white">
+                <div className="rounded-lg shadow-xl overflow-hidden transform transition duration-200 hover:scale-105 hover:shadow-2xl">
+                  <div className="bg-green-600 p-12 text-center">
+                    <h3 className="text-3xl font-bold text-white mb-6">Free Play Mode</h3>
+                    <p className="mt-4 text-lg text-white">
                       Study with flashcards and explore specific categories at your own pace.
                     </p>
                   </div>
@@ -53,7 +49,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Only render this section after loading is complete and user is not logged in */}
         {!loading && !user && (
           <div className="mt-16 text-center">
             <h2 className="text-2xl font-bold text-gray-900">Track Your Progress</h2>

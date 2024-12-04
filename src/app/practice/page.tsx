@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../lib/auth'
 import { getCategories, getKnowledgeCategoryDetails, getRandomQuestion, saveAnswer, getCategoryQuestions } from '../actions/practice'
 import { checkAnswer } from '../lib/answer-checker'
@@ -43,6 +43,99 @@ type QuestionState = {
     lastAttemptDate?: Date;
 };
 
+type CategoryResponse = {
+    categories: Category[];
+    totalPages: number;
+    currentPage: number;
+    hasMore: boolean;
+}
+
+function LoadingSpinner() {
+    return (
+        <div className="flex justify-center items-center p-4">
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em]" />
+        </div>
+    )
+}
+
+function CategoryCard({ category, onSelect, isKnowledgeCategory = false }: {
+    category: Category;
+    onSelect: (id: string) => void;
+    isKnowledgeCategory?: boolean;
+}) {
+    const progressPercentage = Math.round((category.correctQuestions / category.totalQuestions) * 100) || 0
+    const isComplete = progressPercentage === 100
+    const bgColor = isKnowledgeCategory || !isComplete ? 'bg-blue-600' : 'bg-green-600'
+    const hoverColor = isKnowledgeCategory || !isComplete ? 'hover:bg-blue-700' : 'hover:bg-green-700'
+
+    return (
+        <button
+            onClick={() => onSelect(category.id)}
+            className={`p-6 ${bgColor} ${hoverColor} rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 text-white`}
+        >
+            <h3 className="text-xl font-bold mb-3">{category.name}</h3>
+            <div className="mt-2">
+                <div className="w-full bg-white/30 rounded-full h-2">
+                    <div
+                        className="bg-white h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${progressPercentage}%` }}
+                    />
+                </div>
+                <p className="text-sm mt-2 text-white/90">
+                    {category.correctQuestions} / {category.totalQuestions} completed
+                </p>
+            </div>
+        </button>
+    )
+}
+
+function QuestionCard({ question, onClick }: { question: Question; onClick: () => void }) {
+    const hasReachedMaxAttempts = (question.incorrectAttempts?.length ?? 0) >= 5
+    const mostRecentAttempt = question.incorrectAttempts?.length
+        ? new Date(Math.max(...question.incorrectAttempts.map(d => new Date(d).getTime())))
+        : null
+    const timeSinceLastAttempt = mostRecentAttempt
+        ? new Date().getTime() - mostRecentAttempt.getTime()
+        : Infinity
+    const isLockedOut = !hasReachedMaxAttempts &&
+        mostRecentAttempt &&
+        timeSinceLastAttempt < 30 * 60 * 1000
+
+    const buttonClass = isLockedOut
+        ? 'bg-gray-400 cursor-not-allowed opacity-50'
+        : question.correct
+            ? 'bg-green-600 hover:bg-green-700'
+            : question.incorrectAttempts && question.incorrectAttempts.length > 0
+                ? 'bg-red-600 hover:bg-red-700'
+                : 'bg-blue-600 hover:bg-blue-700'
+
+    return (
+        <button
+            onClick={onClick}
+            disabled={!!isLockedOut}
+            className={`p-6 rounded-lg transition-colors ${buttonClass} text-white text-center text-xl font-bold relative w-full h-32 shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-200`}
+        >
+            ${question.value}
+            {isLockedOut && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
+                    <span className="text-sm">
+                        {hasReachedMaxAttempts
+                            ? 'Max attempts'
+                            : `Locked (${Math.ceil((30 * 60 * 1000 - timeSinceLastAttempt) / 60000)}m)`}
+                    </span>
+                </div>
+            )}
+            {!isLockedOut && (question.incorrectAttempts?.length ?? 0) > 0 && (
+                <div className="absolute top-2 right-2 bg-black/50 rounded-full px-2 py-1">
+                    <span className="text-xs">
+                        {question.incorrectAttempts?.length ?? 0}/5
+                    </span>
+                </div>
+            )}
+        </button>
+    )
+}
+
 export default function FreePractice() {
     const { user } = useAuth()
     const [knowledgeCategories, setKnowledgeCategories] = useState<KnowledgeCategory[]>([])
@@ -56,9 +149,13 @@ export default function FreePractice() {
     const [showAnswer, setShowAnswer] = useState(false)
     const [loading, setLoading] = useState(true)
     const [loadingQuestions, setLoadingQuestions] = useState(false)
+    const [loadingMore, setLoadingMore] = useState(false)
     const [shuffleLevel, setShuffleLevel] = useState<ShuffleLevel>(null)
-    const [questionStates, setQuestionStates] = useState<Record<string, QuestionState>>({});
-    const supabase = createClientComponentClient();
+    const [questionStates, setQuestionStates] = useState<Record<string, QuestionState>>({})
+    const [currentPage, setCurrentPage] = useState(1)
+    const [hasMore, setHasMore] = useState(false)
+    const loadMoreRef = useRef<HTMLDivElement>(null)
+    const supabase = createClientComponentClient()
 
     useEffect(() => {
         const loadKnowledgeCategories = async () => {
@@ -73,6 +170,60 @@ export default function FreePractice() {
         }
         loadKnowledgeCategories()
     }, [])
+
+    // Intersection Observer for infinite scrolling
+    useEffect(() => {
+        if (!loadMoreRef.current || !hasMore || loadingMore) return;
+
+        const observer = new IntersectionObserver(
+            async (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loadingMore) {
+                    await loadMoreCategories();
+                }
+            },
+            { threshold: 0.1 }
+        );
+
+        observer.observe(loadMoreRef.current);
+        return () => observer.disconnect();
+    }, [hasMore, loadingMore, selectedKnowledgeCategory]);
+
+    const loadMoreCategories = async () => {
+        if (!selectedKnowledgeCategory || loadingMore) return;
+
+        setLoadingMore(true);
+        try {
+            const nextPage = currentPage + 1;
+            const result = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user?.id, nextPage);
+
+            setCategories(prev => [...prev, ...result.categories]);
+            setCurrentPage(nextPage);
+            setHasMore(result.hasMore);
+        } catch (error) {
+            console.error('Error loading more categories:', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
+    const handleKnowledgeCategorySelect = async (categoryId: string) => {
+        setSelectedKnowledgeCategory(categoryId)
+        setSelectedCategory(null)
+        setSelectedQuestion(null)
+        setLoadingQuestions(true)
+        setCurrentPage(1)
+        setCategories([])
+
+        try {
+            const result = await getKnowledgeCategoryDetails(categoryId, user?.id, 1)
+            setCategories(result.categories)
+            setHasMore(result.hasMore)
+        } catch (error) {
+            console.error('Error loading categories:', error)
+        } finally {
+            setLoadingQuestions(false)
+        }
+    }
 
     // Load question states from local storage and merge with database state
     useEffect(() => {
@@ -116,22 +267,6 @@ export default function FreePractice() {
         }
     }, [questionStates, user]);
 
-    const handleKnowledgeCategorySelect = async (categoryId: string) => {
-        setSelectedKnowledgeCategory(categoryId)
-        setSelectedCategory(null)
-        setSelectedQuestion(null)
-        setLoadingQuestions(true)
-
-        try {
-            const categories = await getKnowledgeCategoryDetails(categoryId, user?.id)
-            setCategories(categories)
-        } catch (error) {
-            console.error('Error loading categories:', error)
-        } finally {
-            setLoadingQuestions(false)
-        }
-    }
-
     const handleCategorySelect = async (categoryId: string) => {
         if (!selectedKnowledgeCategory) return
 
@@ -155,8 +290,8 @@ export default function FreePractice() {
             setLoadingQuestions(true)
             try {
                 // Refresh the categories when going back
-                const categories = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user.id)
-                setCategories(categories)
+                const result = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user.id)
+                setCategories(result.categories)
 
                 // Refresh the questions
                 const questions = await getCategoryQuestions(selectedCategory, selectedKnowledgeCategory, user.id)
@@ -218,17 +353,17 @@ export default function FreePractice() {
 
             if (level === 'all') {
                 // Get categories for the knowledge category of the random question
-                const categories = await getKnowledgeCategoryDetails(randomQuestion.categoryName, user?.id)
+                const result = await getKnowledgeCategoryDetails(randomQuestion.categoryName, user?.id)
                 setSelectedKnowledgeCategory(randomQuestion.categoryName)
-                setCategories(categories)
+                setCategories(result.categories)
                 setSelectedCategory(randomQuestion.categoryId)
                 // Get all questions for this category
                 const questions = await getCategoryQuestions(randomQuestion.categoryId, randomQuestion.categoryName, user?.id)
                 setQuestions(questions)
             } else if (level === 'knowledge' && !selectedCategory) {
                 // Get categories if we don't have them
-                const categories = await getKnowledgeCategoryDetails(selectedKnowledgeCategory!, user?.id)
-                setCategories(categories)
+                const result = await getKnowledgeCategoryDetails(selectedKnowledgeCategory!, user?.id)
+                setCategories(result.categories)
                 setSelectedCategory(randomQuestion.categoryId)
                 // Get all questions for this category
                 const questions = await getCategoryQuestions(randomQuestion.categoryId, selectedKnowledgeCategory!, user?.id)
@@ -273,7 +408,7 @@ export default function FreePractice() {
                         ? {
                             ...q,
                             answered: true,
-                            correct: result || q.correct, // Keep correct if it was correct before
+                            correct: result || q.correct,
                             incorrectAttempts: !result
                                 ? [...(q.incorrectAttempts || []), new Date()].slice(-5)
                                 : q.incorrectAttempts
@@ -285,7 +420,7 @@ export default function FreePractice() {
                 setSelectedQuestion(prev => prev ? {
                     ...prev,
                     answered: true,
-                    correct: result || prev.correct, // Keep correct if it was correct before
+                    correct: result || prev.correct,
                     incorrectAttempts: !result
                         ? [...(prev.incorrectAttempts || []), new Date()].slice(-5)
                         : prev.incorrectAttempts
@@ -305,8 +440,8 @@ export default function FreePractice() {
 
                 // Refresh categories to update statistics
                 if (selectedKnowledgeCategory) {
-                    const updatedCategories = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user.id)
-                    setCategories(updatedCategories)
+                    const result = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user.id)
+                    setCategories(result.categories)
                 }
 
                 // Refresh questions to update their state
@@ -328,291 +463,196 @@ export default function FreePractice() {
         return new Date().getTime() - lastAttempt.getTime() < 30 * 60 * 1000;
     };
 
+    // Sort questions by value when displaying
+    const sortedQuestions = [...questions].sort((a, b) => a.value - b.value)
+
     if (loading) {
         return <div className="text-center p-4">Loading...</div>
     }
 
     return (
-        <div className="container mx-auto p-4">
+        <div className="container mx-auto px-4 py-8">
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold text-black">Free Play Mode</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Free Play Mode</h1>
                 <button
                     onClick={handleShuffle}
                     disabled={loadingQuestions}
-                    className="p-2 text-purple-600 hover:text-purple-800 transition-colors flex items-center gap-2 disabled:opacity-50"
-                    title="Shuffle Random Question"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-bold text-lg shadow-lg hover:shadow-xl"
                 >
-                    <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
-                        />
-                    </svg>
-                    <span className="text-sm font-medium">
-                        {getShuffleButtonText()}
-                    </span>
+                    {loadingQuestions ? <LoadingSpinner /> : getShuffleButtonText()}
                 </button>
             </div>
 
-            {!selectedKnowledgeCategory ? (
-                <div className="space-y-4">
-                    <h2 className="text-lg font-semibold text-black">Select a Knowledge Category</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {knowledgeCategories.map((category) => (
-                            <button
-                                key={category.id}
-                                onClick={() => handleKnowledgeCategorySelect(category.id)}
-                                className="p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                <div className="text-lg mb-2">{category.name}</div>
-                                <div className="text-sm opacity-80">
-                                    {category.correctQuestions}/{category.totalQuestions} questions correct
-                                </div>
-                            </button>
-                        ))}
-                    </div>
+            {/* Knowledge Categories */}
+            {!selectedKnowledgeCategory && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {knowledgeCategories.map(category => (
+                        <CategoryCard
+                            key={category.id}
+                            category={category}
+                            onSelect={handleKnowledgeCategorySelect}
+                            isKnowledgeCategory={true}
+                        />
+                    ))}
                 </div>
-            ) : !selectedCategory ? (
-                <div className="space-y-4">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-lg font-semibold text-black">
-                                {knowledgeCategories.find(c => c.id === selectedKnowledgeCategory)?.name}
-                            </h2>
-                            <button
-                                onClick={() => {
-                                    setSelectedKnowledgeCategory(null)
-                                    setCategories([])
-                                }}
-                                className="text-blue-600 hover:text-blue-800"
-                            >
-                                ← Back to Knowledge Categories
-                            </button>
-                        </div>
+            )}
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                        {categories.map((category) => (
-                            <button
-                                key={category.id}
-                                onClick={() => handleCategorySelect(category.id)}
-                                className="p-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                            >
-                                <div className="text-lg mb-2">{category.name}</div>
-                                <div className="text-sm opacity-80">
-                                    {category.correctQuestions}/{category.totalQuestions} questions correct
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            ) : !selectedQuestion ? (
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center mb-4">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-black">
-                                        {categories.find(c => c.id === selectedCategory)?.name}
-                                    </h2>
-                                    <p className="text-sm text-gray-600">
-                                        {knowledgeCategories.find(c => c.id === selectedKnowledgeCategory)?.name}
-                                    </p>
-                                </div>
+            {/* Categories with Infinite Scroll */}
+            {selectedKnowledgeCategory && !selectedCategory && (
+                <>
+                    <div className="mb-6 flex items-center">
                         <button
-                                    onClick={() => {
-                                        setSelectedCategory(null)
-                                        setQuestions([])
-                                    }}
-                            className="text-blue-600 hover:text-blue-800"
+                            onClick={() => {
+                                setSelectedKnowledgeCategory(null)
+                                setCategories([])
+                            }}
+                            className="text-blue-600 hover:text-blue-800 flex items-center font-bold"
                         >
-                            ← Back to Categories
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Back to Knowledge Categories
                         </button>
                     </div>
 
-                            {loadingQuestions ? (
-                                <div className="text-center py-8">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                                    <p className="mt-2 text-gray-600">Loading questions...</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-8">
-                                    {Object.entries(
-                                        questions.reduce((acc, q) => {
-                                            const date = q.airDate
-                                                ? format(new Date(q.airDate), 'MMMM d, yyyy')
-                                                : 'No air date'
-                                            if (!acc[date]) acc[date] = []
-                                            acc[date].push(q)
-                                            return acc
-                                        }, {} as Record<string, Question[]>)
-                                    )
-                                        .sort(([dateA], [dateB]) => {
-                                            if (dateA === 'No air date') return 1
-                                            if (dateB === 'No air date') return -1
-                                            return new Date(dateB).getTime() - new Date(dateA).getTime()
-                                        })
-                                        .map(([date, dateQuestions]) => (
-                                            <div key={date} className="space-y-4">
-                                                <h3 className="text-xl font-semibold text-black">{date}</h3>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                                    {dateQuestions
-                                                        .sort((a, b) => a.value - b.value)
-                                                        .map((question) => {
-                                                            const hasReachedMaxAttempts = (question.incorrectAttempts?.length ?? 0) >= 5
-                                                            const mostRecentAttempt = question.incorrectAttempts?.length
-                                                                ? new Date(Math.max(...question.incorrectAttempts.map(d => new Date(d).getTime())))
-                                                                : null
-                                                            const timeSinceLastAttempt = mostRecentAttempt
-                                                                ? new Date().getTime() - mostRecentAttempt.getTime()
-                                                                : Infinity
-                                                            const isLockedOut = !hasReachedMaxAttempts &&
-                                                                mostRecentAttempt &&
-                                                                timeSinceLastAttempt < 30 * 60 * 1000
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {categories.map(category => (
+                            <CategoryCard
+                                key={category.id}
+                                category={category}
+                                onSelect={handleCategorySelect}
+                            />
+                        ))}
+                    </div>
 
-                                                            const buttonClass = isLockedOut
-                                                                ? 'bg-gray-400 cursor-not-allowed opacity-50'
-                                                                : question.correct
-                                                                    ? 'bg-green-600 hover:bg-green-700'
-                                                                    : question.incorrectAttempts && question.incorrectAttempts.length > 0
-                                                                        ? 'bg-red-600 hover:bg-red-700'
-                                                                        : 'bg-blue-600 hover:bg-blue-700'
+                    {loadingMore && <LoadingSpinner />}
 
-                                                            return (
-                                                                <button
-                                                                    key={question.id}
-                                                                    onClick={() => handleQuestionSelect(question)}
-                                                                    className={`p-4 rounded-lg transition-colors ${buttonClass} text-white text-center text-lg font-semibold relative`}
-                                                                    disabled={!!isLockedOut}
-                                                                >
-                                                                    ${question.value}
-                                                                    {isLockedOut && (
-                                                                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-lg">
-                                                                            <span className="text-sm">
-                                                                                {hasReachedMaxAttempts
-                                                                                    ? 'Max attempts'
-                                                                                    : `Locked (${Math.ceil((30 * 60 * 1000 - timeSinceLastAttempt) / 60000)}m)`}
-                                                                            </span>
-                                                                        </div>
-                                                                    )}
-                                                                    {!isLockedOut && (question.incorrectAttempts?.length ?? 0) > 0 && (
-                                                                        <div className="absolute top-0 right-0 p-1">
-                                                                            <span className="text-xs">
-                                                                                {question.incorrectAttempts?.length ?? 0}/5
-                                                                            </span>
-                                                                        </div>
-                                                                    )}
-                                                                </button>
-                                                            )
-                                                        })}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                            )}
-                </div>
-            ) : (
-                            <div className="max-w-2xl mx-auto space-y-6">
-                                <div className="bg-white shadow-lg rounded-lg p-6">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <div>
-                                            <h2 className="text-xl font-semibold text-black">
-                                                {selectedQuestion.originalCategory}
-                                            </h2>
-                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                <span>${selectedQuestion.value}</span>
-                                                <span>•</span>
-                                                <span>
-                                                    {selectedQuestion.airDate
-                                                        ? format(new Date(selectedQuestion.airDate), 'MMMM d, yyyy')
-                                                        : 'No air date'
-                                                    }
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <button
-                                            onClick={handleBackToQuestions}
-                                            className="text-blue-600 hover:text-blue-800"
-                                        >
-                                            ← Back to Questions
-                                        </button>
-                                    </div>
-                                    <p className="text-lg text-black mb-6">{selectedQuestion.question}</p>
+                    {/* Intersection observer target */}
+                    <div ref={loadMoreRef} className="h-20" />
+                </>
+            )}
 
-                                    <div className="space-y-4">
-                                        {!showAnswer ? (
-                                            <div className="space-y-4">
-                                                <input
-                                                    type="text"
-                                                    value={userAnswer}
-                                                    onChange={(e) => setUserAnswer(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') {
-                                                            handleSubmitAnswer();
-                                                        }
-                                                    }}
-                                                    className="w-full p-3 border rounded-lg text-black"
-                                                    placeholder="Your answer..."
-                                                    disabled={isQuestionDisabled(selectedQuestion?.id)}
-                                                />
-                                    <div className="flex space-x-4">
-                                        <button
-                                            onClick={handleSubmitAnswer}
-                                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                                        >
-                                            Submit
-                                        </button>
-                                        <button
-                                            onClick={() => setShowAnswer(true)}
-                                            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                                        >
-                                            Show Answer
-                                        </button>
-                                    </div>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-4">
-                                                    <div className={`p-4 rounded-lg ${isCorrect ? 'bg-green-100' : 'bg-red-100'
-                                                }`}>
-                                                        <div className="flex items-center gap-2">
-                                                            {isCorrect ? (
-                                                                <span className="text-green-600 text-xl">✓</span>
-                                                            ) : (
-                                                                <span className="text-red-600 text-xl">✗</span>
-                                                            )}
-                                                            <p className="font-medium text-black">
-                                                                Correct answer: {selectedQuestion.answer}
-                                                            </p>
-                                                        </div>
-                                                </div>
-                                                <div className="flex space-x-4">
-                                                    <button
-                                                            onClick={handleBackToQuestions}
-                                                            className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-                                                    >
-                                                            Back to Questions
-                                                    </button>
-                                                    <button
-                                                            onClick={handleShuffle}
-                                                            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-                                                        >
-                                                            Next Random Question
-                                                        </button>
-                                                    </div>
-                                            </div>
-                                        )}
-                                    </div>
+            {/* Questions Grid */}
+            {selectedCategory && !selectedQuestion && (
+                <>
+                    <div className="mb-6 flex items-center">
+                        <button
+                            onClick={() => {
+                                setSelectedCategory(null)
+                                setQuestions([])
+                            }}
+                            className="text-blue-600 hover:text-blue-800 flex items-center font-bold"
+                        >
+                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Back to Categories
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                        {sortedQuestions.map(question => (
+                            <QuestionCard
+                                key={question.id}
+                                question={question}
+                                onClick={() => handleQuestionSelect(question)}
+                            />
+                        ))}
+                    </div>
+                </>
+            )}
+
+            {/* Selected Question */}
+            {selectedQuestion && (
+                <div className="max-w-2xl mx-auto">
+                    <div className="bg-white shadow-lg rounded-lg p-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900">
+                                    {selectedQuestion.originalCategory}
+                                </h2>
+                                <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <span>${selectedQuestion.value}</span>
+                                    <span>•</span>
+                                    <span>
+                                        {selectedQuestion.airDate
+                                            ? format(new Date(selectedQuestion.airDate), 'MMMM d, yyyy')
+                                            : 'No air date'
+                                        }
+                                    </span>
                                 </div>
                             </div>
+                            <button
+                                onClick={handleBackToQuestions}
+                                className="text-blue-600 hover:text-blue-800 font-bold"
+                            >
+                                Back to Questions
+                            </button>
+                        </div>
+
+                        <p className="text-lg text-gray-900 mb-6">{selectedQuestion.question}</p>
+
+                        {!showAnswer ? (
+                            <div className="space-y-4">
+                                <input
+                                    type="text"
+                                    value={userAnswer}
+                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            handleSubmitAnswer();
+                                        }
+                                    }}
+                                    className="w-full p-3 border rounded-lg"
+                                    placeholder="Your answer..."
+                                />
+                                <div className="flex space-x-4">
+                                    <button
+                                        onClick={handleSubmitAnswer}
+                                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                                    >
+                                        Submit
+                                    </button>
+                                    <button
+                                        onClick={() => setShowAnswer(true)}
+                                        className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
+                                    >
+                                        Show Answer
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                    <div className={`p-4 rounded-lg ${isCorrect ? 'bg-green-100' : 'bg-red-100'}`}>
+                                        <div className="flex items-center gap-2">
+                                            {isCorrect ? (
+                                                <span className="text-green-600 text-xl">✓</span>
+                                            ) : (
+                                                <span className="text-red-600 text-xl">✗</span>
+                                            )}
+                                            <p className="font-bold text-gray-900">
+                                                Correct answer: {selectedQuestion.answer}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex space-x-4">
+                                        <button
+                                            onClick={handleBackToQuestions}
+                                            className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
+                                        >
+                                            Back to Questions
+                                        </button>
+                                        <button
+                                            onClick={handleShuffle}
+                                        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                                    >
+                                        Next Random Question
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
         </div>
     )
