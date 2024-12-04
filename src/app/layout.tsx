@@ -8,6 +8,13 @@ import { Navigation } from '@/components/Navigation'
 const inter = Inter({ subsets: ['latin'] })
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
+
 export const metadata = {
   metadataBase: new URL(
     process.env.NODE_ENV === 'production'
@@ -70,12 +77,6 @@ export const metadata = {
     capable: true,
     statusBarStyle: 'default',
     title: 'trivrdy',
-  },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
   },
   formatDetection: {
     email: false,
