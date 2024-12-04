@@ -1,13 +1,17 @@
 import { PrismaClient } from '@prisma/client'
 
 const prismaClientSingleton = () => {
+    const connectionString = process.env.DATABASE_URL || ''
+    const url = new URL(connectionString)
+    url.searchParams.set('pgbouncer', 'true')
+    url.searchParams.set('prepare', 'false')
+
     return new PrismaClient({
         datasources: {
             db: {
-                url: process.env.DATABASE_URL
+                url: url.toString()
             }
         },
-        // Add these options for better handling in serverless
         log: ['error', 'warn']
     })
 }

@@ -3,6 +3,15 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/app/lib/prisma'
 
+function generateRandomUsername() {
+    const adjectives = ['Happy', 'Lucky', 'Clever', 'Bright', 'Swift', 'Quick', 'Smart', 'Cool', 'Wise', 'Brave']
+    const nouns = ['Player', 'Gamer', 'Champion', 'Master', 'Expert', 'Genius', 'Scholar', 'Ace', 'Star', 'Hero']
+    const randomNum = Math.floor(Math.random() * 1000)
+    const adj = adjectives[Math.floor(Math.random() * adjectives.length)]
+    const noun = nouns[Math.floor(Math.random() * nouns.length)]
+    return `${adj}${noun}${randomNum}`
+}
+
 export async function GET(request: Request) {
     const requestUrl = new URL(request.url)
     const code = requestUrl.searchParams.get('code')
@@ -28,7 +37,15 @@ export async function GET(request: Request) {
                     },
                     create: {
                         id: session.user.id,
-                        email: session.user.email!
+                        email: session.user.email!,
+                        displayName: generateRandomUsername()
+                    }
+                })
+
+                // Update user metadata in Supabase
+                await supabase.auth.updateUser({
+                    data: {
+                        displayName: generateRandomUsername()
                     }
                 })
 
