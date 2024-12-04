@@ -210,8 +210,8 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-            <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 overflow-y-auto p-4 sm:p-6" onClick={onClose}>
+            <div className="relative bg-white rounded-lg p-6 max-w-2xl w-full my-8" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-bold text-gray-900">User Settings</h2>
                     <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
@@ -228,7 +228,7 @@ export default function UserSettings({ isOpen, onClose, onDisplayNameUpdate, onI
                 )}
 
                 {!isLoading && (
-                    <div className="space-y-8">
+                    <div className="space-y-8 max-h-[calc(100vh-12rem)] overflow-y-auto">
                         {/* Profile Section */}
                         <div>
                             <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Settings</h3>

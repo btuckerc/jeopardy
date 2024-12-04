@@ -3,6 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 
+type SpoilerSettings = {
+    spoilerBlockDate: Date | null;
+    spoilerBlockEnabled: boolean;
+    lastSpoilerPrompt: Date | null;
+}
+
 export async function GET(request: Request) {
     const supabase = createRouteHandlerClient({ cookies });
     const { data: { session } } = await supabase.auth.getSession();
@@ -12,20 +18,35 @@ export async function GET(request: Request) {
     }
 
     try {
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: {
-                spoilerBlockDate: true,
-                spoilerBlockEnabled: true,
-                lastSpoilerPrompt: true
-            }
+        // First check if user exists
+        const userExists = await prisma.user.count({
+            where: { id: session.user.id }
         });
 
-        if (!user) {
-            return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        if (!userExists) {
+            // Create user if doesn't exist
+            await prisma.user.create({
+                data: {
+                    id: session.user.id,
+                    email: session.user.email!,
+                    spoilerBlockEnabled: true
+                }
+            });
         }
 
-        return NextResponse.json(user);
+        // Then get settings
+        const settings = await prisma.$queryRaw<SpoilerSettings[]>`
+            SELECT "spoilerBlockDate", "spoilerBlockEnabled", "lastSpoilerPrompt"
+            FROM "User"
+            WHERE id = ${session.user.id}
+            LIMIT 1
+        `;
+
+        return NextResponse.json(settings[0] || {
+            spoilerBlockEnabled: true,
+            spoilerBlockDate: null,
+            lastSpoilerPrompt: null
+        });
     } catch (error) {
         console.error('Error fetching spoiler settings:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -44,28 +65,43 @@ export async function POST(request: Request) {
         const body = await request.json();
         const { spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt } = body;
 
-        const user = await prisma.user.upsert({
-            where: { id: session.user.id },
-            update: {
-                spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
-                spoilerBlockEnabled: spoilerBlockEnabled !== undefined ? spoilerBlockEnabled : undefined,
-                lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : undefined
-            },
-            create: {
-                id: session.user.id,
-                email: session.user.email!,
-                spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
-                spoilerBlockEnabled: spoilerBlockEnabled !== undefined ? spoilerBlockEnabled : false,
-                lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null
-            },
-            select: {
-                spoilerBlockDate: true,
-                spoilerBlockEnabled: true,
-                lastSpoilerPrompt: true
-            }
+        // First check if user exists
+        const userExists = await prisma.user.count({
+            where: { id: session.user.id }
         });
 
-        return NextResponse.json(user);
+        if (!userExists) {
+            // Create user if doesn't exist
+            await prisma.user.create({
+                data: {
+                    id: session.user.id,
+                    email: session.user.email!,
+                    spoilerBlockEnabled: spoilerBlockEnabled ?? true,
+                    spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
+                    lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null
+                }
+            });
+        } else {
+            // Update existing user
+            await prisma.user.update({
+                where: { id: session.user.id },
+                data: {
+                    spoilerBlockEnabled: spoilerBlockEnabled ?? undefined,
+                    spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
+                    lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null
+                }
+            });
+        }
+
+        // Get updated settings
+        const settings = await prisma.$queryRaw<SpoilerSettings[]>`
+            SELECT "spoilerBlockDate", "spoilerBlockEnabled", "lastSpoilerPrompt"
+            FROM "User"
+            WHERE id = ${session.user.id}
+            LIMIT 1
+        `;
+
+        return NextResponse.json(settings[0]);
     } catch (error) {
         console.error('Error updating spoiler settings:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
