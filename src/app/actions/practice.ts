@@ -2,7 +2,7 @@
 
 import { prisma } from '../lib/prisma'
 import crypto from 'crypto'
-import { PrismaClient, Prisma, KnowledgeCategory, GameHistory } from '@prisma/client'
+import { PrismaClient, Prisma, KnowledgeCategory, Question, Category, GameHistory } from '@prisma/client'
 import { cookies } from 'next/headers'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 
@@ -141,33 +141,39 @@ export async function getRandomQuestion(knowledgeCategoryId?: string, categoryId
                     orderBy: {
                         timestamp: 'desc'
                     }
-                } : false
+                } : undefined
             },
             skip: Math.floor(Math.random() * totalCount)
         })
 
         if (!question) return null
 
-        const gameHistory = question.gameHistory || []
+        type QuestionWithRelations = Question & {
+            category: Category;
+            gameHistory?: GameHistory[];
+        }
+
+        const typedQuestion = question as QuestionWithRelations
+        const gameHistory = typedQuestion.gameHistory || []
         const incorrectAttempts = userId && gameHistory.length > 0
             ? gameHistory
-                .filter(h => !h.correct)
-                .map(h => h.timestamp)
-                .sort((a, b) => b.getTime() - a.getTime())
+                .filter((h: GameHistory) => !h.correct)
+                .map((h: GameHistory) => h.timestamp)
+                .sort((a: Date, b: Date) => b.getTime() - a.getTime())
                 .slice(0, 5)
             : []
 
         return {
-            id: question.id,
-            question: question.question,
-            answer: question.answer,
-            value: question.value || 200,
-            categoryId: question.categoryId,
-            categoryName: question.knowledgeCategory,
-            originalCategory: question.category.name,
-            airDate: question.airDate,
+            id: typedQuestion.id,
+            question: typedQuestion.question,
+            answer: typedQuestion.answer,
+            value: typedQuestion.value || 200,
+            categoryId: typedQuestion.categoryId,
+            categoryName: typedQuestion.knowledgeCategory,
+            originalCategory: typedQuestion.category.name,
+            airDate: typedQuestion.airDate,
             answered: userId ? gameHistory.length > 0 : false,
-            correct: userId ? gameHistory.some(h => h.correct) : false,
+            correct: userId ? gameHistory.some((h: GameHistory) => h.correct) : false,
             incorrectAttempts
         }
     } catch (error) {

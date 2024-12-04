@@ -53,7 +53,10 @@ async function loadQuestions(filePath: string) {
                 }))
 
                 await prisma.question.createMany({
-                    data: createQuestions,
+                    data: createQuestions.map(q => ({
+                        ...q,
+                        knowledgeCategory: 'GENERAL_KNOWLEDGE'
+                    })),
                     skipDuplicates: true
                 })
             }
@@ -176,4 +179,5 @@ Usage:
 }
 
 if (require.main === module) {
-    main() 
+    main()
+} 

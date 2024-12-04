@@ -10,7 +10,7 @@ interface UserAvatarProps {
 
 const PROFILE_ICONS = {
     '🎓': 'Person',
-    '🎓': 'Scholar',
+    '📓': 'Scholar',
     '🧠': 'Brain',
     '🎯': 'Target',
     '⭐': 'Star',

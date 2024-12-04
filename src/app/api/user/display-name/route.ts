@@ -14,12 +14,12 @@ function generateRandomDisplayName(): string {
     return `${randomAdjective}${randomNoun}`
 }
 
-async function syncUserData(supabase: any, userId: string, data: { displayName?: string, selectedIcon?: string | null }) {
+async function syncUserData(supabase: any, userId: string, data: { displayName?: string | null, selectedIcon?: string | null }) {
     try {
         await supabase.auth.updateUser({
             data: {
-                display_name: data.displayName,
-                avatar_icon: data.selectedIcon
+                display_name: data.displayName ?? undefined,
+                avatar_icon: data.selectedIcon ?? undefined
             }
         })
     } catch (error) {
@@ -85,8 +85,8 @@ export async function GET(request: Request) {
             })
 
             await syncUserData(supabase, session.user.id, {
-                displayName: user.displayName,
-                selectedIcon: user.selectedIcon
+                displayName: user.displayName ?? null,
+                selectedIcon: user.selectedIcon ?? null
             })
         }
 
@@ -147,8 +147,8 @@ export async function POST(request: Request) {
         })
 
         await syncUserData(supabase, session.user.id, {
-            displayName: user.displayName,
-            selectedIcon: user.selectedIcon
+            displayName: user.displayName ?? null,
+            selectedIcon: user.selectedIcon ?? null
         })
 
         return NextResponse.json(user)

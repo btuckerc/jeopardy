@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data: { session } } = await supabase.auth.getSession();
 
-    if (!userId) {
-        return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    if (!session?.user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
         const user = await prisma.user.findUnique({
-            where: { id: userId },
+            where: { id: session.user.id },
             select: {
                 spoilerBlockDate: true,
                 spoilerBlockEnabled: true,
@@ -31,23 +33,27 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+    const supabase = createRouteHandlerClient({ cookies });
+    const { data: { session } } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
         const body = await request.json();
-        const { userId, spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt } = body;
-
-        if (!userId) {
-            return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-        }
+        const { spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt } = body;
 
         const user = await prisma.user.upsert({
-            where: { id: userId },
+            where: { id: session.user.id },
             update: {
                 spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
                 spoilerBlockEnabled: spoilerBlockEnabled !== undefined ? spoilerBlockEnabled : undefined,
                 lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : undefined
             },
             create: {
-                id: userId,
+                id: session.user.id,
+                email: session.user.email!,
                 spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
                 spoilerBlockEnabled: spoilerBlockEnabled !== undefined ? spoilerBlockEnabled : false,
                 lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null

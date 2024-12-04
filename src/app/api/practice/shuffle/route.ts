@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { KnowledgeCategory } from '@prisma/client'
 
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
-        const knowledgeCategory = searchParams.get('category')
+        const knowledgeCategory = searchParams.get('category') as KnowledgeCategory | null
 
         // Get questions based on knowledge category
         const questions = await prisma.question.findMany({
             where: knowledgeCategory ? {
-                knowledgeCategory: knowledgeCategory
+                knowledgeCategory
             } : {},
             include: {
                 category: true

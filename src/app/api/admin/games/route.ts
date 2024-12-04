@@ -102,7 +102,8 @@ export async function POST(request: Request) {
                                 difficulty: game.difficulty || 'MEDIUM',
                                 airDate: game.airDate ? new Date(game.airDate) : null,
                                 season: game.season,
-                                episodeId: game.episodeId
+                                episodeId: game.episodeId,
+                                knowledgeCategory: game.knowledgeCategory || 'GENERAL_KNOWLEDGE'
                             }
                         })
                     }
