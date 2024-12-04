@@ -132,14 +132,9 @@ export async function POST(request: Request) {
         if (displayName) updateData.displayName = displayName
         if (selectedIcon !== undefined) updateData.selectedIcon = selectedIcon
 
-        const user = await prisma.user.upsert({
+        const user = await prisma.user.update({
             where: { id: session.user.id },
-            update: updateData,
-            create: {
-                id: session.user.id,
-                email: session.user.email!,
-                ...updateData
-            },
+            data: updateData,
             select: {
                 displayName: true,
                 selectedIcon: true
