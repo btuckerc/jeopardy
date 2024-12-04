@@ -92,7 +92,7 @@ function CategoryModal({ category, onClose, onPractice }: {
                                     <span className={`text-lg ${question.correct ? 'text-green-600' : 'text-gray-400'}`}>
                                         {question.correct ? '✓' : '○'}
                                     </span>
-                                    <span className="font-medium">${question.value}</span>
+                                    <span className="font-medium text-black">${question.value}</span>
                                 </div>
                                 {question.correct ? (
                                     <>

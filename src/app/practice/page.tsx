@@ -196,8 +196,19 @@ export default function FreePractice() {
     useEffect(() => {
         const loadKnowledgeCategories = async () => {
             try {
-                const data = await getCategories()
-                setKnowledgeCategories(data)
+                // Get stats which now includes knowledge category stats
+                const response = await fetch('/api/stats' + (user?.id ? `?userId=${user.id}` : ''))
+                const data = await response.json()
+
+                // Map the knowledge category stats to the expected format
+                const knowledgeCategories = data.knowledgeCategoryStats.map((stat: any) => ({
+                    id: stat.categoryName.replace(/ /g, '_'),
+                    name: stat.categoryName,
+                    totalQuestions: stat.total,
+                    correctQuestions: stat.correct
+                }))
+
+                setKnowledgeCategories(knowledgeCategories)
 
                 // Get URL parameters
                 const params = new URLSearchParams(window.location.search)
@@ -220,7 +231,7 @@ export default function FreePractice() {
             }
         }
         loadKnowledgeCategories()
-    }, [])
+    }, [user?.id])
 
     // Intersection Observer for infinite scrolling
     useEffect(() => {

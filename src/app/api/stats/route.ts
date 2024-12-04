@@ -10,7 +10,73 @@ export async function GET(request: Request) {
     }
 
     try {
-        // First get all categories with their total questions and most recent air date
+        // Get knowledge category totals
+        const knowledgeCategoryTotals = await prisma.$queryRaw`
+            SELECT 
+                "knowledgeCategory",
+                COUNT(DISTINCT id) as total_questions
+            FROM "Question"
+            GROUP BY "knowledgeCategory"
+        ` as Array<{ knowledgeCategory: string; total_questions: number }>
+
+        // Get latest answers for each question with knowledge categories
+        const latestAnswers = await prisma.$queryRaw`
+            WITH LatestAnswers AS (
+                SELECT DISTINCT ON ("questionId") 
+                    "questionId",
+                    correct,
+                    points,
+                    timestamp
+                FROM "GameHistory"
+                WHERE "userId" = ${userId}
+                ORDER BY "questionId", timestamp DESC
+            )
+            SELECT 
+                la.*,
+                q."wasTripleStumper",
+                q."categoryId",
+                q."knowledgeCategory",
+                c.name as "categoryName"
+            FROM LatestAnswers la
+            JOIN "Question" q ON q.id = la."questionId"
+            JOIN "Category" c ON c.id = q."categoryId"
+        ` as Array<{
+            questionId: string
+            correct: boolean
+            points: number
+            wasTripleStumper: boolean
+            categoryId: string
+            categoryName: string
+            knowledgeCategory: string
+        }>
+
+        // Calculate total statistics
+        const totalPoints = latestAnswers
+            .filter(record => record.correct)
+            .reduce((sum, record) => sum + record.points, 0)
+
+        const totalAnswered = latestAnswers.length
+        const correctAnswers = latestAnswers.filter(record => record.correct).length
+        const tripleStumpersAnswered = latestAnswers
+            .filter(record => record.correct && record.wasTripleStumper)
+            .length
+
+        // Calculate knowledge category stats
+        const knowledgeCategoryStats = knowledgeCategoryTotals.map(kc => {
+            const answersInCategory = latestAnswers.filter(
+                a => a.knowledgeCategory === kc.knowledgeCategory
+            )
+            const correctAnswersInCategory = answersInCategory.filter(a => a.correct)
+
+            return {
+                categoryName: kc.knowledgeCategory.replace(/_/g, ' '),
+                correct: correctAnswersInCategory.length,
+                total: Number(kc.total_questions),
+                points: correctAnswersInCategory.reduce((sum, a) => sum + a.points, 0)
+            }
+        })
+
+        // Calculate category stats
         const categories = await prisma.category.findMany({
             include: {
                 _count: {
@@ -28,47 +94,6 @@ export async function GET(request: Request) {
             }
         })
 
-        // Then get the latest answer for each unique question
-        const latestAnswers = await prisma.$queryRaw`
-            WITH LatestAnswers AS (
-                SELECT DISTINCT ON ("questionId") 
-                    "questionId",
-                    correct,
-                    points,
-                    timestamp
-                FROM "GameHistory"
-                WHERE "userId" = ${userId}
-                ORDER BY "questionId", timestamp DESC
-            )
-            SELECT 
-                la.*,
-                q."wasTripleStumper",
-                q."categoryId",
-                c.name as "categoryName"
-            FROM LatestAnswers la
-            JOIN "Question" q ON q.id = la."questionId"
-            JOIN "Category" c ON c.id = q."categoryId"
-        ` as Array<{
-            questionId: string
-            correct: boolean
-            points: number
-            wasTripleStumper: boolean
-            categoryId: string
-            categoryName: string
-        }>
-
-        // Calculate total statistics from unique answers
-        const totalPoints = latestAnswers
-            .filter(record => record.correct)
-            .reduce((sum, record) => sum + record.points, 0)
-
-        const totalAnswered = latestAnswers.length
-        const correctAnswers = latestAnswers.filter(record => record.correct).length
-        const tripleStumpersAnswered = latestAnswers
-            .filter(record => record.correct && record.wasTripleStumper)
-            .length
-
-        // Initialize category stats with total questions from all categories
         const categoryStatsMap = categories.reduce((acc, category) => {
             acc[category.id] = {
                 categoryName: category.name,
@@ -86,7 +111,6 @@ export async function GET(request: Request) {
             mostRecentAirDate: Date | null
         }>)
 
-        // Update with answered questions
         latestAnswers.forEach(record => {
             if (record.correct) {
                 categoryStatsMap[record.categoryId].correct++
@@ -95,8 +119,6 @@ export async function GET(request: Request) {
         })
 
         const categoryStats = Object.values(categoryStatsMap)
-
-        // Calculate total questions across all categories
         const totalQuestions = categories.reduce((sum, cat) => sum + cat._count.questions, 0)
 
         return NextResponse.json({
@@ -105,6 +127,7 @@ export async function GET(request: Request) {
             totalAnswered,
             correctAnswers,
             tripleStumpersAnswered,
+            knowledgeCategoryStats,
             categoryStats
         })
     } catch (error) {

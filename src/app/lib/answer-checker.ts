@@ -4,7 +4,38 @@ function normalizeText(text: string): string {
         .toLowerCase()
         .replace(/[^a-z0-9\s&]/g, '') // Remove special characters except &
         .replace(/\s+/g, ' ')        // Normalize whitespace
+        .replace(/\s*&\s*/g, ' and ') // Replace & with 'and'
         .trim()
+}
+
+// Known equivalent terms mapping
+const EQUIVALENT_TERMS: { [key: string]: string[] } = {
+    'hockey': ['ice hockey', 'hockey'],
+    'football': ['american football', 'football'],
+    'soccer': ['association football', 'soccer', 'football'],
+    'first world war': ['world war 1', 'world war i', 'first world war', 'wwi', 'ww1'],
+    'second world war': ['world war 2', 'world war ii', 'second world war', 'wwii', 'ww2'],
+    'united states': ['united states of america', 'usa', 'us', 'united states'],
+    'united kingdom': ['united kingdom', 'uk', 'great britain', 'britain']
+}
+
+// Function to check for equivalent terms
+function checkEquivalentTerms(term1: string, term2: string): boolean {
+    const normalizedTerm1 = normalizeText(term1)
+    const normalizedTerm2 = normalizeText(term2)
+
+    // Direct match
+    if (normalizedTerm1 === normalizedTerm2) return true
+
+    // Check equivalence groups
+    for (const [_, equivalentGroup] of Object.entries(EQUIVALENT_TERMS)) {
+        const normalizedGroup = equivalentGroup.map(t => normalizeText(t))
+        if (normalizedGroup.includes(normalizedTerm1) && normalizedGroup.includes(normalizedTerm2)) {
+            return true
+        }
+    }
+
+    return false
 }
 
 // Convert number words to digits
@@ -86,13 +117,15 @@ function areSimilar(word1: string, word2: string): boolean {
 
 // Function to check if answer is a list
 function isList(answer: string): boolean {
-    return answer.includes('&') || answer.includes(',')
+    return answer.includes('&') || answer.includes(',') || answer.toLowerCase().includes(' and ')
 }
 
 // Function to normalize list items
 function normalizeList(text: string): string[] {
     return text
-        .split(/[,&]/)
+        .replace(/\s+and\s+/gi, ',') // Replace ' and ' with comma
+        .replace(/\s*&\s*/g, ',')    // Replace & with comma
+        .split(',')
         .map(item => normalizeText(item))
         .filter(item => item.length > 0)
 }
@@ -142,6 +175,11 @@ function handleParentheticalName(answer: string): string[] {
 export function checkAnswer(userAnswer: string, correctAnswer: string): boolean {
     let normalizedUser = normalizeText(userAnswer)
     let normalizedCorrect = normalizeText(correctAnswer)
+
+    // Check equivalent terms first
+    if (checkEquivalentTerms(userAnswer, correctAnswer)) {
+        return true
+    }
 
     // Remove "what is" and "who is" from the beginning of the answer
     normalizedUser = normalizedUser.replace(/^(what|who) (is|are) /, '')
