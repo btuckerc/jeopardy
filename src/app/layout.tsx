@@ -9,6 +9,11 @@ const inter = Inter({ subsets: ['latin'] })
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
 
 export const metadata = {
+  metadataBase: new URL(
+    process.env.NODE_ENV === 'production'
+      ? 'https://www.trivrdy.com'
+      : 'http://localhost:3000'
+  ),
   title: 'trivrdy - Study Jeopardy Online | Practice Trivia Game',
   description: 'Practice Jeopardy-style trivia with trivrdy. Features game mode, practice mode, and leaderboards. Created by Tucker Craig.',
   keywords: 'jeopardy, trivia game, study jeopardy, practice trivia, trivrdy, jeopardy simulator, tucker craig',
@@ -53,10 +58,7 @@ export const metadata = {
       'max-image-preview': 'large',
       'max-snippet': -1,
     },
-  },
-  verification: {
-    google: 'google-site-verification-code-here',
-  },
+  }
 }
 
 export default function RootLayout({
