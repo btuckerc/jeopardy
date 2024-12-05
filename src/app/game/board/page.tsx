@@ -471,7 +471,7 @@ export default function GameBoard() {
                                             onClick={handleDontKnow}
                                             className="flex-1 bg-gray-200 text-gray-900 p-3 rounded-lg hover:bg-gray-300"
                                         >
-                                            I don't know
+                                            I don&apos;t know
                                         </button>
                                     </div>
                                 </form>
@@ -522,7 +522,7 @@ export default function GameBoard() {
                                 }}
                                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-bold"
                             >
-                                Yes, Let's Go!
+                                Yes, Let&apos;s Go!
                             </button>
                             <button
                                 onClick={() => setShowRoundComplete(false)}
