@@ -390,11 +390,18 @@ export async function saveAnswer(
 
 export async function getCategoryQuestions(categoryId: string, knowledgeCategoryId: string, userId?: string) {
     try {
+        // Build the where clause based on whether we have a knowledge category or regular category
+        const where: any = {
+            categoryId
+        };
+
+        // Only add knowledge category filter if it's a valid knowledge category
+        if (knowledgeCategoryId && Object.values(KnowledgeCategory).includes(knowledgeCategoryId as any)) {
+            where.knowledgeCategory = knowledgeCategoryId as KnowledgeCategory;
+        }
+
         const questions = await prisma.question.findMany({
-            where: {
-                categoryId,
-                knowledgeCategory: knowledgeCategoryId as KnowledgeCategory
-            },
+            where,
             orderBy: {
                 airDate: 'desc'
             },
@@ -409,7 +416,7 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
                     }
                 } : false
             }
-        })
+        });
 
         return questions.map(question => {
             const gameHistory = (question.gameHistory || []) as GameHistoryWithTimestamp[]

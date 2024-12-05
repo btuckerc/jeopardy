@@ -1,11 +1,28 @@
+// Add possessive pronouns and articles to be stripped
+const REMOVABLE_WORDS = [
+    // Possessive pronouns
+    'my', 'your', 'his', 'her', 'their', 'our', 'its',
+    // Articles
+    'a', 'an', 'the'
+];
+
 // Function to normalize text for comparison
 function normalizeText(text: string): string {
-    return text
+    let normalized = text
         .toLowerCase()
         .replace(/[^a-z0-9\s&]/g, '') // Remove special characters except &
         .replace(/\s+/g, ' ')        // Normalize whitespace
         .replace(/\s*&\s*/g, ' and ') // Replace & with 'and'
-        .trim()
+        .trim();
+
+    // Remove possessive pronouns and articles from the start of the answer
+    const words = normalized.split(' ');
+    while (words.length > 1 && REMOVABLE_WORDS.includes(words[0])) {
+        words.shift();
+    }
+    normalized = words.join(' ');
+
+    return normalized;
 }
 
 // Known equivalent terms mapping
@@ -102,17 +119,40 @@ function areSimilar(word1: string, word2: string): boolean {
     if (num1 !== word1 && num2 !== word2 && num1 === num2) return true
 
     // Allow for common variations
-    const variations = new Set([
+    const variations1 = new Set([
         word1,
         word1.replace(/s$/, ''),     // Remove trailing 's'
         word1.replace(/es$/, ''),    // Remove trailing 'es'
+        word1.replace(/ies$/, 'y'),  // Handle 'y' to 'ies' conversion
         word1.replace(/ing$/, ''),   // Remove trailing 'ing'
         word1.replace(/ed$/, ''),    // Remove trailing 'ed'
         `${word1}s`,                 // Add 's'
         `${word1}es`,                // Add 'es'
+        word1.replace(/y$/, 'ies'),  // Handle 'y' to 'ies' conversion
     ])
 
-    return variations.has(word2)
+    const variations2 = new Set([
+        word2,
+        word2.replace(/s$/, ''),
+        word2.replace(/es$/, ''),
+        word2.replace(/ies$/, 'y'),
+        word2.replace(/ing$/, ''),
+        word2.replace(/ed$/, ''),
+        `${word2}s`,
+        `${word2}es`,
+        word2.replace(/y$/, 'ies'),
+    ])
+
+    // Check if any variation of word1 matches any variation of word2
+    for (const v1 of variations1) {
+        for (const v2 of variations2) {
+            if (v1 === v2) return true
+            // Also check phonetic similarity for variations
+            if (getPhoneticCode(v1) === getPhoneticCode(v2)) return true
+        }
+    }
+
+    return false
 }
 
 // Function to check if answer is a list
@@ -137,38 +177,42 @@ function isProperNoun(answer: string): boolean {
     return words.length > 1 && words.every(word => /^[A-Z]/.test(word))
 }
 
-// Function to normalize articles
+// Function to normalize articles (can be removed since we handle it in normalizeText now)
 function normalizeArticles(text: string): string {
-    // Only remove articles if they're not part of a proper noun or the entire answer
-    const words = text.split(' ')
-    if (words.length <= 1) return text
-
-    const articles = ['a', 'an', 'the']
-    // Keep articles if they're part of a proper noun (detected by capitalization)
-    return words
-        .map((word, i) => {
-            if (articles.includes(word.toLowerCase()) && !word.startsWith('The')) {
-                return null // Mark for removal
-            }
-            return word
-        })
-        .filter(word => word !== null)
-        .join(' ')
+    return text; // Just return the text as-is since we handle articles in normalizeText
 }
 
 // Function to handle parenthetical names
 function handleParentheticalName(answer: string): string[] {
     const variants: string[] = [answer];
 
-    // Match text within parentheses and the surrounding text
-    const match = answer.match(/\(([^)]+)\)\s*(\w+)/) || answer.match(/(\w+)\s*\(([^)]+)\)/);
-    if (match) {
-        const withoutParens = answer.replace(/[()]/g, '').trim();
-        const withoutParenContent = answer.replace(/\([^)]+\)/g, '').trim();
-        variants.push(withoutParens, withoutParenContent);
+    // Handle "(or ...)" format
+    const orMatch = answer.match(/(.*?)\s*\(or\s+(.*?)\)/i);
+    if (orMatch) {
+        variants.push(orMatch[1].trim(), orMatch[2].trim());
+        return variants;
     }
 
-    return variants;
+    // Handle regular parenthetical content
+    const match = answer.match(/^(.*?)\s*\((.*?)\)(?:\s*(.*))?$/);
+    if (match) {
+        const [_, beforeParens, inParens, afterParens] = match;
+        const parts = [beforeParens, inParens, afterParens].filter(Boolean);
+
+        // Add variants without parentheses
+        variants.push(
+            parts.join(' ').trim(),
+            beforeParens.trim(),
+            (beforeParens + ' ' + (afterParens || '')).trim()
+        );
+
+        // If there's content both before and after parentheses, try that combination
+        if (beforeParens && afterParens) {
+            variants.push((beforeParens + ' ' + afterParens).trim());
+        }
+    }
+
+    return [...new Set(variants)].filter(Boolean);
 }
 
 // Main answer checking function
