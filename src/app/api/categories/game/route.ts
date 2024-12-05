@@ -12,10 +12,13 @@ type KnowledgeCategory =
     | 'SPORTS_AND_LEISURE'
     | 'GENERAL_KNOWLEDGE'
 
-type CategoryWithCount = Category & {
+type CategoryWithQuestions = Category & {
     _count: {
         questions: number
     }
+    questions: {
+        airDate: Date | null
+    }[]
 }
 
 type QuestionResult = Pick<Question, 'id' | 'question' | 'answer' | 'value' | 'isDoubleJeopardy' | 'wasTripleStumper'>
@@ -115,6 +118,19 @@ export async function GET(request: NextRequest) {
         const categoriesWithCounts = await prisma.category.findMany({
             where: whereClause,
             include: {
+                questions: {
+                    where: {
+                        isDoubleJeopardy: isDouble,
+                        ...(user?.spoilerBlockEnabled ? {
+                            airDate: {
+                                lt: user.spoilerBlockDate ?? undefined
+                            }
+                        } : {})
+                    },
+                    select: {
+                        airDate: true
+                    }
+                },
                 _count: {
                     select: {
                         questions: {
@@ -130,12 +146,20 @@ export async function GET(request: NextRequest) {
                     }
                 }
             }
-        }) as CategoryWithCount[]
+        }) as unknown as CategoryWithQuestions[]
 
-        // Filter to categories with enough questions (at least 5)
-        const eligibleCategories = categoriesWithCounts.filter(
-            (category) => category._count.questions >= 5
-        )
+        // Filter to categories that have exactly 5 questions on at least one airdate
+        const eligibleCategories = categoriesWithCounts.filter((category: CategoryWithQuestions) => {
+            // Group questions by airdate
+            const questionsByDate = category.questions.reduce((acc: Record<string, number>, q) => {
+                const date = q.airDate?.toISOString().split('T')[0] ?? 'unknown'
+                acc[date] = (acc[date] || 0) + 1
+                return acc
+            }, {})
+
+            // Check if any date has exactly 5 questions
+            return Object.values(questionsByDate).some(count => count === 5)
+        })
 
         if (eligibleCategories.length < 5) {
             return NextResponse.json(
@@ -151,7 +175,8 @@ export async function GET(request: NextRequest) {
 
         // Get questions for each category
         const categoriesWithQuestions = await Promise.all(
-            selectedCategories.map(async (category) => {
+            selectedCategories.map(async (category: CategoryWithQuestions) => {
+            // Get all questions grouped by airdate
                 const questions = await prisma.question.findMany({
                     where: {
                         categoryId: category.id,
@@ -162,23 +187,46 @@ export async function GET(request: NextRequest) {
                             }
                         } : {})
                     },
-                    orderBy: {
-                        value: 'asc'
-                    },
+                    orderBy: [
+                        { airDate: 'desc' },
+                        { value: 'asc' }
+                    ],
                     select: {
                         id: true,
                         question: true,
                         answer: true,
                         value: true,
                         isDoubleJeopardy: true,
-                        wasTripleStumper: true
+                        wasTripleStumper: true,
+                        airDate: true
                     }
                 })
+
+                // Group questions by airdate
+                const questionsByDate = questions.reduce((acc: Record<string, typeof questions>, q) => {
+                    const date = q.airDate?.toISOString().split('T')[0] ?? 'unknown'
+                    if (!acc[date]) acc[date] = []
+                    acc[date].push(q)
+                    return acc
+                }, {})
+
+                // Find the first date that has exactly 5 questions
+                const validDate = Object.entries(questionsByDate)
+                    .find(([_, questions]) => questions.length === 5)?.[0]
+
+                if (!validDate) {
+                    throw new Error(`No valid date found for category ${category.id}`)
+                }
+
+                // Return the 5 questions from that date
+                const selectedQuestions = questionsByDate[validDate]
+                    .sort((a, b) => a.value - b.value)
+                    .map(({ airDate, ...q }) => q)
 
                 return {
                     id: category.id,
                     name: category.name,
-                    questions: questions as QuestionResult[]
+                    questions: selectedQuestions
                 }
             })
         )
