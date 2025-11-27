@@ -7,6 +7,7 @@ import {
     parseSearchParams,
     getAuthenticatedUser
 } from '@/lib/api-utils'
+import { getStatsPoints } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,10 +75,24 @@ export async function GET(request: Request) {
             categoryName: string
         }>
 
-        // Calculate summary stats
-        const totalCorrect = answeredQuestions.filter(q => q.correct).length
-        const totalIncorrect = answeredQuestions.filter(q => !q.correct).length
-        const totalPoints = answeredQuestions
+        // Compute normalized points for each question
+        const questionsWithNormalizedPoints = answeredQuestions.map(q => {
+            const normalizedPoints = getStatsPoints({
+                round: q.round,
+                faceValue: q.value,
+                correct: q.correct,
+                storedPoints: q.points
+            })
+            return {
+                ...q,
+                points: normalizedPoints
+            }
+        })
+
+        // Calculate summary stats using normalized points
+        const totalCorrect = questionsWithNormalizedPoints.filter(q => q.correct).length
+        const totalIncorrect = questionsWithNormalizedPoints.filter(q => !q.correct).length
+        const totalPoints = questionsWithNormalizedPoints
             .filter(q => q.correct)
             .reduce((sum, q) => sum + q.points, 0)
 
@@ -85,12 +100,12 @@ export async function GET(request: Request) {
         const categoryMap = new Map<string, {
             categoryId: string
             categoryName: string
-            questions: typeof answeredQuestions
+            questions: typeof questionsWithNormalizedPoints
             correct: number
             incorrect: number
         }>()
 
-        answeredQuestions.forEach(q => {
+        questionsWithNormalizedPoints.forEach(q => {
             const existing = categoryMap.get(q.categoryId)
             if (existing) {
                 existing.questions.push(q)
@@ -116,12 +131,12 @@ export async function GET(request: Request) {
             })
 
         return jsonResponse({
-            questions: answeredQuestions,
+            questions: questionsWithNormalizedPoints,
             categories,
             summary: {
                 totalCorrect,
                 totalIncorrect,
-                totalAttempted: answeredQuestions.length,
+                totalAttempted: questionsWithNormalizedPoints.length,
                 totalPoints
             }
         })

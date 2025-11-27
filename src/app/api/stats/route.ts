@@ -7,6 +7,7 @@ import {
     parseSearchParams,
     getAuthenticatedUser
 } from '@/lib/api-utils'
+import { getStatsPoints, FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,6 +75,8 @@ export async function GET(request: Request) {
                 q."wasTripleStumper",
                 q."categoryId",
                 q."knowledgeCategory",
+                q.round,
+                q.value,
                 c.name as "categoryName"
             FROM LatestAnswers la
             JOIN "Question" q ON q.id = la."questionId"
@@ -86,12 +89,48 @@ export async function GET(request: Request) {
             categoryId: string
             categoryName: string
             knowledgeCategory: string
+            round: string
+            value: number | null
         }>
 
-        // Calculate total statistics
+        // Get round breakdown for all questions (to support filtering not-started categories)
+        const allQuestionsRoundBreakdown = await prisma.$queryRaw`
+            SELECT 
+                q."categoryId",
+                q.round,
+                COUNT(*) as question_count
+            FROM "Question" q
+            GROUP BY q."categoryId", q.round
+        ` as Array<{
+            categoryId: string
+            round: string
+            question_count: number
+        }>
+
+        // Get total triple stumper count per category (to support filtering not-started categories)
+        const tripleStumpersTotal = await prisma.$queryRaw`
+            SELECT 
+                q."categoryId",
+                COUNT(*) as triple_stumper_count
+            FROM "Question" q
+            WHERE q."wasTripleStumper" = true
+            GROUP BY q."categoryId"
+        ` as Array<{
+            categoryId: string
+            triple_stumper_count: number
+        }>
+
+        // Calculate total statistics using normalized scoring
         const totalPoints = latestAnswers
             .filter(record => record.correct)
-            .reduce((sum, record) => sum + record.points, 0)
+            .reduce((sum, record) => {
+                return sum + getStatsPoints({
+                    round: record.round,
+                    faceValue: record.value,
+                    correct: record.correct,
+                    storedPoints: record.points
+                })
+            }, 0)
 
         const totalAnswered = latestAnswers.length
         const correctAnswers = latestAnswers.filter(record => record.correct).length
@@ -99,7 +138,7 @@ export async function GET(request: Request) {
             .filter(record => record.correct && record.wasTripleStumper)
             .length
 
-        // Calculate knowledge category stats
+        // Calculate knowledge category stats using normalized scoring
         const knowledgeCategoryStats = knowledgeCategoryTotals.map(kc => {
             const answersInCategory = latestAnswers.filter(
                 a => a.knowledgeCategory === kc.knowledgeCategory
@@ -110,7 +149,14 @@ export async function GET(request: Request) {
                 categoryName: kc.knowledgeCategory.replace(/_/g, ' '),
                 correct: correctAnswersInCategory.length,
                 total: Number(kc.total_questions),
-                points: correctAnswersInCategory.reduce((sum, a) => sum + a.points, 0)
+                points: correctAnswersInCategory.reduce((sum, a) => {
+                    return sum + getStatsPoints({
+                        round: a.round,
+                        faceValue: a.value,
+                        correct: a.correct,
+                        storedPoints: a.points
+                    })
+                }, 0)
             }
         })
 
@@ -138,7 +184,19 @@ export async function GET(request: Request) {
                 correct: 0,
                 total: category._count.questions,
                 points: 0,
-                mostRecentAirDate: category.questions[0]?.airDate
+                mostRecentAirDate: category.questions[0]?.airDate,
+                roundBreakdown: {
+                    SINGLE: 0,
+                    DOUBLE: 0,
+                    FINAL: 0
+                },
+                roundBreakdownTotal: {
+                    SINGLE: 0,
+                    DOUBLE: 0,
+                    FINAL: 0
+                },
+                tripleStumpersCorrect: 0,
+                tripleStumpersTotal: 0
             }
             return acc
         }, {} as Record<string, {
@@ -147,12 +205,54 @@ export async function GET(request: Request) {
             total: number
             points: number
             mostRecentAirDate: Date | null
+            roundBreakdown: {
+                SINGLE: number
+                DOUBLE: number
+                FINAL: number
+            }
+            roundBreakdownTotal: {
+                SINGLE: number
+                DOUBLE: number
+                FINAL: number
+            }
+            tripleStumpersCorrect: number
+            tripleStumpersTotal: number
         }>)
+
+        // Populate round breakdown for all questions
+        allQuestionsRoundBreakdown.forEach(record => {
+            if (categoryStatsMap[record.categoryId] && (record.round === 'SINGLE' || record.round === 'DOUBLE' || record.round === 'FINAL')) {
+                categoryStatsMap[record.categoryId].roundBreakdownTotal[record.round as 'SINGLE' | 'DOUBLE' | 'FINAL'] = Number(record.question_count)
+            }
+        })
+
+        // Populate total triple stumper count per category
+        tripleStumpersTotal.forEach(record => {
+            if (categoryStatsMap[record.categoryId]) {
+                categoryStatsMap[record.categoryId].tripleStumpersTotal = Number(record.triple_stumper_count)
+            }
+        })
 
         latestAnswers.forEach(record => {
             if (record.correct) {
-                categoryStatsMap[record.categoryId].correct++
-                categoryStatsMap[record.categoryId].points += record.points
+                const categoryStat = categoryStatsMap[record.categoryId]
+                categoryStat.correct++
+                categoryStat.points += getStatsPoints({
+                    round: record.round,
+                    faceValue: record.value,
+                    correct: record.correct,
+                    storedPoints: record.points
+                })
+                
+                // Track round breakdown
+                if (record.round === 'SINGLE' || record.round === 'DOUBLE' || record.round === 'FINAL') {
+                    categoryStat.roundBreakdown[record.round as 'SINGLE' | 'DOUBLE' | 'FINAL']++
+                }
+                
+                // Track triple stumpers
+                if (record.wasTripleStumper) {
+                    categoryStat.tripleStumpersCorrect++
+                }
             }
         })
 
@@ -182,7 +282,11 @@ export async function GET(request: Request) {
                 q.round,
                 COUNT(*) as total_answered,
                 SUM(CASE WHEN la.correct THEN 1 ELSE 0 END) as correct_count,
-                SUM(CASE WHEN la.correct THEN la.points ELSE 0 END) as total_points
+                SUM(CASE 
+                    WHEN la.correct AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
+                    WHEN la.correct THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
+                    ELSE 0 
+                END) as total_points
             FROM LatestAnswers la
             JOIN "Question" q ON q.id = la."questionId"
             GROUP BY q.round

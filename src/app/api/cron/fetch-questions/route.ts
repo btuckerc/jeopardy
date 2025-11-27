@@ -86,6 +86,7 @@ export async function GET(request: Request) {
                             airDate: new Date(formattedDate),
                             round: toPrismaRound(question.round),
                             isDoubleJeopardy: question.round === 'DOUBLE', // Legacy field
+                            wasTripleStumper: question.wasTripleStumper ?? false,
                             category: {
                                 connect: { id: category.id }
                             }

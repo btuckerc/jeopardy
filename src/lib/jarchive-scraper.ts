@@ -23,6 +23,7 @@ export interface ParsedQuestion {
     round: JeopardyRound
     difficulty: 'EASY' | 'MEDIUM' | 'HARD'
     knowledgeCategory: KnowledgeCategory
+    wasTripleStumper: boolean
 }
 
 export interface ParsedCategory {
@@ -352,10 +353,15 @@ function parseRound(
         
         // Get answer from correct_response
         let answerText = ''
+        let wasTripleStumper = false
         const correctResponse = roundElement.querySelector('.correct_response')
         if (correctResponse) {
             answerText = correctResponse.text.trim()
         }
+        
+        // Check for triple stumper in Final Jeopardy (check the round element text)
+        const roundText = roundElement.text || ''
+        wasTripleStumper = roundText.toLowerCase().includes('triple stumper')
         
         if (clueText) {
             const question: ParsedQuestion = {
@@ -365,7 +371,8 @@ function parseRound(
                 category: categoryName,
                 round: 'FINAL',
                 difficulty: 'HARD',
-                knowledgeCategory: classifyKnowledgeCategory(categoryName)
+                knowledgeCategory: classifyKnowledgeCategory(categoryName),
+                wasTripleStumper
             }
             
             questions.push(question)
@@ -413,12 +420,16 @@ function parseRound(
             
             // Get answer from response element
             let answerText = ''
+            let wasTripleStumper = false
             const responseEl = gameRoot.querySelector(`#${responseId}`)
             if (responseEl) {
                 const correctResponse = responseEl.querySelector('.correct_response')
                 if (correctResponse) {
                     answerText = correctResponse.text.trim()
                 }
+                // Check if this was a triple stumper by looking for "Triple Stumper" text in the response element
+                const responseText = responseEl.text || ''
+                wasTripleStumper = responseText.toLowerCase().includes('triple stumper')
             }
             
             // Calculate value based on row and round
@@ -433,7 +444,8 @@ function parseRound(
                     category: categoryName,
                     round: roundType,
                     difficulty: classifyDifficulty(value, roundType),
-                    knowledgeCategory: classifyKnowledgeCategory(categoryName)
+                    knowledgeCategory: classifyKnowledgeCategory(categoryName),
+                    wasTripleStumper
                 }
                 
                 questions.push(question)

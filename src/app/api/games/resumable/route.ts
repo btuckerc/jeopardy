@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 
 /**
@@ -29,16 +29,16 @@ function calculateExpectedQuestions(config: any): number {
  */
 export async function GET() {
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
 
-        if (!session?.user?.id) {
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
         // Fetch in-progress games for this user
         const games = await prisma.game.findMany({
             where: {
-                userId: session.user.id,
+                userId: appUser.id,
                 status: 'IN_PROGRESS'
             },
             orderBy: {

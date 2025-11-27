@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/app/lib/auth'
@@ -54,6 +54,8 @@ type RoundHistoryCategory = {
 
 type SelectedRound = 'SINGLE' | 'DOUBLE' | 'FINAL' | null
 
+type CategoryFilter = 'ALL' | 'SINGLE' | 'DOUBLE' | 'FINAL' | 'TRIPLE_STUMPER'
+
 type CategoryStats = {
     categoryName: string
     correct: number
@@ -61,6 +63,18 @@ type CategoryStats = {
     points: number
     mostRecentAirDate?: string | null
     questions?: Question[]
+    roundBreakdown?: {
+        SINGLE: number
+        DOUBLE: number
+        FINAL: number
+    }
+    roundBreakdownTotal?: {
+        SINGLE: number
+        DOUBLE: number
+        FINAL: number
+    }
+    tripleStumpersCorrect?: number
+    tripleStumpersTotal?: number
 }
 
 type RoundStats = {
@@ -833,8 +847,15 @@ export default function StatsPage() {
     const [selectedRound, setSelectedRound] = useState<SelectedRound>(null)
     const [showUnstarted, setShowUnstarted] = useState(false)
     const [showBackToTop, setShowBackToTop] = useState(false)
+    const [activeCategoryFilter, setActiveCategoryFilter] = useState<CategoryFilter>('ALL')
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
+
+    // Lazy loading state for unstarted categories
+    const UNSTARTED_PAGE_SIZE = 50
+    const [unstartedVisibleCount, setUnstartedVisibleCount] = useState(UNSTARTED_PAGE_SIZE)
+    const [isLoadingMore, setIsLoadingMore] = useState(false)
+    const sentinelRef = useRef<HTMLDivElement | null>(null)
 
     // Handle scroll to show/hide back to top button
     useEffect(() => {
@@ -849,6 +870,47 @@ export default function StatsPage() {
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
+
+    // Reset unstarted visible count when toggle or filter changes
+    useEffect(() => {
+        setUnstartedVisibleCount(UNSTARTED_PAGE_SIZE)
+    }, [showUnstarted, activeCategoryFilter])
+
+    // Infinite scroll for unstarted categories
+    useEffect(() => {
+        // Only set up observer if unstarted categories are shown and sentinel exists
+        if (!showUnstarted) return
+        
+        const sentinel = sentinelRef.current
+        if (!sentinel) return
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const [entry] = entries
+                if (entry.isIntersecting && !isLoadingMore) {
+                    setIsLoadingMore(true)
+                    // Use setTimeout to debounce and allow React to batch updates
+                    setTimeout(() => {
+                        setUnstartedVisibleCount((prev) => {
+                            // Increment by page size, will be capped by slice operation
+                            return prev + UNSTARTED_PAGE_SIZE
+                        })
+                        setIsLoadingMore(false)
+                    }, 100)
+                }
+            },
+            {
+                rootMargin: '100px', // Start loading before reaching the bottom
+                threshold: 0.1
+            }
+        )
+
+        observer.observe(sentinel)
+
+        return () => {
+            observer.disconnect()
+        }
+    }, [showUnstarted, isLoadingMore])
 
     useEffect(() => {
         let mounted = true
@@ -918,15 +980,15 @@ export default function StatsPage() {
 
             // If category is complete, go to the categories list within that knowledge category
             if (isComplete) {
-                router.push(`/practice?knowledgeCategory=${encodeURIComponent(knowledgeCategory)}`)
+                router.push(`/practice/category?knowledgeCategory=${encodeURIComponent(knowledgeCategory)}`)
             } else {
                 // If incomplete, go to the questions list for this specific category
-                router.push(`/practice?knowledgeCategory=${encodeURIComponent(knowledgeCategory)}&category=${encodeURIComponent(categoryId)}`)
+                router.push(`/practice/category?knowledgeCategory=${encodeURIComponent(knowledgeCategory)}&category=${encodeURIComponent(categoryId)}`)
             }
         } catch (error) {
             console.error('Error navigating to practice category:', error)
             // Fallback to simple navigation if there's an error
-            router.push('/practice')
+            router.push('/practice/category')
         }
     }
 
@@ -992,6 +1054,41 @@ export default function StatsPage() {
     }
 
     const { inProgress, notStarted } = categorizeAndSortStats(stats.categoryStats)
+
+    // Filter categories based on active filter
+    const filterCategories = (categories: CategoryStats[], filter: CategoryFilter, isNotStarted: boolean = false): CategoryStats[] => {
+        if (filter === 'ALL') return categories
+        
+        return categories.filter(category => {
+            if (filter === 'TRIPLE_STUMPER') {
+                // For in-progress categories: check tripleStumpersCorrect (correctly answered)
+                // For not-started categories: check tripleStumpersTotal (all triple stumper questions)
+                if (isNotStarted) {
+                    return (category.tripleStumpersTotal || 0) > 0
+                } else {
+                    return (category.tripleStumpersCorrect || 0) > 0
+                }
+            }
+            
+            // For round filters:
+            // - For in-progress categories: check roundBreakdown (correct answers)
+            // - For not-started categories: check roundBreakdownTotal (all questions)
+            if (isNotStarted) {
+                const roundBreakdownTotal = category.roundBreakdownTotal || { SINGLE: 0, DOUBLE: 0, FINAL: 0 }
+                return roundBreakdownTotal[filter as 'SINGLE' | 'DOUBLE' | 'FINAL'] > 0
+            } else {
+                const roundBreakdown = category.roundBreakdown || { SINGLE: 0, DOUBLE: 0, FINAL: 0 }
+                return roundBreakdown[filter as 'SINGLE' | 'DOUBLE' | 'FINAL'] > 0
+            }
+        })
+    }
+
+    const visibleInProgress = filterCategories(inProgress, activeCategoryFilter, false)
+    const visibleNotStarted = filterCategories(notStarted, activeCategoryFilter, true)
+    
+    // Create paginated slice for unstarted categories
+    const visibleNotStartedPage = visibleNotStarted.slice(0, unstartedVisibleCount)
+    const hasMoreUnstarted = visibleNotStartedPage.length < visibleNotStarted.length
 
     return (
         <div className="container mx-auto p-4">
@@ -1117,53 +1214,150 @@ export default function StatsPage() {
                 </div>
             )}
 
-            {(inProgress.length > 0 || (showUnstarted && notStarted.length > 0)) && (
+            {(inProgress.length > 0 || notStarted.length > 0) && (
                 <div>
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-semibold text-black">Category Breakdown</h2>
-                        <div className="flex items-center gap-2">
-                            <label className="text-sm text-gray-600">Show Unstarted Categories</label>
-                            <button
-                                onClick={() => setShowUnstarted(!showUnstarted)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showUnstarted ? 'bg-blue-600' : 'bg-gray-200'
-                                    }`}
-                            >
-                                <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showUnstarted ? 'translate-x-6' : 'translate-x-1'
+                    <div className="mb-4">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+                            <h2 className="text-xl font-semibold text-black">Category Breakdown</h2>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm text-gray-600 whitespace-nowrap">Show Unstarted Categories</label>
+                                <button
+                                    onClick={() => setShowUnstarted(!showUnstarted)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showUnstarted ? 'bg-blue-600' : 'bg-gray-200'
                                         }`}
-                                />
-                            </button>
+                                >
+                                    <span
+                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showUnstarted ? 'translate-x-6' : 'translate-x-1'
+                                            }`}
+                                    />
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* Filter chips */}
+                        <div className="flex flex-wrap items-center gap-2 mb-3">
+                            <span className="text-sm text-gray-600 mr-1">Filter by:</span>
+                            {(['ALL', 'SINGLE', 'DOUBLE', 'FINAL', 'TRIPLE_STUMPER'] as CategoryFilter[]).map((filter) => {
+                                const isActive = activeCategoryFilter === filter
+                                const getFilterStyles = () => {
+                                    if (!isActive) {
+                                        return 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    }
+                                    switch (filter) {
+                                        case 'SINGLE':
+                                            return 'bg-blue-50 border-blue-500 text-blue-700'
+                                        case 'DOUBLE':
+                                            return 'bg-purple-50 border-purple-500 text-purple-700'
+                                        case 'FINAL':
+                                            return 'bg-amber-50 border-amber-500 text-amber-700'
+                                        case 'TRIPLE_STUMPER':
+                                            return 'bg-orange-50 border-orange-500 text-orange-700'
+                                        default:
+                                            return 'bg-gray-100 border-gray-500 text-gray-700'
+                                    }
+                                }
+                                const getFilterLabel = () => {
+                                    switch (filter) {
+                                        case 'ALL': return 'All'
+                                        case 'SINGLE': return 'Single'
+                                        case 'DOUBLE': return 'Double'
+                                        case 'FINAL': return 'Final'
+                                        case 'TRIPLE_STUMPER': return 'Triple Stumpers'
+                                        default: return filter
+                                    }
+                                }
+                                return (
+                                    <button
+                                        key={filter}
+                                        onClick={() => setActiveCategoryFilter(filter)}
+                                        className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${getFilterStyles()}`}
+                                    >
+                                        {getFilterLabel()}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                        
+                        {/* Legend */}
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mb-2">
+                            <span className="font-medium">Legend:</span>
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">Single</span>
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">Double</span>
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">Final</span>
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded font-medium">Triple Stumper</span>
                         </div>
                     </div>
 
-                    {inProgress.length > 0 && (
+                    {visibleInProgress.length > 0 && (
                         <>
                             <h3 className="text-lg font-medium text-gray-700 mb-3">In Progress</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                                {inProgress.map((category) => (
-                                    <button
-                                        key={category.categoryName}
-                                        onClick={() => handleCategoryClick(category)}
-                                        className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-left"
-                                    >
-                                        <h3 className="font-semibold text-black">{category.categoryName}</h3>
-                                        <p className="text-gray-600">
-                                            {category.correct.toLocaleString()} / {category.total.toLocaleString()} correct ({
-                                                Math.round((category.correct / category.total) * 100)
-                                            }%)
-                                        </p>
-                                        <p className="text-gray-600">Points: ${category.points.toLocaleString()}</p>
-                                    </button>
-                                ))}
+                                {visibleInProgress.map((category) => {
+                                    const roundBreakdown = category.roundBreakdown || { SINGLE: 0, DOUBLE: 0, FINAL: 0 }
+                                    const tripleStumpers = category.tripleStumpersCorrect || 0
+                                    const hasSingle = roundBreakdown.SINGLE > 0
+                                    const hasDouble = roundBreakdown.DOUBLE > 0
+                                    const hasFinal = roundBreakdown.FINAL > 0
+                                    const hasTriple = tripleStumpers > 0
+                                    
+                                    // Determine round indicator text and color
+                                    const roundIndicators = []
+                                    if (hasSingle) roundIndicators.push({ text: 'Single', color: 'blue' })
+                                    if (hasDouble) roundIndicators.push({ text: 'Double', color: 'purple' })
+                                    if (hasFinal) roundIndicators.push({ text: 'Final', color: 'amber' })
+                                    
+                                    const roundText = roundIndicators.map(r => r.text).join(' / ')
+                                    const primaryRoundColor = roundIndicators.length > 0 ? roundIndicators[0].color : 'gray'
+                                    
+                                    return (
+                                        <button
+                                            key={category.categoryName}
+                                            onClick={() => handleCategoryClick(category)}
+                                            className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-left"
+                                        >
+                                            <h3 className="font-semibold text-black">{category.categoryName}</h3>
+                                            <p className="text-gray-600">
+                                                {category.correct.toLocaleString()} / {category.total.toLocaleString()} correct ({
+                                                    Math.round((category.correct / category.total) * 100)
+                                                }%)
+                                            </p>
+                                            <p className="text-gray-600 mb-2">Points: ${category.points.toLocaleString()}</p>
+                                            
+                                            {/* Round/Triple indicators */}
+                                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
+                                                {roundIndicators.length > 0 && (
+                                                    <span 
+                                                        className={`px-2 py-0.5 text-xs font-medium rounded ${
+                                                            primaryRoundColor === 'blue' ? 'bg-blue-100 text-blue-700' :
+                                                            primaryRoundColor === 'purple' ? 'bg-purple-100 text-purple-700' :
+                                                            'bg-amber-100 text-amber-700'
+                                                        }`}
+                                                        title={`Rounds: ${roundText}`}
+                                                    >
+                                                        {roundText}
+                                                    </span>
+                                                )}
+                                                {hasTriple && (
+                                                    <span 
+                                                        className="px-2 py-0.5 bg-orange-100 text-orange-800 text-xs rounded font-medium"
+                                                        title="Contains triple stumper questions"
+                                                    >
+                                                        Triple Stumper
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    )
+                                })}
                             </div>
                         </>
                     )}
 
-                    {showUnstarted && notStarted.length > 0 && (
+                    {showUnstarted && visibleNotStarted.length > 0 && (
                         <>
                             <h3 className="text-lg font-medium text-gray-700 mb-3">Not Started</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {notStarted.map((category) => (
+                                {visibleNotStartedPage.map((category) => (
                                     <button
                                         key={category.categoryName}
                                         onClick={() => handleCategoryClick(category)}
@@ -1176,7 +1370,50 @@ export default function StatsPage() {
                                     </button>
                                 ))}
                             </div>
+                            
+                            {/* Loading indicator and sentinel for infinite scroll */}
+                            {hasMoreUnstarted && (
+                                <>
+                                    {isLoadingMore && (
+                                        <div className="flex justify-center items-center py-4 text-gray-500 text-sm">
+                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400 mr-2"></div>
+                                            Loading more categories...
+                                        </div>
+                                    )}
+                                    {/* Sentinel element for IntersectionObserver */}
+                                    <div 
+                                        ref={sentinelRef}
+                                        className="h-1 w-full"
+                                        aria-hidden="true"
+                                    />
+                                    {/* Fallback "Load more" button */}
+                                    <div className="flex justify-center mt-4">
+                                        <button
+                                            onClick={() => {
+                                                setIsLoadingMore(true)
+                                                setTimeout(() => {
+                                                    setUnstartedVisibleCount((prev) => 
+                                                        Math.min(prev + UNSTARTED_PAGE_SIZE, visibleNotStarted.length)
+                                                    )
+                                                    setIsLoadingMore(false)
+                                                }, 100)
+                                            }}
+                                            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors text-sm font-medium text-gray-700"
+                                        >
+                                            Load More Categories
+                                        </button>
+                                    </div>
+                                </>
+                            )}
                         </>
+                    )}
+
+                    {/* Empty state when filter returns no results */}
+                    {visibleInProgress.length === 0 && visibleNotStarted.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                            <p className="text-lg mb-2">No categories match the selected filter.</p>
+                            <p className="text-sm">Try selecting a different filter or click &quot;All&quot; to see all categories.</p>
+                        </div>
                     )}
                 </div>
             )}

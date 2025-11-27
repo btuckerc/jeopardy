@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -9,9 +9,9 @@ const iconSchema = z.object({
 })
 
 export async function POST(request: Request) {
-    const session = await auth()
+    const appUser = await getAppUser()
 
-    if (!session?.user?.id) {
+    if (!appUser) {
         return unauthorizedResponse()
     }
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
         }
 
         const user = await prisma.user.update({
-            where: { id: session.user.id },
+            where: { id: appUser.id },
             data: updateData,
             select: { 
                 selectedIcon: true,

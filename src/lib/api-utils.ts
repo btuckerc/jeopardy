@@ -4,14 +4,13 @@
  * Shared utilities for API route handlers including:
  * - Response helpers
  * - Error handling
- * - Authentication helpers
+ * - Authentication helpers (using Clerk)
  * - Validation with Zod
  */
 
 import { NextResponse } from 'next/server'
 import { z, ZodError, ZodSchema } from 'zod'
-import { prisma } from './prisma'
-import { auth } from './auth'
+import { getAppUser, type AppUser } from './clerk-auth'
 import { UserRole } from '@prisma/client'
 
 // =============================================================================
@@ -179,25 +178,25 @@ export function parseSearchParams<T>(
 }
 
 // =============================================================================
-// Authentication
+// Authentication (using Clerk)
 // =============================================================================
 
 /**
- * Get the authenticated user from the request
+ * Get the authenticated user from the request (via Clerk)
  * Returns null if not authenticated
  */
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
         
-        if (!session?.user?.id) {
+        if (!appUser) {
             return null
         }
         
         return {
-            id: session.user.id,
-            email: session.user.email || '',
-            role: session.user.role || 'USER'
+            id: appUser.id,
+            email: appUser.email || '',
+            role: appUser.role || 'USER'
         }
     } catch (error) {
         console.error('Error getting authenticated user:', error)
@@ -265,4 +264,3 @@ export const knowledgeCategorySchema = z.enum([
 ])
 
 export const difficultySchema = z.enum(['EASY', 'MEDIUM', 'HARD'])
-

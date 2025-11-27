@@ -1,17 +1,17 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 
 export async function GET() {
-    const session = await auth()
+    const appUser = await getAppUser()
 
-    if (!session?.user?.id) {
+    if (!appUser) {
         return unauthorizedResponse()
     }
 
     try {
         const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
+            where: { id: appUser.id },
             select: {
                 spoilerBlockDate: true,
                 spoilerBlockEnabled: true,
@@ -30,9 +30,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-    const session = await auth()
+    const appUser = await getAppUser()
 
-    if (!session?.user?.id) {
+    if (!appUser) {
         return unauthorizedResponse()
     }
 
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
         const { spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt } = body
 
         const settings = await prisma.user.update({
-            where: { id: session.user.id },
+            where: { id: appUser.id },
             data: {
                 spoilerBlockEnabled: spoilerBlockEnabled ?? undefined,
                 spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, serverErrorResponse } from '@/lib/api-utils'
 import { nanoid } from 'nanoid'
 import { computeUserEffectiveCutoff, toStoredPolicy } from '@/lib/spoiler-utils'
@@ -87,9 +87,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
 
-        if (!session?.user?.id) {
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
@@ -123,13 +123,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         // NOTE: When we move to a true shared Game with opponentUserId,
         // we will instead compute spoilerProtection from ALL participants'
         // profiles once and keep it fixed for the entire game.
-        const userPolicy = await computeUserEffectiveCutoff(session.user.id)
+        const userPolicy = await computeUserEffectiveCutoff(appUser.id)
         const spoilerProtection = toStoredPolicy(userPolicy)
 
         // Create a new game with the same config but the new user's spoiler policy
         const newGame = await prisma.game.create({
             data: {
-                userId: session.user.id,
+                userId: appUser.id,
                 seed: newSeed,
                 config: {
                     ...config,

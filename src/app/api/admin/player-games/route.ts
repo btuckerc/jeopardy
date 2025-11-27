@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse, forbiddenResponse, badRequestResponse, notFoundResponse } from '@/lib/api-utils'
 
 /**
@@ -9,19 +9,14 @@ import { jsonResponse, unauthorizedResponse, serverErrorResponse, forbiddenRespo
  */
 export async function GET(request: Request) {
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
 
-        if (!session?.user?.id) {
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
         // Check admin role
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { role: true }
-        })
-
-        if (user?.role !== 'ADMIN') {
+        if (appUser.role !== 'ADMIN') {
             return forbiddenResponse('Admin access required')
         }
 
@@ -109,19 +104,14 @@ export async function GET(request: Request) {
  */
 export async function PATCH(request: Request) {
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
 
-        if (!session?.user?.id) {
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
         // Check admin role
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { role: true }
-        })
-
-        if (user?.role !== 'ADMIN') {
+        if (appUser.role !== 'ADMIN') {
             return forbiddenResponse('Admin access required')
         }
 
@@ -183,19 +173,14 @@ export async function PATCH(request: Request) {
  */
 export async function POST(request: Request) {
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
 
-        if (!session?.user?.id) {
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
         // Check admin role
-        const user = await prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { role: true }
-        })
-
-        if (user?.role !== 'ADMIN') {
+        if (appUser.role !== 'ADMIN') {
             return forbiddenResponse('Admin access required')
         }
 

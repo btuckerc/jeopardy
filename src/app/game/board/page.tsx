@@ -117,7 +117,7 @@ export default function GameBoard() {
     const players: Player[] = [
         {
             id: user?.id || 'guest',
-            displayName: user?.displayName || user?.name || 'Player',
+            displayName: user?.displayName || 'Player',
             selectedIcon: user?.selectedIcon,
             avatarBackground: user?.avatarBackground,
             score: score,
@@ -771,7 +771,7 @@ export default function GameBoard() {
                     {/* Board wrapper with overflow visible for hover effects */}
                     <div className="game-board overflow-visible">
                         {/* Mobile: Vertical scroll layout */}
-                        <div className="block sm:hidden">
+                        <div className="block lg:hidden">
                             <div className="space-y-4">
                                 {categories.map((category) => (
                                     <div key={category.id} className="bg-blue-800/50 rounded-lg p-3">
@@ -815,11 +815,12 @@ export default function GameBoard() {
                         </div>
 
                         {/* Desktop: Traditional grid layout */}
-                        <div className="hidden sm:block overflow-visible">
-                            <div 
-                                className="grid gap-2 overflow-visible"
-                                style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(120px, 1fr))` }}
-                            >
+                        <div className="hidden lg:block overflow-visible">
+                            <div className="overflow-x-auto scrollbar-hide -mx-2 px-2">
+                                <div 
+                                    className="grid gap-2 overflow-visible"
+                                    style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(120px, 1fr))` }}
+                                >
                                 {/* Category Headers */}
                                 {categories.map((category) => (
                                     <div key={`header-${category.id}`} className="category-header min-h-[70px] flex items-center justify-center p-2">
@@ -858,6 +859,7 @@ export default function GameBoard() {
                                         )
                                     })
                                 ))}
+                                </div>
                             </div>
                         </div>
                     </div>

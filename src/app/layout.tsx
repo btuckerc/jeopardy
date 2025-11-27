@@ -4,8 +4,9 @@ import { Providers } from './providers'
 import { Toaster } from 'react-hot-toast'
 import { PageTitle } from './components/PageTitle'
 import { Navigation } from '@/components/Navigation'
-import { auth } from '@/lib/auth'
+import { ClerkProvider } from '@clerk/nextjs'
 import { syncAdminRoles } from '@/lib/sync-admin-roles'
+import { getAppUser } from '@/lib/clerk-auth'
 
 const inter = Inter({ subsets: ['latin'] })
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
@@ -103,28 +104,31 @@ export default async function RootLayout({
     // Sync admin roles on app startup based on ADMIN_EMAILS env var
     await syncAdminRoles()
     
-    // Fetch session on the server - this is the key to avoiding flash
-    const session = await auth()
+    // Get the app user (synced from Clerk to Prisma)
+    // This replaces the old NextAuth session fetch
+    const appUser = await getAppUser()
     
     return (
-        <html lang="en" suppressHydrationWarning>
-            <head>
-                <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-                <link rel="canonical" href="https://trivrdy.com" />
-                <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-            </head>
-            <body className={inter.className}>
-                <Providers session={session}>
-                    <PageTitle />
-                    <div className="min-h-screen bg-gray-100">
-                        <Navigation fredokaClassName={fredoka.className} session={session} />
-                        <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-                            {children}
-                        </main>
-                    </div>
-                    <Toaster position="bottom-right" />
-                </Providers>
-            </body>
-        </html>
+        <ClerkProvider>
+            <html lang="en" suppressHydrationWarning>
+                <head>
+                    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+                    <link rel="canonical" href="https://trivrdy.com" />
+                    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+                </head>
+                <body className={inter.className}>
+                    <Providers>
+                        <PageTitle />
+                        <div className="min-h-screen bg-gray-100">
+                            <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
+                            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                                {children}
+                            </main>
+                        </div>
+                        <Toaster position="bottom-right" />
+                    </Providers>
+                </body>
+            </html>
+        </ClerkProvider>
     )
 }

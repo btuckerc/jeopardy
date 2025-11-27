@@ -1,11 +1,11 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 
 export async function POST() {
-    const session = await auth()
+    const appUser = await getAppUser()
 
-    if (!session?.user?.id) {
+    if (!appUser) {
         return unauthorizedResponse()
     }
 
@@ -13,16 +13,16 @@ export async function POST() {
         // Delete all user game data in a transaction
         await prisma.$transaction([
             prisma.gameQuestion.deleteMany({
-                where: { game: { userId: session.user.id } }
+                where: { game: { userId: appUser.id } }
             }),
             prisma.game.deleteMany({
-                where: { userId: session.user.id }
+                where: { userId: appUser.id }
             }),
             prisma.gameHistory.deleteMany({
-                where: { userId: session.user.id }
+                where: { userId: appUser.id }
             }),
             prisma.userProgress.deleteMany({
-                where: { userId: session.user.id }
+                where: { userId: appUser.id }
             })
         ])
 

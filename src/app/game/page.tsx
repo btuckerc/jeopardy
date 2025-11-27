@@ -69,7 +69,7 @@ export default function GameHubPage() {
     const [loadingGames, setLoadingGames] = useState(true)
     
     // New game configuration state
-    const [selectedMode, setSelectedMode] = useState<'random' | 'knowledge' | 'custom' | 'date'>('random')
+    const [selectedMode, setSelectedMode] = useState<'random' | 'knowledge' | 'custom' | 'date'>('date')
     const [selectedCategories, setSelectedCategories] = useState<KnowledgeCategory[]>([])
     const [selectedDate, setSelectedDate] = useState<string>('')
     const [selectedDateObj, setSelectedDateObj] = useState<Date | null>(null)
@@ -80,7 +80,7 @@ export default function GameHubPage() {
     const [availableDates, setAvailableDates] = useState<string[]>([])
     const [isLoadingDates, setIsLoadingDates] = useState(false)
     const [rounds, setRounds] = useState({ single: true, double: true, final: false })
-    const [finalCategoryMode, setFinalCategoryMode] = useState<'shuffle' | 'byDate' | 'specificCategory'>('shuffle')
+    const [finalCategoryMode, setFinalCategoryMode] = useState<'shuffle' | 'byDate' | 'specificCategory'>('byDate')
     const [finalCategoryId, setFinalCategoryId] = useState<string | null>(null)
     const [isStartingGame, setIsStartingGame] = useState(false)
     
@@ -488,8 +488,8 @@ export default function GameHubPage() {
         }
     }
 
-    const handleAbandonGame = async (gameId: string) => {
-        if (!confirm('Are you sure you want to abandon this game? This cannot be undone.')) {
+    const handleEndGame = async (gameId: string) => {
+        if (!confirm('End this game? You won\'t be able to resume it, but your answered questions will still count toward your stats.')) {
             return
         }
 
@@ -502,7 +502,7 @@ export default function GameHubPage() {
                 setResumableGames(games => games.filter(g => g.id !== gameId))
             }
         } catch (error) {
-            console.error('Error abandoning game:', error)
+            console.error('Error ending game:', error)
         }
     }
 
@@ -733,119 +733,121 @@ export default function GameHubPage() {
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {resumableGames.map(game => (
-                                    <div
-                                        key={game.id}
-                                        className="card p-4 hover:shadow-lg transition-shadow"
-                                    >
-                                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                                            {/* Game Info */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <h3 className="font-bold text-gray-900 truncate">
-                                                        {game.label}
-                                                    </h3>
-                                                    {game.seed && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                navigator.clipboard.writeText(game.seed!)
-                                                                const btn = e.currentTarget
-                                                                const originalText = btn.textContent
-                                                                btn.textContent = 'Copied!'
-                                                                btn.classList.add('text-green-600', 'bg-green-100')
-                                                                btn.classList.remove('text-gray-400', 'bg-gray-100')
-                                                                setTimeout(() => {
-                                                                    btn.textContent = originalText
-                                                                    btn.classList.remove('text-green-600', 'bg-green-100')
-                                                                    btn.classList.add('text-gray-400', 'bg-gray-100')
-                                                                }, 1500)
-                                                            }}
-                                                            className="text-xs text-gray-400 hover:text-gray-600 font-mono bg-gray-100 px-1.5 py-0.5 rounded transition-colors"
-                                                            title="Click to copy seed and share with friends"
-                                                        >
-                                                            {game.seed}
-                                                        </button>
-                                                    )}
-                                                    <span className="text-xs text-gray-500">
-                                                        {formatTimeAgo(game.updatedAt)}
-                                                    </span>
-                                                </div>
-                                                
-                                                {/* Current round indicator - simplified */}
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                                                        {game.currentRound === 'SINGLE' ? 'Single Jeopardy' : 
-                                                         game.currentRound === 'DOUBLE' ? 'Double Jeopardy' : 
-                                                         'Final Jeopardy'}
-                                                    </span>
-                                                </div>
+                                {resumableGames.map(game => {
+                                    const MAX_VISIBLE_CATEGORIES = 3
+                                    const visibleCategories = game.categories.slice(0, MAX_VISIBLE_CATEGORIES)
+                                    const hiddenCount = game.categories.length - MAX_VISIBLE_CATEGORIES
 
-                                                {/* Categories - horizontally scrollable */}
-                                                {game.categories.length > 0 && (
-                                                    <div className="relative">
-                                                        <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
-                                                            {game.categories.map(cat => (
+                                    return (
+                                        <div
+                                            key={game.id}
+                                            className="card p-4 hover:shadow-md transition-shadow border border-gray-100"
+                                        >
+                                            {/* Top row: title + metadata on left, actions on right */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                {/* Left: Game info */}
+                                                <div className="flex-1 min-w-0">
+                                                    {/* Title row */}
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <h3 className="font-semibold text-gray-900">
+                                                            {game.label}
+                                                        </h3>
+                                                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
+                                                            {game.currentRound === 'SINGLE' ? 'Single' : 
+                                                             game.currentRound === 'DOUBLE' ? 'Double' : 
+                                                             'Final'}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400">
+                                                            {formatTimeAgo(game.updatedAt)}
+                                                        </span>
+                                                        {game.seed && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation()
+                                                                    navigator.clipboard.writeText(game.seed!)
+                                                                    const btn = e.currentTarget
+                                                                    const originalText = btn.textContent
+                                                                    btn.textContent = 'Copied!'
+                                                                    btn.classList.add('text-green-600', 'bg-green-50')
+                                                                    btn.classList.remove('text-gray-400', 'bg-gray-50')
+                                                                    setTimeout(() => {
+                                                                        btn.textContent = originalText
+                                                                        btn.classList.remove('text-green-600', 'bg-green-50')
+                                                                        btn.classList.add('text-gray-400', 'bg-gray-50')
+                                                                    }, 1500)
+                                                                }}
+                                                                className="text-xs text-gray-400 hover:text-gray-600 font-mono bg-gray-50 px-1.5 py-0.5 rounded transition-colors"
+                                                                title="Click to copy seed and share with friends"
+                                                            >
+                                                                {game.seed}
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Categories row */}
+                                                    {game.categories.length > 0 && (
+                                                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                            {visibleCategories.map(cat => (
                                                                 <span
                                                                     key={cat.id}
-                                                                    className="flex-shrink-0 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full whitespace-nowrap"
-                                                                    title={`${cat.answeredCount}/${cat.totalCount} answered`}
+                                                                    className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded whitespace-nowrap"
                                                                 >
                                                                     {cat.name}
                                                                 </span>
                                                             ))}
+                                                            {hiddenCount > 0 && (
+                                                                <span className="text-xs text-gray-400">
+                                                                    +{hiddenCount} more
+                                                                </span>
+                                                            )}
                                                         </div>
-                                                        {/* Fade edge indicator for scroll */}
-                                                        <div className="absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-white pointer-events-none"></div>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
 
+                                                {/* Right: Actions */}
+                                                <div className="flex items-center gap-3 flex-shrink-0">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleEndGame(game.id)
+                                                        }}
+                                                        className="text-xs text-gray-400 hover:text-red-500 focus:text-red-500 focus:outline-none transition-colors"
+                                                        title="End game"
+                                                    >
+                                                        End
+                                                    </button>
+                                                    <Link
+                                                        href={`/game/${game.id}`}
+                                                        className="btn-primary px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                                    >
+                                                        Resume
+                                                    </Link>
+                                                </div>
+                                            </div>
+
+                                            {/* Bottom row: Progress bar + stats */}
+                                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
                                                 {/* Progress bar */}
-                                                <div className="mt-2">
-                                                    <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-                                                        <span>{game.progress.percentComplete}% complete</span>
-                                                        <span>•</span>
-                                                        <span>{game.progress.correctQuestions}/{game.progress.answeredQuestions} correct</span>
-                                                    </div>
-                                                    <div className="progress-bar">
+                                                <div className="flex-1">
+                                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                                         <div 
-                                                            className="progress-fill"
+                                                            className="h-full bg-blue-500 rounded-full transition-all"
                                                             style={{ width: `${game.progress.percentComplete}%` }}
                                                         />
                                                     </div>
                                                 </div>
-                                            </div>
-
-                                            {/* Score and Actions */}
-                                            <div className="flex sm:flex-col items-center gap-3 sm:gap-2">
-                                                <div className="text-center">
-                                                    <div className={`text-2xl font-bold ${game.currentScore >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                                {/* Stats inline */}
+                                                <div className="flex items-center gap-4 text-xs text-gray-500 flex-shrink-0">
+                                                    <span>{game.progress.percentComplete}%</span>
+                                                    <span>{game.progress.correctQuestions}/{game.progress.answeredQuestions} correct</span>
+                                                    <span className={`font-medium ${game.currentScore >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
                                                         {game.currentScore < 0 ? '-' : ''}${Math.abs(game.currentScore).toLocaleString()}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500">Score</div>
-                                                </div>
-                                                
-                                                <div className="flex gap-2">
-                                                    <Link
-                                                        href={`/game/${game.id}`}
-                                                        className="btn-primary btn-sm"
-                                                    >
-                                                        Resume
-                                                    </Link>
-                                                    <button
-                                                        onClick={() => handleAbandonGame(game.id)}
-                                                        className="btn-secondary btn-sm text-red-600 hover:bg-red-50"
-                                                        title="Abandon game"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                    </button>
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         )}
                     </div>
@@ -865,6 +867,15 @@ export default function GameHubPage() {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">Game Mode</label>
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                                <button
+                                    onClick={() => setSelectedMode('date')}
+                                    className={`p-3 rounded-lg text-center text-sm font-medium transition-all ${selectedMode === 'date'
+                                        ? 'bg-blue-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+                                    }`}
+                                >
+                                    By Air Date
+                                </button>
                                 <button
                                     onClick={() => setSelectedMode('random')}
                                     className={`p-3 rounded-lg text-center text-sm font-medium transition-all ${selectedMode === 'random'
@@ -891,15 +902,6 @@ export default function GameHubPage() {
                                     }`}
                                 >
                                     Custom
-                                </button>
-                                <button
-                                    onClick={() => setSelectedMode('date')}
-                                    className={`p-3 rounded-lg text-center text-sm font-medium transition-all ${selectedMode === 'date'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    By Air Date
                                 </button>
                             </div>
                         </div>

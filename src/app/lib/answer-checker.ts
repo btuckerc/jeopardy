@@ -699,7 +699,8 @@ function stripQuestionPhrase(text: string): string {
 }
 
 // Main answer checking function
-export function checkAnswer(userAnswer: string, correctAnswer: string): boolean {
+// Can optionally accept an array of override answers to check against
+export function checkAnswer(userAnswer: string, correctAnswer: string, overrideAnswers?: string[]): boolean {
     let normalizedUser = normalizeText(userAnswer)
     let normalizedCorrect = normalizeText(correctAnswer)
 
@@ -749,6 +750,104 @@ export function checkAnswer(userAnswer: string, correctAnswer: string): boolean 
     // Direct match after normalization
     if (normalizedUser === normalizedCorrect) return true
 
+    // Split into words for word-by-word comparison (used in override checking and later)
+    const userWords = normalizedUser.split(' ')
+
+    // Check against override answers if provided
+    if (overrideAnswers && overrideAnswers.length > 0) {
+        for (const overrideAnswer of overrideAnswers) {
+            // Use the same normalization logic for overrides
+            const normalizedOverride = normalizeText(overrideAnswer)
+            const compressedOverride = compressText(overrideAnswer)
+            
+            // Check compressed forms
+            if (compressedUser === compressedOverride) {
+                return true
+            }
+            
+            // Check phonetic normalization
+            const phoneticOverride = phoneticNormalize(compressedOverride)
+            if (phoneticUser === phoneticOverride) {
+                return true
+            }
+            
+            // Check equivalent terms
+            if (checkEquivalentTerms(userAnswer, overrideAnswer)) {
+                return true
+            }
+            
+            // Check normalized forms
+            if (normalizedUser === normalizedOverride) {
+                return true
+            }
+            
+            // Handle parenthetical names in overrides
+            const overrideVariants = handleParentheticalName(overrideAnswer)
+            for (const variant of overrideVariants) {
+                const normalizedVariant = normalizeText(variant)
+                if (normalizedUser === normalizedVariant) {
+                    return true
+                }
+                if (compressedUser === compressText(variant)) {
+                    return true
+                }
+            }
+            
+            // Handle lists
+            if (isList(overrideAnswer) && !isProperNoun(overrideAnswer)) {
+                const userItems = normalizeList(normalizedUser)
+                const overrideItems = normalizeList(normalizedOverride)
+                if (overrideItems.every(overrideItem =>
+                    userItems.some(userItem => areSimilar(userItem, overrideItem))
+                )) {
+                    return true
+                }
+            }
+            
+            // Word-by-word similarity check
+            const overrideWords = normalizedOverride.split(' ')
+            if (overrideWords.length <= 2) {
+                if (isProblematicAnagram(compressedUser, compressedOverride)) {
+                    continue // Skip this override, try next
+                }
+                
+                const compressedSimilarity = jaroWinkler(compressedUser, compressedOverride)
+                const literalFirstCharMatches = compressedUser[0] === compressedOverride[0]
+                const phoneticFirstCharMatches = getPhoneticFirstChar(compressedUser) === getPhoneticFirstChar(compressedOverride)
+                
+                if (phoneticMatch(compressedUser, compressedOverride) && phoneticFirstCharMatches) {
+                    if (compressedSimilarity >= 0.85) return true
+                }
+                
+                if (userWords.length === overrideWords.length) {
+                    const allWordsSimilar = overrideWords.every((overrideWord, i) => 
+                        areSimilar(userWords[i], overrideWord)
+                    )
+                    if (allWordsSimilar) return true
+                }
+                
+                if (compressedSimilarity >= 0.92 && literalFirstCharMatches) {
+                    return true
+                }
+            } else {
+                // For longer answers, check if most significant words match
+                let matchedWords = 0
+                const totalWords = overrideWords.length
+                
+                for (const overrideWord of overrideWords) {
+                    if (userWords.some(userWord => areSimilar(userWord, overrideWord))) {
+                        matchedWords++
+                    }
+                }
+                
+                const matchPercentage = matchedWords / totalWords
+                if (matchPercentage >= 0.8) {
+                    return true
+                }
+            }
+        }
+    }
+
     // Handle lists if the answer isn't a proper noun
     if (isList(correctAnswer) && !isProperNoun(correctAnswer)) {
         const userItems = normalizeList(normalizedUser)
@@ -761,7 +860,6 @@ export function checkAnswer(userAnswer: string, correctAnswer: string): boolean 
     }
 
     // Split into words and check if all main words match
-    const userWords = normalizedUser.split(' ')
     const correctWords = normalizedCorrect.split(' ')
 
     // If the answer is very short (1-2 words), use phonetic-primary matching with safeguards

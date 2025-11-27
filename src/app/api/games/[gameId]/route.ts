@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -15,8 +15,8 @@ interface RouteParams {
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const appUser = await getAppUser()
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
@@ -50,8 +50,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         }
 
         // Check authorization: must be owner or opponent
-        const isOwner = game.userId === session.user.id
-        const isOpponent = game.opponentUserId === session.user.id
+        const isOwner = game.userId === appUser.id
+        const isOpponent = game.opponentUserId === appUser.id
         
         if (!isOwner && !isOpponent) {
             // Check visibility for public/unlisted games
@@ -126,8 +126,8 @@ const updateGameSchema = z.object({
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const appUser = await getAppUser()
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
@@ -143,7 +143,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             return notFoundResponse('Game not found')
         }
 
-        if (existingGame.userId !== session.user.id) {
+        if (existingGame.userId !== appUser.id) {
             return forbiddenResponse('You can only update your own games')
         }
 
@@ -178,8 +178,8 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const appUser = await getAppUser()
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
@@ -195,7 +195,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             return notFoundResponse('Game not found')
         }
 
-        if (existingGame.userId !== session.user.id) {
+        if (existingGame.userId !== appUser.id) {
             return forbiddenResponse('You can only delete your own games')
         }
 

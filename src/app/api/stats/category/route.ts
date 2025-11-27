@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, badRequestResponse, unauthorizedResponse, notFoundResponse, serverErrorResponse } from '@/lib/api-utils'
 
 export async function GET(request: Request) {
@@ -11,9 +11,9 @@ export async function GET(request: Request) {
     }
 
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
 
-        if (!session?.user?.id) {
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
                     include: {
                         gameHistory: {
                             where: {
-                                userId: session.user.id,
+                                userId: appUser.id,
                                 correct: true
                             },
                             orderBy: { timestamp: 'desc' },

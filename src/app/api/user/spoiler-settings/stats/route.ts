@@ -1,13 +1,13 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: Request) {
-    const session = await auth()
+    const appUser = await getAppUser()
 
-    if (!session?.user?.id) {
+    if (!appUser) {
         return unauthorizedResponse()
     }
 
