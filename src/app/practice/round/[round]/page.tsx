@@ -1442,7 +1442,7 @@ function FreePracticeContent() {
                                                     <p className="font-medium text-gray-900 text-center">
                                                         {selectedQuestion.answer}
                                                     </p>
-                                                    {!isCorrect && !selectedQuestion.correct && disputeContext && user?.id && (
+                                                    {isCorrect === false && disputeContext && user?.id && (
                                                         <div className="mt-3 flex justify-end">
                                                             {disputeSubmitted ? (
                                                                 <span className="text-sm text-gray-500 flex items-center gap-1">
