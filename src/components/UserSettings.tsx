@@ -222,6 +222,9 @@ export default function UserSettings({
             const data = await response.json()
             setLocalDisplayName(data.displayName)
             onDisplayNameUpdate(data.displayName)
+            
+            // Refresh the page data to update leaderboard and other server-rendered content
+            router.refresh()
         } catch (err) {
             setDisplayNameError(err instanceof Error ? err.message : 'Failed to update display name')
         } finally {
@@ -244,6 +247,9 @@ export default function UserSettings({
 
             const data = await response.json();
             onIconUpdate(data.selectedIcon);
+            
+            // Refresh the page data to update leaderboard and other server-rendered content
+            router.refresh();
         } catch (err) {
             console.error('Error updating icon:', err);
         }
@@ -266,6 +272,9 @@ export default function UserSettings({
             if (onAvatarBackgroundUpdate) {
                 onAvatarBackgroundUpdate(data.avatarBackground);
             }
+            
+            // Refresh the page data to update leaderboard and other server-rendered content
+            router.refresh();
         } catch (err) {
             console.error('Error updating avatar background:', err);
         }
