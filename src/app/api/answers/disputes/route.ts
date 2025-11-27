@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 const createDisputeSchema = z.object({
     questionId: z.string().uuid(),
-    gameId: z.string().uuid().optional(),
+    gameId: z.string().uuid().nullable().optional(),
     mode: z.enum(['GAME', 'PRACTICE']),
     round: z.enum(['SINGLE', 'DOUBLE', 'FINAL']),
     userAnswer: z.string().min(1),

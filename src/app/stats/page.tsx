@@ -191,38 +191,39 @@ function StatsDetailModal({
     if (!type) return null
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-3xl w-full max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in-slide-down">
                 {/* Header */}
-                <div className="p-6 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h2 className="text-2xl font-bold">{getTitle()}</h2>
-                            <p className="text-blue-100 mt-1 text-sm">{getDescription()}</p>
+                <div className="p-4 md:p-6 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                    <div className="flex justify-between items-start gap-4">
+                        <div className="min-w-0">
+                            <h2 className="text-xl md:text-2xl font-bold truncate">{getTitle()}</h2>
+                            <p className="text-blue-100 mt-1 text-xs md:text-sm">{getDescription()}</p>
                         </div>
                         <button 
                             onClick={onClose} 
-                            className="text-white/80 hover:text-white transition-colors"
+                            className="text-white/80 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-white/50"
+                            aria-label="Close modal"
                         >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
                     
                     {/* Summary stats */}
-                    <div className="flex gap-6 mt-4 text-sm">
+                    <div className="flex flex-wrap gap-3 md:gap-6 mt-4 text-xs md:text-sm">
                         <div>
-                            <span className="text-blue-200">Total Attempted:</span>
-                            <span className="ml-2 font-semibold">{summary.totalAttempted}</span>
+                            <span className="text-blue-200">Attempted:</span>
+                            <span className="ml-1.5 font-semibold">{summary.totalAttempted}</span>
                         </div>
                         <div>
                             <span className="text-blue-200">Correct:</span>
-                            <span className="ml-2 font-semibold text-green-300">{summary.totalCorrect}</span>
+                            <span className="ml-1.5 font-semibold text-green-300">{summary.totalCorrect}</span>
                         </div>
                         <div>
                             <span className="text-blue-200">Incorrect:</span>
-                            <span className="ml-2 font-semibold text-red-300">{summary.totalIncorrect}</span>
+                            <span className="ml-1.5 font-semibold text-red-300">{summary.totalIncorrect}</span>
                         </div>
                     </div>
                 </div>
@@ -341,10 +342,10 @@ function StatsDetailModal({
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t bg-gray-50">
+                <div className="p-3 md:p-4 border-t bg-gray-50">
                     <button
                         onClick={onClose}
-                        className="w-full py-2 px-4 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors font-medium text-gray-700"
+                        className="btn-secondary w-full"
                     >
                         Close
                     </button>
@@ -392,65 +393,102 @@ function CategoryModal({ category, onClose, onPractice }: {
     const categoryAirDate = category.questions[0]?.airDate
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-                <div className="p-6 border-b">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h2 className="text-xl font-bold text-black">{category.categoryName}</h2>
-                            <p className="text-sm text-gray-500 mt-1">{formatDate(categoryAirDate)}</p>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in-slide-down">
+                <div className="p-4 md:p-6 border-b bg-gray-50">
+                    <div className="flex justify-between items-start gap-4">
+                        <div className="min-w-0">
+                            <h2 className="text-lg md:text-xl font-bold text-gray-900 line-clamp-2">{category.categoryName}</h2>
+                            <p className="text-xs md:text-sm text-gray-500 mt-1">{formatDate(categoryAirDate)}</p>
                         </div>
-                        <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <button 
+                            onClick={onClose} 
+                            className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-200 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-label="Close modal"
+                        >
+                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
                     </div>
-                    <p className="text-gray-600 mt-2">
-                        {category.correct} / {category.total} correct ({Math.round((category.correct / category.total) * 100)}%)
-                    </p>
+                    <div className="flex items-center gap-3 mt-3">
+                        <div className="flex-1">
+                            <div className="progress-bar h-2">
+                                <div 
+                                    className={`progress-fill ${isComplete ? 'bg-green-500' : 'bg-blue-500'}`}
+                                    style={{ width: `${Math.round((category.correct / category.total) * 100)}%` }}
+                                />
+                            </div>
+                        </div>
+                        <span className={`text-sm font-semibold ${isComplete ? 'text-green-600' : 'text-blue-600'}`}>
+                            {category.correct}/{category.total} ({Math.round((category.correct / category.total) * 100)}%)
+                        </span>
+                    </div>
                 </div>
 
-                <div className="overflow-y-auto flex-1 p-6">
-                    <div className="space-y-4">
+                <div className="overflow-y-auto flex-1 p-4 md:p-6">
+                    <div className="space-y-3">
                         {category.questions.map(question => (
                             <div
                                 key={question.id}
-                                className={`border rounded-lg p-4 ${question.correct ? 'bg-green-50' : 'bg-gray-50'
-                                    }`}
+                                className={`border rounded-xl p-3 md:p-4 transition-colors ${
+                                    question.correct 
+                                        ? 'bg-green-50 border-green-200' 
+                                        : 'bg-gray-50 border-gray-200'
+                                }`}
                             >
                                 <div className="flex items-center gap-2 mb-2">
-                                    <span className={`text-lg ${question.correct ? 'text-green-600' : 'text-gray-400'}`}>
+                                    <span className={`text-base md:text-lg ${question.correct ? 'text-green-600' : 'text-gray-400'}`}>
                                         {question.correct ? '✓' : '○'}
                                     </span>
-                                    <span className="font-medium text-black">${question.value}</span>
+                                    <span className="font-semibold text-gray-900">${question.value}</span>
                                 </div>
                                 {question.correct ? (
                                     <>
-                                        <p className="text-gray-900 mb-2">{question.question}</p>
+                                        <p className="text-gray-800 text-sm md:text-base mb-2">{question.question}</p>
                                         <button
                                             onClick={() => toggleAnswer(question.id)}
-                                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                            className="text-blue-600 hover:text-blue-800 text-xs md:text-sm font-medium inline-flex items-center gap-1 focus:outline-none focus:underline"
                                         >
-                                            {revealedAnswers[question.id] ? 'Hide Answer' : 'Show Answer'}
+                                            {revealedAnswers[question.id] ? (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                    </svg>
+                                                    Hide Answer
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                    Show Answer
+                                                </>
+                                            )}
                                         </button>
                                         {revealedAnswers[question.id] && (
-                                            <p className="mt-2 text-gray-700 italic">{question.answer}</p>
+                                            <div className="mt-2 p-2 md:p-3 bg-white rounded-lg border border-gray-200">
+                                                <p className="text-gray-700 text-sm italic">{question.answer}</p>
+                                            </div>
                                         )}
                                     </>
                                 ) : (
-                                    <p className="text-gray-500 italic">Question not yet answered correctly</p>
+                                    <p className="text-gray-500 italic text-sm">Question not yet answered correctly</p>
                                 )}
                             </div>
                         ))}
                     </div>
                 </div>
 
-                <div className="p-6 border-t">
+                <div className="p-4 md:p-6 border-t bg-gray-50">
                     <button
                         onClick={onPractice}
-                        className={`w-full py-2 px-4 rounded-lg transition-colors font-bold text-white ${isComplete ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'
-                            }`}
+                        className={`w-full py-2.5 px-4 rounded-lg transition-colors font-bold text-white focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                            isComplete 
+                                ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' 
+                                : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                        }`}
                     >
                         {isComplete ? 'More Like This' : 'Practice Remaining Questions'}
                     </button>
@@ -569,20 +607,21 @@ function RoundHistoryModal({
     if (!round) return null
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in-slide-down">
                 {/* Header */}
-                <div className={`p-6 border-b bg-gradient-to-r ${getHeaderColor()} text-white`}>
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <h2 className="text-2xl font-bold">{getRoundName()} History</h2>
-                            <p className="text-white/80 mt-1 text-sm">Questions you&apos;ve answered in this round</p>
+                <div className={`p-4 md:p-6 border-b bg-gradient-to-r ${getHeaderColor()} text-white`}>
+                    <div className="flex justify-between items-start gap-4 mb-4">
+                        <div className="min-w-0">
+                            <h2 className="text-xl md:text-2xl font-bold">{getRoundName()} History</h2>
+                            <p className="text-white/80 mt-1 text-xs md:text-sm">Questions you&apos;ve answered in this round</p>
                         </div>
                         <button 
                             onClick={onClose} 
-                            className="text-white/80 hover:text-white transition-colors"
+                            className="text-white/80 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-white/50"
+                            aria-label="Close modal"
                         >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
@@ -591,36 +630,37 @@ function RoundHistoryModal({
                     {/* Practice Button */}
                     <Link
                         href={getPracticeUrl()}
-                        className={`inline-flex items-center gap-2 px-6 py-3 bg-white rounded-lg font-bold transition-colors shadow-lg ${
+                        className={`inline-flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-white rounded-lg font-bold text-sm md:text-base transition-colors shadow-lg focus:outline-none focus:ring-2 focus:ring-white/50 ${
                             round === 'SINGLE' ? 'text-blue-700 hover:bg-blue-50' :
                             round === 'DOUBLE' ? 'text-purple-700 hover:bg-purple-50' :
                             'text-amber-700 hover:bg-amber-50'
                         }`}
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        Practice {getRoundName()} Questions
+                        <span className="hidden sm:inline">Practice {getRoundName()} Questions</span>
+                        <span className="sm:hidden">Practice</span>
                     </Link>
                     
                     {/* Summary stats */}
-                    <div className="flex gap-6 mt-4 text-sm">
+                    <div className="flex flex-wrap gap-3 md:gap-6 mt-4 text-xs md:text-sm">
                         <div>
                             <span className="text-white/70">Attempted:</span>
-                            <span className="ml-2 font-semibold">{summary.totalAttempted} / {roundStats?.totalQuestions || 0}</span>
+                            <span className="ml-1.5 font-semibold">{summary.totalAttempted}/{roundStats?.totalQuestions || 0}</span>
                         </div>
                         <div>
                             <span className="text-white/70">Correct:</span>
-                            <span className="ml-2 font-semibold text-green-300">{summary.totalCorrect}</span>
+                            <span className="ml-1.5 font-semibold text-green-300">{summary.totalCorrect}</span>
                         </div>
                         <div>
                             <span className="text-white/70">Incorrect:</span>
-                            <span className="ml-2 font-semibold text-red-300">{summary.totalIncorrect}</span>
+                            <span className="ml-1.5 font-semibold text-red-300">{summary.totalIncorrect}</span>
                         </div>
                         <div>
                             <span className="text-white/70">Points:</span>
-                            <span className="ml-2 font-semibold">${summary.totalPoints.toLocaleString()}</span>
+                            <span className="ml-1.5 font-semibold">${summary.totalPoints.toLocaleString()}</span>
                         </div>
                     </div>
                 </div>
@@ -800,10 +840,10 @@ function RoundHistoryModal({
                 </div>
 
                 {/* Footer */}
-                <div className="p-4 border-t bg-gray-50">
+                <div className="p-3 md:p-4 border-t bg-gray-50">
                     <button
                         onClick={onClose}
-                        className="w-full py-2 px-4 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors font-medium text-gray-700"
+                        className="btn-secondary w-full"
                     >
                         Close
                     </button>
@@ -838,6 +878,8 @@ function InfoTooltip({ content }: { content: string }) {
     )
 }
 
+type SectionTab = 'overview' | 'rounds' | 'categories'
+
 export default function StatsPage() {
     const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
@@ -850,6 +892,12 @@ export default function StatsPage() {
     const [activeCategoryFilter, setActiveCategoryFilter] = useState<CategoryFilter>('ALL')
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
+
+    // Section navigation state
+    const [activeSection, setActiveSection] = useState<SectionTab>('overview')
+    const overviewRef = useRef<HTMLDivElement | null>(null)
+    const roundsRef = useRef<HTMLDivElement | null>(null)
+    const categoriesRef = useRef<HTMLDivElement | null>(null)
 
     // Lazy loading state for unstarted categories
     const UNSTARTED_PAGE_SIZE = 50
@@ -869,6 +917,32 @@ export default function StatsPage() {
 
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+
+    // Handle section navigation - on mobile, switch tabs; on desktop, scroll to section
+    const handleSectionNav = (section: SectionTab) => {
+        const isMobile = window.innerWidth < 768 // md breakpoint
+        
+        if (isMobile) {
+            // On mobile, just switch the active section (tab behavior)
+            setActiveSection(section)
+            // Scroll to top of content area
+            window.scrollTo({ top: 0, behavior: 'smooth' })
+        } else {
+            // On desktop, scroll to the section
+            const refMap = {
+                overview: overviewRef,
+                rounds: roundsRef,
+                categories: categoriesRef
+            }
+            const targetRef = refMap[section]
+            if (targetRef.current) {
+                const navHeight = 120 // Account for sticky nav
+                const elementPosition = targetRef.current.getBoundingClientRect().top + window.scrollY
+                window.scrollTo({ top: elementPosition - navHeight, behavior: 'smooth' })
+            }
+            setActiveSection(section)
+        }
     }
 
     // Reset unstarted visible count when toggle or filter changes
@@ -1031,24 +1105,46 @@ export default function StatsPage() {
 
     if (loading) {
         return (
-            <div className="flex justify-center items-center min-h-[60vh]">
-                <div className="text-xl text-black">Loading statistics...</div>
+            <div className="min-h-screen bg-gray-100 flex justify-center items-center">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="spinner text-blue-600"></div>
+                    <p className="text-gray-600">Loading your statistics...</p>
+                </div>
             </div>
         )
     }
 
     if (error) {
         return (
-            <div className="text-center p-4">
-                <p className="text-lg text-black">{error}</p>
+            <div className="min-h-screen bg-gray-100 flex justify-center items-center px-4">
+                <div className="card p-8 text-center max-w-md">
+                    <div className="w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <p className="text-lg text-gray-900 font-medium mb-2">Something went wrong</p>
+                    <p className="text-gray-600">{error}</p>
+                </div>
             </div>
         )
     }
 
     if (!stats) {
         return (
-            <div className="text-center p-4">
-                <p className="text-lg text-black">No statistics available yet. Start playing to see your progress!</p>
+            <div className="min-h-screen bg-gray-100 flex justify-center items-center px-4">
+                <div className="card p-8 text-center max-w-md">
+                    <div className="w-14 h-14 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+                        <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                    </div>
+                    <p className="text-lg text-gray-900 font-medium mb-2">No statistics yet</p>
+                    <p className="text-gray-600 mb-4">Start playing to see your progress!</p>
+                    <Link href="/game" className="btn-primary">
+                        Play Game
+                    </Link>
+                </div>
             </div>
         )
     }
@@ -1091,378 +1187,620 @@ export default function StatsPage() {
     const hasMoreUnstarted = visibleNotStartedPage.length < visibleNotStarted.length
 
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold mb-8 text-black">Your Statistics</h1>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
-                <button 
-                    onClick={() => setSelectedStatModal('points')}
-                    className="bg-blue-200 p-6 rounded-lg shadow-md hover:bg-blue-300 hover:shadow-lg transition-all text-left group"
-                >
-                    <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-lg font-semibold text-black">Total Points</h2>
-                        <svg className="w-5 h-5 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        <div className="min-h-screen bg-gray-100 py-6 md:py-8">
+            <div className="container mx-auto px-4 sm:px-6">
+                {/* Page Header */}
+                <div className="page-header mb-4 md:mb-6">
+                    <span className="text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wider">Progress</span>
+                    <h1 className="page-title text-2xl sm:text-3xl md:text-4xl flex items-center gap-2 md:gap-3 mt-1 mb-1 md:mb-2">
+                        <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-9 md:h-9 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
-                    </div>
-                    <p className="text-3xl font-bold text-black">${stats.totalPoints.toLocaleString()}</p>
-                    <p className="text-sm text-blue-700 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to view details →</p>
-                </button>
-                <button 
-                    onClick={() => setSelectedStatModal('attempted')}
-                    className="bg-blue-200 p-6 rounded-lg shadow-md hover:bg-blue-300 hover:shadow-lg transition-all text-left group"
-                >
-                    <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-lg font-semibold text-black">Questions Attempted</h2>
-                        <svg className="w-5 h-5 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                    </div>
-                    <p className="text-3xl font-bold text-black">
-                        {stats.totalAnswered.toLocaleString()} / {stats.totalQuestions.toLocaleString()}
+                        <span>Your Statistics</span>
+                    </h1>
+                    <p className="page-subtitle text-sm md:text-base text-gray-600">
+                        Track your performance and progress across all categories.
                     </p>
-                    <p className="text-sm text-blue-700 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to view details →</p>
-                </button>
-                <button 
-                    onClick={() => setSelectedStatModal('correct')}
-                    className="bg-blue-200 p-6 rounded-lg shadow-md hover:bg-blue-300 hover:shadow-lg transition-all text-left group"
-                >
-                    <div className="flex items-center justify-between mb-2">
-                        <h2 className="text-lg font-semibold text-black">Correct Answers</h2>
-                        <svg className="w-5 h-5 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                    </div>
-                    <p className="text-3xl font-bold text-black">
-                        {stats.correctAnswers.toLocaleString()} ({stats.totalAnswered > 0
-                            ? Math.round((stats.correctAnswers / stats.totalAnswered) * 100)
-                            : 0}%)
-                    </p>
-                    <p className="text-sm text-blue-700 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to view details →</p>
-                </button>
-                <button 
-                    onClick={() => setSelectedStatModal('tripleStumpers')}
-                    className="bg-yellow-200 p-6 rounded-lg shadow-md hover:bg-yellow-300 hover:shadow-lg transition-all text-left group lg:col-start-2 lg:col-end-3 xl:col-auto"
-                >
-                    <div className="flex items-center mb-2">
-                        <h2 className="text-lg font-semibold text-black">Triple Stumpers</h2>
-                        <InfoTooltip content="Triple Stumpers are questions that none of the original Jeopardy! contestants answered correctly. Getting these right is extra impressive!" />
-                        <svg className="w-5 h-5 text-yellow-700 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                    </div>
-                    <p className="text-3xl font-bold text-black">{stats.tripleStumpersAnswered.toLocaleString()}</p>
-                    <p className="text-sm text-yellow-700 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Click to view details →</p>
-                </button>
-            </div>
+                </div>
 
-            {/* Round Breakdown Section */}
-            {stats.roundStats && stats.roundStats.length > 0 && (
-                <div className="mb-8">
-                    <h2 className="text-xl font-semibold text-black mb-4">Performance by Round</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {stats.roundStats.map((round) => {
-                            const progressPercent = round.totalQuestions > 0 
-                                ? Math.round((round.correctAnswers / round.totalQuestions) * 100) 
-                                : 0
-                            const bgColor = round.round === 'SINGLE' ? 'bg-blue-100' : 
-                                           round.round === 'DOUBLE' ? 'bg-purple-100' : 'bg-amber-100'
-                            const barColor = round.round === 'SINGLE' ? 'bg-blue-500' : 
-                                            round.round === 'DOUBLE' ? 'bg-purple-500' : 'bg-amber-500'
-                            const hoverColor = round.round === 'SINGLE' ? 'hover:bg-blue-200' : 
-                                             round.round === 'DOUBLE' ? 'hover:bg-purple-200' : 'hover:bg-amber-200'
-                            
-                            return (
-                                <button
-                                    key={round.round}
-                                    onClick={() => setSelectedRound(round.round as SelectedRound)}
-                                    className={`${bgColor} ${hoverColor} p-5 rounded-lg shadow-md transition-all cursor-pointer text-left hover:shadow-lg group`}
-                                >
-                                    <div className="flex justify-between items-center mb-2">
-                                        <h3 className="text-lg font-semibold text-black">{round.roundName}</h3>
-                                        <svg className="w-5 h-5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                        </svg>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between text-sm text-gray-700">
-                                            <span>Answered:</span>
-                                            <span className="font-medium">{round.totalAnswered} / {round.totalQuestions}</span>
+                {/* Sticky Section Navigation Pills */}
+                <div className="sticky top-0 z-40 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-gray-100/95 backdrop-blur-sm border-b border-gray-200 mb-4 md:mb-6">
+                    <nav className="flex gap-2" role="tablist" aria-label="Statistics sections">
+                        {([
+                            { id: 'overview' as SectionTab, label: 'Overview', icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                            )},
+                            { id: 'rounds' as SectionTab, label: 'Rounds', icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                </svg>
+                            )},
+                            { id: 'categories' as SectionTab, label: 'Categories', icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                </svg>
+                            )}
+                        ]).map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => handleSectionNav(tab.id)}
+                                role="tab"
+                                aria-selected={activeSection === tab.id}
+                                aria-controls={`section-${tab.id}`}
+                                className={`
+                                    flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all
+                                    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+                                    ${activeSection === tab.id 
+                                        ? 'bg-blue-600 text-white shadow-md' 
+                                        : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
+                                    }
+                                `}
+                            >
+                                {tab.icon}
+                                <span>{tab.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+
+                {/* Section: Overview (Top-Level Stats Summary) */}
+                <div 
+                    ref={overviewRef}
+                    id="section-overview"
+                    role="tabpanel"
+                    aria-labelledby="tab-overview"
+                    className={`${activeSection !== 'overview' ? 'hidden md:block' : ''} mb-6 md:mb-8`}
+                >
+                    {/* Section Header - visible on mobile when this tab is active */}
+                    <div className="flex items-start gap-3 mb-4 md:hidden">
+                        <div className="p-2 bg-blue-100 rounded-lg">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">Overview</h2>
+                            <p className="text-sm text-gray-500">Your key performance metrics</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                    <button 
+                        onClick={() => setSelectedStatModal('points')}
+                        className="stat-card group cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        aria-label="View total points details"
+                    >
+                        <div className="stat-label flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Total Points
+                        </div>
+                        <div className="stat-value">${stats.totalPoints.toLocaleString()}</div>
+                        <p className="text-xs text-gray-500 mt-2">Cumulative score from correct answers</p>
+                        <div className="flex items-center gap-1 mt-3 text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span>View breakdown</span>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => setSelectedStatModal('attempted')}
+                        className="stat-card group cursor-pointer hover:shadow-lg hover:border-blue-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        aria-label="View questions attempted details"
+                    >
+                        <div className="stat-label flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Questions Attempted
+                        </div>
+                        <div className="stat-value">
+                            {stats.totalAnswered.toLocaleString()}
+                            <span className="text-lg text-gray-400 font-normal"> / {stats.totalQuestions.toLocaleString()}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Questions you&apos;ve answered</p>
+                        <div className="flex items-center gap-1 mt-3 text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span>View history</span>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => setSelectedStatModal('correct')}
+                        className="stat-card group cursor-pointer hover:shadow-lg hover:border-green-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                        aria-label="View correct answers details"
+                    >
+                        <div className="stat-label flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Accuracy
+                        </div>
+                        <div className="stat-value text-green-600">
+                            {stats.totalAnswered > 0
+                                ? Math.round((stats.correctAnswers / stats.totalAnswered) * 100)
+                                : 0}%
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                            {stats.correctAnswers.toLocaleString()} correct of {stats.totalAnswered.toLocaleString()} attempted
+                        </p>
+                        <div className="flex items-center gap-1 mt-3 text-xs text-green-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span>View answers</span>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </button>
+
+                    <button 
+                        onClick={() => setSelectedStatModal('tripleStumpers')}
+                        className="stat-card group cursor-pointer hover:shadow-lg hover:border-amber-300 transition-all text-left focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 bg-gradient-to-br from-amber-50 to-white"
+                        aria-label="View triple stumpers details"
+                    >
+                        <div className="stat-label flex items-center gap-1.5">
+                            <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                            </svg>
+                            Triple Stumpers
+                            <InfoTooltip content="Triple Stumpers are questions that none of the original Jeopardy! contestants answered correctly. Getting these right is extra impressive!" />
+                        </div>
+                        <div className="stat-value text-amber-600">{stats.tripleStumpersAnswered.toLocaleString()}</div>
+                        <p className="text-xs text-gray-500 mt-2">Questions all contestants missed</p>
+                        <div className="flex items-center gap-1 mt-3 text-xs text-amber-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <span>View conquered</span>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
+                    </button>
+                    </div>
+                </div>
+
+                {/* Section: Rounds (Performance by Round) */}
+                <div 
+                    ref={roundsRef}
+                    id="section-rounds"
+                    role="tabpanel"
+                    aria-labelledby="tab-rounds"
+                    className={`${activeSection !== 'rounds' ? 'hidden md:block' : ''}`}
+                >
+                    {stats.roundStats && stats.roundStats.length > 0 && (
+                        <div className="mb-6 md:mb-8">
+                            <div className="flex items-start gap-3 mb-4">
+                                <div className="p-2 bg-blue-100 rounded-lg">
+                                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 className="text-lg md:text-xl font-semibold text-gray-900">Performance by Round</h2>
+                                    <p className="text-sm text-gray-500">How you&apos;re doing in each Jeopardy! round</p>
+                                </div>
+                            </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                            {stats.roundStats.map((round) => {
+                                const progressPercent = round.totalQuestions > 0 
+                                    ? Math.round((round.correctAnswers / round.totalQuestions) * 100) 
+                                    : 0
+                                
+                                const colorConfig = {
+                                    SINGLE: { 
+                                        border: 'border-l-blue-500', 
+                                        bar: 'bg-blue-500', 
+                                        accent: 'text-blue-600',
+                                        hover: 'hover:border-blue-400',
+                                        ring: 'focus:ring-blue-500'
+                                    },
+                                    DOUBLE: { 
+                                        border: 'border-l-purple-500', 
+                                        bar: 'bg-purple-500', 
+                                        accent: 'text-purple-600',
+                                        hover: 'hover:border-purple-400',
+                                        ring: 'focus:ring-purple-500'
+                                    },
+                                    FINAL: { 
+                                        border: 'border-l-amber-500', 
+                                        bar: 'bg-amber-500', 
+                                        accent: 'text-amber-600',
+                                        hover: 'hover:border-amber-400',
+                                        ring: 'focus:ring-amber-500'
+                                    }
+                                }
+                                const colors = colorConfig[round.round as keyof typeof colorConfig] || colorConfig.SINGLE
+                                
+                                return (
+                                    <button
+                                        key={round.round}
+                                        onClick={() => setSelectedRound(round.round as SelectedRound)}
+                                        className={`card border-l-4 ${colors.border} ${colors.hover} p-4 md:p-5 transition-all cursor-pointer text-left hover:shadow-lg group focus:outline-none focus:ring-2 ${colors.ring} focus:ring-offset-2`}
+                                        aria-label={`View ${round.roundName} history`}
+                                    >
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h3 className={`text-base md:text-lg font-semibold ${colors.accent}`}>{round.roundName}</h3>
+                                            <svg className="w-4 h-4 md:w-5 md:h-5 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
                                         </div>
-                                        <div className="flex justify-between text-sm text-gray-700">
-                                            <span>Correct:</span>
-                                            <span className="font-medium">{round.correctAnswers} ({round.accuracy}%)</span>
+                                        
+                                        <div className="space-y-1.5 text-sm">
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>Answered</span>
+                                                <span className="font-medium text-gray-900">{round.totalAnswered} / {round.totalQuestions}</span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>Correct</span>
+                                                <span className="font-medium text-gray-900">{round.correctAnswers} ({round.accuracy}%)</span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-600">
+                                                <span>Points</span>
+                                                <span className="font-semibold text-gray-900">${round.totalPoints.toLocaleString()}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between text-sm text-gray-700">
-                                            <span>Points:</span>
-                                            <span className="font-medium">${round.totalPoints.toLocaleString()}</span>
-                                        </div>
-                                        <div className="mt-3">
-                                            <div className="w-full bg-white/50 rounded-full h-2">
+                                        
+                                        <div className="mt-4">
+                                            <div className="progress-bar">
                                                 <div 
-                                                    className={`${barColor} h-2 rounded-full transition-all duration-500`}
+                                                    className={`progress-fill ${colors.bar}`}
                                                     style={{ width: `${progressPercent}%` }}
                                                 />
                                             </div>
-                                            <p className="text-xs text-gray-600 mt-1 text-center">{progressPercent}% complete</p>
+                                            <p className="text-xs text-gray-500 mt-1.5 text-center">{progressPercent}% complete</p>
                                         </div>
-                                    </div>
-                                </button>
-                            )
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {(inProgress.length > 0 || notStarted.length > 0) && (
-                <div>
-                    <div className="mb-4">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
-                            <h2 className="text-xl font-semibold text-black">Category Breakdown</h2>
-                            <div className="flex items-center gap-2">
-                                <label className="text-sm text-gray-600 whitespace-nowrap">Show Unstarted Categories</label>
-                                <button
-                                    onClick={() => setShowUnstarted(!showUnstarted)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${showUnstarted ? 'bg-blue-600' : 'bg-gray-200'
-                                        }`}
-                                >
-                                    <span
-                                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showUnstarted ? 'translate-x-6' : 'translate-x-1'
-                                            }`}
-                                    />
-                                </button>
-                            </div>
-                        </div>
-                        
-                        {/* Filter chips */}
-                        <div className="flex flex-wrap items-center gap-2 mb-3">
-                            <span className="text-sm text-gray-600 mr-1">Filter by:</span>
-                            {(['ALL', 'SINGLE', 'DOUBLE', 'FINAL', 'TRIPLE_STUMPER'] as CategoryFilter[]).map((filter) => {
-                                const isActive = activeCategoryFilter === filter
-                                const getFilterStyles = () => {
-                                    if (!isActive) {
-                                        return 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-                                    }
-                                    switch (filter) {
-                                        case 'SINGLE':
-                                            return 'bg-blue-50 border-blue-500 text-blue-700'
-                                        case 'DOUBLE':
-                                            return 'bg-purple-50 border-purple-500 text-purple-700'
-                                        case 'FINAL':
-                                            return 'bg-amber-50 border-amber-500 text-amber-700'
-                                        case 'TRIPLE_STUMPER':
-                                            return 'bg-orange-50 border-orange-500 text-orange-700'
-                                        default:
-                                            return 'bg-gray-100 border-gray-500 text-gray-700'
-                                    }
-                                }
-                                const getFilterLabel = () => {
-                                    switch (filter) {
-                                        case 'ALL': return 'All'
-                                        case 'SINGLE': return 'Single'
-                                        case 'DOUBLE': return 'Double'
-                                        case 'FINAL': return 'Final'
-                                        case 'TRIPLE_STUMPER': return 'Triple Stumpers'
-                                        default: return filter
-                                    }
-                                }
-                                return (
-                                    <button
-                                        key={filter}
-                                        onClick={() => setActiveCategoryFilter(filter)}
-                                        className={`px-3 py-1.5 text-sm font-medium rounded-full border transition-colors ${getFilterStyles()}`}
-                                    >
-                                        {getFilterLabel()}
                                     </button>
                                 )
                             })}
                         </div>
-                        
-                        {/* Legend */}
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mb-2">
-                            <span className="font-medium">Legend:</span>
-                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-medium">Single</span>
-                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">Double</span>
-                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded font-medium">Final</span>
-                            <span className="px-2 py-0.5 bg-orange-100 text-orange-800 rounded font-medium">Triple Stumper</span>
-                        </div>
                     </div>
+                    )}
+                </div>
 
-                    {visibleInProgress.length > 0 && (
-                        <>
-                            <h3 className="text-lg font-medium text-gray-700 mb-3">In Progress</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                                {visibleInProgress.map((category) => {
-                                    const roundBreakdown = category.roundBreakdown || { SINGLE: 0, DOUBLE: 0, FINAL: 0 }
-                                    const tripleStumpers = category.tripleStumpersCorrect || 0
-                                    const hasSingle = roundBreakdown.SINGLE > 0
-                                    const hasDouble = roundBreakdown.DOUBLE > 0
-                                    const hasFinal = roundBreakdown.FINAL > 0
-                                    const hasTriple = tripleStumpers > 0
-                                    
-                                    // Determine round indicator text and color
-                                    const roundIndicators = []
-                                    if (hasSingle) roundIndicators.push({ text: 'Single', color: 'blue' })
-                                    if (hasDouble) roundIndicators.push({ text: 'Double', color: 'purple' })
-                                    if (hasFinal) roundIndicators.push({ text: 'Final', color: 'amber' })
-                                    
-                                    const roundText = roundIndicators.map(r => r.text).join(' / ')
-                                    const primaryRoundColor = roundIndicators.length > 0 ? roundIndicators[0].color : 'gray'
-                                    
+                {/* Section: Categories (Category Breakdown) */}
+                <div 
+                    ref={categoriesRef}
+                    id="section-categories"
+                    role="tabpanel"
+                    aria-labelledby="tab-categories"
+                    className={`${activeSection !== 'categories' ? 'hidden md:block' : ''}`}
+                >
+                    {(inProgress.length > 0 || notStarted.length > 0) && (
+                        <div className="mb-6 md:mb-8">
+                            {/* Section Header */}
+                            <div className="flex items-start gap-3 mb-4">
+                                <div className="p-2 bg-purple-100 rounded-lg">
+                                    <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 className="text-lg md:text-xl font-semibold text-gray-900">Category Breakdown</h2>
+                                    <p className="text-sm text-gray-500">Your progress across all Jeopardy! categories</p>
+                                </div>
+                            </div>
+                            
+                            <div className="card p-4 md:p-6">
+                            {/* Filter chips and Toggle */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
+                                <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">Filter:</span>
+                                {(['ALL', 'SINGLE', 'DOUBLE', 'FINAL', 'TRIPLE_STUMPER'] as CategoryFilter[]).map((filter) => {
+                                    const isActive = activeCategoryFilter === filter
+                                    const getFilterStyles = () => {
+                                        if (!isActive) {
+                                            return 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                                        }
+                                        switch (filter) {
+                                            case 'SINGLE':
+                                                return 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm'
+                                            case 'DOUBLE':
+                                                return 'bg-purple-100 border-purple-300 text-purple-700 shadow-sm'
+                                            case 'FINAL':
+                                                return 'bg-amber-100 border-amber-300 text-amber-700 shadow-sm'
+                                            case 'TRIPLE_STUMPER':
+                                                return 'bg-orange-100 border-orange-300 text-orange-700 shadow-sm'
+                                            default:
+                                                return 'bg-gray-100 border-gray-400 text-gray-800 shadow-sm'
+                                        }
+                                    }
+                                    const getFilterLabel = () => {
+                                        switch (filter) {
+                                            case 'ALL': return 'All'
+                                            case 'SINGLE': return 'Single'
+                                            case 'DOUBLE': return 'Double'
+                                            case 'FINAL': return 'Final'
+                                            case 'TRIPLE_STUMPER': return 'Triple Stumpers'
+                                            default: return filter
+                                        }
+                                    }
                                     return (
                                         <button
-                                            key={category.categoryName}
-                                            onClick={() => handleCategoryClick(category)}
-                                            className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-left"
+                                            key={filter}
+                                            onClick={() => setActiveCategoryFilter(filter)}
+                                            className={`px-3 py-1.5 text-xs md:text-sm font-medium rounded-full border transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${getFilterStyles()}`}
+                                            aria-pressed={isActive}
                                         >
-                                            <h3 className="font-semibold text-black">{category.categoryName}</h3>
-                                            <p className="text-gray-600">
-                                                {category.correct.toLocaleString()} / {category.total.toLocaleString()} correct ({
-                                                    Math.round((category.correct / category.total) * 100)
-                                                }%)
-                                            </p>
-                                            <p className="text-gray-600 mb-2">Points: ${category.points.toLocaleString()}</p>
-                                            
-                                            {/* Round/Triple indicators */}
-                                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100">
-                                                {roundIndicators.length > 0 && (
-                                                    <span 
-                                                        className={`px-2 py-0.5 text-xs font-medium rounded ${
-                                                            primaryRoundColor === 'blue' ? 'bg-blue-100 text-blue-700' :
-                                                            primaryRoundColor === 'purple' ? 'bg-purple-100 text-purple-700' :
-                                                            'bg-amber-100 text-amber-700'
-                                                        }`}
-                                                        title={`Rounds: ${roundText}`}
-                                                    >
-                                                        {roundText}
-                                                    </span>
-                                                )}
-                                                {hasTriple && (
-                                                    <span 
-                                                        className="px-2 py-0.5 bg-orange-100 text-orange-800 text-xs rounded font-medium"
-                                                        title="Contains triple stumper questions"
-                                                    >
-                                                        Triple Stumper
-                                                    </span>
-                                                )}
-                                            </div>
+                                            {getFilterLabel()}
                                         </button>
                                     )
                                 })}
-                            </div>
-                        </>
-                    )}
-
-                    {showUnstarted && visibleNotStarted.length > 0 && (
-                        <>
-                            <h3 className="text-lg font-medium text-gray-700 mb-3">Not Started</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {visibleNotStartedPage.map((category) => (
+                                </div>
+                                
+                                {/* Toggle for unstarted categories */}
+                                <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                                    <label className="text-xs md:text-sm text-gray-600 whitespace-nowrap cursor-pointer" htmlFor="show-unstarted-toggle">
+                                        Show Unstarted
+                                    </label>
                                     <button
-                                        key={category.categoryName}
-                                        onClick={() => handleCategoryClick(category)}
-                                        className="bg-gray-50 p-4 rounded-lg shadow hover:shadow-lg transition-shadow text-left"
+                                        id="show-unstarted-toggle"
+                                        onClick={() => setShowUnstarted(!showUnstarted)}
+                                        className={`relative inline-flex h-5 w-9 md:h-6 md:w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${showUnstarted ? 'bg-blue-600' : 'bg-gray-300'}`}
+                                        role="switch"
+                                        aria-checked={showUnstarted}
+                                        aria-label="Show unstarted categories"
                                     >
-                                        <h3 className="font-semibold text-black">{category.categoryName}</h3>
-                                        <p className="text-gray-600">
-                                            0 / {category.total.toLocaleString()} questions
-                                        </p>
+                                        <span
+                                            className={`inline-block h-3.5 w-3.5 md:h-4 md:w-4 transform rounded-full bg-white shadow transition-transform ${showUnstarted ? 'translate-x-4 md:translate-x-6' : 'translate-x-0.5 md:translate-x-1'}`}
+                                        />
                                     </button>
-                                ))}
+                                </div>
                             </div>
                             
-                            {/* Loading indicator and sentinel for infinite scroll */}
-                            {hasMoreUnstarted && (
-                                <>
-                                    {isLoadingMore && (
-                                        <div className="flex justify-center items-center py-4 text-gray-500 text-sm">
-                                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-400 mr-2"></div>
-                                            Loading more categories...
-                                        </div>
-                                    )}
-                                    {/* Sentinel element for IntersectionObserver */}
-                                    <div 
-                                        ref={sentinelRef}
-                                        className="h-1 w-full"
-                                        aria-hidden="true"
-                                    />
-                                    {/* Fallback "Load more" button */}
-                                    <div className="flex justify-center mt-4">
-                                        <button
-                                            onClick={() => {
-                                                setIsLoadingMore(true)
-                                                setTimeout(() => {
-                                                    setUnstartedVisibleCount((prev) => 
-                                                        Math.min(prev + UNSTARTED_PAGE_SIZE, visibleNotStarted.length)
-                                                    )
-                                                    setIsLoadingMore(false)
-                                                }, 100)
-                                            }}
-                                            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg transition-colors text-sm font-medium text-gray-700"
-                                        >
-                                            Load More Categories
-                                        </button>
-                                    </div>
-                                </>
-                            )}
-                        </>
-                    )}
+                            {/* Legend - collapsible on mobile */}
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 pt-2 border-t border-gray-100 mb-6">
+                                <span className="font-medium text-gray-600">Legend:</span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded">
+                                    <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
+                                    Single
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-50 text-purple-700 rounded">
+                                    <span className="w-1.5 h-1.5 bg-purple-500 rounded-full"></span>
+                                    Double
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 rounded">
+                                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                                    Final
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-50 text-orange-700 rounded">
+                                    <span className="w-1.5 h-1.5 bg-orange-500 rounded-full"></span>
+                                    Triple Stumper
+                                </span>
+                            </div>
 
-                    {/* Empty state when filter returns no results */}
-                    {visibleInProgress.length === 0 && visibleNotStarted.length === 0 && (
-                        <div className="text-center py-8 text-gray-500">
-                            <p className="text-lg mb-2">No categories match the selected filter.</p>
-                            <p className="text-sm">Try selecting a different filter or click &quot;All&quot; to see all categories.</p>
-                        </div>
+                        {/* In Progress Categories */}
+                        {visibleInProgress.length > 0 && (
+                            <div className="mb-6">
+                                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                                    <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                                    In Progress
+                                    <span className="text-xs font-normal text-gray-500 lowercase">({visibleInProgress.length})</span>
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {visibleInProgress.map((category) => {
+                                        const roundBreakdown = category.roundBreakdown || { SINGLE: 0, DOUBLE: 0, FINAL: 0 }
+                                        const tripleStumpers = category.tripleStumpersCorrect || 0
+                                        const hasSingle = roundBreakdown.SINGLE > 0
+                                        const hasDouble = roundBreakdown.DOUBLE > 0
+                                        const hasFinal = roundBreakdown.FINAL > 0
+                                        const hasTriple = tripleStumpers > 0
+                                        const completionPercent = Math.round((category.correct / category.total) * 100)
+                                        
+                                        // Determine round indicator text and color
+                                        const roundIndicators = []
+                                        if (hasSingle) roundIndicators.push({ text: 'Single', color: 'blue' })
+                                        if (hasDouble) roundIndicators.push({ text: 'Double', color: 'purple' })
+                                        if (hasFinal) roundIndicators.push({ text: 'Final', color: 'amber' })
+                                        
+                                        const roundText = roundIndicators.map(r => r.text).join(' · ')
+                                        const primaryRoundColor = roundIndicators.length > 0 ? roundIndicators[0].color : 'gray'
+                                        
+                                        return (
+                                            <button
+                                                key={category.categoryName}
+                                                onClick={() => handleCategoryClick(category)}
+                                                className="category-card group text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                                aria-label={`View ${category.categoryName} details`}
+                                            >
+                                                <div className="flex items-start justify-between gap-2 mb-2">
+                                                    <h4 className="font-semibold text-gray-900 text-sm md:text-base leading-tight group-hover:text-blue-600 transition-colors line-clamp-2">
+                                                        {category.categoryName}
+                                                    </h4>
+                                                    <svg className="w-4 h-4 text-gray-400 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </div>
+                                                
+                                                {/* Progress bar */}
+                                                <div className="mb-2">
+                                                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                                        <span>{category.correct}/{category.total} correct</span>
+                                                        <span className="font-medium text-gray-700">{completionPercent}%</span>
+                                                    </div>
+                                                    <div className="progress-bar h-1.5">
+                                                        <div 
+                                                            className={`progress-fill ${
+                                                                primaryRoundColor === 'blue' ? 'bg-blue-500' :
+                                                                primaryRoundColor === 'purple' ? 'bg-purple-500' :
+                                                                primaryRoundColor === 'amber' ? 'bg-amber-500' :
+                                                                'bg-gray-400'
+                                                            }`}
+                                                            style={{ width: `${completionPercent}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                
+                                                <p className="text-xs text-gray-500 mb-2">
+                                                    <span className="font-medium text-gray-700">${category.points.toLocaleString()}</span> points earned
+                                                </p>
+                                                
+                                                {/* Round/Triple indicators */}
+                                                <div className="flex items-center flex-wrap gap-1.5">
+                                                    {roundIndicators.length > 0 && (
+                                                        <span 
+                                                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] md:text-xs font-medium rounded ${
+                                                                primaryRoundColor === 'blue' ? 'bg-blue-50 text-blue-700' :
+                                                                primaryRoundColor === 'purple' ? 'bg-purple-50 text-purple-700' :
+                                                                'bg-amber-50 text-amber-700'
+                                                            }`}
+                                                            title={`Rounds: ${roundText}`}
+                                                        >
+                                                            {roundText}
+                                                        </span>
+                                                    )}
+                                                    {hasTriple && (
+                                                        <span 
+                                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-orange-50 text-orange-700 text-[10px] md:text-xs rounded font-medium"
+                                                            title="Contains triple stumper questions"
+                                                        >
+                                                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                            </svg>
+                                                            Stumper
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Not Started Categories */}
+                        {showUnstarted && visibleNotStarted.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3 flex items-center gap-2">
+                                    <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
+                                    Not Started
+                                    <span className="text-xs font-normal text-gray-500 lowercase">({visibleNotStarted.length})</span>
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {visibleNotStartedPage.map((category) => (
+                                        <button
+                                            key={category.categoryName}
+                                            onClick={() => handleCategoryClick(category)}
+                                            className="bg-gray-50 border border-gray-200 p-3 md:p-4 rounded-lg hover:bg-white hover:shadow-md hover:border-gray-300 transition-all text-left group focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                            aria-label={`View ${category.categoryName} details`}
+                                        >
+                                            <div className="flex items-start justify-between gap-2">
+                                                <h4 className="font-medium text-gray-700 text-sm leading-tight group-hover:text-gray-900 transition-colors line-clamp-2">
+                                                    {category.categoryName}
+                                                </h4>
+                                                <svg className="w-4 h-4 text-gray-400 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1.5">
+                                                {category.total.toLocaleString()} question{category.total !== 1 ? 's' : ''} available
+                                            </p>
+                                        </button>
+                                    ))}
+                                </div>
+                                
+                                {/* Loading indicator and sentinel for infinite scroll */}
+                                {hasMoreUnstarted && (
+                                    <>
+                                        {isLoadingMore && (
+                                            <div className="flex justify-center items-center py-4 text-gray-500 text-sm">
+                                                <div className="spinner mr-2"></div>
+                                                Loading more categories...
+                                            </div>
+                                        )}
+                                        {/* Sentinel element for IntersectionObserver */}
+                                        <div 
+                                            ref={sentinelRef}
+                                            className="h-1 w-full"
+                                            aria-hidden="true"
+                                        />
+                                        {/* Fallback "Load more" button */}
+                                        <div className="flex justify-center mt-4">
+                                            <button
+                                                onClick={() => {
+                                                    setIsLoadingMore(true)
+                                                    setTimeout(() => {
+                                                        setUnstartedVisibleCount((prev) => 
+                                                            Math.min(prev + UNSTARTED_PAGE_SIZE, visibleNotStarted.length)
+                                                        )
+                                                        setIsLoadingMore(false)
+                                                    }, 100)
+                                                }}
+                                                className="btn-secondary btn-sm"
+                                            >
+                                                Load More Categories
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Empty state when filter returns no results */}
+                        {visibleInProgress.length === 0 && visibleNotStarted.length === 0 && (
+                            <div className="text-center py-12">
+                                <div className="w-12 h-12 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <p className="text-gray-700 font-medium mb-1">No categories match the selected filter</p>
+                                <p className="text-sm text-gray-500">Try selecting a different filter or click &quot;All&quot; to see all categories.</p>
+                            </div>
+                        )}
+                    </div>
+                    </div>
                     )}
                 </div>
-            )}
 
-            {selectedCategory && (
-                <CategoryModal
-                    category={selectedCategory}
-                    onClose={() => setSelectedCategory(null)}
-                    onPractice={() => handlePracticeCategory(selectedCategory.categoryName, selectedCategory.correct === selectedCategory.total)}
-                />
-            )}
+                {selectedCategory && (
+                    <CategoryModal
+                        category={selectedCategory}
+                        onClose={() => setSelectedCategory(null)}
+                        onPractice={() => handlePracticeCategory(selectedCategory.categoryName, selectedCategory.correct === selectedCategory.total)}
+                    />
+                )}
 
-            {selectedStatModal && (
-                <StatsDetailModal
-                    type={selectedStatModal}
-                    onClose={() => setSelectedStatModal(null)}
-                />
-            )}
+                {selectedStatModal && (
+                    <StatsDetailModal
+                        type={selectedStatModal}
+                        onClose={() => setSelectedStatModal(null)}
+                    />
+                )}
 
-            {selectedRound && (
-                <RoundHistoryModal
-                    round={selectedRound}
-                    roundStats={stats.roundStats?.find(r => r.round === selectedRound)}
-                    onClose={() => setSelectedRound(null)}
-                />
-            )}
+                {selectedRound && (
+                    <RoundHistoryModal
+                        round={selectedRound}
+                        roundStats={stats.roundStats?.find(r => r.round === selectedRound)}
+                        onClose={() => setSelectedRound(null)}
+                    />
+                )}
 
-            {/* Back to Top Button */}
-            {showBackToTop && (
-                <button
-                    onClick={scrollToTop}
-                    className="fixed bottom-8 right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-4 rounded-full shadow-2xl ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110"
-                    aria-label="Back to top"
-                >
-                    <svg 
-                        className="w-6 h-6" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
+                {/* Back to Top Button */}
+                {showBackToTop && (
+                    <button
+                        onClick={scrollToTop}
+                        className="fixed bottom-4 right-4 md:bottom-8 md:right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-3 md:p-4 rounded-full shadow-2xl ring-2 md:ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110"
+                        aria-label="Back to top"
                     >
-                        <path 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                            strokeWidth={2.5} 
-                            d="M5 10l7-7m0 0l7 7m-7-7v18" 
-                        />
-                    </svg>
-                </button>
-            )}
+                        <svg 
+                            className="w-5 h-5 md:w-6 md:h-6" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                        >
+                            <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={2.5} 
+                                d="M5 10l7-7m0 0l7 7m-7-7v18" 
+                            />
+                        </svg>
+                    </button>
+                )}
+            </div>
         </div>
     )
 } 
