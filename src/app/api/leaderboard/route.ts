@@ -7,6 +7,7 @@ import {
     parseSearchParams,
     paginationSchema
 } from '@/lib/api-utils'
+import { FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +42,8 @@ export async function GET(request: Request) {
         if (error) return error
 
         // Get all users with their stats using optimized query
+        // Note: We join with Question to get round and value for normalized scoring
+        // GameHistory.points remains unchanged (may contain wagers) for future use
         const userStats = await prisma.$queryRaw<LeaderboardEntry[]>`
             WITH UserStats AS (
                 SELECT 
@@ -50,11 +53,24 @@ export async function GET(request: Request) {
                     u."avatarBackground",
                     COUNT(DISTINCT CASE WHEN gh.correct = true THEN gh."questionId" END)::integer as correct_answers,
                     COUNT(DISTINCT gh."questionId")::integer as total_answered,
-                    COALESCE(SUM(CASE WHEN gh.correct = true THEN gh.points ELSE 0 END), 0)::integer as total_points
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
+                            WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
+                            ELSE 0 
+                        END
+                    ), 0)::integer as total_points
                 FROM "User" u
                 LEFT JOIN "GameHistory" gh ON u.id = gh."userId"
+                LEFT JOIN "Question" q ON q.id = gh."questionId"
                 GROUP BY u.id, u."displayName", u."selectedIcon", u."avatarBackground"
-                HAVING COALESCE(SUM(CASE WHEN gh.correct = true THEN gh.points ELSE 0 END), 0) > 0
+                HAVING COALESCE(SUM(
+                    CASE 
+                        WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
+                        WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
+                        ELSE 0 
+                    END
+                ), 0) > 0
             )
             SELECT 
                 id,

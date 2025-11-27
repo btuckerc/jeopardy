@@ -1,21 +1,29 @@
 import { redirect } from 'next/navigation'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import SettingsClient from './SettingsClient'
 
 export default async function SettingsPage() {
-    const session = await auth()
+    const appUser = await getAppUser()
 
-    if (!session?.user) {
-        redirect('/auth/signin')
+    if (!appUser) {
+        redirect('/sign-in')
     }
 
-    const user = session.user
-    const displayName = user.displayName || user.name || user.email?.split('@')[0]
-    const selectedIcon = user.selectedIcon
-    const avatarBackground = user.avatarBackground
+    const displayName = appUser.displayName || appUser.email?.split('@')[0] || 'User'
+    const selectedIcon = appUser.selectedIcon
+    const avatarBackground = appUser.avatarBackground
 
     return <SettingsClient
-        user={user}
+        user={{
+            id: appUser.id,
+            email: appUser.email,
+            name: appUser.name,
+            displayName: appUser.displayName,
+            selectedIcon: appUser.selectedIcon,
+            avatarBackground: appUser.avatarBackground,
+            role: appUser.role,
+            image: appUser.image,
+        }}
         displayName={displayName || ''}
         selectedIcon={selectedIcon || null}
         avatarBackground={avatarBackground || null}

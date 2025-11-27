@@ -5,30 +5,41 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import UserSettings from '@/components/UserSettings'
 import UserAvatar from '@/components/UserAvatar'
-import { signOut } from 'next-auth/react'
-import { Session } from 'next-auth'
+import { useClerk, SignInButton } from '@clerk/nextjs'
+import type { AppUser } from '@/lib/clerk-auth'
 
 interface AuthButtonProps {
-    session: Session | null
+    appUser: AppUser | null
 }
 
-export function AuthButton({ session }: AuthButtonProps) {
+export function AuthButton({ appUser }: AuthButtonProps) {
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
     const buttonRef = useRef<HTMLButtonElement>(null)
+    const { signOut } = useClerk()
+    const router = useRouter()
     
-    // Initialize from session - the session callback now fetches fresh data from DB
+    // Initialize from appUser - trust the server-rendered data
+    // This prevents flash on refresh since we render immediately with server data
     const [displayName, setDisplayName] = useState<string | null>(
-        session?.user?.displayName ?? null
+        appUser?.displayName ?? null
     )
     const [selectedIcon, setSelectedIcon] = useState<string | null>(
-        session?.user?.selectedIcon ?? null
+        appUser?.selectedIcon ?? null
     )
     const [avatarBackground, setAvatarBackground] = useState<string | null>(
-        session?.user?.avatarBackground ?? null
+        appUser?.avatarBackground ?? null
     )
-    const router = useRouter()
+
+    // Update state when appUser changes (e.g., after settings update)
+    useEffect(() => {
+        if (appUser) {
+            setDisplayName(appUser.displayName ?? null)
+            setSelectedIcon(appUser.selectedIcon ?? null)
+            setAvatarBackground(appUser.avatarBackground ?? null)
+        }
+    }, [appUser])
 
     // Handle click outside to close menu
     useEffect(() => {
@@ -111,48 +122,43 @@ export function AuthButton({ session }: AuthButtonProps) {
     }, [showUserMenu])
 
     const handleSignOut = async () => {
-        await signOut({ redirect: false })
-        router.refresh()
         setShowUserMenu(false)
+        await signOut()
+        router.refresh()
     }
 
-    // No session = show sign in button (rendered immediately from server)
-    if (!session?.user) {
+    // No appUser from server = show sign in button immediately (no flash)
+    if (!appUser) {
         return (
-            <Link
-                href="/auth/signin"
-                className="bg-amber-400 hover:bg-amber-500 text-gray-900 px-4 py-2 rounded-full text-sm font-bold transition-all duration-200 shadow-sm hover:shadow-md"
-            >
-                Sign in
-            </Link>
+            <SignInButton mode="modal">
+                <button className="bg-amber-400 hover:bg-amber-500 text-gray-900 px-4 py-2 rounded-full text-sm font-bold transition-all duration-200 shadow-sm hover:shadow-md">
+                    Sign in
+                </button>
+            </SignInButton>
         )
     }
 
-    // Has session = show user button (rendered immediately from server)
-    const user = session.user
-    const userDisplayName = displayName || user.name || 'User'
-    const userEmail = user.email || ''
-
+    // Has appUser from server = show user button immediately (no flash)
     return (
         <>
             <div className="relative">
                 <button
                     ref={buttonRef}
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 text-white px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
                     aria-expanded={showUserMenu}
                     aria-haspopup="true"
                     aria-label="User menu"
                 >
                     <UserAvatar
-                        email={userEmail}
+                        email={appUser.email}
                         displayName={displayName}
                         selectedIcon={selectedIcon}
                         avatarBackground={avatarBackground}
                         size="sm"
                         interactive={true}
                     />
-                    <span className="hidden sm:inline-block max-w-[120px] truncate">{userDisplayName}</span>
+                    <span className="hidden lg:inline-block max-w-[120px] truncate">{displayName || 'User'}</span>
                     <svg 
                         className={`w-4 h-4 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`}
                         fill="none" 
@@ -177,7 +183,7 @@ export function AuthButton({ session }: AuthButtonProps) {
                         {/* Profile Card */}
                         <div
                             ref={menuRef}
-                            className="absolute right-0 mt-2 w-72 sm:w-80 rounded-xl shadow-xl bg-white border border-gray-200 z-50 overflow-hidden animate-fade-in-slide-down"
+                            className="absolute right-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-1.5rem)] rounded-xl shadow-xl bg-white border border-gray-200 z-50 overflow-hidden animate-fade-in-slide-down"
                             role="menu"
                             aria-orientation="vertical"
                         >
@@ -185,7 +191,7 @@ export function AuthButton({ session }: AuthButtonProps) {
                             <div className="px-4 py-4 bg-gradient-to-br from-blue-50 to-blue-100/50 border-b border-gray-200">
                                 <div className="flex items-center gap-3">
                                     <UserAvatar
-                                        email={userEmail}
+                                        email={appUser.email}
                                         displayName={displayName}
                                         selectedIcon={selectedIcon}
                                         avatarBackground={avatarBackground}
@@ -194,17 +200,17 @@ export function AuthButton({ session }: AuthButtonProps) {
                                     />
                                     <div className="flex-1 min-w-0">
                                         <div className="font-semibold text-gray-900 truncate">
-                                            {userDisplayName}
+                                            {displayName || 'User'}
                                         </div>
                                         <div className="text-xs text-gray-500 truncate mt-0.5">
-                                            {userEmail}
+                                            {appUser.email}
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Menu Actions */}
-                            <div className="py-1">
+                            <div className="py-1 max-h-[min(80vh,24rem)] overflow-y-auto">
                                 <button
                                     onClick={() => {
                                         setShowSettings(true)
@@ -220,7 +226,7 @@ export function AuthButton({ session }: AuthButtonProps) {
                                     <span>Settings</span>
                                 </button>
                                 
-                                {session.user.role === 'ADMIN' && (
+                                {appUser.role === 'ADMIN' && (
                                     <Link
                                         href="/admin"
                                         onClick={() => setShowUserMenu(false)}
@@ -258,7 +264,7 @@ export function AuthButton({ session }: AuthButtonProps) {
                 onDisplayNameUpdate={(newDisplayName: string) => setDisplayName(newDisplayName)}
                 onIconUpdate={(newIcon: string | null) => setSelectedIcon(newIcon)}
                 onAvatarBackgroundUpdate={(newBackground: string | null) => setAvatarBackground(newBackground)}
-                email={userEmail}
+                email={appUser.email}
                 displayName={displayName}
                 selectedIcon={selectedIcon}
                 avatarBackground={avatarBackground}

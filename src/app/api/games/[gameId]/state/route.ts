@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse, parseBody, badRequestResponse } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -39,8 +39,8 @@ const completeGameSchema = z.object({
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
     try {
-        const session = await auth()
-        if (!session?.user?.id) {
+        const appUser = await getAppUser()
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
@@ -58,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
             return notFoundResponse('Game not found')
         }
 
-        if (game.userId !== session.user.id) {
+        if (game.userId !== appUser.id) {
             return forbiddenResponse('You can only update your own games')
         }
 
@@ -120,7 +120,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                 // Also save to GameHistory for stats tracking
                 await prisma.gameHistory.create({
                     data: {
-                        userId: session.user.id,
+                        userId: appUser.id,
                         questionId,
                         correct,
                         points: correct ? pointsEarned : 0

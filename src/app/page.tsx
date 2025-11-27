@@ -1,13 +1,12 @@
 import Link from 'next/link'
 import { Fredoka } from 'next/font/google'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
 
 export default async function Home() {
-    // Fetch session on the server - no flash, immediate render
-    const session = await auth()
-    const user = session?.user
+    // Fetch user on the server - no flash, immediate render
+    const user = await getAppUser()
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -116,7 +115,7 @@ export default async function Home() {
                             </Link>
                         </div>
 
-                        {/* Conditional content based on auth - rendered on server, no flash */}
+                        {/* Conditional content based on auth - server rendered, no flash */}
                         <div className="mt-16 text-center">
                             {!user ? (
                                 <>
@@ -132,7 +131,7 @@ export default async function Home() {
                                         personalized recommendations based on your performance.
                                     </p>
                                     <Link 
-                                        href="/auth/signin"
+                                        href="/sign-in"
                                         className="mt-6 inline-flex items-center gap-2 btn-primary btn-lg"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

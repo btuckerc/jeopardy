@@ -1,6 +1,7 @@
 'use client'
 
-import { useSession, signIn as nextAuthSignIn, signOut as nextAuthSignOut } from 'next-auth/react'
+import { useUser, useClerk } from '@clerk/nextjs'
+import { useState, useEffect } from 'react'
 
 interface SessionUser {
     id: string
@@ -14,42 +15,95 @@ interface SessionUser {
 }
 
 /**
- * Client-side auth hook that works with server-provided session.
+ * Client-side auth hook that works with Clerk.
  * 
- * When the session is passed to SessionProvider from the server,
- * useSession() returns the session immediately without a loading state.
- * This eliminates the flash of unauthenticated content.
+ * This hook fetches the full user data from our API (including role from Prisma)
+ * since Clerk doesn't store our custom user fields.
  */
 export function useAuth() {
-    const { data: session, status } = useSession()
+    const { isLoaded, isSignedIn, user: clerkUser } = useUser()
+    const { signOut, openSignIn } = useClerk()
+    const [appUser, setAppUser] = useState<SessionUser | null>(null)
+    const [fetchingUser, setFetchingUser] = useState(false)
+    const [hasFetched, setHasFetched] = useState(false)
     
-    // When session is provided from server, status is never 'loading' on initial render
-    const loading = status === 'loading'
-    
-    let user: SessionUser | null = null
-    if (session?.user) {
-        user = {
-            id: (session.user as any).id || '',
-            email: session.user.email,
-            name: session.user.name,
-            image: session.user.image,
-            role: (session.user as any).role,
-            displayName: (session.user as any).displayName,
-            selectedIcon: (session.user as any).selectedIcon,
-            avatarBackground: (session.user as any).avatarBackground,
+    // Fetch app user data from our API when Clerk is loaded and signed in
+    useEffect(() => {
+        async function fetchAppUser() {
+            if (!isLoaded || !isSignedIn || fetchingUser || hasFetched) return
+            
+            setFetchingUser(true)
+            try {
+                // Fetch user data including role from our API
+                const response = await fetch('/api/user/me')
+                if (response.ok) {
+                    const data = await response.json()
+                    setAppUser({
+                        id: data.user.id,
+                        email: data.user.email,
+                        name: data.user.name,
+                        image: data.user.image,
+                        role: data.user.role,
+                        displayName: data.user.displayName,
+                        selectedIcon: data.user.selectedIcon,
+                        avatarBackground: data.user.avatarBackground,
+                    })
+                } else {
+                    // If fetch fails, use basic Clerk data
+                    setAppUser({
+                        id: clerkUser?.id || '',
+                        email: clerkUser?.emailAddresses[0]?.emailAddress,
+                        name: clerkUser?.fullName,
+                        image: clerkUser?.imageUrl,
+                        role: null,
+                        displayName: null,
+                        selectedIcon: null,
+                        avatarBackground: null,
+                    })
+                }
+            } catch (error) {
+                console.error('Error fetching app user:', error)
+                // Fallback to basic Clerk data
+                if (clerkUser) {
+                    setAppUser({
+                        id: clerkUser.id,
+                        email: clerkUser.emailAddresses[0]?.emailAddress,
+                        name: clerkUser.fullName,
+                        image: clerkUser.imageUrl,
+                        role: null,
+                        displayName: null,
+                        selectedIcon: null,
+                        avatarBackground: null,
+                    })
+                }
+            } finally {
+                setFetchingUser(false)
+                setHasFetched(true)
+            }
         }
+        
+        fetchAppUser()
+    }, [isLoaded, isSignedIn, clerkUser, fetchingUser, hasFetched])
+    
+    // Reset state when user signs out
+    useEffect(() => {
+        if (isLoaded && !isSignedIn) {
+            setAppUser(null)
+            setHasFetched(false)
+        }
+    }, [isLoaded, isSignedIn])
+    
+    const loading = !isLoaded || (isSignedIn && !hasFetched)
+
+    const signIn = async () => {
+        openSignIn()
     }
 
-    const signIn = async (email: string) => {
-        await nextAuthSignIn('email', { email, redirect: false })
+    const handleSignOut = async () => {
+        await signOut()
+        setAppUser(null)
+        setHasFetched(false)
     }
 
-    const signOut = async () => {
-        await nextAuthSignOut({ redirect: false })
-    }
-
-    return { user, loading, signIn, signOut }
+    return { user: appUser, loading, signIn, signOut: handleSignOut }
 }
-
-// Re-export SessionProvider for convenience
-export { SessionProvider } from 'next-auth/react'

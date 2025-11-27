@@ -1,13 +1,13 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, serverErrorResponse } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
     try {
-        const session = await auth()
-        const userId = session?.user?.id
+        const appUser = await getAppUser()
+        const userId = appUser?.id
 
         // Get user's spoiler settings if logged in
         const user = userId ? await prisma.user.findUnique({

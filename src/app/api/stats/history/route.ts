@@ -7,6 +7,7 @@ import {
     parseSearchParams,
     getAuthenticatedUser
 } from '@/lib/api-utils'
+import { getStatsPoints } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,13 +72,27 @@ export async function GET(request: Request) {
             categoryName: string
         }>
 
-        let filteredQuestions = answeredQuestions
+        // Compute normalized points for each question
+        const questionsWithNormalizedPoints = answeredQuestions.map(q => {
+            const normalizedPoints = getStatsPoints({
+                round: q.round,
+                faceValue: q.value,
+                correct: q.correct,
+                storedPoints: q.points
+            })
+            return {
+                ...q,
+                points: normalizedPoints
+            }
+        })
+
+        let filteredQuestions = questionsWithNormalizedPoints
 
         // Filter and sort based on type
         switch (type) {
             case 'points':
-                // Sort by points earned (descending), only correct answers have points
-                filteredQuestions = answeredQuestions
+                // Sort by normalized points earned (descending), only correct answers have points
+                filteredQuestions = questionsWithNormalizedPoints
                     .filter(q => q.correct)
                     .sort((a, b) => b.points - a.points)
                 break
@@ -85,10 +100,10 @@ export async function GET(request: Request) {
             case 'attempted':
                 // Show all attempted, with tab filter
                 if (tab === 'correct') {
-                    filteredQuestions = answeredQuestions.filter(q => q.correct)
+                    filteredQuestions = questionsWithNormalizedPoints.filter(q => q.correct)
                 } else {
                     // Default to incorrect
-                    filteredQuestions = answeredQuestions.filter(q => !q.correct)
+                    filteredQuestions = questionsWithNormalizedPoints.filter(q => !q.correct)
                 }
                 // Sort by timestamp descending (most recent first)
                 filteredQuestions.sort((a, b) => 
@@ -99,10 +114,10 @@ export async function GET(request: Request) {
             case 'correct':
                 // Show all with correct prioritized
                 if (tab === 'incorrect') {
-                    filteredQuestions = answeredQuestions.filter(q => !q.correct)
+                    filteredQuestions = questionsWithNormalizedPoints.filter(q => !q.correct)
                 } else {
                     // Default to correct
-                    filteredQuestions = answeredQuestions.filter(q => q.correct)
+                    filteredQuestions = questionsWithNormalizedPoints.filter(q => q.correct)
                 }
                 // Sort by timestamp descending
                 filteredQuestions.sort((a, b) => 
@@ -112,7 +127,7 @@ export async function GET(request: Request) {
             
             case 'tripleStumpers':
                 // Only triple stumpers that user got correct
-                filteredQuestions = answeredQuestions
+                filteredQuestions = questionsWithNormalizedPoints
                     .filter(q => q.wasTripleStumper && q.correct)
                     .sort((a, b) => b.points - a.points)
                 break
@@ -122,8 +137,8 @@ export async function GET(request: Request) {
         // For triple stumpers modal, only count triple stumper questions in summary
         // For other modals, count all answered questions
         const summaryQuestions = type === 'tripleStumpers' 
-            ? answeredQuestions.filter(q => q.wasTripleStumper)
-            : answeredQuestions
+            ? questionsWithNormalizedPoints.filter(q => q.wasTripleStumper)
+            : questionsWithNormalizedPoints
 
         const totalCorrect = summaryQuestions.filter(q => q.correct).length
         const totalIncorrect = summaryQuestions.filter(q => !q.correct).length

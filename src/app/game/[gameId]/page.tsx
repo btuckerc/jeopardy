@@ -120,6 +120,22 @@ export default function GameBoardById() {
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
     const [score, setScore] = useState(0)
+    const [disputeContext, setDisputeContext] = useState<{
+        questionId: string
+        gameId: string | null
+        round: string
+        userAnswer: string
+        mode: string
+    } | null>(null)
+    const [disputeSubmitted, setDisputeSubmitted] = useState(false)
+    const [finalJeopardyDisputeContext, setFinalJeopardyDisputeContext] = useState<{
+        questionId: string
+        gameId: string | null
+        round: string
+        userAnswer: string
+        mode: string
+    } | null>(null)
+    const [finalJeopardyDisputeSubmitted, setFinalJeopardyDisputeSubmitted] = useState(false)
     
     // Final Jeopardy state
     // Stage: 'category' (show category + wager), 'question' (show question + answer input), 'result' (show result)
@@ -140,7 +156,7 @@ export default function GameBoardById() {
     const players: Player[] = [
         {
             id: user?.id || 'guest',
-            displayName: user?.displayName || user?.name || 'Player',
+            displayName: user?.displayName || 'Player',
             selectedIcon: user?.selectedIcon,
             avatarBackground: user?.avatarBackground,
             score: score,
@@ -281,7 +297,7 @@ export default function GameBoardById() {
         } finally {
             setLoading(false)
         }
-    }, [score, saveGameState])
+    }, [score, saveGameState, gameId])
 
     // Check for round completion
     useEffect(() => {
@@ -431,7 +447,7 @@ export default function GameBoardById() {
 
         initGame()
         // No cleanup that resets hasInitialized - we only want to run once
-    }, [gameId]) // Minimal dependencies - only gameId
+    }, [gameId, loadCategories, loadFinalJeopardy]) // Include callbacks as dependencies
 
     // Handle round completion
     const handleRoundComplete = useCallback(async () => {
@@ -535,31 +551,103 @@ export default function GameBoardById() {
     }
 
     const handleSubmitAnswer = async () => {
-        if (!selectedQuestion || !userAnswer) return
+        if (!selectedQuestion || !userAnswer || !gameId) return
 
-        const result = checkAnswer(userAnswer, selectedQuestion.answer)
-        setIsCorrect(result)
-        setShowAnswer(true)
+        try {
+            const categoryIndex = categories.findIndex(c => c.questions.some(q => q?.id === selectedQuestion.id))
+            const questionIndex = categories[categoryIndex]?.questions.findIndex(q => q?.id === selectedQuestion.id) ?? -1
 
-        setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
+            const pointsEarned = categoryIndex !== -1 && questionIndex !== -1
+                ? getDisplayValue(selectedQuestion, questionIndex)
+                : 0
 
-        const categoryIndex = categories.findIndex(c => c.questions.some(q => q?.id === selectedQuestion.id))
-        const questionIndex = categories[categoryIndex]?.questions.findIndex(q => q?.id === selectedQuestion.id) ?? -1
+            // Use the centralized grading API
+            const response = await fetch('/api/answers/grade', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionId: selectedQuestion.id,
+                    mode: 'GAME',
+                    round: currentRound,
+                    userAnswer: userAnswer.trim(),
+                    gameId: gameId,
+                    pointsEarned
+                })
+            })
 
-        const pointsEarned = result && categoryIndex !== -1 && questionIndex !== -1
-            ? getDisplayValue(selectedQuestion, questionIndex)
-            : 0
+            if (!response.ok) {
+                throw new Error('Failed to grade answer')
+            }
 
-        if (result) {
-            setScore(prev => prev + pointsEarned)
+            const data = await response.json()
+            const result = data.correct
+            setIsCorrect(result)
+            setShowAnswer(true)
+            setDisputeContext(data.disputeContext)
+            setDisputeSubmitted(false)
+
+            setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
+
+            if (result) {
+                setScore(prev => prev + pointsEarned)
+            }
+
+            // Save to game state (API already persisted, but we update local state)
+            await saveGameState('answer', {
+                questionId: selectedQuestion.id,
+                correct: result,
+                pointsEarned
+            })
+        } catch (error) {
+            console.error('Error submitting answer:', error)
+            // Fallback to local checking if API fails
+            const result = checkAnswer(userAnswer, selectedQuestion.answer)
+            setIsCorrect(result)
+            setShowAnswer(true)
+            setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
+
+            const categoryIndex = categories.findIndex(c => c.questions.some(q => q?.id === selectedQuestion.id))
+            const questionIndex = categories[categoryIndex]?.questions.findIndex(q => q?.id === selectedQuestion.id) ?? -1
+
+            const pointsEarned = result && categoryIndex !== -1 && questionIndex !== -1
+                ? getDisplayValue(selectedQuestion, questionIndex)
+                : 0
+
+            if (result) {
+                setScore(prev => prev + pointsEarned)
+            }
+
+            await saveGameState('answer', {
+                questionId: selectedQuestion.id,
+                correct: result,
+                pointsEarned
+            })
         }
+    }
 
-        // Save to game state
-        await saveGameState('answer', {
-            questionId: selectedQuestion.id,
-            correct: result,
-            pointsEarned
-        })
+    const handleDispute = async () => {
+        if (!disputeContext || disputeSubmitted || !user?.id) return
+
+        try {
+            const response = await fetch('/api/answers/disputes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...disputeContext,
+                    systemWasCorrect: false
+                })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                console.error('Failed to submit dispute:', error.error)
+                return
+            }
+
+            setDisputeSubmitted(true)
+        } catch (error) {
+            console.error('Error submitting dispute:', error)
+        }
     }
 
     const handleDontKnow = async () => {
@@ -595,22 +683,87 @@ export default function GameBoardById() {
     }
 
     const handleFinalJeopardySubmit = async () => {
-        if (!finalJeopardyQuestion || !finalJeopardyAnswer) return
+        if (!finalJeopardyQuestion || !finalJeopardyAnswer || !gameId) return
 
-        const result = checkAnswer(finalJeopardyAnswer, finalJeopardyQuestion.answer)
-        setFinalJeopardyIsCorrect(result)
-        setFinalJeopardyStage('result')
+        try {
+            // Use the centralized grading API
+            const response = await fetch('/api/answers/grade', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionId: finalJeopardyQuestion.id,
+                    mode: 'GAME',
+                    round: 'FINAL',
+                    userAnswer: finalJeopardyAnswer.trim(),
+                    gameId: gameId,
+                    pointsEarned: 0 // Final Jeopardy uses wager, not question value
+                })
+            })
 
-        const effectiveWager = finalJeopardyActualWager
-        
-        const newScore = result ? score + effectiveWager : score - effectiveWager
-        setScore(newScore)
+            if (!response.ok) {
+                throw new Error('Failed to grade answer')
+            }
 
-        await saveGameState('answer', {
-            questionId: finalJeopardyQuestion.id,
-            correct: result,
-            pointsEarned: 0
-        })
+            const data = await response.json()
+            const result = data.correct
+            setFinalJeopardyIsCorrect(result)
+            setFinalJeopardyStage('result')
+            setFinalJeopardyDisputeContext(data.disputeContext)
+            setFinalJeopardyDisputeSubmitted(false)
+
+            const effectiveWager = finalJeopardyActualWager
+            
+            const newScore = result ? score + effectiveWager : score - effectiveWager
+            setScore(newScore)
+
+            await saveGameState('answer', {
+                questionId: finalJeopardyQuestion.id,
+                correct: result,
+                pointsEarned: 0
+            })
+        } catch (error) {
+            console.error('Error submitting Final Jeopardy answer:', error)
+            // Fallback to local checking
+            const result = checkAnswer(finalJeopardyAnswer, finalJeopardyQuestion.answer)
+            setFinalJeopardyIsCorrect(result)
+            setFinalJeopardyStage('result')
+
+            const effectiveWager = finalJeopardyActualWager
+            
+            const newScore = result ? score + effectiveWager : score - effectiveWager
+            setScore(newScore)
+
+            await saveGameState('answer', {
+                questionId: finalJeopardyQuestion.id,
+                correct: result,
+                pointsEarned: 0
+            })
+        }
+    }
+
+    const handleFinalJeopardyDispute = async () => {
+        if (!finalJeopardyDisputeContext || finalJeopardyDisputeSubmitted || !user?.id) return
+
+        try {
+            const response = await fetch('/api/answers/disputes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...finalJeopardyDisputeContext,
+                    systemWasCorrect: false
+                })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                console.error('Failed to submit dispute:', error.error)
+                return
+            }
+
+            setFinalJeopardyDisputeSubmitted(true)
+        } catch (error) {
+            console.error('Error submitting dispute:', error)
+        }
     }
 
     const handleFinalJeopardyDontKnow = async () => {
@@ -823,17 +976,17 @@ export default function GameBoardById() {
 
                             <div className="space-y-6">
                                 <div className={`p-6 rounded-xl ${finalJeopardyIsCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
-                                    <div className="flex items-center justify-center gap-3 mb-2">
+                                    <div className="flex items-center gap-2 mb-2">
                                         {finalJeopardyIsCorrect ? (
-                                            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                         ) : (
-                                            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                         )}
-                                        <span className={`text-2xl font-bold ${finalJeopardyIsCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                                        <span className={`text-lg font-bold ${finalJeopardyIsCorrect ? 'text-green-700' : 'text-red-700'}`}>
                                             {finalJeopardyIsCorrect ? 'Correct!' : 'Incorrect'}
                                         </span>
                                     </div>
@@ -847,6 +1000,33 @@ export default function GameBoardById() {
                                                 : `Wager: -$${finalJeopardyActualWager.toLocaleString()}`
                                             }
                                         </p>
+                                    )}
+                                    {!finalJeopardyIsCorrect && finalJeopardyDisputeContext && user?.id && (
+                                        <div className="mt-3 flex justify-end">
+                                            {finalJeopardyDisputeSubmitted ? (
+                                                <span className="text-sm text-blue-200 flex items-center gap-1">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Dispute submitted
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1">
+                                                    <button
+                                                        onClick={handleFinalJeopardyDispute}
+                                                        className="text-sm text-blue-200 hover:text-white underline"
+                                                    >
+                                                        Dispute this answer
+                                                    </button>
+                                                    <span className="relative group">
+                                                        <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-blue-100 hover:text-white cursor-help border border-blue-200 rounded-full">i</span>
+                                                        <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                            An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                        </span>
+                                                    </span>
+                                                </span>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                                 
@@ -935,7 +1115,7 @@ export default function GameBoardById() {
                     {/* Board wrapper with overflow visible for hover effects */}
                     <div className="game-board overflow-visible">
                         {/* Mobile: Vertical scroll layout */}
-                        <div className="block sm:hidden">
+                        <div className="block lg:hidden">
                             <div className="space-y-4">
                                 {categories.map((category) => (
                                     <div key={category.id} className="bg-blue-800/50 rounded-lg p-3">
@@ -979,11 +1159,12 @@ export default function GameBoardById() {
                         </div>
 
                         {/* Desktop: Traditional grid layout */}
-                        <div className="hidden sm:block overflow-visible">
-                            <div 
-                                className="grid gap-2 overflow-visible"
-                                style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(120px, 1fr))` }}
-                            >
+                        <div className="hidden lg:block overflow-visible">
+                            <div className="overflow-x-auto scrollbar-hide -mx-2 px-2">
+                                <div 
+                                    className="grid gap-2 overflow-visible"
+                                    style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(120px, 1fr))` }}
+                                >
                                 {/* Category Headers */}
                                 {categories.map((category) => (
                                     <div key={`header-${category.id}`} className="category-header min-h-[70px] flex items-center justify-center p-2">
@@ -1022,6 +1203,7 @@ export default function GameBoardById() {
                                         )
                                     })
                                 ))}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1090,23 +1272,50 @@ export default function GameBoardById() {
                         ) : (
                             <div className="space-y-4">
                                 <div className={`p-6 rounded-xl ${isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
-                                    <div className="flex items-center justify-center gap-3 mb-2">
+                                    <div className="flex items-center gap-2 mb-2">
                                         {isCorrect ? (
-                                            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                         ) : (
-                                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                         )}
-                                        <span className={`text-lg font-bold ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                                        <span className={`text-sm font-bold ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
                                             {isCorrect ? 'Correct!' : 'Incorrect'}
                                         </span>
                                     </div>
                                     <p className="font-medium text-center">
                                         {selectedQuestion.answer}
                                     </p>
+                                    {!isCorrect && disputeContext && user?.id && (
+                                        <div className="mt-3 flex justify-end">
+                                            {disputeSubmitted ? (
+                                                <span className="text-sm text-gray-500 flex items-center gap-1">
+                                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Dispute submitted
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1">
+                                                    <button
+                                                        onClick={handleDispute}
+                                                        className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                    >
+                                                        Dispute this answer
+                                                    </button>
+                                                    <span className="relative group">
+                                                        <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
+                                                        <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                            An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                        </span>
+                                                    </span>
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                                 <button
                                     onClick={() => setSelectedQuestion(null)}

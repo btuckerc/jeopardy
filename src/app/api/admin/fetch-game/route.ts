@@ -90,7 +90,8 @@ export async function GET(request: Request) {
                 isDoubleJeopardy: q.round === 'DOUBLE',
                 isFinalJeopardy: q.round === 'FINAL',
                 difficulty: q.difficulty,
-                knowledgeCategory: q.knowledgeCategory
+                knowledgeCategory: q.knowledgeCategory,
+                wasTripleStumper: q.wasTripleStumper
             }))
         }))
 

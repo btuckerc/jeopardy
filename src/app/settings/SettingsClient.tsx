@@ -4,13 +4,15 @@ import UserAvatar from '@/components/UserAvatar'
 import UserSettings from '@/components/UserSettings'
 import SpoilerSettings from '@/components/SpoilerSettings'
 
-interface SettingsUser {
+export interface SettingsUser {
     id: string
     email?: string | null
     name?: string | null
     displayName?: string | null
     selectedIcon?: string | null
     avatarBackground?: string | null
+    role?: string | null
+    image?: string | null
 }
 
 interface SettingsClientProps {

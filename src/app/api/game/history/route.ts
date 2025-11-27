@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -12,9 +12,9 @@ const historySchema = z.object({
 
 export async function POST(request: NextRequest) {
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
 
-        if (!session?.user?.id) {
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
         const gameHistory = await prisma.gameHistory.create({
             data: {
-                userId: session.user.id,
+                userId: appUser.id,
                 questionId,
                 correct: isCorrect,
                 points: pointsEarned,

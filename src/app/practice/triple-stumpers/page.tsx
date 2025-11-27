@@ -370,24 +370,8 @@ function TripleStumpersContent() {
         }
     }, [searchParams, loading, user?.id, selectedCategory, selectedQuestion?.id, questions])
 
-    // Infinite scroll
-    useEffect(() => {
-        if (!loadMoreRef.current || !hasMore || loadingMore || selectedCategory) return
-
-        const observer = new IntersectionObserver(
-            async (entries) => {
-                if (entries[0].isIntersecting && hasMore && !loadingMore) {
-                    await loadMoreCategories()
-                }
-            },
-            { threshold: 0.1 }
-        )
-
-        observer.observe(loadMoreRef.current)
-        return () => observer.disconnect()
-    }, [hasMore, loadingMore, selectedCategory])
-
-    const loadMoreCategories = async () => {
+    // Load more categories for infinite scroll
+    const loadMoreCategories = useCallback(async () => {
         if (loadingMore) return
 
         setLoadingMore(true)
@@ -402,7 +386,24 @@ function TripleStumpersContent() {
         } finally {
             setLoadingMore(false)
         }
-    }
+    }, [loadingMore, currentPage, sortBy, user?.id])
+
+    // Infinite scroll observer
+    useEffect(() => {
+        if (!loadMoreRef.current || !hasMore || loadingMore || selectedCategory) return
+
+        const observer = new IntersectionObserver(
+            async (entries) => {
+                if (entries[0].isIntersecting && hasMore && !loadingMore) {
+                    await loadMoreCategories()
+                }
+            },
+            { threshold: 0.1 }
+        )
+
+        observer.observe(loadMoreRef.current)
+        return () => observer.disconnect()
+    }, [hasMore, loadingMore, selectedCategory, loadMoreCategories])
 
     const handleCategorySelect = useCallback(async (categoryId: string) => {
         if (categoryId === selectedCategory) return

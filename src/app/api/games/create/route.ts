@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import type { Prisma } from '@prisma/client'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse, parseBody, badRequestResponse } from '@/lib/api-utils'
 import { z } from 'zod'
 import { nanoid } from 'nanoid'
@@ -30,9 +31,9 @@ const gameConfigSchema = z.object({
  */
 export async function POST(request: Request) {
     try {
-        const session = await auth()
+        const appUser = await getAppUser()
 
-        if (!session?.user?.id) {
+        if (!appUser) {
             return unauthorizedResponse()
         }
 
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
             spoilerProtection = { enabled: true, cutoffDate: config.overrideSpoilerCutoff }
         } else {
             // Use the user's current profile spoiler settings
-            const userPolicy = await computeUserEffectiveCutoff(session.user.id)
+            const userPolicy = await computeUserEffectiveCutoff(appUser.id)
             spoilerProtection = toStoredPolicy(userPolicy)
         }
 
@@ -80,23 +81,24 @@ export async function POST(request: Request) {
         // Determine starting round
         const startingRound = rounds.single ? 'SINGLE' : rounds.double ? 'DOUBLE' : 'SINGLE'
 
+        // Build JSON-safe game configuration to store
+        const gameConfigToStore = {
+            mode: config.mode,
+            categories: config.categories,
+            categoryIds: config.categoryIds,
+            date: config.date,
+            rounds,
+            finalCategoryMode: config.finalCategoryMode,
+            finalCategoryId: config.finalCategoryId,
+            spoilerProtection
+        } as unknown as Prisma.InputJsonValue
+
         // Create the game
         const game = await prisma.game.create({
             data: {
-                userId: session.user.id,
+                userId: appUser.id,
                 seed,
-                config: {
-                    mode: config.mode,
-                    categories: config.categories,
-                    categoryIds: config.categoryIds,
-                    date: config.date,
-                    rounds,
-                    finalCategoryMode: config.finalCategoryMode,
-                    finalCategoryId: config.finalCategoryId,
-                    // Store the spoiler protection policy for this game
-                    // This is the authoritative cutoff that board-generation APIs will use
-                    spoilerProtection
-                },
+                config: gameConfigToStore,
                 status: 'IN_PROGRESS',
                 currentRound: startingRound,
                 currentScore: 0,

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, notFoundResponse, serverErrorResponse } from '@/lib/api-utils'
 import type { Category, Prisma } from '@prisma/client'
 import {
@@ -46,8 +46,8 @@ type CategoryWithQuestions = Category & {
  */
 export async function GET(request: NextRequest) {
     try {
-        const session = await auth()
-        const userId = session?.user?.id
+        const appUser = await getAppUser()
+        const userId = appUser?.id
 
         const searchParams = request.nextUrl.searchParams
         const gameId = searchParams.get('gameId')

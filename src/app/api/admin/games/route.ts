@@ -97,7 +97,8 @@ export async function POST(request: Request) {
                                 airDate: game.airDate ? new Date(game.airDate) : null,
                                 season: game.season,
                                 episodeId: game.episodeId,
-                                knowledgeCategory: game.knowledgeCategory || 'GENERAL_KNOWLEDGE'
+                                knowledgeCategory: game.knowledgeCategory || 'GENERAL_KNOWLEDGE',
+                                wasTripleStumper: game.wasTripleStumper ?? false
                             }
                         })
                     }
@@ -173,7 +174,8 @@ export async function POST(request: Request) {
                                 episodeId: game.episodeId || game.gameId,
                                 knowledgeCategory: question.knowledgeCategory || 'GENERAL_KNOWLEDGE',
                                 round,
-                                isDoubleJeopardy: round === 'DOUBLE' // Legacy field
+                                isDoubleJeopardy: round === 'DOUBLE', // Legacy field
+                                wasTripleStumper: question.wasTripleStumper ?? false
                             }
                         })
                         created++

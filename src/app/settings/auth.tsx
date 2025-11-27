@@ -1,12 +1,12 @@
 import { redirect } from 'next/navigation'
-import { auth } from '@/lib/auth'
+import { getAppUser } from '@/lib/clerk-auth'
 
 export async function getAuthUser() {
-    const session = await auth()
+    const appUser = await getAppUser()
 
-    if (!session?.user) {
-        redirect('/auth/signin')
+    if (!appUser) {
+        redirect('/sign-in')
     }
 
-    return session.user
+    return appUser
 }
