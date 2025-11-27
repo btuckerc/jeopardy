@@ -11,7 +11,6 @@ import { NextAuthOptions } from 'next-auth'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import EmailProvider from 'next-auth/providers/email'
 import GoogleProvider from 'next-auth/providers/google'
-import GitHubProvider from 'next-auth/providers/github'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { prisma } from './prisma'
 import type { UserRole } from '@prisma/client'
@@ -164,15 +163,7 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
     )
 }
 
-// GitHub OAuth - optional
-if (process.env.AUTH_GITHUB_ID && process.env.AUTH_GITHUB_SECRET) {
-    providers.push(
-        GitHubProvider({
-            clientId: process.env.AUTH_GITHUB_ID,
-            clientSecret: process.env.AUTH_GITHUB_SECRET,
-        })
-    )
-}
+// GitHub OAuth - removed (no longer used)
 
 // Use JWT strategy in dev (for credentials), database in prod
 const useJwtStrategy = process.env.NODE_ENV === 'development'
