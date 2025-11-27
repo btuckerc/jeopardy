@@ -24,9 +24,10 @@ export enum KnowledgeCategory {
 // Zod Schemas
 export const userSchema = z.object({
     id: z.string().uuid(),
-    email: z.string().email(),
+    email: z.string().email().nullable(),
     displayName: z.string().nullable(),
     selectedIcon: z.string().nullable(),
+    avatarBackground: z.string().nullable(),
     createdAt: z.date(),
     updatedAt: z.date(),
     role: z.nativeEnum(UserRole),

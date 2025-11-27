@@ -1,7 +1,11 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-import { prisma } from '@/app/lib/prisma'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import {
+    jsonResponse,
+    unauthorizedResponse,
+    badRequestResponse,
+    serverErrorResponse
+} from '@/lib/api-utils'
 
 // Function to generate a random display name
 function generateRandomDisplayName(): string {
@@ -14,114 +18,67 @@ function generateRandomDisplayName(): string {
     return `${randomAdjective}${randomNoun}`
 }
 
-async function syncUserData(supabase: any, userId: string, data: { displayName?: string | null, selectedIcon?: string | null }) {
-    try {
-        await supabase.auth.updateUser({
-            data: {
-                display_name: data.displayName ?? undefined,
-                avatar_icon: data.selectedIcon ?? undefined
-            }
-        })
-    } catch (error) {
-        console.error('Error syncing with Supabase:', error)
-        // Continue execution even if Supabase sync fails
-    }
-}
+export async function GET() {
+    const session = await auth()
 
-export async function GET(request: Request) {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) {
+        return unauthorizedResponse()
     }
 
     try {
-        // Use upsert to ensure user exists and get their data
-        const user = await prisma.user.upsert({
+        const user = await prisma.user.findUnique({
             where: { id: session.user.id },
-            create: {
-                id: session.user.id,
-                email: session.user.email!,
-                displayName: generateRandomDisplayName(),
-                selectedIcon: '👤'
-            },
-            update: {},
             select: {
                 displayName: true,
-                selectedIcon: true
+                selectedIcon: true,
+                avatarBackground: true
             }
         })
 
-        return NextResponse.json({
-            displayName: user.displayName,
-            selectedIcon: user.selectedIcon || '👤'
+        return jsonResponse({
+            displayName: user?.displayName || session.user.displayName || generateRandomDisplayName(),
+            selectedIcon: user?.selectedIcon || '👤',
+            avatarBackground: user?.avatarBackground || null
         })
     } catch (error) {
-        console.error('Error fetching display name:', error)
-        return NextResponse.json(
-            { error: 'Failed to fetch display name' },
-            { status: 500 }
-        )
+        return serverErrorResponse('Failed to fetch display name', error)
     }
 }
 
 export async function POST(request: Request) {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await auth()
 
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) {
+        return unauthorizedResponse()
     }
 
     try {
-        const { displayName, selectedIcon } = await request.json()
+        const { displayName, selectedIcon, avatarBackground } = await request.json()
 
         if (displayName && typeof displayName !== 'string') {
-            return NextResponse.json(
-                { error: 'Display name must be a string' },
-                { status: 400 }
-            )
+            return badRequestResponse('Display name must be a string')
         }
 
         if (displayName && (displayName.length < 3 || displayName.length > 20)) {
-            return NextResponse.json(
-                { error: 'Display name must be between 3 and 20 characters' },
-                { status: 400 }
-            )
+            return badRequestResponse('Display name must be between 3 and 20 characters')
         }
 
-        // Use upsert instead of update to handle potential race conditions
-        const user = await prisma.user.upsert({
+        const user = await prisma.user.update({
             where: { id: session.user.id },
-            create: {
-                id: session.user.id,
-                email: session.user.email!,
-                displayName: displayName || generateRandomDisplayName(),
-                selectedIcon: selectedIcon || '👤'
-            },
-            update: {
+            data: {
                 displayName: displayName || undefined,
-                selectedIcon: selectedIcon === null ? null : selectedIcon || undefined
+                selectedIcon: selectedIcon === null ? null : selectedIcon || undefined,
+                avatarBackground: avatarBackground === null ? null : avatarBackground || undefined
             },
             select: {
                 displayName: true,
-                selectedIcon: true
+                selectedIcon: true,
+                avatarBackground: true
             }
         })
 
-        // Sync with Supabase
-        await syncUserData(supabase, session.user.id, {
-            displayName: user.displayName ?? null,
-            selectedIcon: user.selectedIcon ?? null
-        })
-
-        return NextResponse.json(user)
+        return jsonResponse(user)
     } catch (error) {
-        console.error('Error updating user data:', error)
-        return NextResponse.json(
-            { error: 'Failed to update user data' },
-            { status: 500 }
-        )
+        return serverErrorResponse('Failed to update user data', error)
     }
 } 

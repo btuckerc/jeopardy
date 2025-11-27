@@ -1,26 +1,22 @@
-import { NextResponse } from 'next/server'
-import { prisma } from '@/app/lib/prisma'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { jsonResponse, badRequestResponse, unauthorizedResponse, notFoundResponse, serverErrorResponse } from '@/lib/api-utils'
 
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const categoryName = searchParams.get('name')
 
     if (!categoryName) {
-        return NextResponse.json({ error: 'Category name is required' }, { status: 400 })
+        return badRequestResponse('Category name is required')
     }
 
     try {
-        // Get the authenticated user
-        const supabase = createRouteHandlerClient({ cookies })
-        const { data: { session } } = await supabase.auth.getSession()
+        const session = await auth()
 
-        if (!session?.user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        if (!session?.user?.id) {
+            return unauthorizedResponse()
         }
 
-        // Get the category's questions with their game history
         const category = await prisma.category.findUnique({
             where: { name: categoryName },
             include: {
@@ -43,10 +39,9 @@ export async function GET(request: Request) {
         })
 
         if (!category) {
-            return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+            return notFoundResponse('Category not found')
         }
 
-        // Format all questions, but only include content for correctly answered ones
         const questions = category.questions.map(question => {
             const isCorrect = question.gameHistory.length > 0
             return {
@@ -59,16 +54,12 @@ export async function GET(request: Request) {
             }
         })
 
-        return NextResponse.json({
+        return jsonResponse({
             questions,
             totalQuestions: category.questions.length,
             correctQuestions: questions.filter(q => q.correct).length
         })
     } catch (error) {
-        console.error('Error fetching category details:', error)
-        return NextResponse.json(
-            { error: 'Failed to fetch category details' },
-            { status: 500 }
-        )
+        return serverErrorResponse('Failed to fetch category details', error)
     }
 } 

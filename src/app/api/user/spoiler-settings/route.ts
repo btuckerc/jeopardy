@@ -1,65 +1,48 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 
-export async function GET(request: Request) {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-    const { data: { session } } = await supabase.auth.getSession();
+export async function GET() {
+    const session = await auth()
 
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session?.user?.id) {
+        return unauthorizedResponse()
     }
 
     try {
-        // Get or create user settings using Prisma
-        const settings = await prisma.user.upsert({
+        const user = await prisma.user.findUnique({
             where: { id: session.user.id },
-            create: {
-                id: session.user.id,
-                email: session.user.email!,
-                spoilerBlockEnabled: true
-            },
-            update: {},
             select: {
                 spoilerBlockDate: true,
                 spoilerBlockEnabled: true,
                 lastSpoilerPrompt: true
             }
-        });
+        })
 
-        return NextResponse.json(settings);
+        return jsonResponse({
+            spoilerBlockDate: user?.spoilerBlockDate,
+            spoilerBlockEnabled: user?.spoilerBlockEnabled ?? false,
+            lastSpoilerPrompt: user?.lastSpoilerPrompt
+        })
     } catch (error) {
-        console.error('Error fetching spoiler settings:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return serverErrorResponse('Error fetching spoiler settings', error)
     }
 }
 
 export async function POST(request: Request) {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-    const { data: { session } } = await supabase.auth.getSession();
+    const session = await auth()
 
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!session?.user?.id) {
+        return unauthorizedResponse()
     }
 
     try {
-        const body = await request.json();
-        const { spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt } = body;
+        const body = await request.json()
+        const { spoilerBlockDate, spoilerBlockEnabled, lastSpoilerPrompt } = body
 
-        // Update user settings using Prisma
-        const settings = await prisma.user.upsert({
+        const settings = await prisma.user.update({
             where: { id: session.user.id },
-            create: {
-                id: session.user.id,
-                email: session.user.email!,
-                spoilerBlockEnabled: spoilerBlockEnabled ?? true,
-                spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
-                lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null
-            },
-            update: {
+            data: {
                 spoilerBlockEnabled: spoilerBlockEnabled ?? undefined,
                 spoilerBlockDate: spoilerBlockDate ? new Date(spoilerBlockDate) : null,
                 lastSpoilerPrompt: lastSpoilerPrompt ? new Date(lastSpoilerPrompt) : null
@@ -69,11 +52,10 @@ export async function POST(request: Request) {
                 spoilerBlockEnabled: true,
                 lastSpoilerPrompt: true
             }
-        });
+        })
 
-        return NextResponse.json(settings);
+        return jsonResponse(settings)
     } catch (error) {
-        console.error('Error updating spoiler settings:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return serverErrorResponse('Error updating spoiler settings', error)
     }
-} 
+}

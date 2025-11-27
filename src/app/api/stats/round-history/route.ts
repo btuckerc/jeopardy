@@ -1,0 +1,133 @@
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import {
+    jsonResponse,
+    serverErrorResponse,
+    errorResponse,
+    parseSearchParams,
+    getAuthenticatedUser
+} from '@/lib/api-utils'
+
+export const dynamic = 'force-dynamic'
+
+const roundHistoryParamsSchema = z.object({
+    round: z.enum(['SINGLE', 'DOUBLE', 'FINAL'])
+})
+
+export async function GET(request: Request) {
+    try {
+        const { searchParams } = new URL(request.url)
+        const { data: params, error } = parseSearchParams(searchParams, roundHistoryParamsSchema)
+        
+        if (error) return error
+
+        const user = await getAuthenticatedUser()
+        if (!user) {
+            return errorResponse('Authentication required', 401)
+        }
+
+        const userId = user.id
+        const { round } = params
+
+        // Get all answered questions for this round, ordered by when they were answered (timestamp)
+        const answeredQuestions = await prisma.$queryRaw`
+            WITH LatestAnswers AS (
+                SELECT DISTINCT ON ("questionId") 
+                    "questionId",
+                    correct,
+                    points,
+                    timestamp
+                FROM "GameHistory"
+                WHERE "userId" = ${userId}
+                ORDER BY "questionId", timestamp DESC
+            )
+            SELECT 
+                la."questionId" as id,
+                la.correct,
+                la.points,
+                la.timestamp,
+                q.question,
+                q.answer,
+                q.value,
+                q."airDate",
+                q."wasTripleStumper",
+                q.round::text as round,
+                q."categoryId",
+                c.name as "categoryName"
+            FROM LatestAnswers la
+            JOIN "Question" q ON q.id = la."questionId"
+            JOIN "Category" c ON c.id = q."categoryId"
+            WHERE q.round::text = ${round}
+            ORDER BY la.timestamp DESC
+        ` as Array<{
+            id: string
+            correct: boolean
+            points: number
+            timestamp: Date
+            question: string
+            answer: string
+            value: number
+            airDate: Date | null
+            wasTripleStumper: boolean
+            round: string
+            categoryId: string
+            categoryName: string
+        }>
+
+        // Calculate summary stats
+        const totalCorrect = answeredQuestions.filter(q => q.correct).length
+        const totalIncorrect = answeredQuestions.filter(q => !q.correct).length
+        const totalPoints = answeredQuestions
+            .filter(q => q.correct)
+            .reduce((sum, q) => sum + q.points, 0)
+
+        // Group questions by category for the category breakdown
+        const categoryMap = new Map<string, {
+            categoryId: string
+            categoryName: string
+            questions: typeof answeredQuestions
+            correct: number
+            incorrect: number
+        }>()
+
+        answeredQuestions.forEach(q => {
+            const existing = categoryMap.get(q.categoryId)
+            if (existing) {
+                existing.questions.push(q)
+                if (q.correct) existing.correct++
+                else existing.incorrect++
+            } else {
+                categoryMap.set(q.categoryId, {
+                    categoryId: q.categoryId,
+                    categoryName: q.categoryName,
+                    questions: [q],
+                    correct: q.correct ? 1 : 0,
+                    incorrect: q.correct ? 0 : 1
+                })
+            }
+        })
+
+        const categories = Array.from(categoryMap.values())
+            .sort((a, b) => {
+                // Sort by most recently answered (first question's timestamp)
+                const aTime = a.questions[0]?.timestamp ? new Date(a.questions[0].timestamp).getTime() : 0
+                const bTime = b.questions[0]?.timestamp ? new Date(b.questions[0].timestamp).getTime() : 0
+                return bTime - aTime
+            })
+
+        return jsonResponse({
+            questions: answeredQuestions,
+            categories,
+            summary: {
+                totalCorrect,
+                totalIncorrect,
+                totalAttempted: answeredQuestions.length,
+                totalPoints
+            }
+        })
+    } catch (err) {
+        console.error('Error fetching round history:', err)
+        return serverErrorResponse('Failed to fetch round history', err)
+    }
+}
+

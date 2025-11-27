@@ -1,73 +1,116 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { startOfDay } from 'date-fns';
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { startOfDay } from 'date-fns'
+import { Prisma } from '@prisma/client'
+import {
+    jsonResponse,
+    serverErrorResponse,
+    parseSearchParams,
+    getAuthenticatedUser,
+    knowledgeCategorySchema,
+    difficultySchema,
+    paginationSchema
+} from '@/lib/api-utils'
+
+export const dynamic = 'force-dynamic'
+
+// Request validation schema
+const questionsParamsSchema = z.object({
+    category: z.string().optional(),
+    knowledgeCategory: knowledgeCategorySchema.optional(),
+    difficulty: difficultySchema.optional(),
+    airDateFrom: z.string().optional(),
+    airDateTo: z.string().optional(),
+    ...paginationSchema.shape
+})
 
 export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: { session } } = await supabase.auth.getSession();
-
     try {
-        // Get user's spoiler settings if logged in
-        let spoilerBlockDate: Date | null = null;
-        let spoilerBlockEnabled = false;
+        const { searchParams } = new URL(request.url)
+        const { data: params, error } = parseSearchParams(searchParams, questionsParamsSchema)
+        
+        if (error) return error
 
-        if (session?.user?.id) {
-            const user = await prisma.user.findUnique({
-                where: { id: session.user.id },
+        // Get user's spoiler settings if logged in
+        const user = await getAuthenticatedUser()
+        let spoilerBlockDate: Date | null = null
+        let spoilerBlockEnabled = false
+
+        if (user) {
+            const userSettings = await prisma.user.findUnique({
+                where: { id: user.id },
                 select: {
                     spoilerBlockDate: true,
                     spoilerBlockEnabled: true
                 }
-            });
+            })
 
-            if (user) {
-                spoilerBlockDate = user.spoilerBlockDate;
-                spoilerBlockEnabled = user.spoilerBlockEnabled;
+            if (userSettings) {
+                spoilerBlockDate = userSettings.spoilerBlockDate
+                spoilerBlockEnabled = userSettings.spoilerBlockEnabled
             }
         }
 
-        // Build where clause based on spoiler settings
-        const where: any = {};
+        // Build where clause
+        const where: Prisma.QuestionWhereInput = {}
 
-        if (spoilerBlockDate) {
-            where.airDate = {
-                lte: spoilerBlockDate
-            };
-        }
-
+        // Spoiler protection
         if (spoilerBlockEnabled) {
             where.airDate = {
-                ...where.airDate,
-                lt: startOfDay(new Date())
-            };
-        }
-
-        // Add any other filters from searchParams
-        if (searchParams.has('category')) {
-            where.category = { name: searchParams.get('category') };
-        }
-
-        if (searchParams.has('difficulty')) {
-            where.difficulty = searchParams.get('difficulty');
-        }
-
-        const questions = await prisma.question.findMany({
-            where,
-            include: {
-                category: true
-            },
-            take: 50,
-            orderBy: {
-                airDate: 'desc'
+                lt: spoilerBlockDate ?? startOfDay(new Date())
             }
-        });
+        }
 
-        return NextResponse.json(questions);
+        // Category filter
+        if (params.category) {
+            where.category = { name: params.category }
+        }
+
+        // Knowledge category filter
+        if (params.knowledgeCategory) {
+            where.knowledgeCategory = params.knowledgeCategory
+        }
+
+        // Difficulty filter
+        if (params.difficulty) {
+            where.difficulty = params.difficulty
+        }
+
+        // Date range filter
+        if (params.airDateFrom || params.airDateTo) {
+            where.airDate = {
+                ...(where.airDate as object || {}),
+                ...(params.airDateFrom && { gte: new Date(params.airDateFrom) }),
+                ...(params.airDateTo && { lte: new Date(params.airDateTo) })
+            }
+        }
+
+        // Get questions with pagination
+        const [questions, total] = await Promise.all([
+            prisma.question.findMany({
+                where,
+                include: {
+                    category: true
+                },
+                skip: (params.page - 1) * params.limit,
+                take: params.limit,
+                orderBy: {
+                    airDate: 'desc'
+                }
+            }),
+            prisma.question.count({ where })
+        ])
+
+        return jsonResponse({
+            questions,
+            pagination: {
+                page: params.page,
+                limit: params.limit,
+                total,
+                totalPages: Math.ceil(total / params.limit)
+            }
+        })
     } catch (error) {
-        console.error('Error fetching questions:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return serverErrorResponse('Error fetching questions', error)
     }
 } 

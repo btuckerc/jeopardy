@@ -1,33 +1,75 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [vector]
+}
+
+// NextAuth.js Models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model User {
-  id                  String         @id @default(uuid())
-  email               String         @unique
-  displayName         String?        @map("displayName")
-  selectedIcon        String?        @map("selectedIcon")
+  id                  String         @id @default(cuid())
+  name                String?
+  email               String?        @unique
+  emailVerified       DateTime?
+  image               String?
+  displayName         String?
+  selectedIcon        String?
+  avatarBackground    String?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   role                UserRole       @default(USER)
   lastSpoilerPrompt   DateTime?
   spoilerBlockDate    DateTime?
-  spoilerBlockEnabled Boolean        @default(true)
+  spoilerBlockEnabled Boolean        @default(false)
+  accounts            Account[]
+  sessions            Session[]
   games               Game[]
   gameHistory         GameHistory[]
   userProgress        UserProgress[]
-
-  @@map("User")
 }
 
 model Question {
-  id                String            @id @default(uuid())
+  id                String                         @id @default(uuid())
   question          String
   answer            String
   value             Int
@@ -37,30 +79,50 @@ model Question {
   airDate           DateTime?
   season            Int?
   episodeId         String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  wasTripleStumper  Boolean           @default(false)
-  isDoubleJeopardy  Boolean           @default(false)
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+  wasTripleStumper  Boolean                        @default(false)
+  isDoubleJeopardy  Boolean                        @default(false) // @deprecated - use 'round' instead
+  round             JeopardyRound                  @default(SINGLE)
+  embedding         Unsupported("vector(1536)")?
   gameHistory       GameHistory[]
   games             GameQuestion[]
-  category          Category          @relation(fields: [categoryId], references: [id])
+  category          Category                       @relation(fields: [categoryId], references: [id])
   userProgress      UserProgress[]
-  tags              Tag[]             @relation("QuestionTags")
+  tags              Tag[]                          @relation("QuestionTags")
+
+  @@index([categoryId])
+  @@index([knowledgeCategory])
+  @@index([airDate])
+  @@index([round])
 }
 
 model Category {
-  id           String         @id @default(uuid())
-  name         String         @unique
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
-  questions    Question[]
-  userProgress UserProgress[]
+  id                String                         @id @default(uuid())
+  name              String                         @unique
+  knowledgeCategory KnowledgeCategory?
+  embedding         Unsupported("vector(1536)")?
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+  questions         Question[]
+  userProgress      UserProgress[]
+
+  @@index([knowledgeCategory])
 }
 
 model Tag {
   id        String     @id @default(uuid())
   name      String     @unique
   questions Question[] @relation("QuestionTags")
+}
+
+model KnowledgeCategoryEmbedding {
+  id                String                       @id @default(uuid())
+  knowledgeCategory KnowledgeCategory            @unique
+  description       String
+  embedding         Unsupported("vector(1536)")
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
 }
 
 model GameHistory {
@@ -97,8 +159,23 @@ model Game {
   completed              Boolean        @default(false)
   createdAt              DateTime       @default(now())
   updatedAt              DateTime       @updatedAt
+  
+  // New fields for resumable games and multiplayer support
+  seed                   String?        @unique // Short opaque identifier for sharing/recreating games
+  config                 Json?          // Full game configuration (mode, categories, rounds, etc.)
+  status                 GameStatus     @default(IN_PROGRESS)
+  currentRound           JeopardyRound  @default(SINGLE)
+  currentScore           Int            @default(0) // Tracks score during gameplay (separate from final score)
+  visibility             GameVisibility @default(PRIVATE)
+  
+  // Multiplayer-ready fields (nullable for now)
+  opponentUserId         String?        // For future 2-player games
+  
   user                   User           @relation(fields: [userId], references: [id])
   questions              GameQuestion[]
+
+  @@index([userId, status])
+  @@index([seed])
 }
 
 model GameQuestion {
@@ -121,6 +198,12 @@ enum Difficulty {
   HARD
 }
 
+enum JeopardyRound {
+  SINGLE
+  DOUBLE
+  FINAL
+}
+
 enum UserRole {
   USER
   ADMIN
@@ -133,4 +216,16 @@ enum KnowledgeCategory {
   SCIENCE_AND_NATURE
   SPORTS_AND_LEISURE
   GENERAL_KNOWLEDGE
+}
+
+enum GameStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum GameVisibility {
+  PRIVATE
+  UNLISTED
+  PUBLIC
 }

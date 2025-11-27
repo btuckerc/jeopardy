@@ -397,7 +397,8 @@ async function findCurrentSeason(): Promise<number> {
     } catch (error) {
         console.error('Error finding current season:', error)
     }
-    return 40 // Fallback to season 40 if we can't determine current season
+    // If we can't determine the current season, throw an error rather than using a hardcoded fallback
+    throw new Error('Could not determine current season from j-archive. Please check network connection or j-archive availability.')
 }
 
 async function findGameIdsForSeason(season: number): Promise<number[]> {

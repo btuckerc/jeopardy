@@ -1,123 +1,21 @@
-import { NextResponse } from 'next/server'
-import { PrismaClient, KnowledgeCategory } from '@prisma/client'
-import axios from 'axios'
-import { subDays, format } from 'date-fns'
-import { parse } from 'node-html-parser'
+/**
+ * Cron Job: Fetch Yesterday's Questions
+ * 
+ * Automatically fetches questions from yesterday's Jeopardy game and saves them to the database.
+ * Uses the modular jarchive-scraper library for all parsing logic.
+ */
 
-// Remove edge runtime since we need Node.js features
-// export const runtime = 'edge'
+import { NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
+import { subDays, format } from 'date-fns'
+import { parseGameByDate, JeopardyRound } from '@/lib/jarchive-scraper'
+
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Maximum allowed duration for hobby plan (in seconds)
 
-interface JeopardyQuestion {
-    id: string
-    question: string
-    answer: string
-    value: number
-    categoryName: string
-    difficulty: 'EASY' | 'MEDIUM' | 'HARD'
-    knowledgeCategory: KnowledgeCategory
-    airDate?: string
-    season?: number
-    episodeId?: string
-    wasTripleStumper?: boolean
-    isDoubleJeopardy?: boolean
-}
-
-function getDifficulty(value: number): 'EASY' | 'MEDIUM' | 'HARD' {
-    if (value <= 400) return 'EASY'
-    if (value <= 800) return 'MEDIUM'
-    return 'HARD'
-}
-
-function getKnowledgeCategory(category: string): KnowledgeCategory {
-    const categoryLower = category.toLowerCase()
-
-    if (categoryLower.includes('history') || categoryLower.includes('geography') || 
-        categoryLower.includes('world') || categoryLower.includes('capital') ||
-        categoryLower.includes('president')) {
-        return 'GEOGRAPHY_AND_HISTORY'
-    }
-
-    if (categoryLower.includes('movie') || categoryLower.includes('film') || 
-        categoryLower.includes('tv') || categoryLower.includes('television') ||
-        categoryLower.includes('actor') || categoryLower.includes('music') ||
-        categoryLower.includes('song')) {
-        return 'ENTERTAINMENT'
-    }
-
-    if (categoryLower.includes('art') || categoryLower.includes('literature') || 
-        categoryLower.includes('book') || categoryLower.includes('author') ||
-        categoryLower.includes('poet')) {
-        return 'ARTS_AND_LITERATURE'
-    }
-
-    if (categoryLower.includes('science') || categoryLower.includes('nature') || 
-        categoryLower.includes('animal') || categoryLower.includes('biology') ||
-        categoryLower.includes('physics') || categoryLower.includes('chemistry')) {
-        return 'SCIENCE_AND_NATURE'
-    }
-
-    if (categoryLower.includes('sport') || categoryLower.includes('game') || 
-        categoryLower.includes('olympic') || categoryLower.includes('athlete') ||
-        categoryLower.includes('team')) {
-        return 'SPORTS_AND_LEISURE'
-    }
-
-    return 'GENERAL_KNOWLEDGE'
-}
-
-async function getYesterdayGame(): Promise<JeopardyQuestion[]> {
-    const yesterday = subDays(new Date(), 1)
-    const formattedDate = format(yesterday, 'yyyy-MM-dd')
-
-    try {
-        const searchUrl = `https://j-archive.com/search.php?query=&search_type=date&when_day=${format(yesterday, 'dd')}&when_month=${format(yesterday, 'MM')}&when_year=${format(yesterday, 'yyyy')}`
-        const searchResponse = await axios.get(searchUrl)
-        const root = parse(searchResponse.data)
-
-        const gameLink = root.querySelectorAll('a')
-            .find(el => el.text.includes(formattedDate))
-            ?.getAttribute('href')
-
-        if (!gameLink) {
-            console.log('No game found for yesterday')
-            return []
-        }
-
-        const gameResponse = await axios.get(gameLink)
-        const gameRoot = parse(gameResponse.data)
-
-        const questions: JeopardyQuestion[] = []
-
-        gameRoot.querySelectorAll('.clue').forEach((clue) => {
-            const questionText = clue.querySelector('.clue_text')?.text.trim()
-            const answerText = clue.querySelector('.correct_response')?.text.trim()
-            const valueText = clue.querySelector('.clue_value')?.text.trim()
-            const value = valueText ? parseInt(valueText.replace('$', '').replace(',', '')) : 0
-            const categoryName = clue.closest('table')?.querySelector('.category_name')?.text.trim()
-
-            if (questionText && answerText && categoryName) {
-                questions.push({
-                    id: Math.random().toString(36).substring(7),
-                    question: questionText,
-                    answer: answerText,
-                    value,
-                    categoryName,
-                    difficulty: getDifficulty(value),
-                    knowledgeCategory: getKnowledgeCategory(categoryName),
-                    airDate: formattedDate,
-                    season: parseInt(gameLink.match(/game_id=(\d+)/)?.[1] || '0'),
-                    episodeId: gameLink.split('id=')[1]
-                })
-            }
-        })
-
-        return questions
-    } catch (error) {
-        console.error('Error fetching yesterday\'s game:', error)
-        return []
-    }
+// Map string round to Prisma enum
+function toPrismaRound(round: JeopardyRound): 'SINGLE' | 'DOUBLE' | 'FINAL' {
+    return round
 }
 
 export async function GET(request: Request) {
@@ -128,49 +26,72 @@ export async function GET(request: Request) {
             return new NextResponse('Unauthorized', { status: 401 })
         }
 
-        const questions = await getYesterdayGame()
+        const yesterday = subDays(new Date(), 1)
+        const formattedDate = format(yesterday, 'yyyy-MM-dd')
 
-        if (questions.length === 0) {
+        console.log(`Fetching game for ${formattedDate}...`)
+
+        // Use the modular scraper to fetch and parse the game
+        const game = await parseGameByDate(formattedDate)
+
+        if (!game || game.questions.length === 0) {
             return NextResponse.json({
                 success: false,
-                message: 'No questions found for yesterday'
+                message: `No game found for ${formattedDate}`
             })
         }
+
+        console.log(`Found ${game.questions.length} questions from game ${game.gameId}`)
 
         // Initialize PrismaClient and save questions
         const prisma = new PrismaClient()
 
         try {
+            let savedCount = 0
+            let skippedCount = 0
+
             await prisma.$transaction(async (tx) => {
-                for (const question of questions) {
+                for (const question of game.questions) {
                     // First, get or create the category
                     const category = await tx.category.upsert({
-                        where: { name: question.categoryName },
-                        create: { name: question.categoryName },
+                        where: { name: question.category },
+                        create: { 
+                            name: question.category,
+                            knowledgeCategory: question.knowledgeCategory
+                        },
                         update: {}
                     })
 
-                    // Then create the question with the proper category relation
+                    // Check if question already exists (avoid duplicates)
+                    const existing = await tx.question.findFirst({
+                        where: {
+                            question: question.question,
+                            airDate: new Date(formattedDate)
+                        }
+                    })
+
+                    if (existing) {
+                        skippedCount++
+                        continue
+                    }
+
+                    // Create the question with proper round field
                     await tx.question.create({
                         data: {
-                            id: question.id,
                             question: question.question,
                             answer: question.answer,
                             value: question.value,
                             difficulty: question.difficulty,
                             knowledgeCategory: question.knowledgeCategory,
-                            airDate: question.airDate ? new Date(question.airDate) : undefined,
-                            season: question.season,
-                            episodeId: question.episodeId,
-                            wasTripleStumper: question.wasTripleStumper,
-                            isDoubleJeopardy: question.isDoubleJeopardy,
+                            airDate: new Date(formattedDate),
+                            round: toPrismaRound(question.round),
+                            isDoubleJeopardy: question.round === 'DOUBLE', // Legacy field
                             category: {
-                                connect: {
-                                    id: category.id
-                                }
+                                connect: { id: category.id }
                             }
                         }
                     })
+                    savedCount++
                 }
             })
 
@@ -178,8 +99,11 @@ export async function GET(request: Request) {
 
             return NextResponse.json({
                 success: true,
-                message: `Successfully saved ${questions.length} questions`,
-                questionCount: questions.length
+                message: `Successfully saved ${savedCount} questions (skipped ${skippedCount} duplicates)`,
+                gameId: game.gameId,
+                airDate: formattedDate,
+                questionCount: savedCount,
+                skippedCount
             })
         } catch (error) {
             await prisma.$disconnect()
@@ -192,4 +116,4 @@ export async function GET(request: Request) {
             error: error instanceof Error ? error.message : 'Unknown error'
         }, { status: 500 })
     }
-} 
+}

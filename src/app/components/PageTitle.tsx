@@ -23,6 +23,9 @@ export function PageTitle() {
             case '/settings':
                 pageTitle = `${baseTitle} - settings`
                 break
+            case '/leaderboard':
+                pageTitle = `${baseTitle} - leaderboard`
+                break
         }
 
         document.title = pageTitle

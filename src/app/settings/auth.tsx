@@ -1,14 +1,12 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { auth } from '@/lib/auth'
 
 export async function getAuthUser() {
-    const supabase = createServerComponentClient({ cookies })
-    const { data: { user } } = await supabase.auth.getUser()
+    const session = await auth()
 
-    if (!user) {
-        redirect('/api/auth/signin')
+    if (!session?.user) {
+        redirect('/auth/signin')
     }
 
-    return user
-} 
+    return session.user
+}

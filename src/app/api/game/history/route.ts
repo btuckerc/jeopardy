@@ -1,21 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '../../../lib/prisma'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { NextRequest } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { jsonResponse, unauthorizedResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { z } from 'zod'
+
+const historySchema = z.object({
+    questionId: z.string(),
+    isCorrect: z.boolean(),
+    pointsEarned: z.number()
+})
 
 export async function POST(request: NextRequest) {
     try {
-        const supabase = createRouteHandlerClient({ cookies })
-        const { data: { session } } = await supabase.auth.getSession()
+        const session = await auth()
 
-        if (!session?.user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        if (!session?.user?.id) {
+            return unauthorizedResponse()
         }
 
-        const body = await request.json()
+        const { data: body, error } = await parseBody(request, historySchema)
+        if (error) return error
+
         const { questionId, isCorrect, pointsEarned } = body
 
-        // Create game history entry
         const gameHistory = await prisma.gameHistory.create({
             data: {
                 userId: session.user.id,
@@ -26,12 +33,8 @@ export async function POST(request: NextRequest) {
             }
         })
 
-        return NextResponse.json(gameHistory)
+        return jsonResponse(gameHistory)
     } catch (error) {
-        console.error('Error saving game history:', error)
-        return NextResponse.json(
-            { error: 'Failed to save game history' },
-            { status: 500 }
-        )
+        return serverErrorResponse('Failed to save game history', error)
     }
 } 

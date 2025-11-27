@@ -1,25 +1,43 @@
 'use server'
 
-import { prisma } from '../lib/prisma'
+import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
-import { PrismaClient, Prisma, KnowledgeCategory, Question, Category, GameHistory } from '@prisma/client'
-import { cookies } from 'next/headers'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Prisma, KnowledgeCategory, Question, Category, GameHistory } from '@prisma/client'
+import { startOfDay } from 'date-fns'
 
 type GameHistoryWithTimestamp = {
     correct: boolean;
     timestamp: string | Date;
 }
 
-// Create a server-side Supabase client that includes auth context
-async function getSupabase() {
-    const cookieStore = cookies()
-    return createServerComponentClient({ cookies: () => cookieStore })
+// Helper to get user's spoiler settings
+async function getUserSpoilerSettings(userId?: string) {
+    if (!userId) return { enabled: false, date: null }
+    
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+            spoilerBlockEnabled: true,
+            spoilerBlockDate: true
+        }
+    })
+    
+    return {
+        enabled: user?.spoilerBlockEnabled ?? false,
+        // If enabled but no date set, default to today
+        date: user?.spoilerBlockEnabled 
+            ? (user?.spoilerBlockDate ?? startOfDay(new Date()))
+            : null
+    }
 }
 
 export async function getCategories(userId?: string) {
     try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
         // Get total questions and correct questions per knowledge category
+        // Respecting spoiler date filter
         const categories = await prisma.$queryRaw`
             WITH LatestCorrectAnswers AS (
                 SELECT DISTINCT ON (gh."questionId")
@@ -37,6 +55,11 @@ export async function getCategories(userId?: string) {
                     END) as correct_questions
             FROM "Question" q
             LEFT JOIN LatestCorrectAnswers lca ON lca."questionId" = q.id
+            WHERE (
+                ${!spoilerSettings.enabled}::boolean = true 
+                OR q."airDate" IS NULL 
+                OR q."airDate" < ${spoilerSettings.date}::timestamp
+            )
             GROUP BY q."knowledgeCategory"
             ORDER BY q."knowledgeCategory"
         ` as Array<{ knowledgeCategory: string; total_questions: number; correct_questions: number }>
@@ -61,10 +84,21 @@ export async function getKnowledgeCategoryDetails(
     userId?: string,
     page: number = 1,
     pageSize: number = 20,
-    searchQuery?: string
+    searchQuery?: string,
+    excludeRound?: 'FINAL',
+    sortBy: 'airDate' | 'completion' = 'airDate'
 ) {
     try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
+        // Build ORDER BY clause based on sortBy parameter
+        const orderByClause = sortBy === 'completion' 
+            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN qh.correct THEN cq.question_id END)::float / NULLIF(cq.total_questions, 0)) DESC NULLS LAST, cq.most_recent_air_date DESC NULLS LAST`
+            : Prisma.sql`ORDER BY cq.most_recent_air_date DESC NULLS LAST`;
+        
         // Get categories with their questions and game history
+        // Respecting spoiler date filter and excluding FINAL round if specified
         const result = await prisma.$queryRaw<Array<{
             id: string;
             name: string;
@@ -92,6 +126,12 @@ export async function getKnowledgeCategoryDetails(
                 JOIN "Question" q ON q."categoryId" = c.id
                 WHERE q."knowledgeCategory"::text = ${knowledgeCategoryId}
                 ${searchQuery ? Prisma.sql`AND c.name ILIKE ${`%${searchQuery}%`}` : Prisma.empty}
+                ${excludeRound === 'FINAL' ? Prisma.sql`AND q.round != 'FINAL'` : Prisma.empty}
+                AND (
+                    ${!spoilerSettings.enabled}::boolean = true 
+                    OR q."airDate" IS NULL 
+                    OR q."airDate" < ${spoilerSettings.date}::timestamp
+                )
             ),
             QuestionHistory AS (
                 SELECT 
@@ -123,7 +163,7 @@ export async function getKnowledgeCategoryDetails(
             FROM CategoryQuestions cq
             LEFT JOIN QuestionHistory qh ON qh."questionId" = cq.question_id
             GROUP BY cq.category_id, cq.category_name, cq.total_questions, cq.most_recent_air_date
-            ORDER BY cq.most_recent_air_date DESC NULLS LAST
+            ${orderByClause}
             OFFSET ${(page - 1) * pageSize}
             LIMIT ${pageSize}
         `;
@@ -158,6 +198,7 @@ export async function getKnowledgeCategoryDetails(
             JOIN "Question" q ON q."categoryId" = c.id
             WHERE q."knowledgeCategory"::text = ${knowledgeCategoryId}
             ${searchQuery ? Prisma.sql`AND c.name ILIKE ${`%${searchQuery}%`}` : Prisma.empty}
+            ${excludeRound === 'FINAL' ? Prisma.sql`AND q.round != 'FINAL'` : Prisma.empty}
         `;
 
         const count = Number(totalCount[0].count);
@@ -178,14 +219,27 @@ export async function getRandomQuestion(
     knowledgeCategoryId?: string,
     categoryId?: string,
     userId?: string,
-    excludeQuestionId?: string
+    excludeQuestionId?: string,
+    round?: 'SINGLE' | 'DOUBLE' | 'FINAL'
 ) {
     try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
         // Build the where clause based on provided filters
         const where: any = {}
         if (knowledgeCategoryId) where.knowledgeCategory = knowledgeCategoryId
         if (categoryId) where.categoryId = categoryId
+        if (round) where.round = round
         if (excludeQuestionId) where.NOT = { id: excludeQuestionId }
+        
+        // Apply spoiler date filter
+        if (spoilerSettings.enabled && spoilerSettings.date) {
+            where.OR = [
+                { airDate: null },
+                { airDate: { lt: spoilerSettings.date } }
+            ]
+        }
 
         // Get all eligible question IDs first
         const eligibleQuestions = await prisma.question.findMany({
@@ -206,9 +260,21 @@ export async function getRandomQuestion(
 
         if (eligibleQuestions.length === 0) {
             // If no unanswered questions, get all questions except the excluded one
+            // Still respecting spoiler settings
+            const baseWhere: any = {}
+            if (knowledgeCategoryId) baseWhere.knowledgeCategory = knowledgeCategoryId
+            if (categoryId) baseWhere.categoryId = categoryId
+            if (round) baseWhere.round = round
+            if (spoilerSettings.enabled && spoilerSettings.date) {
+                baseWhere.OR = [
+                    { airDate: null },
+                    { airDate: { lt: spoilerSettings.date } }
+                ]
+            }
+            
             const allQuestions = await prisma.question.findMany({
                 where: {
-                    ...where,
+                    ...baseWhere,
                     NOT: excludeQuestionId ? { id: excludeQuestionId } : undefined
                 },
                 select: { id: true }
@@ -388,8 +454,11 @@ export async function saveAnswer(
     }
 }
 
-export async function getCategoryQuestions(categoryId: string, knowledgeCategoryId: string, userId?: string) {
+export async function getCategoryQuestions(categoryId: string, knowledgeCategoryId: string, userId?: string, excludeRound?: 'FINAL', round?: 'SINGLE' | 'DOUBLE' | 'FINAL') {
     try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
         // Build the where clause based on whether we have a knowledge category or regular category
         const where: any = {
             categoryId
@@ -398,6 +467,22 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
         // Only add knowledge category filter if it's a valid knowledge category
         if (knowledgeCategoryId && Object.values(KnowledgeCategory).includes(knowledgeCategoryId as any)) {
             where.knowledgeCategory = knowledgeCategoryId as KnowledgeCategory;
+        }
+        
+        // Filter by round if specified (takes precedence over excludeRound)
+        if (round) {
+            where.round = round
+        } else if (excludeRound === 'FINAL') {
+            // Exclude FINAL round if specified
+            where.round = { not: 'FINAL' }
+        }
+        
+        // Apply spoiler date filter
+        if (spoilerSettings.enabled && spoilerSettings.date) {
+            where.OR = [
+                { airDate: null },
+                { airDate: { lt: spoilerSettings.date } }
+            ]
         }
 
         const questions = await prisma.question.findMany({
@@ -453,6 +538,495 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
         })
     } catch (error) {
         console.error('Error fetching category questions:', error)
+        throw error
+    }
+}
+
+export async function getRoundCategories(
+    round: 'SINGLE' | 'DOUBLE' | 'FINAL',
+    userId?: string,
+    page: number = 1,
+    pageSize: number = 20,
+    sortBy: 'airDate' | 'completion' = 'airDate'
+) {
+    try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
+        // Build ORDER BY clause based on sortBy parameter
+        const orderByClause = sortBy === 'completion' 
+            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::float / NULLIF(cq.total_questions, 0)) DESC NULLS LAST, cq.most_recent_air_date DESC NULLS LAST`
+            : Prisma.sql`ORDER BY cq.most_recent_air_date DESC NULLS LAST`;
+        
+        // Get categories with their questions filtered by round
+        const result = await prisma.$queryRaw<Array<{
+            id: string;
+            name: string;
+            totalQuestions: number;
+            correctQuestions: number;
+            mostRecentAirDate: Date | null;
+        }>>`
+            WITH CategoryQuestions AS (
+                SELECT 
+                    c.id as category_id,
+                    c.name as category_name,
+                    COUNT(q.id) as total_questions,
+                    MAX(q."airDate") as most_recent_air_date
+                FROM "Category" c
+                JOIN "Question" q ON q."categoryId" = c.id
+                WHERE q.round = ${round}::"JeopardyRound"
+                AND (
+                    ${!spoilerSettings.enabled}::boolean = true 
+                    OR q."airDate" IS NULL 
+                    OR q."airDate" < ${spoilerSettings.date}::timestamp
+                )
+                GROUP BY c.id, c.name
+            ),
+            LatestCorrectAnswers AS (
+                SELECT DISTINCT ON (gh."questionId")
+                    gh."questionId",
+                    gh.correct
+                FROM "GameHistory" gh
+                WHERE gh."userId" = ${userId}
+                ORDER BY gh."questionId", gh.timestamp DESC
+            )
+            SELECT 
+                cq.category_id as id,
+                cq.category_name as name,
+                cq.total_questions::integer as "totalQuestions",
+                COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::integer as "correctQuestions",
+                cq.most_recent_air_date as "mostRecentAirDate"
+            FROM CategoryQuestions cq
+            JOIN "Question" q ON q."categoryId" = cq.category_id AND q.round = ${round}::"JeopardyRound"
+            LEFT JOIN LatestCorrectAnswers lca ON lca."questionId" = q.id
+            GROUP BY cq.category_id, cq.category_name, cq.total_questions, cq.most_recent_air_date
+            ${orderByClause}
+            OFFSET ${(page - 1) * pageSize}
+            LIMIT ${pageSize}
+        `;
+
+        const categories = result.map(category => ({
+            id: category.id,
+            name: category.name,
+            totalQuestions: category.totalQuestions,
+            correctQuestions: category.correctQuestions,
+            mostRecentAirDate: category.mostRecentAirDate,
+            questions: []
+        }));
+
+        const totalCount = await prisma.$queryRaw<[{ count: number }]>`
+            SELECT COUNT(DISTINCT c.id)::integer as count
+            FROM "Category" c
+            JOIN "Question" q ON q."categoryId" = c.id
+            WHERE q.round = ${round}::"JeopardyRound"
+            AND (
+                ${!spoilerSettings.enabled}::boolean = true 
+                OR q."airDate" IS NULL 
+                OR q."airDate" < ${spoilerSettings.date}::timestamp
+            )
+        `;
+
+        const count = Number(totalCount[0].count);
+
+        return {
+            categories,
+            totalPages: Math.ceil(count / pageSize),
+            currentPage: page,
+            hasMore: page * pageSize < count
+        };
+    } catch (error) {
+        console.error('Error fetching round categories:', error);
+        throw error;
+    }
+}
+
+export async function getTripleStumperQuestions(
+    userId?: string,
+    page: number = 1,
+    pageSize: number = 20
+) {
+    try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
+        // Build the where clause - if spoiler is enabled, combine with AND
+        let whereClause: any
+        
+        if (spoilerSettings.enabled && spoilerSettings.date) {
+            whereClause = {
+                AND: [
+                    { wasTripleStumper: true },
+                    {
+                        OR: [
+                            { airDate: null },
+                            { airDate: { lt: spoilerSettings.date } }
+                        ]
+                    }
+                ]
+            }
+        } else {
+            whereClause = { wasTripleStumper: true }
+        }
+        
+        // Get triple stumper questions using Prisma's standard API for more reliability
+        const questions = await prisma.question.findMany({
+            where: whereClause,
+            include: {
+                category: true,
+                gameHistory: userId ? {
+                    where: { userId },
+                    orderBy: { timestamp: 'desc' }
+                } : false
+            },
+            orderBy: { airDate: 'desc' },
+            skip: (page - 1) * pageSize,
+            take: pageSize
+        })
+
+        const transformedQuestions = questions.map(q => {
+            const gameHistory = (q.gameHistory || []) as Array<{ timestamp: Date; correct: boolean }>
+            const incorrectAttempts = gameHistory
+                .filter(h => !h.correct)
+                .map(h => h.timestamp)
+                .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+                .slice(0, 5)
+            
+            const isLocked = incorrectAttempts.length > 0 &&
+                new Date().getTime() - new Date(incorrectAttempts[0]).getTime() < 10 * 60 * 1000
+
+            return {
+                id: q.id,
+                question: q.question,
+                answer: q.answer,
+                value: q.value || 200,
+                categoryId: q.categoryId,
+                categoryName: q.category.name,
+                originalCategory: q.category.name,
+                airDate: q.airDate,
+                round: q.round,
+                gameHistory: gameHistory.map(h => ({
+                    timestamp: h.timestamp,
+                    correct: h.correct
+                })),
+                incorrectAttempts,
+                answered: gameHistory.length > 0,
+                correct: gameHistory.some(h => h.correct),
+                isLocked,
+                hasIncorrectAttempts: gameHistory.some(h => !h.correct)
+            }
+        })
+
+        const totalCount = await prisma.question.count({
+            where: whereClause
+        })
+
+        return {
+            questions: transformedQuestions,
+            totalQuestions: totalCount,
+            totalPages: Math.ceil(totalCount / pageSize),
+            currentPage: page,
+            hasMore: page * pageSize < totalCount
+        };
+    } catch (error) {
+        console.error('Error fetching triple stumper questions:', error);
+        throw error;
+    }
+}
+
+export async function getTripleStumperCategories(
+    userId?: string,
+    page: number = 1,
+    pageSize: number = 20,
+    sortBy: 'airDate' | 'completion' = 'airDate'
+) {
+    try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
+        // Build ORDER BY clause based on sortBy parameter
+        const orderByClause = sortBy === 'completion' 
+            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::float / NULLIF(COUNT(q.id), 0)) DESC NULLS LAST, MAX(q."airDate") DESC NULLS LAST`
+            : Prisma.sql`ORDER BY MAX(q."airDate") DESC NULLS LAST`;
+        
+        // Get categories that have triple stumper questions
+        const result = await prisma.$queryRaw<Array<{
+            id: string;
+            name: string;
+            totalQuestions: number;
+            correctQuestions: number;
+            mostRecentAirDate: Date | null;
+        }>>`
+            WITH LatestCorrectAnswers AS (
+                SELECT DISTINCT ON (gh."questionId")
+                    gh."questionId",
+                    gh.correct
+                FROM "GameHistory" gh
+                WHERE gh."userId" = ${userId}
+                ORDER BY gh."questionId", gh.timestamp DESC
+            )
+            SELECT 
+                c.id,
+                c.name,
+                COUNT(q.id)::integer as "totalQuestions",
+                COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::integer as "correctQuestions",
+                MAX(q."airDate") as "mostRecentAirDate"
+            FROM "Category" c
+            JOIN "Question" q ON q."categoryId" = c.id
+            LEFT JOIN LatestCorrectAnswers lca ON lca."questionId" = q.id
+            WHERE q."wasTripleStumper" = true
+            AND (
+                ${!spoilerSettings.enabled}::boolean = true 
+                OR q."airDate" IS NULL 
+                OR q."airDate" < ${spoilerSettings.date}::timestamp
+            )
+            GROUP BY c.id, c.name
+            HAVING COUNT(q.id) > 0
+            ${orderByClause}
+            OFFSET ${(page - 1) * pageSize}
+            LIMIT ${pageSize}
+        `;
+
+        const categories = result.map(category => ({
+            id: category.id,
+            name: category.name,
+            totalQuestions: category.totalQuestions,
+            correctQuestions: category.correctQuestions,
+            mostRecentAirDate: category.mostRecentAirDate,
+            questions: []
+        }));
+
+        const totalCount = await prisma.$queryRaw<[{ count: number }]>`
+            SELECT COUNT(DISTINCT c.id)::integer as count
+            FROM "Category" c
+            JOIN "Question" q ON q."categoryId" = c.id
+            WHERE q."wasTripleStumper" = true
+            AND (
+                ${!spoilerSettings.enabled}::boolean = true 
+                OR q."airDate" IS NULL 
+                OR q."airDate" < ${spoilerSettings.date}::timestamp
+            )
+        `;
+
+        const count = Number(totalCount[0].count);
+
+        return {
+            categories,
+            totalPages: Math.ceil(count / pageSize),
+            currentPage: page,
+            hasMore: page * pageSize < count
+        };
+    } catch (error) {
+        console.error('Error fetching triple stumper categories:', error);
+        throw error;
+    }
+}
+
+export async function getTripleStumperCategoryQuestions(
+    categoryId: string,
+    userId?: string
+) {
+    try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
+        const questions = await prisma.question.findMany({
+            where: {
+                categoryId,
+                wasTripleStumper: true,
+                ...(spoilerSettings.enabled && spoilerSettings.date ? {
+                    OR: [
+                        { airDate: null },
+                        { airDate: { lt: spoilerSettings.date } }
+                    ]
+                } : {})
+            },
+            include: {
+                category: true,
+                gameHistory: userId ? {
+                    where: { userId },
+                    orderBy: { timestamp: 'desc' }
+                } : false
+            },
+            orderBy: { value: 'asc' }
+        })
+
+        return questions.map(q => {
+            const gameHistory = (q.gameHistory || []) as Array<{ timestamp: Date; correct: boolean }>
+            const incorrectAttempts = gameHistory
+                .filter(h => !h.correct)
+                .map(h => h.timestamp)
+                .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
+                .slice(0, 5)
+            
+            const isLocked = incorrectAttempts.length > 0 &&
+                new Date().getTime() - new Date(incorrectAttempts[0]).getTime() < 10 * 60 * 1000
+
+            return {
+                id: q.id,
+                question: q.question,
+                answer: q.answer,
+                value: q.value || 200,
+                categoryId: q.categoryId,
+                categoryName: q.category.name,
+                originalCategory: q.category.name,
+                airDate: q.airDate,
+                gameHistory: gameHistory.map(h => ({
+                    timestamp: h.timestamp,
+                    correct: h.correct
+                })),
+                incorrectAttempts,
+                answered: gameHistory.length > 0,
+                correct: gameHistory.some(h => h.correct),
+                isLocked,
+                hasIncorrectAttempts: gameHistory.some(h => !h.correct)
+            }
+        })
+    } catch (error) {
+        console.error('Error fetching triple stumper category questions:', error)
+        throw error
+    }
+}
+
+export async function getRandomTripleStumper(
+    userId?: string,
+    excludeQuestionId?: string
+) {
+    try {
+        // Get user's spoiler settings
+        const spoilerSettings = await getUserSpoilerSettings(userId)
+        
+        // Build the where clause
+        const where: any = {
+            wasTripleStumper: true
+        }
+        
+        if (excludeQuestionId) where.NOT = { id: excludeQuestionId }
+        
+        // Apply spoiler date filter
+        if (spoilerSettings.enabled && spoilerSettings.date) {
+            where.OR = [
+                { airDate: null },
+                { airDate: { lt: spoilerSettings.date } }
+            ]
+        }
+
+        // Get all eligible question IDs first (unanswered triple stumpers)
+        const eligibleQuestions = await prisma.question.findMany({
+            where: {
+                ...where,
+                NOT: {
+                    gameHistory: userId ? {
+                        some: {
+                            userId: userId,
+                            correct: true
+                        }
+                    } : undefined,
+                    ...(excludeQuestionId ? { id: excludeQuestionId } : {})
+                }
+            },
+            select: { id: true }
+        })
+
+        if (eligibleQuestions.length === 0) {
+            // If no unanswered questions, get all triple stumper questions except the excluded one
+            const allQuestions = await prisma.question.findMany({
+                where: {
+                    wasTripleStumper: true,
+                    NOT: excludeQuestionId ? { id: excludeQuestionId } : undefined,
+                    ...(spoilerSettings.enabled && spoilerSettings.date ? {
+                        OR: [
+                            { airDate: null },
+                            { airDate: { lt: spoilerSettings.date } }
+                        ]
+                    } : {})
+                },
+                select: { id: true }
+            })
+
+            if (allQuestions.length === 0) return null
+
+            // Get a truly random question from the available ones
+            const randomIndex = Math.floor(Math.random() * allQuestions.length)
+            const randomId = allQuestions[randomIndex].id
+
+            const question = await prisma.question.findUnique({
+                where: { id: randomId },
+                include: {
+                    category: true,
+                    gameHistory: userId ? {
+                        where: { userId },
+                        orderBy: { timestamp: 'desc' }
+                    } : undefined
+                }
+            })
+
+            if (!question) return null
+
+            const gameHistory = question.gameHistory || []
+            const incorrectAttempts = userId && gameHistory.length > 0
+                ? gameHistory
+                    .filter((h: GameHistory) => !h.correct)
+                    .map((h: GameHistory) => h.timestamp)
+                    .sort((a: Date, b: Date) => new Date(b).getTime() - new Date(a).getTime())
+                    .slice(0, 5)
+                : []
+
+            return {
+                id: question.id,
+                question: question.question,
+                answer: question.answer,
+                value: question.value || 200,
+                categoryId: question.categoryId,
+                categoryName: question.knowledgeCategory,
+                originalCategory: question.category.name,
+                airDate: question.airDate,
+                answered: userId ? gameHistory.length > 0 : false,
+                correct: userId ? gameHistory.some((h: GameHistory) => h.correct) : false,
+                incorrectAttempts
+            }
+        }
+
+        // Get a truly random question from the eligible ones
+        const randomIndex = Math.floor(Math.random() * eligibleQuestions.length)
+        const randomId = eligibleQuestions[randomIndex].id
+
+        const question = await prisma.question.findUnique({
+            where: { id: randomId },
+            include: {
+                category: true,
+                gameHistory: userId ? {
+                    where: { userId },
+                    orderBy: { timestamp: 'desc' }
+                } : undefined
+            }
+        })
+
+        if (!question) return null
+
+        const gameHistory = question.gameHistory || []
+        const incorrectAttempts = userId && gameHistory.length > 0
+            ? gameHistory
+                .filter((h: GameHistory) => !h.correct)
+                .map((h: GameHistory) => h.timestamp)
+                .sort((a: Date, b: Date) => new Date(b).getTime() - new Date(a).getTime())
+                .slice(0, 5)
+            : []
+
+        return {
+            id: question.id,
+            question: question.question,
+            answer: question.answer,
+            value: question.value || 200,
+            categoryId: question.categoryId,
+            categoryName: question.knowledgeCategory,
+            originalCategory: question.category.name,
+            airDate: question.airDate,
+            answered: userId ? gameHistory.length > 0 : false,
+            correct: userId ? gameHistory.some((h: GameHistory) => h.correct) : false,
+            incorrectAttempts
+        }
+    } catch (error) {
+        console.error('Error fetching random triple stumper:', error)
         throw error
     }
 } 

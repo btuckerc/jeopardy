@@ -1,96 +1,55 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState } from 'react'
-import { User } from '@supabase/supabase-js'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useSession, signIn as nextAuthSignIn, signOut as nextAuthSignOut } from 'next-auth/react'
 
-type AuthContextType = {
-    user: User | null
-    loading: boolean
-    signIn: (email: string) => Promise<void>
-    signOut: () => Promise<void>
+interface SessionUser {
+    id: string
+    email?: string | null
+    name?: string | null
+    image?: string | null
+    role?: string | null
+    displayName?: string | null
+    selectedIcon?: string | null
+    avatarBackground?: string | null
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null)
-    const [loading, setLoading] = useState(true)
-    const supabase = createClientComponentClient()
-
-    useEffect(() => {
-        // Check active sessions and sets the user
-        const initializeAuth = async () => {
-            try {
-                // Get session from Supabase
-                const { data: { session } } = await supabase.auth.getSession()
-                setUser(session?.user ?? null)
-                setLoading(false)
-
-                // Listen for auth changes
-                const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-                    console.log('Auth state changed:', event, session?.user?.email)
-
-                    if (event === 'SIGNED_IN') {
-                        setUser(session?.user ?? null)
-                    } else if (event === 'SIGNED_OUT') {
-                        setUser(null)
-                    } else if (event === 'TOKEN_REFRESHED') {
-                        setUser(session?.user ?? null)
-                    }
-                })
-
-                return () => {
-                    subscription.unsubscribe()
-                }
-            } catch (error) {
-                console.error('Error initializing auth:', error)
-                setUser(null)
-                setLoading(false)
-            }
+/**
+ * Client-side auth hook that works with server-provided session.
+ * 
+ * When the session is passed to SessionProvider from the server,
+ * useSession() returns the session immediately without a loading state.
+ * This eliminates the flash of unauthenticated content.
+ */
+export function useAuth() {
+    const { data: session, status } = useSession()
+    
+    // When session is provided from server, status is never 'loading' on initial render
+    const loading = status === 'loading'
+    
+    let user: SessionUser | null = null
+    if (session?.user) {
+        user = {
+            id: (session.user as any).id || '',
+            email: session.user.email,
+            name: session.user.name,
+            image: session.user.image,
+            role: (session.user as any).role,
+            displayName: (session.user as any).displayName,
+            selectedIcon: (session.user as any).selectedIcon,
+            avatarBackground: (session.user as any).avatarBackground,
         }
-
-        initializeAuth()
-    }, [supabase])
+    }
 
     const signIn = async (email: string) => {
-        try {
-            const { error } = await supabase.auth.signInWithOtp({
-                email,
-                options: {
-                    emailRedirectTo: `${window.location.origin}/auth/callback`
-                }
-            })
-            if (error) throw error
-        } catch (error) {
-            console.error('Error signing in:', error)
-            throw error
-        }
+        await nextAuthSignIn('email', { email, redirect: false })
     }
 
     const signOut = async () => {
-        try {
-            const { error } = await supabase.auth.signOut()
-            if (error) throw error
-            setUser(null)
-            window.location.href = '/'
-        } catch (error) {
-            console.error('Error signing out:', error)
-            throw error
-        }
+        await nextAuthSignOut({ redirect: false })
     }
 
-    return (
-        <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
-            {children}
-        </AuthContext.Provider>
-    )
+    return { user, loading, signIn, signOut }
 }
 
-export function useAuth() {
-    const context = useContext(AuthContext)
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider')
-    }
-    return context
-} 
+// Re-export SessionProvider for convenience
+export { SessionProvider } from 'next-auth/react'
