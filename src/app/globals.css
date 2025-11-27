@@ -2,98 +2,455 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Trivrdy Design System - Jeopardy-inspired */
 :root {
-    --background: #ffffff;
-    --foreground: #171717;
+    /* Core colors - Jeopardy blue palette */
+    --color-primary: #1e3a8a;
+    --color-primary-light: #3b82f6;
+    --color-primary-dark: #1e40af;
+    
+    /* Accent colors */
+    --color-gold: #fbbf24;
+    --color-gold-light: #fcd34d;
+    
+    /* Semantic colors */
+    --color-success: #22c55e;
+    --color-error: #ef4444;
+    --color-warning: #f59e0b;
+    
+    /* Neutrals */
+    --background: #f8fafc;
+    --foreground: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    
+    /* Card surfaces */
+    --card-bg: #ffffff;
+    --card-border: #e2e8f0;
+    
+    /* Game board colors */
+    --board-bg: #1e3a8a;
+    --clue-bg: #1e40af;
+    --clue-hover: #2563eb;
 }
 
 @media (prefers-color-scheme: dark) {
     :root {
-        --background: #0a0a0a;
-        --foreground: #ededed;
+        --background: #0f172a;
+        --foreground: #f1f5f9;
+        --muted: #94a3b8;
+        --border: #334155;
+        --card-bg: #1e293b;
+        --card-border: #334155;
     }
 }
 
 @layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+    
     body {
-        @apply min-h-screen m-0 p-0 text-foreground bg-background font-sans;
+        @apply min-h-screen m-0 p-0 font-sans antialiased;
+        background: var(--background);
+        color: var(--foreground);
+    }
+    
+    /* Better focus styles */
+    *:focus-visible {
+        @apply outline-none ring-2 ring-blue-500 ring-offset-2;
     }
 }
 
 @layer components {
+    /* ==========================================================================
+       Buttons
+       ========================================================================== */
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 px-4 py-2 
+               font-medium rounded-lg transition-all duration-200
+               focus:outline-none focus:ring-2 focus:ring-offset-2
+               disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    
+    .btn-primary {
+        @apply btn bg-blue-600 text-white hover:bg-blue-700 
+               focus:ring-blue-500 shadow-sm hover:shadow-md;
+    }
+    
+    .btn-secondary {
+        @apply btn bg-gray-100 text-gray-900 hover:bg-gray-200 
+               focus:ring-gray-500 border border-gray-300;
+    }
+    
+    .btn-success {
+        @apply btn bg-green-600 text-white hover:bg-green-700 
+               focus:ring-green-500;
+    }
+    
+    .btn-danger {
+        @apply btn bg-red-600 text-white hover:bg-red-700 
+               focus:ring-red-500;
+    }
+    
+    .btn-gold {
+        @apply btn bg-amber-400 text-gray-900 hover:bg-amber-500 
+               focus:ring-amber-500 font-bold;
+    }
+    
+    .btn-lg {
+        @apply px-6 py-3 text-lg;
+    }
+    
+    .btn-sm {
+        @apply px-3 py-1.5 text-sm;
+    }
+
+    /* ==========================================================================
+       Cards
+       ========================================================================== */
+    .card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-200 
+               overflow-hidden transition-shadow duration-200;
+    }
+    
+    .card:hover {
+        @apply shadow-md;
+    }
+    
+    .card-header {
+        @apply px-6 py-4 border-b border-gray-100;
+    }
+    
+    .card-body {
+        @apply px-6 py-4;
+    }
+    
+    .card-footer {
+        @apply px-6 py-4 bg-gray-50 border-t border-gray-100;
+    }
+
+    /* ==========================================================================
+       Game Board - Jeopardy Style
+       ========================================================================== */
+    .game-board {
+        @apply bg-blue-900 rounded-xl p-3 sm:p-4 shadow-2xl;
+        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+    }
+    
     .game-grid {
-        @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4 max-w-7xl mx-auto;
+        @apply grid gap-2;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    
+    .category-header {
+        @apply bg-blue-800 text-white text-center py-3 px-2 
+               font-bold text-xs sm:text-sm uppercase tracking-wide
+               rounded-lg shadow-inner;
+    }
+    
+    .clue-cell {
+        @apply bg-blue-700 text-amber-400 text-center py-4 sm:py-6 
+               font-bold text-lg sm:text-2xl cursor-pointer
+               transition-all duration-200 rounded-lg
+               hover:bg-blue-600 hover:shadow-lg hover:z-10
+               flex items-center justify-center;
+        /* Removed hover:scale-105 to prevent overflow issues */
+    }
+    
+    .clue-cell:active {
+        @apply scale-95;
+    }
+    
+    .clue-cell.answered {
+        @apply bg-blue-900/50 text-blue-700 cursor-default 
+               hover:shadow-none;
+    }
+    
+    .clue-cell.correct {
+        @apply bg-green-700/80 text-green-200;
+    }
+    
+    .clue-cell.incorrect {
+        @apply bg-red-700/80 text-red-200;
     }
 
-    .category-card {
-        @apply bg-secondary rounded-lg p-4 text-center transform transition-transform hover:-translate-y-0.5 cursor-pointer;
-    }
-
+    /* ==========================================================================
+       Question Display
+       ========================================================================== */
     .question-card {
-        @apply bg-primary text-white rounded-lg p-6 m-4 text-center max-w-2xl w-full shadow-md;
+        @apply bg-blue-800 text-white rounded-xl p-8 
+               shadow-2xl max-w-3xl w-full mx-auto;
+        background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+    }
+    
+    .question-text {
+        @apply text-2xl md:text-3xl font-medium text-center leading-relaxed;
+    }
+    
+    .question-category {
+        @apply text-amber-400 text-sm uppercase tracking-widest mb-4 text-center;
+    }
+    
+    .question-value {
+        @apply text-amber-400 text-4xl font-bold text-center mb-6;
     }
 
+    /* ==========================================================================
+       Answer Input
+       ========================================================================== */
     .answer-input {
-        @apply w-full p-2 my-4 border-2 border-secondary rounded bg-background text-foreground;
+        @apply w-full px-4 py-3 text-lg rounded-lg border-2 
+               border-gray-300 bg-white text-gray-900
+               focus:border-blue-500 focus:ring-2 focus:ring-blue-200
+               transition-all duration-200;
+    }
+    
+    .answer-input::placeholder {
+        @apply text-gray-400 italic;
     }
 
-    .button {
-        @apply bg-primary text-white border-none rounded px-4 py-2 cursor-pointer text-base transition-colors hover:bg-primary-dark disabled:bg-secondary disabled:cursor-not-allowed;
-    }
-
-    .correct {
-        @apply text-success font-bold;
-    }
-
-    .incorrect {
-        @apply text-error font-bold;
-    }
-
-    .stats {
-        @apply grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 p-4 max-w-3xl mx-auto;
-    }
-
+    /* ==========================================================================
+       Stats & Progress
+       ========================================================================== */
     .stat-card {
-        @apply bg-secondary rounded-lg p-4 text-center;
+        @apply bg-white rounded-xl p-6 shadow-sm border border-gray-200 text-center;
     }
-
+    
     .stat-value {
-        @apply text-4xl font-bold text-primary;
+        @apply text-4xl font-bold text-blue-600;
+    }
+    
+    .stat-label {
+        @apply text-gray-500 text-sm uppercase tracking-wide mt-2;
+    }
+    
+    .progress-bar {
+        @apply h-2 bg-gray-200 rounded-full overflow-hidden;
+    }
+    
+    .progress-fill {
+        @apply h-full bg-gradient-to-r from-blue-500 to-blue-600 
+               transition-all duration-500 ease-out rounded-full;
     }
 
-    .header {
-        @apply flex justify-between items-center p-4 bg-secondary mb-4;
+    /* ==========================================================================
+       Category Cards (Practice Mode)
+       ========================================================================== */
+    .category-card {
+        @apply bg-white rounded-xl p-6 shadow-sm border border-gray-200
+               cursor-pointer transition-all duration-200
+               hover:shadow-lg hover:-translate-y-1 hover:border-blue-300;
+    }
+    
+    .category-card.complete {
+        @apply bg-green-50 border-green-200;
+    }
+    
+    .category-card h3 {
+        @apply text-lg font-semibold text-gray-900 mb-3;
     }
 
-    .nav-link {
-        @apply text-primary no-underline p-2 rounded transition-colors hover:bg-secondary;
+    /* ==========================================================================
+       Feedback States
+       ========================================================================== */
+    .correct {
+        @apply text-green-600 font-bold;
+    }
+    
+    .incorrect {
+        @apply text-red-600 font-bold;
+    }
+    
+    .feedback-correct {
+        @apply bg-green-100 border-2 border-green-500 text-green-800 
+               rounded-lg p-4 text-center;
+    }
+    
+    .feedback-incorrect {
+        @apply bg-red-100 border-2 border-red-500 text-red-800 
+               rounded-lg p-4 text-center;
     }
 
+    /* ==========================================================================
+       Layout Utilities
+       ========================================================================== */
     .container {
-        @apply max-w-7xl mx-auto p-4;
+        @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+    }
+    
+    .page-header {
+        @apply mb-8;
+    }
+    
+    .page-title {
+        @apply text-3xl font-bold text-gray-900;
+    }
+    
+    .page-subtitle {
+        @apply text-gray-500 mt-2;
     }
 
+    /* ==========================================================================
+       Navigation
+       ========================================================================== */
+    .nav-link {
+        @apply px-3 py-2 text-gray-600 hover:text-blue-600 
+               font-medium transition-colors duration-200;
+    }
+    
+    .nav-link.active {
+        @apply text-blue-600;
+    }
+
+    /* ==========================================================================
+       Forms
+       ========================================================================== */
+    .form-label {
+        @apply block text-sm font-medium text-gray-700 mb-1;
+    }
+    
+    .form-input {
+        @apply w-full px-3 py-2 border border-gray-300 rounded-lg
+               focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+               transition-all duration-200;
+    }
+    
+    .form-select {
+        @apply form-input appearance-none bg-white cursor-pointer;
+    }
+
+    /* ==========================================================================
+       Autocomplete
+       ========================================================================== */
     .autocomplete {
         @apply relative w-full;
     }
-
+    
     .suggestions {
-        @apply absolute top-full left-0 right-0 bg-background border border-secondary rounded max-h-48 overflow-y-auto z-10;
+        @apply absolute top-full left-0 right-0 mt-1 bg-white 
+               border border-gray-200 rounded-lg shadow-lg 
+               max-h-60 overflow-y-auto z-50;
     }
-
+    
     .suggestion {
-        @apply p-2 cursor-pointer hover:bg-secondary;
+        @apply px-4 py-2 cursor-pointer hover:bg-blue-50 
+               transition-colors duration-150;
+    }
+    
+    .suggestion.highlighted {
+        @apply bg-blue-100;
     }
 
-    .practice-mode {
-        @apply flex flex-col items-center gap-4 p-4;
+    /* ==========================================================================
+       Leaderboard
+       ========================================================================== */
+    .leaderboard-row {
+        @apply flex items-center gap-4 p-4 bg-white rounded-lg 
+               border border-gray-200 transition-all duration-200;
+    }
+    
+    .leaderboard-row:hover {
+        @apply shadow-md border-blue-200;
+    }
+    
+    .leaderboard-rank {
+        @apply w-10 h-10 rounded-full flex items-center justify-center 
+               font-bold text-lg;
+    }
+    
+    .leaderboard-rank.gold {
+        @apply bg-amber-100 text-amber-700;
+    }
+    
+    .leaderboard-rank.silver {
+        @apply bg-gray-200 text-gray-700;
+    }
+    
+    .leaderboard-rank.bronze {
+        @apply bg-orange-100 text-orange-700;
     }
 
-    .score {
-        @apply text-2xl font-bold text-primary;
+    /* ==========================================================================
+       Animations
+       ========================================================================== */
+    @keyframes pulse-gold {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4); }
+        50% { box-shadow: 0 0 0 10px rgba(251, 191, 36, 0); }
+    }
+    
+    .animate-pulse-gold {
+        animation: pulse-gold 2s infinite;
     }
 
-    .feedback {
-        @apply mt-4 font-bold;
+    @keyframes fadeInSlideDown {
+        0% {
+            opacity: 0;
+            transform: translateY(-8px) scale(0.95);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+    
+    .animate-fade-in-slide-down {
+        animation: fadeInSlideDown 0.2s ease-out forwards;
+    }
+
+    @keyframes fadeIn {
+        0% {
+            opacity: 0;
+        }
+        100% {
+            opacity: 1;
+        }
+    }
+    
+    .animate-fade-in {
+        animation: fadeIn 0.2s ease-out forwards;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .animate-fade-in-slide-down,
+        .animate-fade-in {
+            animation: none;
+            opacity: 1;
+            transform: none;
+        }
+    }
+
+    /* ==========================================================================
+       Loading States
+       ========================================================================== */
+    .skeleton {
+        @apply bg-gray-200 rounded animate-pulse;
+    }
+    
+    .spinner {
+        @apply inline-block w-5 h-5 border-2 border-current border-t-transparent 
+               rounded-full animate-spin;
+    }
+    
+    /* ==========================================================================
+       Text Utilities
+       ========================================================================== */
+    .line-clamp-2 {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    /* ==========================================================================
+       Scrollbar Utilities
+       ========================================================================== */
+    .scrollbar-hide {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+    
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;  /* Chrome, Safari and Opera */
     }
 }

@@ -1,17 +1,25 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { SessionProvider } from 'next-auth/react'
 import { useState } from 'react'
-import { AuthProvider } from './lib/auth'
+import { Session } from 'next-auth'
 
-export function Providers({ children }: { children: React.ReactNode }) {
+interface ProvidersProps {
+    children: React.ReactNode
+    session: Session | null
+}
+
+export function Providers({ children, session }: ProvidersProps) {
     const [queryClient] = useState(() => new QueryClient())
 
     return (
-        <QueryClientProvider client={queryClient}>
-            <AuthProvider>
+        // Pass the server-fetched session to SessionProvider
+        // This hydrates the client with the correct initial state - no flash
+        <SessionProvider session={session}>
+            <QueryClientProvider client={queryClient}>
                 {children}
-            </AuthProvider>
-        </QueryClientProvider>
+            </QueryClientProvider>
+        </SessionProvider>
     )
-} 
+}

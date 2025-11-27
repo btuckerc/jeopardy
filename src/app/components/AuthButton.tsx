@@ -1,175 +1,254 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import UserSettings from '@/components/UserSettings'
 import UserAvatar from '@/components/UserAvatar'
-import { useAuth } from '@/app/lib/auth'
+import { signOut } from 'next-auth/react'
+import { Session } from 'next-auth'
 
-export function AuthButton() {
-    const { user, loading: authLoading, signIn, signOut } = useAuth()
+interface AuthButtonProps {
+    session: Session | null
+}
+
+export function AuthButton({ session }: AuthButtonProps) {
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
-    const [displayName, setDisplayName] = useState<string | null>(null)
-    const [selectedIcon, setSelectedIcon] = useState<string | null>(null)
-    const [email, setEmail] = useState('')
-    const [showEmailInput, setShowEmailInput] = useState(false)
-    const [message, setMessage] = useState<string | null>(null)
-    const [userDataLoading, setUserDataLoading] = useState(true)
+    const menuRef = useRef<HTMLDivElement>(null)
+    const buttonRef = useRef<HTMLButtonElement>(null)
+    
+    // Initialize from session - the session callback now fetches fresh data from DB
+    const [displayName, setDisplayName] = useState<string | null>(
+        session?.user?.displayName ?? null
+    )
+    const [selectedIcon, setSelectedIcon] = useState<string | null>(
+        session?.user?.selectedIcon ?? null
+    )
+    const [avatarBackground, setAvatarBackground] = useState<string | null>(
+        session?.user?.avatarBackground ?? null
+    )
     const router = useRouter()
 
+    // Handle click outside to close menu
     useEffect(() => {
-        const fetchUserData = async () => {
-            if (user?.email) {
-                setUserDataLoading(true)
-                try {
-                    const response = await fetch(`/api/user/display-name`)
-                    if (response.ok) {
-                        const data = await response.json()
-                        setDisplayName(data.displayName)
-                        setSelectedIcon(data.selectedIcon)
-                    }
-                } catch (err) {
-                    console.error('Error fetching display name:', err)
-                } finally {
-                    setUserDataLoading(false)
-                }
-            } else {
-                setDisplayName(null)
-                setSelectedIcon(null)
-                setUserDataLoading(false)
+        const handleClickOutside = (event: MouseEvent) => {
+            if (
+                menuRef.current &&
+                !menuRef.current.contains(event.target as Node) &&
+                buttonRef.current &&
+                !buttonRef.current.contains(event.target as Node)
+            ) {
+                setShowUserMenu(false)
             }
         }
-        fetchUserData()
-    }, [user])
 
-    const handleSignIn = async (e: React.FormEvent) => {
-        e.preventDefault()
-        setMessage(null)
-
-        try {
-            await signIn(email)
-            setMessage('Check your email for the login link!')
-        } catch (error: any) {
-            setMessage(error?.message || 'An error occurred')
+        if (showUserMenu) {
+            document.addEventListener('mousedown', handleClickOutside)
+            // Prevent body scroll when menu is open on mobile
+            document.body.style.overflow = 'hidden'
         }
-    }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside)
+            document.body.style.overflow = ''
+        }
+    }, [showUserMenu])
+
+    // Handle ESC key to close menu
+    useEffect(() => {
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && showUserMenu) {
+                setShowUserMenu(false)
+                buttonRef.current?.focus()
+            }
+        }
+
+        document.addEventListener('keydown', handleEscape)
+        return () => document.removeEventListener('keydown', handleEscape)
+    }, [showUserMenu])
+
+    // Handle keyboard navigation in menu
+    useEffect(() => {
+        if (!showUserMenu || !menuRef.current) return
+
+        const menu = menuRef.current
+        const menuItems = menu.querySelectorAll<HTMLElement>('[role="menuitem"]')
+        if (menuItems.length === 0) return
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            const currentIndex = Array.from(menuItems).findIndex(item => item === document.activeElement)
+            
+            switch (event.key) {
+                case 'ArrowDown':
+                    event.preventDefault()
+                    const nextIndex = currentIndex < menuItems.length - 1 ? currentIndex + 1 : 0
+                    menuItems[nextIndex]?.focus()
+                    break
+                case 'ArrowUp':
+                    event.preventDefault()
+                    const prevIndex = currentIndex > 0 ? currentIndex - 1 : menuItems.length - 1
+                    menuItems[prevIndex]?.focus()
+                    break
+                case 'Home':
+                    event.preventDefault()
+                    menuItems[0]?.focus()
+                    break
+                case 'End':
+                    event.preventDefault()
+                    menuItems[menuItems.length - 1]?.focus()
+                    break
+            }
+        }
+
+        menu.addEventListener('keydown', handleKeyDown)
+        // Focus first item when menu opens
+        menuItems[0]?.focus()
+
+        return () => {
+            menu.removeEventListener('keydown', handleKeyDown)
+        }
+    }, [showUserMenu])
 
     const handleSignOut = async () => {
-        await signOut()
+        await signOut({ redirect: false })
         router.refresh()
         setShowUserMenu(false)
     }
 
-    if (authLoading) {
-        return <div className="w-[72px] h-[40px]" />
-    }
-
-    if (!user) {
-        if (!showEmailInput) {
-            return (
-                <div className="relative">
-                    <button
-                        onClick={() => setShowEmailInput(true)}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium"
-                    >
-                        Sign in
-                    </button>
-                </div>
-            )
-        }
-
+    // No session = show sign in button (rendered immediately from server)
+    if (!session?.user) {
         return (
-            <div className="relative inline-block">
-                <form onSubmit={handleSignIn} className="absolute right-0 top-0 mt-2 bg-white p-4 rounded-lg shadow-lg w-64">
-                    <input
-                        type="email"
-                        placeholder="Your email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="w-full px-3 py-2 border rounded mb-2 text-gray-900"
-                        required
-                    />
-                    <div className="flex gap-2">
-                        <button
-                            type="submit"
-                            disabled={authLoading}
-                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
-                        >
-                            {authLoading ? 'Sending...' : 'Send Magic Link'}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setShowEmailInput(false)}
-                            className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded text-sm font-medium"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                    {message && (
-                        <p className={`mt-2 text-sm ${message.includes('error') ? 'text-red-600' : 'text-green-600'}`}>
-                            {message}
-                        </p>
-                    )}
-                </form>
-            </div>
+            <Link
+                href="/auth/signin"
+                className="bg-amber-400 hover:bg-amber-500 text-gray-900 px-4 py-2 rounded-full text-sm font-bold transition-all duration-200 shadow-sm hover:shadow-md"
+            >
+                Sign in
+            </Link>
         )
     }
 
-    if (userDataLoading) {
-        return (
-            <div className="flex items-center space-x-3 bg-blue-500 text-white px-4 py-2 rounded-md">
-                <div className="animate-pulse flex items-center space-x-3">
-                    <div className="w-6 h-6 bg-blue-400 rounded-full"></div>
-                    <div className="h-4 w-20 bg-blue-400 rounded"></div>
-                </div>
-            </div>
-        )
-    }
+    // Has session = show user button (rendered immediately from server)
+    const user = session.user
+    const userDisplayName = displayName || user.name || 'User'
+    const userEmail = user.email || ''
 
     return (
         <>
             <div className="relative">
                 <button
+                    ref={buttonRef}
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center space-x-3 bg-blue-500 hover:bg-blue-600 text-white px-4 rounded-md text-sm font-medium h-10"
+                    className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    aria-expanded={showUserMenu}
+                    aria-haspopup="true"
+                    aria-label="User menu"
                 >
-                    <div className="flex items-center">
-                        <UserAvatar
-                            email={user.email ?? ''}
-                            displayName={displayName}
-                            selectedIcon={selectedIcon}
-                            size="md"
-                            className="cursor-pointer hover:opacity-80"
-                        />
-                        <span className="ml-3">{displayName || 'User'}</span>
-                        <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    </div>
+                    <UserAvatar
+                        email={userEmail}
+                        displayName={displayName}
+                        selectedIcon={selectedIcon}
+                        avatarBackground={avatarBackground}
+                        size="sm"
+                        interactive={true}
+                    />
+                    <span className="hidden sm:inline-block max-w-[120px] truncate">{userDisplayName}</span>
+                    <svg 
+                        className={`w-4 h-4 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                 </button>
 
+                {/* Profile Card Dropdown */}
                 {showUserMenu && (
-                    <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
-                        <div className="py-1">
-                            <button
-                                onClick={() => {
-                                    setShowSettings(true)
-                                    setShowUserMenu(false)
-                                }}
-                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            >
-                                Settings
-                            </button>
-                            <button
-                                onClick={handleSignOut}
-                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                            >
-                                Sign out
-                            </button>
+                    <>
+                        {/* Backdrop for mobile */}
+                        <div 
+                            className="fixed inset-0 bg-black/20 z-40 sm:hidden"
+                            onClick={() => setShowUserMenu(false)}
+                            aria-hidden="true"
+                        />
+                        
+                        {/* Profile Card */}
+                        <div
+                            ref={menuRef}
+                            className="absolute right-0 mt-2 w-72 sm:w-80 rounded-xl shadow-xl bg-white border border-gray-200 z-50 overflow-hidden animate-fade-in-slide-down"
+                            role="menu"
+                            aria-orientation="vertical"
+                        >
+                            {/* Profile Header */}
+                            <div className="px-4 py-4 bg-gradient-to-br from-blue-50 to-blue-100/50 border-b border-gray-200">
+                                <div className="flex items-center gap-3">
+                                    <UserAvatar
+                                        email={userEmail}
+                                        displayName={displayName}
+                                        selectedIcon={selectedIcon}
+                                        avatarBackground={avatarBackground}
+                                        size="md"
+                                        interactive={false}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="font-semibold text-gray-900 truncate">
+                                            {userDisplayName}
+                                        </div>
+                                        <div className="text-xs text-gray-500 truncate mt-0.5">
+                                            {userEmail}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Menu Actions */}
+                            <div className="py-1">
+                                <button
+                                    onClick={() => {
+                                        setShowSettings(true)
+                                        setShowUserMenu(false)
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 text-left"
+                                    role="menuitem"
+                                >
+                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                    <span>Settings</span>
+                                </button>
+                                
+                                {session.user.role === 'ADMIN' && (
+                                    <Link
+                                        href="/admin"
+                                        onClick={() => setShowUserMenu(false)}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 text-left"
+                                        role="menuitem"
+                                    >
+                                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                        </svg>
+                                        <span>Admin</span>
+                                    </Link>
+                                )}
+                                
+                                <div className="border-t border-gray-200 my-1" />
+                                
+                                <button
+                                    onClick={handleSignOut}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors duration-150 text-left"
+                                    role="menuitem"
+                                >
+                                    <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                    <span>Sign out</span>
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    </>
                 )}
             </div>
 
@@ -178,7 +257,12 @@ export function AuthButton() {
                 onClose={() => setShowSettings(false)}
                 onDisplayNameUpdate={(newDisplayName: string) => setDisplayName(newDisplayName)}
                 onIconUpdate={(newIcon: string | null) => setSelectedIcon(newIcon)}
+                onAvatarBackgroundUpdate={(newBackground: string | null) => setAvatarBackground(newBackground)}
+                email={userEmail}
+                displayName={displayName}
+                selectedIcon={selectedIcon}
+                avatarBackground={avatarBackground}
             />
         </>
     )
-} 
+}

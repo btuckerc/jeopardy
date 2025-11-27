@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '../../lib/prisma'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { jsonResponse, serverErrorResponse } from '@/lib/api-utils'
 
-export async function GET(request: NextRequest) {
+export const dynamic = 'force-dynamic'
+
+export async function GET() {
     try {
-        const supabase = createRouteHandlerClient({ cookies })
-        const { data: { session } } = await supabase.auth.getSession()
+        const session = await auth()
         const userId = session?.user?.id
 
         // Get user's spoiler settings if logged in
@@ -41,12 +41,8 @@ export async function GET(request: NextRequest) {
             }
         })
 
-        return NextResponse.json(categories)
+        return jsonResponse(categories)
     } catch (error) {
-        console.error('Error fetching categories:', error)
-        return NextResponse.json(
-            { error: 'Failed to fetch categories' },
-            { status: 500 }
-        )
+        return serverErrorResponse('Failed to fetch categories', error)
     }
 } 

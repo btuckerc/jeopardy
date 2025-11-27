@@ -1,21 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '../../../lib/prisma'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { NextRequest } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { jsonResponse, serverErrorResponse } from '@/lib/api-utils'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
     try {
-        const supabase = createRouteHandlerClient({ cookies })
-        const { data: { session } } = await supabase.auth.getSession()
+        const session = await auth()
         const userId = session?.user?.id
 
         const searchParams = request.nextUrl.searchParams
         const query = searchParams.get('q')
         const page = parseInt(searchParams.get('page') || '1')
-        const limit = 10 // Limit results to prevent overwhelming the client
+        const limit = 10
 
         if (!query || query.length < 2) {
-            return NextResponse.json([])
+            return jsonResponse([])
         }
 
         // Get user's spoiler settings if logged in
@@ -31,28 +32,24 @@ export async function GET(request: NextRequest) {
         const categories = await prisma.category.findMany({
             where: {
                 OR: [
-                    // Exact match (case insensitive)
                     {
                         name: {
                             equals: query,
                             mode: 'insensitive'
                         }
                     },
-                    // Starts with (case insensitive)
                     {
                         name: {
                             startsWith: query,
                             mode: 'insensitive'
                         }
                     },
-                    // Contains (case insensitive)
                     {
                         name: {
                             contains: query,
                             mode: 'insensitive'
                         }
                     },
-                    // Contains words (case insensitive)
                     {
                         name: {
                             contains: query.replace(/\s+/g, ' ').trim(),
@@ -84,7 +81,6 @@ export async function GET(request: NextRequest) {
                 }
             },
             orderBy: [
-                // Prioritize exact matches and starts with
                 {
                     name: 'asc'
                 }
@@ -93,12 +89,8 @@ export async function GET(request: NextRequest) {
             take: limit
         })
 
-        return NextResponse.json(categories)
+        return jsonResponse(categories)
     } catch (error) {
-        console.error('Error searching categories:', error)
-        return NextResponse.json(
-            { error: 'Failed to search categories' },
-            { status: 500 }
-        )
+        return serverErrorResponse('Failed to search categories', error)
     }
-} 
+}

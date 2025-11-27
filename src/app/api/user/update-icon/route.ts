@@ -1,35 +1,47 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-import { prisma } from '@/app/lib/prisma'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { jsonResponse, unauthorizedResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { z } from 'zod'
+
+const iconSchema = z.object({
+    icon: z.string().nullable().optional(),
+    avatarBackground: z.string().nullable().optional()
+})
 
 export async function POST(request: Request) {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = await auth()
 
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) {
+        return unauthorizedResponse()
     }
 
     try {
-        const { icon } = await request.json()
+        const { data: body, error } = await parseBody(request, iconSchema)
+        if (error) return error
 
-        const user = await prisma.user.upsert({
+        // Build update data - only include fields that were provided
+        const updateData: { selectedIcon?: string | null; avatarBackground?: string | null } = {}
+        if (body.icon !== undefined) {
+            updateData.selectedIcon = body.icon
+        }
+        if (body.avatarBackground !== undefined) {
+            updateData.avatarBackground = body.avatarBackground
+        }
+
+        const user = await prisma.user.update({
             where: { id: session.user.id },
-            update: { selectedIcon: icon },
-            create: {
-                id: session.user.id,
-                email: session.user.email!,
-                selectedIcon: icon
+            data: updateData,
+            select: { 
+                selectedIcon: true,
+                avatarBackground: true
             }
         })
 
-        return NextResponse.json({ selectedIcon: user.selectedIcon })
+        return jsonResponse({ 
+            selectedIcon: user.selectedIcon,
+            avatarBackground: user.avatarBackground
+        })
     } catch (error) {
-        console.error('Error updating icon:', error)
-        return NextResponse.json(
-            { error: 'Failed to update icon' },
-            { status: 500 }
-        )
+        return serverErrorResponse('Failed to update icon', error)
     }
-} 
+}

@@ -1,19 +1,23 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-import { prisma } from '@/app/lib/prisma'
+import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
+import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 
-export async function POST(request: Request) {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
+export async function POST() {
+    const session = await auth()
 
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!session?.user?.id) {
+        return unauthorizedResponse()
     }
 
     try {
-        // Delete all user data in a transaction
+        // Delete all user game data in a transaction
         await prisma.$transaction([
+            prisma.gameQuestion.deleteMany({
+                where: { game: { userId: session.user.id } }
+            }),
+            prisma.game.deleteMany({
+                where: { userId: session.user.id }
+            }),
             prisma.gameHistory.deleteMany({
                 where: { userId: session.user.id }
             }),
@@ -22,13 +26,8 @@ export async function POST(request: Request) {
             })
         ])
 
-        // Clear local storage data
-        return NextResponse.json({ success: true })
+        return jsonResponse({ success: true })
     } catch (error) {
-        console.error('Error resetting user data:', error)
-        return NextResponse.json(
-            { error: 'Failed to reset user data' },
-            { status: 500 }
-        )
+        return serverErrorResponse('Failed to reset user data', error)
     }
-} 
+}

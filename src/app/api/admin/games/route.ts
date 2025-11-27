@@ -1,44 +1,42 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-import { prisma } from '@/app/lib/prisma'
+import { prisma } from '@/lib/prisma'
+import {
+    jsonResponse,
+    serverErrorResponse,
+    requireAdmin,
+    parseSearchParams,
+    parseBody
+} from '@/lib/api-utils'
+import { z } from 'zod'
 
-// Helper function to check if user is admin
-async function isAdmin(userId: string) {
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { role: true }
-    })
-    return user?.role === 'ADMIN'
-}
+const searchParamsSchema = z.object({
+    season: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional()
+})
 
 export async function GET(request: Request) {
+    // Require admin access
+    const { error: authError } = await requireAdmin()
+    if (authError) return authError
+
     const { searchParams } = new URL(request.url)
-    const season = searchParams.get('season')
-    const startDate = searchParams.get('startDate')
-    const endDate = searchParams.get('endDate')
+    const { data: params, error } = parseSearchParams(searchParams, searchParamsSchema)
+    if (error) return error
 
-    // Auth check
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check
-    const isUserAdmin = await isAdmin(session.user.id)
-    if (!isUserAdmin) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const { season, startDate, endDate } = params
 
     // Build query filters
     const where: any = {}
     if (season) where.season = parseInt(season)
-    if (startDate && endDate) {
-        where.airDate = {
-            gte: new Date(startDate),
-            lte: new Date(endDate)
+    
+    // Handle date filtering - allow startDate only, endDate only, or both
+    if (startDate || endDate) {
+        where.airDate = {}
+        if (startDate) {
+            where.airDate.gte = new Date(startDate)
+        }
+        if (endDate) {
+            where.airDate.lte = new Date(endDate)
         }
     }
 
@@ -54,30 +52,26 @@ export async function GET(request: Request) {
             ]
         })
 
-        return NextResponse.json({ games })
+        return jsonResponse({ games })
     } catch (error) {
-        console.error('Error fetching games:', error)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+        return serverErrorResponse('Error fetching games', error)
     }
 }
 
+const postBodySchema = z.object({
+    action: z.enum(['import', 'delete', 'push']),
+    data: z.any()
+})
+
 export async function POST(request: Request) {
-    // Auth check
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
+    // Require admin access
+    const { error: authError } = await requireAdmin()
+    if (authError) return authError
 
-    if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Admin check
-    const isUserAdmin = await isAdmin(session.user.id)
-    if (!isUserAdmin) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const { data: body, error } = await parseBody(request, postBodySchema)
+    if (error) return error
 
     try {
-        const body = await request.json()
         const { action, data } = body
 
         switch (action) {
@@ -108,27 +102,94 @@ export async function POST(request: Request) {
                         })
                     }
                 })
-                return NextResponse.json({ message: 'Games imported successfully' })
+                return jsonResponse({ message: 'Games imported successfully' })
 
             case 'delete':
                 // Delete games by criteria
-                const { season, startDate, endDate } = data
-                const where: any = {}
-                if (season) where.season = season
-                if (startDate && endDate) {
-                    where.airDate = {
-                        gte: new Date(startDate),
-                        lte: new Date(endDate)
+                const { season: delSeason, startDate: delStartDate, endDate: delEndDate } = data
+                const deleteWhere: Record<string, unknown> = {}
+                if (delSeason) deleteWhere.season = delSeason
+                if (delStartDate && delEndDate) {
+                    deleteWhere.airDate = {
+                        gte: new Date(delStartDate),
+                        lte: new Date(delEndDate)
                     }
                 }
-                await prisma.question.deleteMany({ where })
-                return NextResponse.json({ message: 'Games deleted successfully' })
+                await prisma.question.deleteMany({ where: deleteWhere })
+                return jsonResponse({ message: 'Games deleted successfully' })
+
+            case 'push':
+                // Push fetched game data to database
+                const { game } = data
+                if (!game || !game.questions || !Array.isArray(game.questions)) {
+                    return jsonResponse({ error: 'Invalid game data' }, 400)
+                }
+
+                let created = 0
+                let skipped = 0
+
+                await prisma.$transaction(async (tx) => {
+                    for (const question of game.questions) {
+                        // Check if question already exists (by question text and air date)
+                        const existing = await tx.question.findFirst({
+                            where: {
+                                question: question.question,
+                                airDate: game.airDate ? new Date(game.airDate) : null
+                            }
+                        })
+
+                        if (existing) {
+                            skipped++
+                            continue
+                        }
+
+                        // Create or update category
+                        const category = await tx.category.upsert({
+                            where: { name: question.category },
+                            update: {},
+                            create: { name: question.category }
+                        })
+
+                        // Determine round - support both new 'round' field and legacy 'isDoubleJeopardy'/'isFinalJeopardy'
+                        let round: 'SINGLE' | 'DOUBLE' | 'FINAL' = 'SINGLE'
+                        if (question.round) {
+                            round = question.round as 'SINGLE' | 'DOUBLE' | 'FINAL'
+                        } else if (question.isFinalJeopardy) {
+                            round = 'FINAL'
+                        } else if (question.isDoubleJeopardy) {
+                            round = 'DOUBLE'
+                        }
+
+                        // Create question
+                        await tx.question.create({
+                            data: {
+                                question: question.question,
+                                answer: question.answer,
+                                value: question.value,
+                                categoryId: category.id,
+                                difficulty: question.difficulty || 'MEDIUM',
+                                airDate: game.airDate ? new Date(game.airDate) : null,
+                                season: game.season,
+                                episodeId: game.episodeId || game.gameId,
+                                knowledgeCategory: question.knowledgeCategory || 'GENERAL_KNOWLEDGE',
+                                round,
+                                isDoubleJeopardy: round === 'DOUBLE' // Legacy field
+                            }
+                        })
+                        created++
+                    }
+                })
+
+                return jsonResponse({ 
+                    message: `Game pushed successfully. Created: ${created}, Skipped: ${skipped}`,
+                    created,
+                    skipped
+                })
 
             default:
-                return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
+                return jsonResponse({ error: 'Invalid action' }, 400)
         }
     } catch (error) {
-        console.error('Error processing request:', error)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+        return serverErrorResponse('Error processing request', error)
     }
 } 

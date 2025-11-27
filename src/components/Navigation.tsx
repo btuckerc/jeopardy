@@ -4,15 +4,18 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { AuthButton } from '@/app/components/AuthButton'
 import DownloadModal from './DownloadModal'
+import { Session } from 'next-auth'
 
 interface NavigationProps {
-    fredokaClassName: string;
+    fredokaClassName: string
+    session: Session | null
 }
 
-export function Navigation({ fredokaClassName }: NavigationProps) {
+export function Navigation({ fredokaClassName, session }: NavigationProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [showDownloadModal, setShowDownloadModal] = useState(false)
     const [isMobile, setIsMobile] = useState(false)
+    const [showPracticeDropdown, setShowPracticeDropdown] = useState(false)
 
     useEffect(() => {
         const checkMobile = () => {
@@ -50,15 +53,74 @@ export function Navigation({ fredokaClassName }: NavigationProps) {
                                 </svg>
                                 Play Game
                             </Link>
-                            <Link
-                                href="/practice"
-                                className="flex items-center px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out"
+                            <div 
+                                className="relative z-40"
+                                onMouseEnter={() => setShowPracticeDropdown(true)}
+                                onMouseLeave={() => setShowPracticeDropdown(false)}
                             >
-                                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                </svg>
-                                Practice
-                            </Link>
+                                <Link
+                                    href="/practice"
+                                    className="flex items-center px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out"
+                                >
+                                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                    </svg>
+                                    Practice
+                                    <svg className="h-4 w-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </Link>
+                                {showPracticeDropdown && (
+                                    <div className="absolute top-full left-0 pt-2 w-56 z-40">
+                                        <div className="bg-white rounded-md shadow-lg border border-gray-200 py-1">
+                                            <Link
+                                                href="/practice"
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setShowPracticeDropdown(false)}
+                                            >
+                                                All Practice
+                                            </Link>
+                                            <Link
+                                                href="/practice/category"
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setShowPracticeDropdown(false)}
+                                            >
+                                                By Category
+                                            </Link>
+                                            <div className="border-t border-gray-200 my-1"></div>
+                                            <Link
+                                                href="/practice/round/single"
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setShowPracticeDropdown(false)}
+                                            >
+                                                Single Jeopardy
+                                            </Link>
+                                            <Link
+                                                href="/practice/round/double"
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setShowPracticeDropdown(false)}
+                                            >
+                                                Double Jeopardy
+                                            </Link>
+                                            <Link
+                                                href="/practice/round/final"
+                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                                onClick={() => setShowPracticeDropdown(false)}
+                                            >
+                                                Final Jeopardy
+                                            </Link>
+                                            <div className="border-t border-gray-200 my-1"></div>
+                                            <Link
+                                                href="/practice/triple-stumpers"
+                                                className="block px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-50 font-medium"
+                                                onClick={() => setShowPracticeDropdown(false)}
+                                            >
+                                                Triple Stumpers
+                                            </Link>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <Link
                                 href="/stats"
                                 className="flex items-center px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out"
@@ -102,9 +164,9 @@ export function Navigation({ fredokaClassName }: NavigationProps) {
                             </button>
                         </div>
 
-                        {/* Auth Button */}
+                        {/* Auth Button - pass session for immediate render */}
                         <div className="ml-4">
-                            <AuthButton />
+                            <AuthButton session={session} />
                         </div>
                     </div>
                 </div>
@@ -190,4 +252,4 @@ export function Navigation({ fredokaClassName }: NavigationProps) {
             />
         </nav>
     )
-} 
+}

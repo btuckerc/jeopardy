@@ -1,42 +1,78 @@
-import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { KnowledgeCategory } from '@prisma/client'
+import { 
+    jsonResponse, 
+    notFoundResponse, 
+    serverErrorResponse,
+    parseSearchParams,
+    knowledgeCategorySchema 
+} from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
+
+// Request validation schema
+const shuffleParamsSchema = z.object({
+    category: knowledgeCategorySchema.optional(),
+    excludeId: z.string().uuid().optional(),
+    round: z.enum(['SINGLE', 'DOUBLE', 'FINAL']).optional()
+})
 
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
-        const knowledgeCategory = searchParams.get('category') as KnowledgeCategory | null
+        const { data: params, error } = parseSearchParams(searchParams, shuffleParamsSchema)
+        
+        if (error) return error
 
-        // Get questions based on knowledge category
+        // Build where clause
+        const where: Record<string, unknown> = {}
+        
+        if (params.category) {
+            where.knowledgeCategory = params.category
+        }
+        
+        if (params.round) {
+            where.round = params.round
+        }
+        
+        if (params.excludeId) {
+            where.id = { not: params.excludeId }
+        }
+
+        // Get count for random selection (more efficient than fetching all)
+        const count = await prisma.question.count({ where })
+        
+        if (count === 0) {
+            return notFoundResponse('No questions found')
+        }
+
+        // Get a random question using skip
+        const skip = Math.floor(Math.random() * count)
         const questions = await prisma.question.findMany({
-            where: knowledgeCategory ? {
-                knowledgeCategory
-            } : {},
+            where,
+            skip,
+            take: 1,
             include: {
                 category: true
             }
         })
 
         if (!questions.length) {
-            return new NextResponse('No questions found', { status: 404 })
+            return notFoundResponse('No questions found')
         }
 
-        // Randomly select one question
-        const randomQuestion = questions[Math.floor(Math.random() * questions.length)]
+        const question = questions[0]
 
-        return NextResponse.json({
-            id: randomQuestion.id,
-            question: randomQuestion.question,
-            answer: randomQuestion.answer,
-            value: randomQuestion.value,
-            category: randomQuestion.knowledgeCategory,
-            originalCategory: randomQuestion.category.name,
-            knowledgeCategory: randomQuestion.knowledgeCategory
+        return jsonResponse({
+            id: question.id,
+            question: question.question,
+            answer: question.answer,
+            value: question.value,
+            category: question.knowledgeCategory,
+            originalCategory: question.category.name,
+            knowledgeCategory: question.knowledgeCategory
         })
     } catch (error) {
-        console.error('Error shuffling questions:', error)
-        return new NextResponse('Internal Server Error', { status: 500 })
+        return serverErrorResponse('Error shuffling questions', error)
     }
 } 
