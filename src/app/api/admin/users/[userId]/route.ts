@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/clerk-auth'
-import { jsonResponse, serverErrorResponse, notFoundResponse } from '@/lib/api-utils'
+import { jsonResponse, serverErrorResponse, notFoundResponse, badRequestResponse } from '@/lib/api-utils'
+import { generateRandomDisplayName } from '@/lib/display-name'
 
 /**
  * DELETE /api/admin/users/[userId]
@@ -109,6 +110,66 @@ export async function DELETE(
         })
     } catch (error) {
         return serverErrorResponse('Failed to delete user', error)
+    }
+}
+
+/**
+ * PATCH /api/admin/users/[userId]
+ * Update a user's display name (reset or edit)
+ * Admin only
+ */
+export async function PATCH(
+    request: Request,
+    { params }: { params: { userId: string } }
+) {
+    try {
+        await requireAdmin()
+
+        const { userId } = params
+        const body = await request.json()
+        const { action, displayName } = body
+
+        if (!action || !['reset', 'edit'].includes(action)) {
+            return badRequestResponse('action must be "reset" or "edit"')
+        }
+
+        if (action === 'edit' && (!displayName || typeof displayName !== 'string' || displayName.trim().length === 0)) {
+            return badRequestResponse('displayName is required for edit action')
+        }
+
+        // Verify user exists
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, displayName: true },
+        })
+
+        if (!user) {
+            return notFoundResponse('User not found')
+        }
+
+        // Update display name
+        let newDisplayName: string
+        if (action === 'reset') {
+            newDisplayName = generateRandomDisplayName()
+        } else {
+            newDisplayName = displayName.trim()
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { displayName: newDisplayName },
+            select: { id: true, displayName: true, email: true },
+        })
+
+        return jsonResponse({
+            success: true,
+            message: action === 'reset' 
+                ? `Display name reset to "${newDisplayName}"`
+                : `Display name updated to "${newDisplayName}"`,
+            user: updatedUser,
+        })
+    } catch (error) {
+        return serverErrorResponse('Failed to update display name', error)
     }
 }
 

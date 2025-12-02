@@ -152,6 +152,10 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [emailSubject, setEmailSubject] = useState('')
     const [emailBody, setEmailBody] = useState('')
     const [sendingEmail, setSendingEmail] = useState(false)
+    const [showDisplayNameModal, setShowDisplayNameModal] = useState(false)
+    const [displayNameAction, setDisplayNameAction] = useState<'reset' | 'edit' | null>(null)
+    const [editDisplayNameValue, setEditDisplayNameValue] = useState('')
+    const [updatingDisplayName, setUpdatingDisplayName] = useState(false)
 
     // Existing games management state
     const [filterStartDate, setFilterStartDate] = useState('')
@@ -2920,7 +2924,19 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                         )}
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2 flex-shrink-0">
+                                                <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedUser(user)
+                                                            setShowDisplayNameModal(true)
+                                                            setDisplayNameAction(null)
+                                                            setEditDisplayNameValue(user.displayName || '')
+                                                        }}
+                                                        className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700 whitespace-nowrap"
+                                                        aria-label={`Manage display name for ${user.displayName || user.email}`}
+                                                    >
+                                                        Display Name
+                                                    </button>
                                                     <button
                                                         onClick={() => {
                                                             setSelectedUser(user)
@@ -2949,6 +2965,193 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                         </div>
                                     )
                                 })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Display Name Management Modal */}
+            {showDisplayNameModal && selectedUser && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl my-auto">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4">Manage Display Name</h3>
+                        <div className="mb-4">
+                            <p className="text-sm text-gray-600 mb-2">
+                                <strong>User:</strong> {selectedUser.displayName || selectedUser.name || 'No name'} ({selectedUser.email})
+                            </p>
+                            <p className="text-sm text-gray-600">
+                                <strong>Current Display Name:</strong> {selectedUser.displayName || <span className="text-gray-400">Not set</span>}
+                            </p>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* Action Selection */}
+                            {!displayNameAction && (
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={() => setDisplayNameAction('reset')}
+                                        className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 text-left"
+                                    >
+                                        <div className="font-semibold">Reset Display Name</div>
+                                        <div className="text-sm opacity-90">Generate a new random display name</div>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setDisplayNameAction('edit')
+                                            setEditDisplayNameValue(selectedUser.displayName || '')
+                                        }}
+                                        className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-left"
+                                    >
+                                        <div className="font-semibold">Edit Display Name</div>
+                                        <div className="text-sm opacity-90">Set a custom display name</div>
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Reset Confirmation */}
+                            {displayNameAction === 'reset' && (
+                                <div className="space-y-4">
+                                    <p className="text-gray-700">
+                                        This will generate a new random display name for this user. The current display name will be replaced.
+                                    </p>
+                                    <div className="flex flex-col sm:flex-row justify-end gap-3">
+                                        <button
+                                            onClick={() => {
+                                                setDisplayNameAction(null)
+                                            }}
+                                            className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
+                                        >
+                                            Back
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                setUpdatingDisplayName(true)
+                                                try {
+                                                    const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+                                                        method: 'PATCH',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({ action: 'reset' }),
+                                                    })
+
+                                                    if (response.ok) {
+                                                        const data = await response.json()
+                                                        setMessage(data.message || 'Display name reset successfully')
+                                                        setShowDisplayNameModal(false)
+                                                        setSelectedUser(null)
+                                                        setDisplayNameAction(null)
+                                                        fetchUsers()
+                                                    } else {
+                                                        const error = await response.json()
+                                                        alert(error.error || 'Failed to reset display name')
+                                                    }
+                                                } catch (error) {
+                                                    console.error('Error resetting display name:', error)
+                                                    alert('Failed to reset display name')
+                                                } finally {
+                                                    setUpdatingDisplayName(false)
+                                                }
+                                            }}
+                                            disabled={updatingDisplayName}
+                                            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                        >
+                                            {updatingDisplayName ? 'Resetting...' : 'Reset Display Name'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Edit Form */}
+                            {displayNameAction === 'edit' && (
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            New Display Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={editDisplayNameValue}
+                                            onChange={(e) => setEditDisplayNameValue(e.target.value)}
+                                            placeholder="Enter display name"
+                                            className="w-full p-2 border rounded text-gray-900"
+                                            maxLength={50}
+                                            autoFocus
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {editDisplayNameValue.length}/50 characters
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-col sm:flex-row justify-end gap-3">
+                                        <button
+                                            onClick={() => {
+                                                setDisplayNameAction(null)
+                                                setEditDisplayNameValue(selectedUser.displayName || '')
+                                            }}
+                                            className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={async () => {
+                                                if (!editDisplayNameValue.trim()) {
+                                                    alert('Display name cannot be empty')
+                                                    return
+                                                }
+
+                                                setUpdatingDisplayName(true)
+                                                try {
+                                                    const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+                                                        method: 'PATCH',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            action: 'edit',
+                                                            displayName: editDisplayNameValue.trim(),
+                                                        }),
+                                                    })
+
+                                                    if (response.ok) {
+                                                        const data = await response.json()
+                                                        setMessage(data.message || 'Display name updated successfully')
+                                                        setShowDisplayNameModal(false)
+                                                        setSelectedUser(null)
+                                                        setDisplayNameAction(null)
+                                                        setEditDisplayNameValue('')
+                                                        fetchUsers()
+                                                    } else {
+                                                        const error = await response.json()
+                                                        alert(error.error || 'Failed to update display name')
+                                                    }
+                                                } catch (error) {
+                                                    console.error('Error updating display name:', error)
+                                                    alert('Failed to update display name')
+                                                } finally {
+                                                    setUpdatingDisplayName(false)
+                                                }
+                                            }}
+                                            disabled={updatingDisplayName || !editDisplayNameValue.trim()}
+                                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                        >
+                                            {updatingDisplayName ? 'Updating...' : 'Update Display Name'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Close button when no action selected */}
+                        {!displayNameAction && (
+                            <div className="mt-4 flex justify-end">
+                                <button
+                                    onClick={() => {
+                                        setShowDisplayNameModal(false)
+                                        setSelectedUser(null)
+                                        setDisplayNameAction(null)
+                                        setEditDisplayNameValue('')
+                                    }}
+                                    className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
+                                >
+                                    Close
+                                </button>
                             </div>
                         )}
                     </div>

@@ -17,7 +17,7 @@ export async function POST(request: Request) {
         if (!path || typeof path !== 'string') {
             return badRequestResponse('path is required and must be a string')
         }
-        
+
         // Throttle updates: only update if lastOnlineAt is more than 60 seconds ago
         // This prevents excessive database writes while still tracking recent activity
         const now = new Date()
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
             where: { id: user.id },
             select: { lastOnlineAt: true }
         })
-        
+
         // Only update if lastOnlineAt is null or more than 1 minute ago
         if (currentUser && currentUser.lastOnlineAt && currentUser.lastOnlineAt > oneMinuteAgo) {
             // Too soon to update, but return success anyway
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
                 lastSeenPath: path
             }
         })
-        
+
         return jsonResponse({ success: true })
     } catch (error) {
         return serverErrorResponse('Failed to record activity', error)
