@@ -11,7 +11,7 @@
 
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { prisma } from './prisma'
-import { generateRandomDisplayName } from './display-name'
+import { generateUniqueDisplayName } from './display-name'
 import type { UserRole } from '@prisma/client'
 
 // Get admin emails from environment variable (comma-separated list)
@@ -93,8 +93,19 @@ export async function syncClerkUserToPrisma(clerkUserId: string): Promise<AppUse
         ? `${clerkUser.firstName}${clerkUser.lastName ? ' ' + clerkUser.lastName : ''}`
         : email.split('@')[0]
     
-    // Generate a display name for new users
-    const displayName = generateRandomDisplayName()
+    // Generate a unique display name for new users
+    // Note: We only generate if creating a new user, so no excludeUserId needed
+    const nameResult = await generateUniqueDisplayName(prisma, { maxAttempts: 50 })
+    let displayName: string
+    if (!nameResult.success) {
+        // Fallback to a simple generated name if uniqueness check fails
+        // This should be extremely rare, but we want graceful degradation
+        console.error('Failed to generate unique display name during user creation, using fallback')
+        const { generateRandomDisplayName } = await import('./display-name')
+        displayName = generateRandomDisplayName()
+    } else {
+        displayName = nameResult.displayName
+    }
     
     try {
         // First, try to find by clerkUserId (most specific)

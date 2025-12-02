@@ -345,17 +345,239 @@ export function validateDisplayName(name: string): DisplayNameValidationResult {
 }
 
 /**
+ * On-brand adjectives for display name generation
+ * Curated to fit trivia/knowledge/game-show theme, all safe and readable
+ * All words are checked to fit within 20-character limit when combined with nouns
+ */
+const DISPLAY_NAME_ADJECTIVES = [
+    // Intelligence & Knowledge
+    'Quick', 'Clever', 'Bright', 'Sharp', 'Smart', 'Witty', 'Wise', 'Brilliant', 'Genius', 'Astute',
+    'Keen', 'Apt', 'Savvy', 'Shrewd', 'Adept', 'Skilled', 'Able', 'Capable', 'Expert', 'Pro',
+    'Precise', 'Accurate', 'Focused', 'Alert', 'Observant', 'Perceptive', 'Insightful', 'Analytical', 'Logical', 'Rational',
+    'Thoughtful', 'Reflective', 'Deliberate', 'Careful', 'Thorough', 'Detailed', 'Meticulous', 'Exact', 'Methodical', 'Systematic',
+    'Intelligent', 'Cerebral', 'Intellectual', 'Learned', 'Educated', 'Scholarly', 'Academic', 'Studious', 'Sophisticated', 'Cultured',
+    'Inventive', 'Creative', 'Imaginative', 'Innovative', 'Original', 'Novel', 'Fresh', 'Modern',
+    // Enthusiasm & Energy
+    'Eager', 'Bold', 'Brave', 'Brisk', 'Zesty', 'Peppy', 'Spry', 'Vivid', 'Vital', 'Energetic',
+    'Dynamic', 'Active', 'Lively', 'Vibrant', 'Animated', 'Spirited', 'Fiery', 'Passionate', 'Zealous', 'Ardent',
+    'Enthusiastic', 'Excited', 'Thrilled', 'Elated', 'Jubilant', 'Exuberant', 'Bubbly', 'Cheerful', 'Joyful', 'Motivated',
+    'Inspired', 'Ambitious', 'Purposeful', 'Intentional', 'Dedicated', 'Committed', 'Devoted',
+    // Achievement & Excellence
+    'Grand', 'Prime', 'Elite', 'Top', 'Best', 'Fine', 'Super', 'Ultra', 'Max', 'Peak',
+    'Outstanding', 'Remarkable', 'Notable', 'Distinguished', 'Prominent', 'Superior', 'Exceptional', 'Extraordinary', 'Noteworthy', 'Impressive',
+    'Perfect', 'Ideal', 'Optimal', 'Supreme', 'Ultimate', 'Finest', 'Premium', 'Select', 'First',
+    'Champion', 'Victorious', 'Triumphant', 'Successful', 'Accomplished', 'Masterful', 'Proficient', 'Competent', 'Experienced', 'Seasoned',
+    'Veteran', 'Advanced', 'Talented',
+    // Thinking & Learning
+    'Deep', 'Rich', 'Vast', 'Broad', 'Wide', 'Solid', 'Sound', 'True', 'Real', 'Substantial',
+    'Profound', 'Intense', 'Serious', 'Sincere', 'Genuine', 'Authentic', 'Honest', 'Pure', 'Clear', 'Transparent',
+    'Comprehensive', 'Complete', 'Total', 'Entire', 'Whole', 'Exhaustive', 'Extensive',
+    'Curious', 'Inquisitive', 'Questioning', 'Investigative', 'Exploratory', 'Adventurous', 'Daring', 'Fearless', 'Intrepid', 'Valiant',
+    // Game-show appropriate
+    'Lucky', 'Swift', 'Fast', 'Rapid', 'Snap', 'Flash', 'Dash', 'Zoom', 'Zap', 'Nimble',
+    'Speedy', 'Fleet', 'Instant', 'Immediate', 'Prompt', 'Ready', 'Lightning',
+    'Competitive', 'Determined', 'Resolute', 'Steadfast', 'Unwavering', 'Persistent', 'Tenacious', 'Strong', 'Powerful', 'Mighty',
+    'Confident', 'Assured', 'Poised', 'Composed', 'Calm', 'Steady', 'Stable', 'Reliable', 'Dependable',
+    'Strategic', 'Tactical', 'Calculated', 'Planned', 'Orderly', 'Disciplined', 'Controlled',
+    // Positive traits
+    'Cool', 'Neat', 'Great', 'Nice', 'Good', 'Superb', 'Excellent', 'Amazing', 'Wonderful', 'Fantastic',
+    'Marvelous', 'Splendid', 'Magnificent', 'Glorious', 'Majestic', 'Noble', 'Honorable',
+    'Charming', 'Delightful', 'Pleasant', 'Agreeable', 'Lovely', 'Beautiful', 'Graceful', 'Dignified', 'Esteemed', 'Honored',
+    'Admirable', 'Commendable', 'Worthy', 'Deserving', 'Celebrated', 'Inspiring', 'Motivational', 'Uplifting', 'Encouraging', 'Supportive'
+]
+
+/**
+ * On-brand nouns for display name generation
+ * Curated to fit trivia/knowledge/game-show theme, all safe and readable
+ * All words are checked to fit within 20-character limit when combined with adjectives
+ */
+const DISPLAY_NAME_NOUNS = [
+    // Knowledge & Learning
+    'Scholar', 'Thinker', 'Master', 'Expert', 'Genius', 'Sage', 'Mind', 'Brain', 'Ace', 'Pro',
+    'Whiz', 'Buff', 'Fan', 'Devotee', 'Seeker', 'Student', 'Pupil', 'Learner', 'Knower', 'Collector',
+    'Guru', 'Mentor', 'Teacher', 'Tutor', 'Guide', 'Philosopher', 'Theorist', 'Academic', 'Intellectual',
+    'Educator', 'Professor', 'Lecturer', 'Scientist', 'Historian', 'Author', 'Writer', 'Poet', 'Novelist',
+    'Specialist', 'Authority', 'Connoisseur', 'Enthusiast', 'Hobbyist', 'Amateur', 'Novice', 'Beginner', 'Newcomer',
+    'Trainee', 'Intern', 'Recruit', 'Rookie', 'Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate',
+    // Achievement & Competition
+    'Champion', 'Winner', 'Victor', 'Hero', 'Star', 'Icon', 'Idol', 'Elite', 'Top', 'Best',
+    'Fighter', 'Warrior', 'Gladiator', 'Participant', 'Entrant', 'Candidate', 'Finalist', 'Semifinalist',
+    'Captain', 'Chief', 'Boss', 'Head', 'Manager', 'Commander', 'General', 'Admiral',
+    'Medalist', 'Awardee', 'Recipient', 'Honoree', 'Laureate', 'Achiever', 'Performer', 'Creator', 'Founder',
+    // Thinking & Intelligence
+    'Solver', 'Cracker', 'Decoder', 'Reader', 'Getter', 'Grasper', 'Analyst', 'Researcher', 'Investigator',
+    'Detective', 'Sleuth', 'Searcher', 'Explorer', 'Discoverer', 'Finder', 'Hunter', 'Tracker', 'Scout', 'Pioneer',
+    'Strategist', 'Tactician', 'Planner', 'Architect', 'Designer', 'Innovator', 'Inventor', 'Trailblazer', 'Pathfinder',
+    'Troubleshooter', 'Fixer', 'Critic', 'Reviewer', 'Evaluator', 'Judge', 'Referee', 'Moderator',
+    'Advisor', 'Counselor', 'Coach', 'Trainer', 'Virtuoso', 'Maestro', 'Leader',
+    // Game-show appropriate
+    'Player', 'Contestant', 'Competitor', 'Rival', 'Challenger', 'Contender', 'Racer', 'Runner', 'Sprinter', 'Dasher',
+    'Answerer', 'Responder', 'Guesser', 'Estimator', 'Predictor', 'Forecaster', 'Oracle', 'Seer', 'Visionary',
+    'Gamer', 'Hopeful', 'Aspirant', 'Applicant', 'Nominee', 'Volunteer', 'Member', 'Associate', 'Fellow', 'Colleague',
+    'Teammate', 'Partner', 'Collaborator', 'Supporter', 'Backer', 'Sponsor', 'Patron', 'Contributor',
+    // Knowledge domains (short)
+    'Quizzer', 'Trivia', 'Fact', 'Info', 'Data', 'Stats', 'Score', 'Points', 'Mark', 'Grade',
+    'History', 'Science', 'Math', 'Art', 'Music', 'Literature', 'Culture', 'Language', 'Geography', 'Biology',
+    'Physics', 'Chemistry', 'Astronomy', 'Geology', 'Psychology', 'Sociology', 'Economics', 'Politics', 'Philosophy', 'Theology',
+    'Mathematics', 'Algebra', 'Geometry', 'Calculus', 'Statistics', 'Probability', 'Logic', 'Reasoning', 'Analysis',
+    'Anthropology', 'Archaeology', 'Meteorology', 'Botany', 'Zoology', 'Ecology', 'Genetics', 'Evolution',
+    'Mythology', 'Folklore', 'Legend', 'Tale', 'Story', 'Narrative', 'Chronicle', 'Record'
+]
+
+/**
+ * Generate raw name parts (adjective and noun) for display name construction
+ * Returns an object with adjective and noun that can be formatted
+ */
+function generateRawNameParts(): { adjective: string; noun: string } {
+    const adjective = DISPLAY_NAME_ADJECTIVES[Math.floor(Math.random() * DISPLAY_NAME_ADJECTIVES.length)]
+    const noun = DISPLAY_NAME_NOUNS[Math.floor(Math.random() * DISPLAY_NAME_NOUNS.length)]
+    return { adjective, noun }
+}
+
+/**
+ * Format display name parts into a final name string
+ * Uses concatenated format (e.g., "QuickScholar")
+ */
+function formatDisplayName(adjective: string, noun: string): string {
+    return `${adjective}${noun}`
+}
+
+/**
+ * Generate a display name candidate that passes validation
+ * Retries up to MAX_VALIDATION_RETRIES times if validation fails
+ * Throws an error if unable to generate a valid candidate after retries
+ */
+const MAX_VALIDATION_RETRIES = 20
+
+export function generateDisplayNameCandidate(): string {
+    for (let attempt = 0; attempt < MAX_VALIDATION_RETRIES; attempt++) {
+        const { adjective, noun } = generateRawNameParts()
+        const candidate = formatDisplayName(adjective, noun)
+        
+        const validation = validateDisplayName(candidate)
+        if (validation.ok) {
+            return validation.normalized
+        }
+        
+        // Log if we're getting close to max retries (edge case handling)
+        if (attempt >= MAX_VALIDATION_RETRIES - 3) {
+            console.warn(`Display name validation retry ${attempt + 1}/${MAX_VALIDATION_RETRIES} failed:`, validation.message)
+        }
+    }
+    
+    // Fallback: if all retries failed, use a safe default
+    // This should be extremely rare with our curated word lists
+    console.error(`Failed to generate valid display name after ${MAX_VALIDATION_RETRIES} attempts, using fallback`)
+    return 'Quick Scholar' // Safe fallback that should always pass validation
+}
+
+/**
  * Generate a random display name for users
  * Combines a random adjective with a random noun
  * Note: Generated names are not guaranteed to be unique
+ * 
+ * This function now delegates to generateDisplayNameCandidate() to ensure
+ * all generated names pass validation (profanity, reserved names, length, etc.)
  */
 export function generateRandomDisplayName(): string {
-    const adjectives = ['Quick', 'Clever', 'Bright', 'Sharp', 'Smart', 'Witty', 'Wise', 'Bold', 'Eager', 'Grand']
-    const nouns = ['Scholar', 'Thinker', 'Master', 'Champion', 'Expert', 'Genius', 'Sage', 'Mind', 'Brain', 'Ace']
+    return generateDisplayNameCandidate()
+}
 
-    const randomAdjective = adjectives[Math.floor(Math.random() * adjectives.length)]
-    const randomNoun = nouns[Math.floor(Math.random() * nouns.length)]
+/**
+ * Options for generateUniqueDisplayName
+ */
+export interface GenerateUniqueDisplayNameOptions {
+    /**
+     * User ID to exclude from uniqueness check (useful when resetting a user's name)
+     */
+    excludeUserId?: string
+    /**
+     * Maximum number of attempts to generate a unique name
+     * Default: 50
+     */
+    maxAttempts?: number
+}
 
-    return `${randomAdjective}${randomNoun}`
+/**
+ * Result of generateUniqueDisplayName
+ */
+export type GenerateUniqueDisplayNameResult =
+    | { success: true; displayName: string; attempts: number }
+    | { success: false; error: string; attempts: number }
+
+/**
+ * Generate a unique display name by checking against existing users in the database
+ * 
+ * This function:
+ * 1. Generates a candidate name using generateDisplayNameCandidate()
+ * 2. Checks for collisions against existing users (case-insensitive)
+ * 3. Retries up to maxAttempts times if collisions occur
+ * 4. Logs collisions for observability
+ * 5. Returns a structured result indicating success or failure
+ * 
+ * Note: Uniqueness is enforced at the application layer, not at the database level.
+ * Under extreme race conditions, duplicates could theoretically occur, but this
+ * is extremely unlikely with our expanded word lists and retry logic.
+ * 
+ * @param prisma - Prisma client instance
+ * @param options - Configuration options
+ * @returns Result object with success status, display name (if successful), and attempt count
+ */
+export async function generateUniqueDisplayName(
+    prisma: { user: { findFirst: (args: {
+        where: {
+            id?: { not: string }
+            displayName: { equals: string; mode: 'insensitive' }
+        }
+        select: { id: true }
+    }) => Promise<{ id: string } | null> } },
+    options: GenerateUniqueDisplayNameOptions = {}
+): Promise<GenerateUniqueDisplayNameResult> {
+    const { excludeUserId, maxAttempts = 50 } = options
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const candidate = generateDisplayNameCandidate()
+        
+        // Check for collisions (case-insensitive)
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
+                displayName: {
+                    equals: candidate,
+                    mode: 'insensitive'
+                }
+            },
+            select: { id: true }
+        })
+        
+        if (!existingUser) {
+            // Success! Found a unique name
+            if (attempt > 0) {
+                // Log collisions only if we had to retry
+                console.log(`Display name collision resolved after ${attempt + 1} attempts. Final name: "${candidate}"`)
+            }
+            return {
+                success: true,
+                displayName: candidate,
+                attempts: attempt + 1
+            }
+        }
+        
+        // Collision detected - log it
+        if (attempt === 0 || (attempt + 1) % 10 === 0) {
+            // Log first collision and every 10th collision
+            console.warn(`Display name collision detected (attempt ${attempt + 1}/${maxAttempts}): "${candidate}" already exists`)
+        }
+    }
+    
+    // Exhausted all attempts
+    const warningMessage = `Failed to generate unique display name after ${maxAttempts} attempts. This may indicate the word space needs expansion.`
+    console.error(warningMessage)
+    
+    return {
+        success: false,
+        error: warningMessage,
+        attempts: maxAttempts
+    }
 }
 

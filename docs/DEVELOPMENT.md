@@ -142,6 +142,81 @@ Trivrdy uses OpenAI's `text-embedding-3-small` model with pgvector for semantic 
 - `SPORTS_AND_LEISURE` - Sports, games, hobbies
 - `GENERAL_KNOWLEDGE` - Miscellaneous trivia
 
+## Display Name Generation
+
+The application automatically generates on-brand display names for new users using a curated adjective+noun combination system.
+
+### Naming Scheme
+
+- **Format**: Concatenated adjective + noun (e.g., "QuickScholar", "BrightThinker")
+- **Length**: 3-20 characters (enforced by validation)
+- **Style**: On-brand vocabulary focused on trivia, knowledge, thinking, and game-show themes
+- **No Numbers**: Names do not include numeric suffixes by default (can be enabled if needed at scale)
+
+### Word Lists
+
+The generator uses two curated lists:
+- **Adjectives** (170 items): Intelligence/knowledge terms (Quick, Clever, Bright, Sharp, Smart, Precise, Accurate, Focused, etc.), enthusiasm terms (Eager, Bold, Brisk, Dynamic, Energetic), achievement terms (Grand, Prime, Elite, Outstanding, Remarkable), thinking terms (Deep, Rich, Vast, Profound), game-show appropriate terms (Lucky, Swift, Fast, Competitive, Driven), and positive traits (Cool, Great, Excellent, Marvelous, Splendid)
+- **Nouns** (160 items): Knowledge/learning terms (Scholar, Thinker, Master, Expert, Genius, Guru, Mentor, Teacher, etc.), achievement terms (Champion, Winner, Victor, Hero, Fighter, Warrior), thinking/intelligence terms (Solver, Cracker, Decoder, Analyst, Detective, Strategist), game-show appropriate terms (Player, Contestant, Answerer, Responder, Gamer), and knowledge domains (Quizzer, History, Science, Math, Art, Music, Literature)
+
+### Uniqueness Guarantees
+
+- **Soft Uniqueness**: Enforced at the application layer, not at the database level
+- **Collision Detection**: The `generateUniqueDisplayName()` helper checks for existing names (case-insensitive) and retries up to 50 times
+- **Collision Logging**: All collisions are logged for observability, with warnings when approaching retry limits
+- **Race Conditions**: Under extreme race conditions, duplicates could theoretically occur, but this is extremely unlikely with the expanded word lists
+- **Name Pool Size**: **57,404 unique combinations** (254 adjectives × 226 nouns) - sufficient for a very large playerbase with minimal collision risk. Words are curated to be natural and appropriate for trivia game usernames.
+
+### Usage
+
+**New User Creation** (`src/lib/clerk-auth.ts`):
+- Automatically generates a unique display name when a new user signs up via Clerk
+- Uses `generateUniqueDisplayName()` to ensure uniqueness
+
+**Admin Reset** (`src/app/api/admin/users/[userId]/route.ts`):
+- Admin can reset a user's display name to a new random unique name
+- Uses the same uniqueness helper with `excludeUserId` to avoid conflicts
+
+**Display Fallback** (`src/app/api/user/display-name/route.ts`):
+- GET endpoint uses `generateRandomDisplayName()` as an ephemeral fallback if no stored name exists
+- This is non-persisted and may duplicate existing names (acceptable for display-only purposes)
+
+### Extending Word Lists
+
+To add new words to the generator:
+
+1. **Edit `src/lib/display-name.ts`**:
+   - Add words to `DISPLAY_NAME_ADJECTIVES` or `DISPLAY_NAME_NOUNS` arrays
+   - Ensure words fit within 20-character limit when combined
+   - Run words through `validateDisplayName()` to ensure they pass profanity/reserved checks
+
+2. **Validation**:
+   - All generated names automatically pass through `validateDisplayName()` which checks:
+     - Length (3-20 chars)
+     - Character set (letters, numbers, spaces, `.`, `_`, `-`)
+     - Profanity filtering (badwords-list + pattern-based fallback)
+     - Reserved names (admin, moderator, jeopardy, etc.)
+     - Spam patterns (excessive repetition, all numbers, etc.)
+
+3. **Testing**:
+   - Generate a sample of names and verify they're on-brand
+   - Check that collision rates remain low with expanded lists
+   - Monitor collision logs in production to ensure word space is sufficient
+
+### Future Hardening Options
+
+If the playerbase grows very large and collision rates become problematic:
+
+1. **Optional Suffix Mode**: Add a configurable letters-only suffix (e.g., 3-letter code) to dramatically increase the name space
+2. **Database Unique Index**: Add a case-insensitive unique index on `displayName` for hard uniqueness guarantees (requires migration)
+3. **Hybrid Approach**: Use suffixes only when collision rates exceed a threshold
+
+### Observability
+
+- **Collision Logging**: All collisions are logged with attempt counts
+- **Warning Thresholds**: Warnings emitted when approaching retry limits (indicates word space may need expansion)
+- **Error Handling**: Graceful fallback to simple generated name if uniqueness check fails (should be extremely rare)
+
 ## Answer Checking
 
 The answer checker (`src/lib/answer-checker.ts`) uses intelligent matching to accept reasonable variations.

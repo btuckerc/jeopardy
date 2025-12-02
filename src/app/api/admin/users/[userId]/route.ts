@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/clerk-auth'
 import { jsonResponse, serverErrorResponse, notFoundResponse, badRequestResponse } from '@/lib/api-utils'
-import { generateRandomDisplayName, validateDisplayName } from '@/lib/display-name'
+import { generateUniqueDisplayName, validateDisplayName } from '@/lib/display-name'
 
 /**
  * DELETE /api/admin/users/[userId]
@@ -150,40 +150,19 @@ export async function PATCH(
         // Update display name
         let newDisplayName: string
         if (action === 'reset') {
-            // Generate random names until we get a valid, unique one
-            let attempts = 0
-            const maxAttempts = 50 // Prevent infinite loops
-            let foundValid = false
+            // Generate a unique display name using the centralized helper
+            const nameResult = await generateUniqueDisplayName(prisma, {
+                excludeUserId: userId,
+                maxAttempts: 50
+            })
             
-            while (attempts < maxAttempts && !foundValid) {
-                const candidate = generateRandomDisplayName()
-                const validation = validateDisplayName(candidate)
-                
-                if (validation.ok) {
-                    // Check uniqueness (case-insensitive)
-                    const existingUser = await prisma.user.findFirst({
-                        where: {
-                            id: { not: userId },
-                            displayName: {
-                                equals: validation.normalized,
-                                mode: 'insensitive'
-                            }
-                        },
-                        select: { id: true }
-                    })
-                    
-                    if (!existingUser) {
-                        newDisplayName = validation.normalized
-                        foundValid = true
-                    }
-                }
-                
-                attempts++
+            if (!nameResult.success) {
+                return serverErrorResponse(
+                    `Failed to generate a valid unique display name after ${nameResult.attempts} attempts. ${nameResult.error}`
+                )
             }
             
-            if (!foundValid) {
-                return serverErrorResponse('Failed to generate a valid unique display name after multiple attempts')
-            }
+            newDisplayName = nameResult.displayName
         } else {
             // Validate the provided display name
             const validation = validateDisplayName(displayName)
