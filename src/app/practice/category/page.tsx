@@ -283,23 +283,39 @@ const transformQuestions = (questions: any[]): Question[] => {
 };
 
 function FreePracticeContent() {
-    const { user } = useAuth()
+    const { user, loading: authLoading } = useAuth()
     const searchParams = useSearchParams()
     const router = useRouter()
     
+    // Read URL params synchronously to determine initial view state
+    // This prevents flash of wrong view during hydration
+    const initialKnowledgeCategory = searchParams.get('knowledgeCategory')
+    const initialCategory = searchParams.get('category')
+    const initialQuestion = searchParams.get('question')
+    
     const [knowledgeCategories, setKnowledgeCategories] = useState<Category[]>([])
-    const [selectedKnowledgeCategory, setSelectedKnowledgeCategory] = useState<string | null>(null)
+    // Initialize selected states from URL params to prevent flash
+    const [selectedKnowledgeCategory, setSelectedKnowledgeCategory] = useState<string | null>(initialKnowledgeCategory)
     const [categories, setCategories] = useState<Category[]>([])
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(initialCategory)
     const [questions, setQuestions] = useState<Question[]>([])
     const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
     
     // Track if we're currently restoring state from URL (to prevent URL update loops)
     const isRestoringFromUrl = useRef(false)
     // Track the last URL we set (to detect browser navigation)
-    const lastUrlState = useRef<{ kc: string | null; c: string | null; q: string | null }>({ kc: null, c: null, q: null })
+    // Initialize to null so the first restoration always runs
+    const lastUrlState = useRef<{ kc: string | null; c: string | null; q: string | null }>({ 
+        kc: null, 
+        c: null, 
+        q: null 
+    })
+    // Track if this is the initial URL restoration (needs to fetch data)
+    const isInitialUrlRestore = useRef(true)
     // Track if we're transitioning between states (for smooth UX)
     const [isTransitioning, setIsTransitioning] = useState(false)
+    // Track if URL state restoration is complete (prevents flash of wrong view)
+    const [urlRestored, setUrlRestored] = useState(false)
     // Track URL validation errors
     const [urlError, setUrlError] = useState<{
         type: 'knowledgeCategory' | 'category' | 'question';
@@ -578,11 +594,19 @@ function FreePracticeContent() {
                                lastState.c !== currentUrlState.c || 
                                lastState.q !== currentUrlState.q
             
-            // If URL hasn't changed, no need to do anything
-            if (!urlChanged && !loading) return
+            // On initial load, we need to fetch data even if URL params are set
+            // After that, only run if URL actually changed
+            const needsRestore = isInitialUrlRestore.current || urlChanged
+            
+            // If URL hasn't changed and not initial load, no need to do anything
+            if (!needsRestore && !loading) {
+                setUrlRestored(true)
+                return
+            }
             
             // Update our tracking ref
             lastUrlState.current = currentUrlState
+            isInitialUrlRestore.current = false
             
             // Set flag to prevent URL update loops during restoration
             isRestoringFromUrl.current = true
@@ -599,6 +623,7 @@ function FreePracticeContent() {
                     setSelectedQuestion(null)
                     setSearchQuery('')
                     isRestoringFromUrl.current = false
+                    setUrlRestored(true)
                     return
                 }
                 
@@ -620,6 +645,7 @@ function FreePracticeContent() {
                         setSelectedQuestion(null)
                         setIsTransitioning(false)
                         isRestoringFromUrl.current = false
+                        setUrlRestored(true)
                         return
                     }
                 }
@@ -650,6 +676,7 @@ function FreePracticeContent() {
                             })
                             setIsTransitioning(false)
                             isRestoringFromUrl.current = false
+                            setUrlRestored(true)
                             return
                         }
                     }
@@ -672,6 +699,7 @@ function FreePracticeContent() {
                     setSelectedCategory(null)
                     setSelectedQuestion(null)
                     isRestoringFromUrl.current = false
+                    setUrlRestored(true)
                     return
                 }
                 
@@ -687,6 +715,7 @@ function FreePracticeContent() {
                     setSelectedQuestion(null)
                     setIsTransitioning(false)
                     isRestoringFromUrl.current = false
+                    setUrlRestored(true)
                     return
                 }
                 
@@ -709,6 +738,7 @@ function FreePracticeContent() {
                         })
                         setIsTransitioning(false)
                         isRestoringFromUrl.current = false
+                        setUrlRestored(true)
                         return
                     }
                     
@@ -728,15 +758,31 @@ function FreePracticeContent() {
                             setSelectedQuestion(null)
                             setIsTransitioning(false)
                             isRestoringFromUrl.current = false
+                            setUrlRestored(true)
                             return
                         }
                         
                         const question = transformedQuestions.find(q => q.id === questionParam)
                         if (question) {
                             setSelectedQuestion(question)
-                            setUserAnswer('')
-                            setIsCorrect(null)
-                            setShowAnswer(false)
+                            // If question was already answered, restore that state
+                            if (question.answered) {
+                                if (question.correct) {
+                                    // Answered correctly - show the answer
+                                    setShowAnswer(true)
+                                    setIsCorrect(true)
+                                } else {
+                                    // Answered incorrectly - show input field but don't show answer yet
+                                    setShowAnswer(false)
+                                    setIsCorrect(false)
+                                }
+                                setUserAnswer('') // Clear user answer since we're restoring state
+                            } else {
+                                // Not answered yet - show input field
+                                setUserAnswer('')
+                                setIsCorrect(null)
+                                setShowAnswer(false)
+                            }
                         } else {
                             // Question not found in this category
                             setUrlError({
@@ -762,15 +808,31 @@ function FreePracticeContent() {
                             })
                             setSelectedQuestion(null)
                             isRestoringFromUrl.current = false
+                            setUrlRestored(true)
                             return
                         }
                         
                         const question = questions.find(q => q.id === questionParam)
                         if (question) {
                             setSelectedQuestion(question)
-                            setUserAnswer('')
-                            setIsCorrect(null)
-                            setShowAnswer(false)
+                            // If question was already answered, restore that state
+                            if (question.answered) {
+                                if (question.correct) {
+                                    // Answered correctly - show the answer
+                                    setShowAnswer(true)
+                                    setIsCorrect(true)
+                                } else {
+                                    // Answered incorrectly - show input field but don't show answer yet
+                                    setShowAnswer(false)
+                                    setIsCorrect(false)
+                                }
+                                setUserAnswer('') // Clear user answer since we're restoring state
+                            } else {
+                                // Not answered yet - show input field
+                                setUserAnswer('')
+                                setIsCorrect(null)
+                                setShowAnswer(false)
+                            }
                         } else {
                             // Question not found
                             setUrlError({
@@ -789,14 +851,17 @@ function FreePracticeContent() {
                 setIsTransitioning(false)
             } finally {
                 isRestoringFromUrl.current = false
+                // Mark URL restoration as complete
+                setUrlRestored(true)
             }
         }
         
-        // Don't try to restore while still loading knowledge categories
-        if (!loading) {
+        // Don't try to restore while still loading knowledge categories or auth
+        // We need auth to be loaded so we can fetch questions with the correct userId
+        if (!loading && !authLoading) {
             restoreStateFromUrl()
         }
-    }, [searchParams, loading, user?.id, selectedKnowledgeCategory, selectedCategory, selectedQuestion?.id, questions, knowledgeCategories])
+    }, [searchParams, loading, authLoading, user?.id, selectedKnowledgeCategory, selectedCategory, selectedQuestion?.id, questions, knowledgeCategories])
 
     // Intersection Observer for infinite scrolling
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1283,7 +1348,14 @@ function FreePracticeContent() {
         });
     }, [combinedResults, sortBy]);
 
-    if (loading) {
+    // Show loading state while:
+    // 1. Initial data is loading, OR
+    // 2. Auth is loading (needed to fetch user-specific question history), OR
+    // 3. URL has params but restoration hasn't completed yet
+    const hasUrlParams = initialKnowledgeCategory || initialCategory || initialQuestion
+    const isInitializing = loading || authLoading || (hasUrlParams && !urlRestored)
+    
+    if (isInitializing) {
         return (
             <div className="min-h-screen bg-gray-100 flex items-center justify-center">
                 <div className="text-center">

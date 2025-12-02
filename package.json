@@ -26,6 +26,7 @@
     "db:fetch": "ts-node --project tsconfig.json src/scripts/fetch-jeopardy-data.ts",
     "db:backfill": "ts-node --project tsconfig.json src/scripts/backfill-jarchive.ts",
     "db:update-triple-stumpers": "ts-node --project tsconfig.json src/scripts/update-triple-stumpers.ts",
+    "db:pre-generate-challenges": "ts-node --project tsconfig.json src/scripts/pre-generate-daily-challenges.ts",
     "prepare": "npm run db:generate"
   },
   "dependencies": {
@@ -36,6 +37,7 @@
     "@tanstack/react-query": "^5.12.2",
     "@types/bad-words": "^3.0.3",
     "@types/cheerio": "^0.22.35",
+    "@types/node-cron": "^3.0.11",
     "@types/react-datepicker": "^6.2.0",
     "axios": "^1.7.8",
     "bad-words": "^4.0.0",
@@ -43,6 +45,7 @@
     "date-fns": "^4.1.0",
     "nanoid": "^5.1.6",
     "next": "^14.2.25",
+    "node-cron": "^4.2.1",
     "node-html-parser": "^6.1.13",
     "openai": "^4.73.0",
     "pgvector": "^0.2.0",

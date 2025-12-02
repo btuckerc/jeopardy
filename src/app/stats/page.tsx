@@ -880,6 +880,100 @@ function InfoTooltip({ content }: { content: string }) {
 
 type SectionTab = 'overview' | 'rounds' | 'categories'
 
+interface Achievement {
+    id: string
+    code: string
+    name: string
+    description: string
+    icon: string | null
+    unlocked: boolean
+    unlockedAt: string | null
+}
+
+// Achievements Section Component
+function AchievementsSection() {
+    const { user } = useAuth()
+    const [achievements, setAchievements] = useState<Achievement[]>([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        if (user) {
+            loadAchievements()
+        }
+    }, [user])
+
+    const loadAchievements = async () => {
+        try {
+            const response = await fetch('/api/achievements')
+            if (response.ok) {
+                const data = await response.json()
+                setAchievements(data.achievements || [])
+            }
+        } catch (error) {
+            console.error('Error loading achievements:', error)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="mt-8">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Achievements</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {[1, 2, 3, 4, 5].map(i => (
+                        <div key={i} className="card p-4 animate-pulse">
+                            <div className="h-12 w-12 bg-gray-200 rounded-full mx-auto mb-2"></div>
+                            <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )
+    }
+
+    const unlocked = achievements.filter(a => a.unlocked)
+    const locked = achievements.filter(a => !a.unlocked)
+
+    return (
+        <div className="mt-8">
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">Achievements</h2>
+                <span className="text-sm text-gray-600">
+                    {unlocked.length} / {achievements.length} unlocked
+                </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {[...unlocked, ...locked].map((achievement) => (
+                    <div
+                        key={achievement.id}
+                        className={`card p-4 text-center transition-all ${
+                            achievement.unlocked
+                                ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-200'
+                                : 'bg-gray-50 border-2 border-gray-200 opacity-60'
+                        }`}
+                        title={achievement.description}
+                    >
+                        <div className="text-4xl mb-2">
+                            {achievement.unlocked ? achievement.icon || '🏆' : '🔒'}
+                        </div>
+                        <div className={`text-sm font-medium ${
+                            achievement.unlocked ? 'text-gray-900' : 'text-gray-500'
+                        }`}>
+                            {achievement.name}
+                        </div>
+                        {achievement.unlocked && achievement.unlockedAt && (
+                            <div className="text-xs text-gray-500 mt-1">
+                                {new Date(achievement.unlockedAt).toLocaleDateString()}
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    )
+}
+
 export default function StatsPage() {
     const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
@@ -1360,6 +1454,9 @@ export default function StatsPage() {
                         </div>
                     </button>
                     </div>
+
+                    {/* Achievements Section */}
+                    <AchievementsSection />
                 </div>
 
                 {/* Section: Rounds (Performance by Round) */}

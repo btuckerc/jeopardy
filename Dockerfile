@@ -15,6 +15,10 @@ RUN npm ci --ignore-scripts
 # Copy the rest of the app, including prisma schema and source
 COPY . .
 
+# Copy and setup entrypoint script
+COPY scripts/docker-entrypoint.js ./scripts/docker-entrypoint.js
+RUN chmod +x ./scripts/docker-entrypoint.js
+
 # Build args for Next.js public env vars (must be available at build time)
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
@@ -27,4 +31,6 @@ ENV PORT=3000
 
 EXPOSE 3000
 
+# Use entrypoint script to run migrations before starting
+ENTRYPOINT ["node", "scripts/docker-entrypoint.js"]
 CMD ["npm", "run", "start"]

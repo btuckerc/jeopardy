@@ -13,6 +13,10 @@ COPY package*.json ./
 # Copy Prisma schema BEFORE npm ci (prepare script needs it)
 COPY prisma ./prisma
 
+# Copy entrypoint script
+COPY scripts/docker-entrypoint.js ./scripts/docker-entrypoint.js
+RUN chmod +x ./scripts/docker-entrypoint.js
+
 # Install dependencies (prepare script will run db:generate automatically)
 RUN npm ci
 
@@ -25,6 +29,7 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-# Run Next.js dev server with hot-reloading
+# Use entrypoint script to run migrations before starting
+ENTRYPOINT ["node", "scripts/docker-entrypoint.js"]
 CMD ["npm", "run", "dev"]
 

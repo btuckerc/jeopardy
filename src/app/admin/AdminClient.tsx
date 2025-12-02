@@ -71,7 +71,29 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [pushing, setPushing] = useState(false)
     
     // Tab state
-    const [activeTab, setActiveTab] = useState<'manage' | 'fetch' | 'player-games' | 'disputes'>('manage')
+    const [activeTab, setActiveTab] = useState<'manage' | 'fetch' | 'player-games' | 'disputes' | 'daily-challenges' | 'guest-config' | 'cron'>('manage')
+    
+    // Cron jobs state
+    const [cronExecutions, setCronExecutions] = useState<any[]>([])
+    const [cronStats, setCronStats] = useState<Record<string, number>>({})
+    const [cronLatest, setCronLatest] = useState<Record<string, any>>({})
+    const [cronJobs, setCronJobs] = useState<any>(null)
+    const [loadingCronJobs, setLoadingCronJobs] = useState(false)
+    const [triggeringJob, setTriggeringJob] = useState<string | null>(null)
+    const [cronFilter, setCronFilter] = useState<'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games'>('all')
+    const [cronStatusFilter, setCronStatusFilter] = useState<'all' | 'RUNNING' | 'SUCCESS' | 'FAILED'>('all')
+    
+    // Guest config state
+    const [guestConfig, setGuestConfig] = useState<any>(null)
+    const [guestStats, setGuestStats] = useState<any>(null)
+    const [loadingGuestConfig, setLoadingGuestConfig] = useState(false)
+    const [savingGuestConfig, setSavingGuestConfig] = useState(false)
+    
+    // Daily challenges state
+    const [dailyChallenges, setDailyChallenges] = useState<any[]>([])
+    const [dailyChallengesStats, setDailyChallengesStats] = useState<any>(null)
+    const [loadingDailyChallenges, setLoadingDailyChallenges] = useState(false)
+    const [generatingChallenges, setGeneratingChallenges] = useState(false)
     
     // Calendar state
     const [calendarStats, setCalendarStats] = useState<any>(null)
@@ -188,6 +210,36 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         }
     }, [activeTab, fetchPlayerGames])
 
+    // Fetch guest config and stats
+    const fetchGuestConfig = useCallback(async () => {
+        setLoadingGuestConfig(true)
+        try {
+            const [configRes, statsRes] = await Promise.all([
+                fetch('/api/admin/guest-config'),
+                fetch('/api/admin/guest-stats')
+            ])
+            if (configRes.ok) {
+                const config = await configRes.json()
+                setGuestConfig(config)
+            }
+            if (statsRes.ok) {
+                const stats = await statsRes.json()
+                setGuestStats(stats)
+            }
+        } catch (error) {
+            console.error('Error fetching guest config/stats:', error)
+        } finally {
+            setLoadingGuestConfig(false)
+        }
+    }, [])
+
+    // Load guest config when tab is active
+    useEffect(() => {
+        if (activeTab === 'guest-config' && !guestConfig) {
+            fetchGuestConfig()
+        }
+    }, [activeTab, guestConfig, fetchGuestConfig])
+
     // Fetch disputes - using a ref to track loading state to avoid dependency issues
     const disputesFetchingRef = useRef(false)
     
@@ -234,6 +286,90 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             fetchDisputes()
         }
     }, [activeTab, disputesLoaded, fetchDisputes])
+
+    // Fetch cron jobs
+    const fetchCronJobs = useCallback(async () => {
+        setLoadingCronJobs(true)
+        try {
+            const params = new URLSearchParams()
+            if (cronFilter !== 'all') {
+                params.append('jobName', cronFilter)
+            }
+            if (cronStatusFilter !== 'all') {
+                params.append('status', cronStatusFilter)
+            }
+            params.append('limit', '100')
+            
+            const response = await fetch(`/api/admin/cron-jobs?${params}`)
+            if (!response.ok) {
+                throw new Error('Failed to load cron jobs')
+            }
+            const data = await response.json()
+            setCronExecutions(data.executions || [])
+            setCronStats(data.stats || {})
+            setCronLatest(data.latestExecutions || {})
+            setCronJobs(data.jobs || {})
+        } catch (error) {
+            console.error('Error fetching cron jobs:', error)
+            setMessage(`Error loading cron jobs: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        } finally {
+            setLoadingCronJobs(false)
+        }
+    }, [cronFilter, cronStatusFilter])
+
+    // Load cron jobs when tab is active
+    useEffect(() => {
+        if (activeTab === 'cron') {
+            fetchCronJobs()
+        }
+    }, [activeTab, fetchCronJobs])
+
+    // Trigger cron job manually
+    const triggerCronJob = async (jobName: string) => {
+        setTriggeringJob(jobName)
+        try {
+            const response = await fetch(`/api/admin/cron-jobs/${jobName}/trigger`, {
+                method: 'POST',
+            })
+            const data = await response.json()
+            if (data.success) {
+                setMessage(`Successfully triggered ${jobName}`)
+                // Refresh cron jobs list
+                await fetchCronJobs()
+            } else {
+                setMessage(`Error triggering ${jobName}: ${data.error || 'Unknown error'}`)
+            }
+        } catch (error) {
+            setMessage(`Error triggering ${jobName}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        } finally {
+            setTriggeringJob(null)
+        }
+    }
+
+    // Fetch daily challenges
+    const fetchDailyChallenges = useCallback(async () => {
+        setLoadingDailyChallenges(true)
+        try {
+            const response = await fetch('/api/admin/daily-challenges')
+            if (!response.ok) {
+                throw new Error('Failed to load daily challenges')
+            }
+            const data = await response.json()
+            setDailyChallenges(data.challenges || [])
+            setDailyChallengesStats(data.stats || null)
+        } catch (error) {
+            console.error('Error loading daily challenges:', error)
+        } finally {
+            setLoadingDailyChallenges(false)
+        }
+    }, [])
+
+    // Load daily challenges when tab is active
+    useEffect(() => {
+        if (activeTab === 'daily-challenges' && dailyChallenges.length === 0 && !loadingDailyChallenges) {
+            fetchDailyChallenges()
+        }
+    }, [activeTab, dailyChallenges.length, loadingDailyChallenges, fetchDailyChallenges])
 
     // Track if we've ever loaded disputes (to avoid resetting on initial mount)
     const disputesEverLoadedRef = useRef(false)
@@ -984,54 +1120,93 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     }
 
     return (
-        <div className="container mx-auto p-4">
-            <h1 className="text-2xl font-bold text-black mb-6">Admin Dashboard</h1>
-
-            {/* Tab Navigation */}
-            <div className="mb-6">
-                <div className="flex gap-3">
-                    <button
-                        onClick={() => setActiveTab('manage')}
-                        className={`flex-1 py-3 px-6 rounded-lg font-semibold text-base transition-all border-2 ${
-                            activeTab === 'manage'
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                        }`}
-                    >
-                        Question DB
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('fetch')}
-                        className={`flex-1 py-3 px-6 rounded-lg font-semibold text-base transition-all border-2 ${
-                            activeTab === 'fetch'
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                        }`}
-                    >
-                        Fetch from j-archive
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('player-games')}
-                        className={`flex-1 py-3 px-6 rounded-lg font-semibold text-base transition-all border-2 ${
-                            activeTab === 'player-games'
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                        }`}
-                    >
-                        Player Games
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('disputes')}
-                        className={`flex-1 py-3 px-6 rounded-lg font-semibold text-base transition-all border-2 ${
-                            activeTab === 'disputes'
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                        }`}
-                    >
-                        Answer Disputes
-                    </button>
-                </div>
+        <div className="min-h-screen">
+            <div className="container mx-auto px-4 pt-4">
+                <h1 className="text-2xl font-bold text-black mb-6">Admin Dashboard</h1>
             </div>
+
+            {/* Tab Navigation - Full width scrollable */}
+            <div className="mb-6 border-b border-gray-200 bg-gray-50 relative">
+                <div className="overflow-x-auto pb-2 scrollbar-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <div className="flex gap-2 px-4 py-2 min-w-max">
+                        <button
+                            onClick={() => setActiveTab('manage')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'manage'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Question DB
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('fetch')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'fetch'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Fetch
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('player-games')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'player-games'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Games
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('disputes')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'disputes'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Disputes
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('daily-challenges')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'daily-challenges'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Daily
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('guest-config')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'guest-config'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Guests
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('cron')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'cron'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Cron Jobs
+                        </button>
+                    </div>
+                </div>
+                {/* Scroll indicator gradient */}
+                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none md:hidden" />
+            </div>
+            
+            {/* Main Content */}
+            <div className="container mx-auto px-4 pb-4">
 
             {/* Message Display */}
             {message && (
@@ -1094,13 +1269,15 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 {/* Display Fetched Game */}
                 {fetchedGame && (
                     <div className="mt-6 p-4 bg-gray-50 rounded border">
-                        <div className="flex justify-between items-start mb-4">
-                            <div>
-                                <h3 className="font-bold text-lg text-gray-900">{fetchedGame.title}</h3>
-                                <p className="text-sm text-gray-800">
-                                    Air Date: {fetchedGame.airDate || 'Unknown'} | 
-                                    Game ID: {fetchedGame.gameId} | 
-                                    Questions: {fetchedGame.questionCount}
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
+                            <div className="min-w-0 flex-1">
+                                <h3 className="font-bold text-lg text-gray-900 break-words">{fetchedGame.title}</h3>
+                                <p className="text-sm text-gray-800 flex flex-wrap gap-x-2 gap-y-1">
+                                    <span>Air Date: {fetchedGame.airDate || 'Unknown'}</span>
+                                    <span className="hidden sm:inline">|</span>
+                                    <span>Game ID: {fetchedGame.gameId}</span>
+                                    <span className="hidden sm:inline">|</span>
+                                    <span>Questions: {fetchedGame.questionCount}</span>
                                 </p>
                             </div>
                             <button
@@ -1113,11 +1290,14 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         </div>
 
                         {/* Summary */}
-                        <div className="mb-4 text-sm text-gray-700">
-                            <span className="font-medium">Categories:</span> {fetchedGame.categories.length} | 
-                            <span className="ml-2 font-medium">Single:</span> {fetchedGame.categories.filter((c: Category) => c.round === 'single').length} | 
-                            <span className="ml-2 font-medium">Double:</span> {fetchedGame.categories.filter((c: Category) => c.round === 'double').length} |
-                            <span className="ml-2 font-medium">Final:</span> {fetchedGame.categories.filter((c: Category) => c.round === 'final').length}
+                        <div className="mb-4 text-sm text-gray-700 flex flex-wrap gap-x-2 gap-y-1">
+                            <span><span className="font-medium">Categories:</span> {fetchedGame.categories.length}</span>
+                            <span className="hidden sm:inline">|</span>
+                            <span><span className="font-medium">Single:</span> {fetchedGame.categories.filter((c: Category) => c.round === 'single').length}</span>
+                            <span className="hidden sm:inline">|</span>
+                            <span><span className="font-medium">Double:</span> {fetchedGame.categories.filter((c: Category) => c.round === 'double').length}</span>
+                            <span className="hidden sm:inline">|</span>
+                            <span><span className="font-medium">Final:</span> {fetchedGame.categories.filter((c: Category) => c.round === 'final').length}</span>
                         </div>
 
                         {/* Collapsible Categories - Scrollable */}
@@ -1184,11 +1364,11 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 {/* Batch Fetched Games Display */}
                 {batchFetchedGames.length > 0 && (
                     <div className="mt-6">
-                        <div className="flex justify-between items-center mb-4">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-4">
                             <h3 className="font-bold text-lg text-gray-900">
                                 Fetched Games ({batchFetchedGames.length})
                             </h3>
-                            <div className="flex items-center gap-4">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                                 <label className="flex items-center gap-2 cursor-pointer">
                                     <input
                                         type="checkbox"
@@ -1235,10 +1415,12 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                             <div className="flex justify-between items-start">
                                                 <div>
                                                     <h4 className="font-semibold text-gray-900">{game.title || `Game ${game.gameId}`}</h4>
-                                                    <p className="text-sm text-gray-700">
-                                                        Air Date: {game.airDate ? formatDateString(game.airDate) : 'Unknown'} | 
-                                                        Game ID: {game.gameId} | 
-                                                        Questions: {game.questionCount}
+                                                    <p className="text-sm text-gray-700 flex flex-wrap gap-x-2 gap-y-1">
+                                                        <span>Air Date: {game.airDate ? formatDateString(game.airDate) : 'Unknown'}</span>
+                                                        <span className="hidden sm:inline">|</span>
+                                                        <span>Game ID: {game.gameId}</span>
+                                                        <span className="hidden sm:inline">|</span>
+                                                        <span>Questions: {game.questionCount}</span>
                                                     </p>
                                                 </div>
                                             </div>
@@ -1267,7 +1449,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                     </p>
 
                     {/* Filter Controls */}
-                    <div className="flex items-center gap-4 mb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
                         <label className="text-sm font-medium text-gray-700">Filter by status:</label>
                         <select
                             value={playerGamesFilter}
@@ -1302,8 +1484,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         <div className="space-y-4">
                             {playerGames.map((game) => (
                                 <div key={game.id} className="border rounded-lg p-4 bg-gray-50">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
+                                        <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="font-bold text-gray-900">
                                                     {game.user?.displayName || game.user?.email || 'Unknown User'}
@@ -1316,37 +1498,43 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                     {game.status}
                                                 </span>
                                             </div>
-                                            <p className="text-sm text-gray-600">
-                                                Game ID: <code className="bg-gray-200 px-1 rounded text-xs">{game.id}</code>
+                                            <p className="text-sm text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
+                                                <span>Game ID: <code className="bg-gray-200 px-1 rounded text-xs">{game.id}</code></span>
                                                 {game.seed && (
-                                                    <> | Seed: <code className="bg-gray-200 px-1 rounded text-xs">{game.seed}</code></>
+                                                    <>
+                                                        <span className="hidden sm:inline">|</span>
+                                                        <span>Seed: <code className="bg-gray-200 px-1 rounded text-xs">{game.seed}</code></span>
+                                                    </>
                                                 )}
                                             </p>
-                                            <p className="text-sm text-gray-600">
-                                                Mode: {game.config?.mode || 'unknown'} | 
-                                                Round: {game.currentRound} | 
-                                                Score: <span className={game.currentScore >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                            <p className="text-sm text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
+                                                <span>Mode: {game.config?.mode || 'unknown'}</span>
+                                                <span className="hidden sm:inline">|</span>
+                                                <span>Round: {game.currentRound}</span>
+                                                <span className="hidden sm:inline">|</span>
+                                                <span>Score: <span className={game.currentScore >= 0 ? 'text-green-600' : 'text-red-600'}>
                                                     ${game.currentScore.toLocaleString()}
-                                                </span>
+                                                </span></span>
                                             </p>
                                             <p className="text-sm text-gray-600">
                                                 Questions answered: {game.answeredQuestions} ({game.correctQuestions} correct)
                                             </p>
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                Created: {new Date(game.createdAt).toLocaleString()} | 
-                                                Updated: {new Date(game.updatedAt).toLocaleString()}
+                                            <p className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-2 gap-y-1">
+                                                <span>Created: {new Date(game.createdAt).toLocaleString()}</span>
+                                                <span className="hidden sm:inline">|</span>
+                                                <span>Updated: {new Date(game.updatedAt).toLocaleString()}</span>
                                             </p>
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 flex-shrink-0">
                                             <button
                                                 onClick={() => handleEditGame(game)}
-                                                className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600"
+                                                className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 whitespace-nowrap"
                                             >
                                                 Edit
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteGame(game.id)}
-                                                className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                                                className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 whitespace-nowrap"
                                             >
                                                 Delete
                                             </button>
@@ -1385,7 +1573,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                     </p>
 
                     {/* Filters */}
-                    <div className="flex flex-wrap gap-4 mb-6">
+                    <div className="flex flex-col sm:flex-row flex-wrap gap-4 mb-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                             <select
@@ -1457,8 +1645,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         <div className="space-y-4">
                             {disputes.map((dispute: any) => (
                                 <div key={dispute.id} className="border rounded-lg p-4 bg-gray-50">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
+                                        <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <span className={`px-2 py-1 rounded text-xs font-bold ${
                                                     dispute.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
@@ -1482,18 +1670,18 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                             </p>
                                         </div>
                                         {dispute.status === 'PENDING' && (
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-2 flex-shrink-0">
                                                 <button
                                                     onClick={() => handleApproveDispute(dispute.id)}
                                                     disabled={processingDisputeId === dispute.id}
-                                                    className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 text-sm"
+                                                    className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 text-sm whitespace-nowrap"
                                                 >
                                                     {processingDisputeId === dispute.id ? 'Processing...' : 'Approve'}
                                                 </button>
                                                 <button
                                                     onClick={() => handleRejectDispute(dispute.id)}
                                                     disabled={processingDisputeId === dispute.id}
-                                                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 text-sm"
+                                                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 text-sm whitespace-nowrap"
                                                 >
                                                     {processingDisputeId === dispute.id ? 'Processing...' : 'Reject'}
                                                 </button>
@@ -1502,19 +1690,19 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     </div>
 
                                     <div className="border-t pt-3 space-y-2 text-sm">
-                                        <div>
+                                        <div className="break-words">
                                             <span className="font-medium text-gray-700">Question: </span>
                                             <span className="text-gray-900">{dispute.question?.question}</span>
                                         </div>
-                                        <div>
+                                        <div className="break-words">
                                             <span className="font-medium text-gray-700">Correct Answer: </span>
                                             <span className="text-gray-900">{dispute.question?.answer}</span>
                                         </div>
-                                        <div>
+                                        <div className="break-words">
                                             <span className="font-medium text-gray-700">User&apos;s Answer: </span>
                                             <span className="text-gray-900 font-semibold">{dispute.userAnswer}</span>
                                         </div>
-                                        <div>
+                                        <div className="break-words">
                                             <span className="font-medium text-gray-700">Category: </span>
                                             <span className="text-gray-900">{dispute.question?.category?.name}</span>
                                         </div>
@@ -1611,10 +1799,626 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 </div>
             )}
 
+            {/* DAILY CHALLENGES TAB */}
+            {activeTab === 'daily-challenges' && (
+                <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+                        <div>
+                            <h2 className="text-xl font-semibold text-black mb-2">Daily Challenges</h2>
+                            <p className="text-gray-600 text-sm">
+                                Monitor and manage daily challenge generation. Challenges are automatically generated via cron job.
+                            </p>
+                        </div>
+                        <button
+                            onClick={async () => {
+                                setGeneratingChallenges(true)
+                                try {
+                                    const response = await fetch('/api/daily-challenge/pre-generate', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ days: 30 })
+                                    })
+                                    if (response.ok) {
+                                        const data = await response.json()
+                                        alert(`Generated ${data.created} challenges, ${data.skipped} already existed`)
+                                        fetchDailyChallenges()
+                                    } else {
+                                        alert('Failed to generate challenges')
+                                    }
+                                } catch (error) {
+                                    console.error('Error generating challenges:', error)
+                                    alert('Failed to generate challenges')
+                                } finally {
+                                    setGeneratingChallenges(false)
+                                }
+                            }}
+                            disabled={generatingChallenges}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            {generatingChallenges ? 'Generating...' : 'Generate Next 30 Days'}
+                        </button>
+                    </div>
+
+                    {/* Stats */}
+                    {dailyChallengesStats && (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                            <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                                <div className="text-sm text-blue-600 font-medium mb-1">Coverage</div>
+                                <div className="text-2xl font-bold text-blue-900">
+                                    {dailyChallengesStats.coverage}%
+                                </div>
+                                <div className="text-xs text-blue-700 mt-1">
+                                    {dailyChallengesStats.daysCovered} / {dailyChallengesStats.daysNeeded} days
+                                </div>
+                            </div>
+                            <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                                <div className="text-sm text-green-600 font-medium mb-1">Total Completions</div>
+                                <div className="text-2xl font-bold text-green-900">
+                                    {dailyChallengesStats.totalCompletions}
+                                </div>
+                                <div className="text-xs text-green-700 mt-1">Last 30 days</div>
+                            </div>
+                            {dailyChallengesStats.todayChallenge && (
+                                <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
+                                    <div className="text-sm text-amber-600 font-medium mb-1">Today&apos;s Challenge</div>
+                                    <div className="text-lg font-bold text-amber-900">
+                                        Active
+                                    </div>
+                                    <div className="text-xs text-amber-700 mt-1">
+                                        {dailyChallengesStats.todayChallenge.completionCount} completions
+                                    </div>
+                                </div>
+                            )}
+                            <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4">
+                                <div className="text-sm text-gray-600 font-medium mb-1">Status</div>
+                                <div className="text-lg font-bold text-gray-900">
+                                    {dailyChallengesStats.coverage >= 100 ? '✓ Ready' : '⚠️ Low Coverage'}
+                                </div>
+                                <div className="text-xs text-gray-700 mt-1">
+                                    {dailyChallengesStats.coverage >= 100 
+                                        ? 'All challenges ready' 
+                                        : 'Generate more challenges'}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Loading State */}
+                    {loadingDailyChallenges && dailyChallenges.length === 0 && (
+                        <div className="text-center py-8">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <p className="mt-2 text-gray-600">Loading daily challenges...</p>
+                        </div>
+                    )}
+
+                    {/* Challenges List */}
+                    {dailyChallenges.length > 0 && (
+                        <div className="space-y-2">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-3">Upcoming Challenges (Next 30 Days)</h3>
+                            <div className="max-h-96 overflow-y-auto">
+                                {dailyChallenges.map((challenge: any) => {
+                                    const challengeDate = new Date(challenge.date)
+                                    const isToday = challengeDate.toDateString() === new Date().toDateString()
+                                    const airDate = challenge.airDate ? new Date(challenge.airDate) : null
+                                    
+                                    return (
+                                        <div
+                                            key={challenge.id}
+                                            className={`border rounded-lg p-4 ${
+                                                isToday ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200'
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                        <span className={`font-semibold ${
+                                                            isToday ? 'text-blue-900' : 'text-gray-900'
+                                                        }`}>
+                                                            {challengeDate.toLocaleDateString('en-US', {
+                                                                weekday: 'short',
+                                                                month: 'short',
+                                                                day: 'numeric'
+                                                            })}
+                                                        </span>
+                                                        {isToday && (
+                                                            <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded">
+                                                                Today
+                                                            </span>
+                                                        )}
+                                                        {airDate && (
+                                                            <span className="px-2 py-0.5 bg-gray-200 text-gray-700 text-xs rounded">
+                                                                From: {airDate.toLocaleDateString('en-US', {
+                                                                    month: 'short',
+                                                                    day: 'numeric',
+                                                                    year: 'numeric'
+                                                                })}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        {challenge.completionCount} completion{challenge.completionCount !== 1 ? 's' : ''}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {!loadingDailyChallenges && dailyChallenges.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                            No daily challenges found. Generate challenges to get started.
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* GUEST CONFIG TAB */}
+            {activeTab === 'guest-config' && (
+                <div className="space-y-6">
+                    {/* Guest Stats */}
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+                            <div>
+                                <h2 className="text-xl font-semibold text-black mb-2">Guest Activity</h2>
+                                <p className="text-gray-600 text-sm">
+                                    Monitor guest sessions and conversion metrics
+                                </p>
+                            </div>
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const response = await fetch('/api/admin/guest-stats')
+                                        if (response.ok) {
+                                            const data = await response.json()
+                                            setGuestStats(data)
+                                        }
+                                    } catch (error) {
+                                        console.error('Error fetching guest stats:', error)
+                                    }
+                                }}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                            >
+                                Refresh Stats
+                            </button>
+                        </div>
+
+                        {guestStats && (
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+                                    <div className="text-sm text-blue-600 font-medium mb-1">Active Sessions</div>
+                                    <div className="text-2xl font-bold text-blue-900">{guestStats.active}</div>
+                                </div>
+                                <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4">
+                                    <div className="text-sm text-amber-600 font-medium mb-1">Unclaimed</div>
+                                    <div className="text-2xl font-bold text-amber-900">{guestStats.unclaimed}</div>
+                                </div>
+                                <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                                    <div className="text-sm text-green-600 font-medium mb-1">Claimed</div>
+                                    <div className="text-2xl font-bold text-green-900">{guestStats.claimed}</div>
+                                </div>
+                                <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-4">
+                                    <div className="text-sm text-gray-600 font-medium mb-1">Expired</div>
+                                    <div className="text-2xl font-bold text-gray-900">{guestStats.expired}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        {guestStats?.recent && (
+                            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                                <h3 className="font-semibold text-gray-900 mb-2">Last 24 Hours</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <div className="text-sm text-gray-600">Unclaimed</div>
+                                        <div className="text-xl font-bold text-gray-900">{guestStats.recent.unclaimed}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-sm text-gray-600">Claimed</div>
+                                        <div className="text-xl font-bold text-gray-900">{guestStats.recent.claimed}</div>
+                                    </div>
+                                    <div className="col-span-2">
+                                        <div className="text-sm text-gray-600">Conversion Rate</div>
+                                        <div className="text-xl font-bold text-gray-900">
+                                            {guestStats.recent.conversionRate.toFixed(1)}%
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Guest Config */}
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                        <h2 className="text-xl font-semibold text-black mb-4">Guest Access Settings</h2>
+                        
+                        {loadingGuestConfig ? (
+                            <div className="text-center py-8">
+                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                <p className="mt-2 text-gray-600">Loading configuration...</p>
+                            </div>
+                        ) : guestConfig ? (
+                            <form
+                                onSubmit={async (e) => {
+                                    e.preventDefault()
+                                    setSavingGuestConfig(true)
+                                    try {
+                                        const formData = new FormData(e.currentTarget)
+                                        const updates: any = {}
+                                        
+                                        // Collect form values
+                                        updates.randomGameMaxQuestionsBeforeAuth = parseInt(formData.get('randomGameMaxQuestions') as string) || 1
+                                        updates.randomQuestionMaxQuestionsBeforeAuth = parseInt(formData.get('randomQuestionMaxQuestions') as string) || 1
+                                        updates.dailyChallengeGuestEnabled = formData.get('dailyChallengeGuestEnabled') === 'on'
+                                        updates.dailyChallengeGuestAppearsOnLeaderboard = formData.get('dailyChallengeGuestAppearsOnLeaderboard') === 'on'
+                                        updates.dailyChallengeMinLookbackDays = parseInt(formData.get('dailyChallengeMinLookbackDays') as string) || 365
+                                        updates.timeToAuthenticateMinutes = parseInt(formData.get('timeToAuthenticateMinutes') as string) || 1440
+
+                                        const response = await fetch('/api/admin/guest-config', {
+                                            method: 'PUT',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify(updates)
+                                        })
+
+                                        if (response.ok) {
+                                            const updated = await response.json()
+                                            setGuestConfig(updated)
+                                            alert('Guest configuration updated successfully')
+                                        } else {
+                                            alert('Failed to update configuration')
+                                        }
+                                    } catch (error) {
+                                        console.error('Error updating guest config:', error)
+                                        alert('Failed to update configuration')
+                                    } finally {
+                                        setSavingGuestConfig(false)
+                                    }
+                                }}
+                                className="space-y-6"
+                            >
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Random Game Limits</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Max Questions Before Auth
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="randomGameMaxQuestions"
+                                                defaultValue={guestConfig.randomGameMaxQuestionsBeforeAuth}
+                                                min="0"
+                                                className="w-full p-2 border rounded text-gray-900"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Random Question Limits</h3>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Max Questions Before Auth
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="randomQuestionMaxQuestions"
+                                                defaultValue={guestConfig.randomQuestionMaxQuestionsBeforeAuth}
+                                                min="0"
+                                                className="w-full p-2 border rounded text-gray-900"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Challenge</h3>
+                                    <div className="space-y-4">
+                                        <label className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                name="dailyChallengeGuestEnabled"
+                                                defaultChecked={guestConfig.dailyChallengeGuestEnabled}
+                                                className="rounded border-gray-300 text-blue-600"
+                                            />
+                                            <span className="text-sm text-gray-700">Allow guests to participate (default: auth required)</span>
+                                        </label>
+                                        <label className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                name="dailyChallengeGuestAppearsOnLeaderboard"
+                                                defaultChecked={guestConfig.dailyChallengeGuestAppearsOnLeaderboard}
+                                                className="rounded border-gray-300 text-blue-600"
+                                            />
+                                            <span className="text-sm text-gray-700">Guests appear on leaderboard (only if guest participation enabled)</span>
+                                        </label>
+                                        <div className="flex items-center gap-2">
+                                            <label htmlFor="dailyChallengeMinLookbackDays" className="text-sm font-medium text-gray-700">
+                                                Minimum Lookback Period (days):
+                                            </label>
+                                            <input
+                                                type="number"
+                                                id="dailyChallengeMinLookbackDays"
+                                                name="dailyChallengeMinLookbackDays"
+                                                min="30"
+                                                max="1825"
+                                                defaultValue={guestConfig.dailyChallengeMinLookbackDays || 365}
+                                                className="w-24 px-2 py-1 border rounded text-gray-900"
+                                            />
+                                            <span className="text-sm text-gray-600">
+                                                (Default: 365 days / 1 year. Daily challenges will use questions from this many days ago up to 3 years ago)
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Session Expiry</h3>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Time to Authenticate (minutes)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="timeToAuthenticateMinutes"
+                                            defaultValue={guestConfig.timeToAuthenticateMinutes}
+                                            min="1"
+                                            className="w-full p-2 border rounded text-gray-900"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            How long guest sessions remain claimable after creation (default: 1440 = 24 hours)
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={savingGuestConfig}
+                                    className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {savingGuestConfig ? 'Saving...' : 'Save Configuration'}
+                                </button>
+                            </form>
+                        ) : (
+                            <div className="text-center py-8 text-gray-500">
+                                Failed to load configuration
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* CRON JOBS TAB */}
+            {activeTab === 'cron' && (
+                <div className="space-y-6">
+                    {/* Cron Jobs Overview */}
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+                            <div>
+                                <h2 className="text-xl font-semibold text-black mb-2">Cron Jobs Inspector</h2>
+                                <p className="text-gray-600 text-sm">
+                                    Monitor and manage scheduled cron jobs
+                                </p>
+                            </div>
+                            <button
+                                onClick={fetchCronJobs}
+                                disabled={loadingCronJobs}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {loadingCronJobs ? 'Loading...' : 'Refresh'}
+                            </button>
+                        </div>
+
+                        {/* Job Status Cards */}
+                        {cronJobs && Object.keys(cronJobs).length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                {Object.entries(cronJobs).map(([jobName, job]: [string, any]) => {
+                                    const latest = cronLatest[jobName]
+                                    const isRunning = latest?.status === 'RUNNING'
+                                    const isSuccess = latest?.status === 'SUCCESS'
+                                    const isFailed = latest?.status === 'FAILED'
+                                    
+                                    return (
+                                        <div
+                                            key={jobName}
+                                            className={`border-2 rounded-lg p-4 ${
+                                                isRunning
+                                                    ? 'border-blue-300 bg-blue-50'
+                                                    : isSuccess
+                                                    ? 'border-green-300 bg-green-50'
+                                                    : isFailed
+                                                    ? 'border-red-300 bg-red-50'
+                                                    : 'border-gray-300 bg-gray-50'
+                                            }`}
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h3 className="font-semibold text-gray-900">{job.name}</h3>
+                                                {isRunning && (
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-600 mb-2">{job.description}</p>
+                                            <div className="text-xs text-gray-700 mb-2">
+                                                <div>Schedule: <code className="bg-gray-200 px-1 rounded">{job.schedule}</code></div>
+                                                {latest && (
+                                                    <>
+                                                        <div className="mt-1">
+                                                            Last run: {new Date(latest.startedAt).toLocaleString()}
+                                                        </div>
+                                                        {latest.durationMs && (
+                                                            <div>
+                                                                Duration: {(latest.durationMs / 1000).toFixed(2)}s
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                            {job.endpoint && (
+                                                <button
+                                                    onClick={() => triggerCronJob(jobName)}
+                                                    disabled={triggeringJob === jobName || isRunning}
+                                                    className="mt-2 w-full bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {triggeringJob === jobName
+                                                        ? 'Triggering...'
+                                                        : isRunning
+                                                        ? 'Running...'
+                                                        : 'Trigger Now'}
+                                                </button>
+                                            )}
+                                            {!job.endpoint && (
+                                                <div className="mt-2 text-xs text-gray-500 italic">
+                                                    Internal cron (no manual trigger)
+                                                </div>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+
+                        {/* Filters */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Filter by Job
+                                </label>
+                                <select
+                                    value={cronFilter}
+                                    onChange={(e) => setCronFilter(e.target.value as any)}
+                                    className="w-full p-2 border rounded text-gray-900"
+                                >
+                                    <option value="all">All Jobs</option>
+                                    <option value="daily-challenge">Daily Challenge</option>
+                                    <option value="fetch-questions">Fetch Questions</option>
+                                    <option value="fetch-games">Fetch Games</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Filter by Status
+                                </label>
+                                <select
+                                    value={cronStatusFilter}
+                                    onChange={(e) => setCronStatusFilter(e.target.value as any)}
+                                    className="w-full p-2 border rounded text-gray-900"
+                                >
+                                    <option value="all">All Statuses</option>
+                                    <option value="RUNNING">Running</option>
+                                    <option value="SUCCESS">Success</option>
+                                    <option value="FAILED">Failed</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Execution History */}
+                        <div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Execution History</h3>
+                            {loadingCronJobs ? (
+                                <div className="text-center py-8">
+                                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                    <p className="mt-2 text-gray-600">Loading executions...</p>
+                                </div>
+                            ) : cronExecutions.length === 0 ? (
+                                <div className="text-center py-8 text-gray-500">
+                                    No executions found
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Job Name
+                                                </th>
+                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Status
+                                                </th>
+                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Started
+                                                </th>
+                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Duration
+                                                </th>
+                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Triggered By
+                                                </th>
+                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                    Result
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {cronExecutions.map((execution: any) => (
+                                                <tr key={execution.id} className="hover:bg-gray-50">
+                                                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                        {cronJobs?.[execution.jobName]?.name || execution.jobName}
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                        <span
+                                                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                                                execution.status === 'RUNNING'
+                                                                    ? 'bg-blue-100 text-blue-800'
+                                                                    : execution.status === 'SUCCESS'
+                                                                    ? 'bg-green-100 text-green-800'
+                                                                    : 'bg-red-100 text-red-800'
+                                                            }`}
+                                                        >
+                                                            {execution.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                                        {new Date(execution.startedAt).toLocaleString()}
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                                        {execution.durationMs
+                                                            ? `${(execution.durationMs / 1000).toFixed(2)}s`
+                                                            : execution.status === 'RUNNING'
+                                                            ? '...'
+                                                            : '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                                        {execution.triggeredBy === 'scheduled' ? (
+                                                            <span className="text-gray-500">Scheduled</span>
+                                                        ) : (
+                                                            <span className="text-blue-600">Manual</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-sm text-gray-700">
+                                                        {execution.error ? (
+                                                            <div className="text-red-600 text-xs max-w-xs truncate" title={execution.error}>
+                                                                {execution.error}
+                                                            </div>
+                                                        ) : execution.result ? (
+                                                            <details className="text-xs">
+                                                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
+                                                                    View Result
+                                                                </summary>
+                                                                <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                                                                    {JSON.stringify(execution.result, null, 2)}
+                                                                </pre>
+                                                            </details>
+                                                        ) : (
+                                                            '-'
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Edit Game Modal */}
             {editingGame && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl my-auto">
                         <h3 className="text-xl font-bold text-gray-900 mb-4">Edit Game</h3>
                         <p className="text-sm text-gray-600 mb-4">
                             Player: {editingGame.user?.displayName || editingGame.user?.email || 'Unknown'}
@@ -1701,9 +2505,9 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         
                         {/* Date Details Modal/Section */}
                         {selectedCalendarDate && (
-                            <div className="mt-6 p-4 bg-gray-50 rounded border">
-                                <div className="flex justify-between items-start mb-4">
-                                    <h3 className="font-bold text-lg text-gray-900">
+                            <div className="mt-6 p-4 bg-gray-50 rounded border overflow-x-auto">
+                                <div className="flex justify-between items-start mb-4 gap-2">
+                                    <h3 className="font-bold text-lg text-gray-900 break-words">
                                         {formatDateString(selectedCalendarDate)}
                                     </h3>
                                     <button
@@ -1912,8 +2716,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
             {/* Calendar Fetch Modal */}
             {showCalendarFetchModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-3xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 max-w-3xl w-full shadow-xl max-h-[90vh] overflow-y-auto my-auto">
                         <div className="flex justify-between items-start mb-4">
                             <h3 className="text-xl font-bold text-gray-900">
                                 {calendarFetchDate ? `Fetch Game: ${formatDateString(calendarFetchDate)}` : 'Fetch Game'}
@@ -2027,8 +2831,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
             {/* Refetch Confirmation Modal */}
             {showRefetchConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl my-auto">
                         <h3 className="text-xl font-bold text-yellow-600 mb-4">Confirm Re-fetch</h3>
                         <p className="text-gray-700 mb-4">
                             You are about to re-fetch <strong>{selectedExistingDates.size} date(s)</strong> from j-archive.
@@ -2056,8 +2860,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
             {/* Delete Confirmation Modal */}
             {showDeleteConfirm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl my-auto">
                         <h3 className="text-xl font-bold text-red-600 mb-4">⚠️ Confirm Deletion</h3>
                         <p className="text-gray-700 mb-4">
                             You are about to delete <strong>{selectedExistingDates.size} date(s)</strong> worth of games 
@@ -2105,6 +2909,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                     </div>
                 </div>
             )}
+            </div>
+            {/* End Main Content Container */}
 
             {/* Back to Top Button */}
             {showBackToTop && (

@@ -69,7 +69,7 @@ export default function GameHubPage() {
     const [loadingGames, setLoadingGames] = useState(true)
     
     // New game configuration state
-    const [selectedMode, setSelectedMode] = useState<'random' | 'knowledge' | 'custom' | 'date'>('date')
+    const [selectedMode, setSelectedMode] = useState<'random' | 'knowledge' | 'custom' | 'date'>('random')
     const [selectedCategories, setSelectedCategories] = useState<KnowledgeCategory[]>([])
     const [selectedDate, setSelectedDate] = useState<string>('')
     const [selectedDateObj, setSelectedDateObj] = useState<Date | null>(null)

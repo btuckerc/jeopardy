@@ -132,4 +132,85 @@ export async function getRecentGames(userId: string, limit = 10) {
         console.error('Error fetching recent games:', error);
         throw error;
     }
+}
+
+/**
+ * Check if a date is a weekday (Monday-Friday)
+ * Jeopardy typically airs on weekdays, though special episodes may air on weekends
+ */
+export function isWeekday(date: Date): boolean {
+    const day = date.getDay();
+    return day >= 1 && day <= 5; // Monday = 1, Friday = 5
+}
+
+/**
+ * Check if a date is eligible for use as a daily challenge source
+ * Considers:
+ * - Minimum age from today (spoiler protection)
+ * - Whether it's a weekday (Jeopardy typically airs Mon-Fri)
+ * - Whether questions exist for that date in the database (optional check)
+ * 
+ * @param airDate The historical air date to check
+ * @param today The current date (defaults to now)
+ * @param minAgeDays Minimum age in days from today (default: 730 = 2 years)
+ * @param requireWeekday Whether to require weekday (default: false, as some specials air on weekends)
+ * @param checkDatabase Whether to check if questions exist in DB (default: false)
+ */
+export async function isEligibleAirDate(
+    airDate: Date,
+    today: Date = new Date(),
+    minAgeDays: number = 730,
+    requireWeekday: boolean = false,
+    checkDatabase: boolean = false
+): Promise<{ eligible: boolean; reason?: string }> {
+    // Check minimum age
+    const ageInDays = Math.floor((today.getTime() - airDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (ageInDays < minAgeDays) {
+        return { eligible: false, reason: `Air date is too recent (${ageInDays} days old, need ${minAgeDays})` };
+    }
+
+    // Check if it's a weekday (optional)
+    if (requireWeekday && !isWeekday(airDate)) {
+        return { eligible: false, reason: 'Air date is not a weekday' };
+    }
+
+    // Check if questions exist in database (optional)
+    if (checkDatabase) {
+        const questionCount = await prisma.question.count({
+            where: {
+                round: 'FINAL',
+                airDate: {
+                    gte: new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate()),
+                    lt: new Date(airDate.getFullYear(), airDate.getMonth(), airDate.getDate() + 1)
+                }
+            }
+        });
+
+        if (questionCount === 0) {
+            return { eligible: false, reason: 'No Final Jeopardy questions found for this date in database' };
+        }
+    }
+
+    return { eligible: true };
+}
+
+/**
+ * Get the next eligible weekday date for backfilling
+ * Useful when we need to find dates to fetch from J-Archive
+ */
+export function getNextEligibleWeekday(startDate: Date, daysBack: number = 0): Date {
+    const targetDate = new Date(startDate);
+    targetDate.setDate(targetDate.getDate() - daysBack);
+    
+    // If it's already a weekday, return it
+    if (isWeekday(targetDate)) {
+        return targetDate;
+    }
+    
+    // Otherwise, find the previous weekday
+    while (!isWeekday(targetDate)) {
+        targetDate.setDate(targetDate.getDate() - 1);
+    }
+    
+    return targetDate;
 } 

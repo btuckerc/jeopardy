@@ -62,6 +62,9 @@ model User {
   lastSpoilerPrompt   DateTime?
   spoilerBlockDate    DateTime?
   spoilerBlockEnabled Boolean        @default(false)
+  currentStreak       Int            @default(0)
+  longestStreak       Int            @default(0)
+  lastGameDate        DateTime?
   accounts            Account[]
   sessions            Session[]
   games               Game[]
@@ -70,6 +73,9 @@ model User {
   disputes            AnswerDispute[] @relation("DisputeUser")
   resolvedDisputes    AnswerDispute[] @relation("DisputeAdmin")
   answerOverrides     AnswerOverride[]
+  dailyChallenges     UserDailyChallenge[]
+  achievements        UserAchievement[]
+  claimedGuestSessions GuestSession[] @relation("ClaimedGuestSessions")
 }
 
 model Question {
@@ -96,11 +102,14 @@ model Question {
   tags              Tag[]                          @relation("QuestionTags")
   answerOverrides   AnswerOverride[]
   disputes          AnswerDispute[]
+  dailyChallenges   DailyChallenge[]
+  guestGameQuestions GuestGameQuestion[]
 
   @@index([categoryId])
   @@index([knowledgeCategory])
   @@index([airDate])
   @@index([round])
+  @@index([round, airDate]) // Composite index for daily challenge queries
 }
 
 model Category {
@@ -255,6 +264,12 @@ enum OverrideSource {
   DISPUTE
 }
 
+enum GuestSessionType {
+  RANDOM_QUESTION
+  RANDOM_GAME
+  DAILY_CHALLENGE
+}
+
 model AnswerOverride {
   id            String         @id @default(uuid())
   questionId   String
@@ -299,4 +314,149 @@ model AnswerDispute {
   @@index([status])
   @@index([createdAt])
   @@index([userId, questionId, mode])
+}
+
+model DailyChallenge {
+  id        String   @id @default(uuid())
+  date      DateTime @unique @db.Date
+  questionId String  @unique // Ensure each question can only be used once as a daily challenge
+  airDate   DateTime?
+  episodeGameId String? // Track which game/episode was used (from J-Archive)
+  createdAt DateTime @default(now())
+  question  Question @relation(fields: [questionId], references: [id])
+  completions UserDailyChallenge[]
+
+  @@index([date])
+  @@index([questionId])
+  @@index([airDate])
+  @@index([episodeGameId])
+}
+
+model UserDailyChallenge {
+  id          String   @id @default(uuid())
+  userId      String
+  challengeId String
+  correct     Boolean
+  completedAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  challenge   DailyChallenge @relation(fields: [challengeId], references: [id])
+  
+  @@unique([userId, challengeId])
+  @@index([challengeId, correct])
+}
+
+model Achievement {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String
+  icon        String?
+  userAchievements UserAchievement[]
+
+  @@index([code])
+}
+
+model UserAchievement {
+  id            String   @id @default(uuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id])
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+}
+
+model GuestSession {
+  id              String           @id @default(uuid())
+  type            GuestSessionType
+  data            Json?            // Flexible storage for session-specific data
+  createdAt       DateTime         @default(now())
+  expiresAt       DateTime         // When the session expires and can no longer be claimed
+  claimedAt       DateTime?
+  claimedByUserId String?
+  claimedBy       User?            @relation("ClaimedGuestSessions", fields: [claimedByUserId], references: [id])
+  guestGame       GuestGame?
+  
+  @@index([expiresAt])
+  @@index([claimedByUserId])
+  @@index([type, expiresAt])
+}
+
+model GuestGame {
+  id              String           @id @default(uuid())
+  guestSessionId String           @unique
+  seed            String?          @unique
+  config          Json?            // Game configuration (mode, rounds, etc.)
+  status          GameStatus       @default(IN_PROGRESS)
+  currentRound    JeopardyRound    @default(SINGLE)
+  currentScore    Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  guestSession    GuestSession     @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
+  questions       GuestGameQuestion[]
+  
+  @@index([guestSessionId])
+}
+
+model GuestGameQuestion {
+  id         String   @id @default(uuid())
+  guestGameId String
+  questionId String
+  answered   Boolean  @default(false)
+  correct    Boolean?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  guestGame  GuestGame @relation(fields: [guestGameId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id])
+  
+  @@unique([guestGameId, questionId])
+}
+
+model GuestConfig {
+  id                              String  @id @default(uuid())
+  // Random game limits
+  randomGameMaxQuestionsBeforeAuth Int     @default(1)
+  randomGameMaxCategoriesBeforeAuth Int?   // Null means not enforced
+  randomGameMaxRoundsBeforeAuth    Int?    // Null means not enforced
+  randomGameMaxGamesBeforeAuth     Int     @default(0) // 0 means not enforced
+  // Random question limits
+  randomQuestionMaxQuestionsBeforeAuth Int @default(1)
+  randomQuestionMaxCategoriesBeforeAuth Int? // Null means not enforced
+  // Daily challenge settings
+  dailyChallengeGuestEnabled      Boolean @default(false) // Default: auth required
+  dailyChallengeGuestAppearsOnLeaderboard Boolean @default(false)
+  dailyChallengeMinLookbackDays   Int     @default(365) // Minimum days to look back (default 1 year)
+  dailyChallengeSeasons          Json?   // Array of season numbers to choose episodes from (e.g., [38, 39, 40])
+  // Global TTL
+  timeToAuthenticateMinutes       Int     @default(1440) // Default 24 hours
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+  
+  @@unique([id]) // Single row configuration
+}
+
+model CronJobExecution {
+  id            String   @id @default(uuid())
+  jobName       String   // e.g., 'daily-challenge', 'fetch-questions'
+  status        CronJobStatus
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  durationMs    Int?     // Duration in milliseconds
+  result        Json?    // Store job result/output
+  error         String?  @db.Text // Error message if failed
+  triggeredBy   String?  // 'scheduled' or 'manual' or user ID if manually triggered
+  createdAt     DateTime @default(now())
+  
+  @@index([jobName, startedAt])
+  @@index([status])
+  @@index([startedAt])
+}
+
+enum CronJobStatus {
+  RUNNING
+  SUCCESS
+  FAILED
 }

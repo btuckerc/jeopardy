@@ -234,11 +234,28 @@ The app will fall back to pattern-based category inference, but results will be 
 
 ### Migration issues
 
+**Local development:**
 ```bash
 # Reset and re-run migrations
 npm run db:reset
 npm run db:setup
 ```
+
+**Docker development:**
+Migrations run automatically when containers start via the entrypoint script. The script:
+1. Waits for the database to be ready
+2. Runs `prisma migrate deploy` to apply pending migrations
+3. Regenerates the Prisma client
+4. Starts the application
+
+If you need to create new migrations in Docker:
+```bash
+# Run migrations manually inside the container
+docker compose exec web npm run db:migrate:dev
+```
+
+**Production:**
+Migrations run automatically on container startup using `prisma migrate deploy`. This is safe for production as it only applies existing migrations and doesn't create new ones.
 
 ### Prisma client out of sync
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import Link from 'next/link'
 import { useAuth } from '../../lib/auth'
 import { checkAnswer } from '../../lib/answer-checker'
 import Scoreboard, { Player } from '@/components/Scoreboard'
@@ -120,6 +121,8 @@ export default function GameBoardById() {
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [answeredQuestions, setAnsweredQuestions] = useState<Set<string>>(new Set())
     const [score, setScore] = useState(0)
+    const [gameStats, setGameStats] = useState({ correct: 0, incorrect: 0 })
+    const [showCelebrationModal, setShowCelebrationModal] = useState(false)
     const [disputeContext, setDisputeContext] = useState<{
         questionId: string
         gameId: string | null
@@ -477,9 +480,9 @@ export default function GameBoardById() {
             setShowRoundComplete(false)
             await loadFinalJeopardy(gameConfig)
         } else {
-            // Game complete
+            // Game complete - show celebration modal
             await saveGameState('complete', { finalScore: score })
-            router.push('/game')
+            setShowCelebrationModal(true)
         }
     }, [currentRound, gameConfig, gameSeed, loadCategories, router, loadFinalJeopardy, saveGameState, score])
 
@@ -590,6 +593,9 @@ export default function GameBoardById() {
 
             if (result) {
                 setScore(prev => prev + pointsEarned)
+                setGameStats(prev => ({ ...prev, correct: prev.correct + 1 }))
+            } else {
+                setGameStats(prev => ({ ...prev, incorrect: prev.incorrect + 1 }))
             }
 
             // Save to game state (API already persisted, but we update local state)
@@ -775,6 +781,7 @@ export default function GameBoardById() {
         const effectiveWager = finalJeopardyActualWager
         
         setScore(prev => prev - effectiveWager)
+        setGameStats(prev => ({ ...prev, incorrect: prev.incorrect + 1 }))
 
         await saveGameState('answer', {
             questionId: finalJeopardyQuestion.id,
@@ -785,7 +792,31 @@ export default function GameBoardById() {
 
     const handleGameComplete = async () => {
         await saveGameState('complete', { finalScore: score })
+        setShowCelebrationModal(true)
+    }
+
+    const handleCelebrationClose = () => {
+        setShowCelebrationModal(false)
         router.push('/game')
+    }
+
+    const handlePlayAgain = async () => {
+        setShowCelebrationModal(false)
+        // Create a new quick play game
+        try {
+            const response = await fetch('/api/games/quick-play', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            if (response.ok) {
+                const game = await response.json()
+                router.push(`/game/${game.id}`)
+            } else {
+                router.push('/game')
+            }
+        } catch (error) {
+            router.push('/game')
+        }
     }
 
     // Show Final Jeopardy screen if active
@@ -1378,6 +1409,94 @@ export default function GameBoardById() {
                                 className="btn-secondary py-3 px-6"
                             >
                                 Exit Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Post-Game Celebration Modal */}
+            {showCelebrationModal && (
+                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="card p-8 max-w-2xl w-full text-center animate-fade-in-slide-down">
+                        <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-amber-400 to-amber-600 rounded-full flex items-center justify-center shadow-lg">
+                            <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-3xl font-bold mb-2 text-gray-900">Game Complete!</h2>
+                        
+                        {/* Final Score */}
+                        <div className="my-6">
+                            <p className="text-gray-600 mb-2">Final Score</p>
+                            <p className={`text-5xl font-bold ${score >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                {score < 0 ? '-' : ''}${Math.abs(score).toLocaleString()}
+                            </p>
+                        </div>
+
+                        {/* Performance Breakdown */}
+                        <div className="bg-gray-50 rounded-xl p-6 mb-6">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance</h3>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div>
+                                    <p className="text-2xl font-bold text-green-600">{gameStats.correct}</p>
+                                    <p className="text-sm text-gray-600">Correct</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-red-600">{gameStats.incorrect}</p>
+                                    <p className="text-sm text-gray-600">Incorrect</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold text-blue-600">
+                                        {gameStats.correct + gameStats.incorrect > 0
+                                            ? Math.round((gameStats.correct / (gameStats.correct + gameStats.incorrect)) * 100)
+                                            : 0}%
+                                    </p>
+                                    <p className="text-sm text-gray-600">Accuracy</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Share Seed */}
+                        {gameSeed && (
+                            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+                                <p className="text-sm text-gray-600 mb-2">Share this game:</p>
+                                <button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(gameSeed)
+                                        const btn = document.activeElement as HTMLButtonElement
+                                        const originalText = btn?.textContent
+                                        if (btn) {
+                                            btn.textContent = 'Copied!'
+                                            setTimeout(() => { btn.textContent = originalText }, 1500)
+                                        }
+                                    }}
+                                    className="font-mono text-blue-600 hover:text-blue-800 text-sm"
+                                >
+                                    {gameSeed}
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                            <button
+                                onClick={handlePlayAgain}
+                                className="btn-primary px-6 py-3"
+                            >
+                                Play Again
+                            </button>
+                            <Link
+                                href="/stats"
+                                className="btn-secondary px-6 py-3"
+                            >
+                                View Stats
+                            </Link>
+                            <button
+                                onClick={handleCelebrationClose}
+                                className="btn-secondary px-6 py-3"
+                            >
+                                Back to Game Hub
                             </button>
                         </div>
                     </div>

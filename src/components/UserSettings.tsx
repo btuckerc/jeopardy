@@ -293,7 +293,7 @@ export default function UserSettings({
 
     return (
         <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center z-50 overflow-y-auto p-4 sm:p-6 animate-fade-in" 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center z-50 overflow-y-auto overflow-x-hidden p-4 sm:p-6 animate-fade-in" 
             onClick={onClose}
             role="dialog"
             aria-modal="true"
@@ -301,7 +301,7 @@ export default function UserSettings({
         >
             <div 
                 ref={modalRef}
-                className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full my-8 animate-fade-in-slide-down" 
+                className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full my-8 animate-fade-in-slide-down overflow-x-hidden" 
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
@@ -322,7 +322,7 @@ export default function UserSettings({
                 </div>
 
                 {/* Content */}
-                <div className="px-5 py-5">
+                <div className="px-5 py-5 overflow-x-hidden">
                     {error && (
                         <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-start gap-2">
                             <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -337,7 +337,7 @@ export default function UserSettings({
                             <div className="spinner text-blue-600"></div>
                         </div>
                     ) : (
-                        <div className="space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto">
+                        <div className="space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto overflow-x-hidden">
                             {/* Avatar & Icon Section */}
                             <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-4 border border-gray-200">
                                 <div className="flex items-start gap-4 mb-4">

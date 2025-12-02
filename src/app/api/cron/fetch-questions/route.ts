@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { PrismaClient } from '@prisma/client'
 import { subDays, format } from 'date-fns'
 import { parseGameByDate, JeopardyRound } from '@/lib/jarchive-scraper'
+import { withCronLogging } from '@/lib/cron-logger'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Maximum allowed duration for hobby plan (in seconds)
@@ -26,89 +27,104 @@ export async function GET(request: Request) {
             return new NextResponse('Unauthorized', { status: 401 })
         }
 
-        const yesterday = subDays(new Date(), 1)
-        const formattedDate = format(yesterday, 'yyyy-MM-dd')
+        // Check if logging is already handled (from manual trigger)
+        const skipLogging = request.headers.get('x-skip-cron-logging') === 'true'
+        const triggeredBy = request.headers.get('x-triggered-by') || 'scheduled'
 
-        console.log(`Fetching game for ${formattedDate}...`)
+        const executeJob = async () => {
+            const yesterday = subDays(new Date(), 1)
+            const formattedDate = format(yesterday, 'yyyy-MM-dd')
 
-        // Use the modular scraper to fetch and parse the game
-        const game = await parseGameByDate(formattedDate)
+            console.log(`Fetching game for ${formattedDate}...`)
 
-        if (!game || game.questions.length === 0) {
-            return NextResponse.json({
-                success: false,
-                message: `No game found for ${formattedDate}`
-            })
+            // Use the modular scraper to fetch and parse the game
+            const game = await parseGameByDate(formattedDate)
+
+            if (!game || game.questions.length === 0) {
+                return {
+                    success: false,
+                    message: `No game found for ${formattedDate}`
+                }
+            }
+
+            console.log(`Found ${game.questions.length} questions from game ${game.gameId}`)
+
+            // Initialize PrismaClient and save questions
+            const prisma = new PrismaClient()
+
+            try {
+                let savedCount = 0
+                let skippedCount = 0
+
+                await prisma.$transaction(async (tx) => {
+                    for (const question of game.questions) {
+                        // First, get or create the category
+                        const category = await tx.category.upsert({
+                            where: { name: question.category },
+                            create: { 
+                                name: question.category,
+                                knowledgeCategory: question.knowledgeCategory
+                            },
+                            update: {}
+                        })
+
+                        // Check if question already exists (avoid duplicates)
+                        const existing = await tx.question.findFirst({
+                            where: {
+                                question: question.question,
+                                airDate: new Date(formattedDate)
+                            }
+                        })
+
+                        if (existing) {
+                            skippedCount++
+                            continue
+                        }
+
+                        // Create the question with proper round field
+                        await tx.question.create({
+                            data: {
+                                question: question.question,
+                                answer: question.answer,
+                                value: question.value,
+                                difficulty: question.difficulty,
+                                knowledgeCategory: question.knowledgeCategory,
+                                airDate: new Date(formattedDate),
+                                round: toPrismaRound(question.round),
+                                isDoubleJeopardy: question.round === 'DOUBLE', // Legacy field
+                                wasTripleStumper: question.wasTripleStumper ?? false,
+                                category: {
+                                    connect: { id: category.id }
+                                }
+                            }
+                        })
+                        savedCount++
+                    }
+                })
+
+                await prisma.$disconnect()
+
+                return {
+                    success: true,
+                    message: `Successfully saved ${savedCount} questions (skipped ${skippedCount} duplicates)`,
+                    gameId: game.gameId,
+                    airDate: formattedDate,
+                    questionCount: savedCount,
+                    skippedCount
+                }
+            } catch (error) {
+                await prisma.$disconnect()
+                throw error
+            }
         }
 
-        console.log(`Found ${game.questions.length} questions from game ${game.gameId}`)
-
-        // Initialize PrismaClient and save questions
-        const prisma = new PrismaClient()
-
-        try {
-            let savedCount = 0
-            let skippedCount = 0
-
-            await prisma.$transaction(async (tx) => {
-                for (const question of game.questions) {
-                    // First, get or create the category
-                    const category = await tx.category.upsert({
-                        where: { name: question.category },
-                        create: { 
-                            name: question.category,
-                            knowledgeCategory: question.knowledgeCategory
-                        },
-                        update: {}
-                    })
-
-                    // Check if question already exists (avoid duplicates)
-                    const existing = await tx.question.findFirst({
-                        where: {
-                            question: question.question,
-                            airDate: new Date(formattedDate)
-                        }
-                    })
-
-                    if (existing) {
-                        skippedCount++
-                        continue
-                    }
-
-                    // Create the question with proper round field
-                    await tx.question.create({
-                        data: {
-                            question: question.question,
-                            answer: question.answer,
-                            value: question.value,
-                            difficulty: question.difficulty,
-                            knowledgeCategory: question.knowledgeCategory,
-                            airDate: new Date(formattedDate),
-                            round: toPrismaRound(question.round),
-                            isDoubleJeopardy: question.round === 'DOUBLE', // Legacy field
-                            wasTripleStumper: question.wasTripleStumper ?? false,
-                            category: {
-                                connect: { id: category.id }
-                            }
-                        }
-                    })
-                    savedCount++
-                }
-            })
-
-            await prisma.$disconnect()
-
-            return NextResponse.json({
-                success: true,
-                message: `Successfully saved ${savedCount} questions (skipped ${skippedCount} duplicates)`,
-                gameId: game.gameId,
-                airDate: formattedDate,
-                questionCount: savedCount,
-                skippedCount
-            })
-        } catch (error) {
-            await prisma.$disconnect()
-            throw error
+        // Wrap with logging if not already handled
+        if (skipLogging) {
+            const result = await executeJob()
+            return NextResponse.json(result)
+        } else {
+            const result = await withCronLogging('fetch-questions', triggeredBy, executeJob)
+            return NextResponse.json(result)
         }
     } catch (error) {
         console.error('Error in cron job:', error)

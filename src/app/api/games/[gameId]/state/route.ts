@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse, parseBody, badRequestResponse } from '@/lib/api-utils'
 import { z } from 'zod'
+import { checkAndUnlockAchievements } from '@/lib/achievements'
 
 interface RouteParams {
     params: Promise<{ gameId: string }>
@@ -175,6 +176,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
                 const { finalScore } = parsed.data
 
+                // Update game status
                 await prisma.game.update({
                     where: { id: gameId },
                     data: {
@@ -185,10 +187,65 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                     }
                 })
 
+                // Update user streak
+                const today = new Date()
+                today.setHours(0, 0, 0, 0)
+
+                const user = await prisma.user.findUnique({
+                    where: { id: appUser.id },
+                    select: {
+                        currentStreak: true,
+                        longestStreak: true,
+                        lastGameDate: true
+                    }
+                })
+
+                if (user) {
+                    let newStreak = user.currentStreak
+                    const lastGameDate = user.lastGameDate ? new Date(user.lastGameDate) : null
+                    
+                    if (lastGameDate) {
+                        lastGameDate.setHours(0, 0, 0, 0)
+                        const daysDiff = Math.floor((today.getTime() - lastGameDate.getTime()) / (1000 * 60 * 60 * 24))
+                        
+                        if (daysDiff === 0) {
+                            // Already played today, don't increment
+                            newStreak = user.currentStreak
+                        } else if (daysDiff === 1) {
+                            // Played yesterday, continue streak
+                            newStreak = user.currentStreak + 1
+                        } else {
+                            // More than 1 day ago, reset streak
+                            newStreak = 1
+                        }
+                    } else {
+                        // First game ever
+                        newStreak = 1
+                    }
+
+                    const newLongestStreak = Math.max(user.longestStreak, newStreak)
+
+                    await prisma.user.update({
+                        where: { id: appUser.id },
+                        data: {
+                            currentStreak: newStreak,
+                            longestStreak: newLongestStreak,
+                            lastGameDate: today
+                        }
+                    })
+                }
+
+                // Check for achievements
+                const newlyUnlocked = await checkAndUnlockAchievements(appUser.id, {
+                    type: 'game_completed',
+                    data: { gameId, finalScore }
+                })
+
                 return jsonResponse({
                     success: true,
                     status: 'COMPLETED',
-                    finalScore
+                    finalScore,
+                    newlyUnlockedAchievements: newlyUnlocked
                 })
             }
 

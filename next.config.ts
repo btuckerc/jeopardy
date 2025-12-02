@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Enable instrumentation hook for cron jobs
+  experimental: {
+    instrumentationHook: true,
+  },
   // Enable file watching in Docker for hot-reload
   webpackDevMiddleware: (config: any) => {
     config.watchOptions = {

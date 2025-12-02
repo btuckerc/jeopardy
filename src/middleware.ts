@@ -11,6 +11,15 @@ const isPublicRoute = createRouteMatcher([
     '/api/categories(.*)', // Public category browsing
     '/api/questions(.*)', // Public question access
     '/api/leaderboard(.*)', // Public leaderboard
+    // Guest routes - allow unauthenticated users to play
+    '/play/guest-question(.*)',
+    '/play/guest-game(.*)',
+    '/daily-challenge(.*)', // Daily challenge page (auth checked at API level)
+    '/api/practice/guest-question(.*)', // Guest practice questions
+    '/api/games/guest-quick-play(.*)', // Create guest games
+    '/api/games/guest(.*)', // Guest game state and answers
+    '/api/daily-challenge(.*)', // Daily challenge API (auth checked at API level)
+    '/api/practice/shuffle(.*)', // Practice shuffle (needed for guest practice fallback)
 ])
 
 // Define admin routes that require admin role

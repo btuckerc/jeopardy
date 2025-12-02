@@ -1,12 +1,146 @@
 import Link from 'next/link'
 import { Fredoka } from 'next/font/google'
 import { getAppUser } from '@/lib/clerk-auth'
+import { prisma } from '@/lib/prisma'
+import { FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
+import HomepageClient from './HomepageClient'
+import DailyChallengeCard from './components/DailyChallengeCard'
+import RecentActivityFeed from './components/RecentActivityFeed'
 
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
+
+async function getDailyChallenge(userId: string | null) {
+    try {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        
+        // Check if challenge exists for today
+        let challenge = await prisma.dailyChallenge.findUnique({
+            where: { date: today },
+            include: {
+                question: {
+                    include: {
+                        category: true
+                    }
+                }
+            }
+        })
+
+        // If no challenge exists, we'll let the API handle creation on first request
+        // For now, just return null to avoid blocking the page
+        if (!challenge) {
+            return null
+        }
+
+        // Get user's answer if authenticated
+        let userAnswer = null
+        if (userId) {
+            const userChallenge = await prisma.userDailyChallenge.findUnique({
+                where: {
+                    userId_challengeId: {
+                        userId: userId,
+                        challengeId: challenge.id
+                    }
+                }
+            })
+            if (userChallenge) {
+                userAnswer = {
+                    correct: userChallenge.correct,
+                    completedAt: userChallenge.completedAt
+                }
+            }
+        }
+
+        return {
+            id: challenge.id,
+            date: challenge.date,
+            question: {
+                id: challenge.question.id,
+                question: challenge.question.question,
+                answer: challenge.question.answer,
+                category: challenge.question.category.name,
+                airDate: challenge.question.airDate
+            },
+            userAnswer
+        }
+    } catch (error) {
+        console.error('Error fetching daily challenge:', error)
+        return null
+    }
+}
 
 export default async function Home() {
     // Fetch user on the server - no flash, immediate render
     const user = await getAppUser()
+    
+    // Fetch daily challenge on the server
+    const dailyChallenge = await getDailyChallenge(user?.id || null)
+    
+    // Fetch user activity stats if authenticated
+    let activityStats = null
+    if (user) {
+        try {
+            const weekAgo = new Date()
+            weekAgo.setDate(weekAgo.getDate() - 7)
+            weekAgo.setHours(0, 0, 0, 0)
+
+            const gamesThisWeek = await prisma.game.count({
+                where: {
+                    userId: user.id,
+                    createdAt: { gte: weekAgo },
+                    status: 'COMPLETED'
+                }
+            })
+
+            const bestGame = await prisma.game.findFirst({
+                where: {
+                    userId: user.id,
+                    status: 'COMPLETED'
+                },
+                orderBy: { score: 'desc' },
+                select: { score: true }
+            })
+
+            const userStats = await prisma.$queryRaw<Array<{
+                id: string
+                total_points: number
+            }>>`
+                SELECT 
+                    u.id,
+                    COALESCE(SUM(
+                        CASE 
+                            WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
+                            WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
+                            ELSE 0 
+                        END
+                    ), 0)::integer as total_points
+                FROM "User" u
+                LEFT JOIN "GameHistory" gh ON u.id = gh."userId"
+                LEFT JOIN "Question" q ON q.id = gh."questionId"
+                GROUP BY u.id
+                HAVING COALESCE(SUM(
+                    CASE 
+                        WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
+                        WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
+                        ELSE 0 
+                    END
+                ), 0) > 0
+                ORDER BY total_points DESC
+            `
+
+            const userRank = userStats.findIndex(u => u.id === user.id) + 1
+            const totalPlayers = userStats.length
+
+            activityStats = {
+                gamesThisWeek,
+                bestScore: bestGame?.score || 0,
+                leaderboardRank: userRank > 0 ? userRank : null,
+                totalPlayers
+            }
+        } catch (error) {
+            console.error('Error fetching activity stats:', error)
+        }
+    }
 
     return (
         <>
@@ -60,89 +194,52 @@ export default async function Home() {
                         </div>
                     </div>
 
-                    {/* Mode Cards */}
-                    <div className="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 max-w-4xl mx-auto">
-                        {/* Game Mode */}
-                        <Link href="/game" className="group">
-                            <div className="relative h-full rounded-2xl overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:-translate-y-2">
-                                <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800" />
-                                <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-                                <div className="relative p-6 sm:p-8 h-full flex flex-col">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="p-2 bg-white/20 rounded-lg">
-                                            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        </div>
-                                        <h2 className="text-2xl font-bold text-white">Game Mode</h2>
-                                    </div>
-                                    <p className="text-blue-100 flex-grow">
-                                        Experience a complete Jeopardy simulation with authentic categories, 
-                                        varying difficulty levels, and competitive scoring.
-                                    </p>
-                                    <div className="mt-6 flex items-center text-white font-medium group-hover:gap-3 gap-2 transition-all">
-                                        <span>Start Playing</span>
-                                        <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                        </svg>
-                                    </div>
-                                </div>
-                            </div>
-                        </Link>
+                    {/* Activity Stats (for authenticated users) */}
+                    {user && activityStats && (
+                        <div className="mt-8 flex flex-col items-center gap-6">
+                            <RecentActivityFeed stats={activityStats} />
+                        </div>
+                    )}
 
-                        {/* Practice Mode */}
-                        <Link href="/practice" className="group">
-                            <div className="relative h-full rounded-2xl overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:-translate-y-2">
-                                <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-800" />
-                                <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-                                <div className="relative p-6 sm:p-8 h-full flex flex-col">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="p-2 bg-white/20 rounded-lg">
-                                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                            </svg>
-                                        </div>
-                                        <h2 className="text-2xl font-bold text-white">Practice Mode</h2>
-                                    </div>
-                                    <p className="text-green-100 flex-grow">
-                                        Study at your own pace with our comprehensive flashcard system. 
-                                        Focus on specific categories and track your progress.
-                                    </p>
-                                    <div className="mt-6 flex items-center text-white font-medium group-hover:gap-3 gap-2 transition-all">
-                                        <span>Start Practicing</span>
-                                        <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                                        </svg>
-                                    </div>
-                                </div>
-                            </div>
-                        </Link>
+                    {/* Daily Challenge Card */}
+                    <div className="mt-8 max-w-4xl mx-auto">
+                        <DailyChallengeCard challenge={dailyChallenge} />
                     </div>
 
-                    {/* Conditional content based on auth - server rendered, no flash */}
+                    {/* Mode Cards */}
+                    <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 max-w-4xl mx-auto">
+                        {/* Game Mode */}
+                        <HomepageClient user={user} mode="game" />
+                        
+                        {/* Practice Mode */}
+                        <HomepageClient user={user} mode="practice" />
+                    </div>
+
+                    {/* Guest Sign In Prompt */}
                     {!user && (
-                        <div className="mt-12 text-center">
-                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-800 rounded-full text-sm font-medium mb-4">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                </svg>
-                                Unlock all features
+                        <div className="mt-8">
+                            <div className="mt-8 text-center">
+                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-100 text-amber-800 rounded-full text-sm font-medium mb-4">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    Unlock all features
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-900">Track Your Progress</h2>
+                                <p className="mt-3 max-w-xl mx-auto text-gray-600">
+                                    Sign in to save your progress, compete on the leaderboard, and get 
+                                    personalized recommendations based on your performance.
+                                </p>
+                                <Link 
+                                    href="/sign-in"
+                                    className="mt-6 inline-flex items-center gap-2 btn-primary btn-lg"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                                    </svg>
+                                    Sign In
+                                </Link>
                             </div>
-                            <h2 className="text-2xl font-bold text-gray-900">Track Your Progress</h2>
-                            <p className="mt-3 max-w-xl mx-auto text-gray-600">
-                                Sign in to save your progress, compete on the leaderboard, and get 
-                                personalized recommendations based on your performance.
-                            </p>
-                            <Link 
-                                href="/sign-in"
-                                className="mt-6 inline-flex items-center gap-2 btn-primary btn-lg"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                                </svg>
-                                Sign In
-                            </Link>
                         </div>
                     )}
                 </div>

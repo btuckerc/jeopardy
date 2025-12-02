@@ -32,6 +32,26 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                 <div className="flex min-h-16 py-2 items-center justify-between">
                     {/* Left side: Logo and Navigation */}
                     <div className="flex items-center flex-1 min-w-0">
+                        {/* Mobile menu button - visible on mobile and tablet (md to lg) */}
+                        <div className="lg:hidden -ml-1 sm:-ml-3 mr-3">
+                            <button
+                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                                className="inline-flex items-center justify-center p-2 rounded-md text-white hover:text-gray-300 hover:bg-blue-700 transition-colors duration-150 ease-in-out focus:outline-none"
+                                aria-expanded="false"
+                            >
+                                <span className="sr-only">Open main menu</span>
+                                {!isMobileMenuOpen ? (
+                                    <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                    </svg>
+                                ) : (
+                                    <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                )}
+                            </button>
+                        </div>
+
                         {/* Logo */}
                         <Link href="/" className="flex-shrink-0">
                             <div className="flex min-h-12 items-center">
@@ -41,7 +61,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                             </div>
                         </Link>
 
-                        {/* Desktop Navigation */}
+                        {/* Desktop Navigation - Full (lg+) */}
                         <div className="hidden lg:ml-8 lg:flex lg:items-center lg:space-x-4">
                             <Link
                                 href="/game"
@@ -122,6 +142,15 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                                 )}
                             </div>
                             <Link
+                                href="/daily-challenge"
+                                className="flex items-center px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out whitespace-nowrap"
+                            >
+                                <svg className="h-5 w-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Daily Challenge
+                            </Link>
+                            <Link
                                 href="/stats"
                                 className="flex items-center px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out whitespace-nowrap"
                             >
@@ -140,39 +169,49 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                                 Leaderboard
                             </Link>
                         </div>
+
+                        {/* Intermediate Navigation - Priority items only (md to lg) */}
+                        <div className="hidden md:flex md:items-center md:space-x-3 lg:hidden md:ml-4">
+                            <Link
+                                href="/game"
+                                className="flex items-center px-2 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out whitespace-nowrap"
+                            >
+                                <svg className="h-5 w-5 mr-1.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                Play Game
+                            </Link>
+                            <Link
+                                href="/practice"
+                                className="flex items-center px-2 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out whitespace-nowrap"
+                            >
+                                <svg className="h-5 w-5 mr-1.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                </svg>
+                                Practice
+                            </Link>
+                            <Link
+                                href="/daily-challenge"
+                                className="flex items-center px-2 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out whitespace-nowrap"
+                            >
+                                <svg className="h-5 w-5 mr-1.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Daily Challenge
+                            </Link>
+                        </div>
                     </div>
 
-                    {/* Right side: Mobile menu button and Auth */}
+                    {/* Right side: Auth */}
                     <div className="flex items-center justify-end flex-shrink-0">
-                        {/* Mobile menu button */}
-                        <div className="lg:hidden">
-                            <button
-                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                                className="inline-flex items-center justify-center p-2 rounded-md text-white hover:text-gray-300 hover:bg-blue-700 transition-colors duration-150 ease-in-out focus:outline-none"
-                                aria-expanded="false"
-                            >
-                                <span className="sr-only">Open main menu</span>
-                                {!isMobileMenuOpen ? (
-                                    <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                                    </svg>
-                                ) : (
-                                    <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                )}
-                            </button>
-                        </div>
-
                         {/* Auth Button - pass appUser for immediate render */}
-                        <div className="lg:ml-0 ml-4">
-                            <AuthButton appUser={appUser} />
-                        </div>
+                        <AuthButton appUser={appUser} />
                     </div>
                 </div>
             </div>
 
-            {/* Mobile menu */}
+            {/* Mobile menu - visible on mobile and tablet (md to lg) */}
             <div className={`${isMobileMenuOpen ? 'block' : 'hidden'} lg:hidden border-t border-blue-700`}>
                 <div className="py-3 space-y-0.5">
                     <Link
@@ -198,6 +237,18 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                             </svg>
                             Practice
+                        </div>
+                    </Link>
+                    <Link
+                        href="/daily-challenge"
+                        className="text-white hover:bg-blue-700 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                        <div className="flex items-center">
+                            <svg className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Daily Challenge
                         </div>
                     </Link>
                     <Link
