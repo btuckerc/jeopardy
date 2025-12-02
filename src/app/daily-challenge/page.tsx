@@ -6,6 +6,7 @@ import { useAuth } from '@/app/lib/auth'
 import { checkAnswer } from '@/app/lib/answer-checker'
 import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
+import NextChallengeCallout from '@/app/components/NextChallengeCallout'
 
 interface DailyChallenge {
     id: string
@@ -33,6 +34,18 @@ interface LeaderboardEntry {
     completedAt: string
 }
 
+// Calculate next challenge time (midnight UTC tomorrow)
+function getNextChallengeTime(): string {
+    const now = new Date()
+    const tomorrow = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1,
+        0, 0, 0, 0
+    ))
+    return tomorrow.toISOString()
+}
+
 export default function DailyChallengePage() {
     const router = useRouter()
     const { user } = useAuth()
@@ -45,6 +58,7 @@ export default function DailyChallengePage() {
     const [submitting, setSubmitting] = useState(false)
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
     const [leaderboardLoading, setLeaderboardLoading] = useState(false)
+    const [nextChallengeTime] = useState(() => getNextChallengeTime())
 
     useEffect(() => {
         loadChallenge()
@@ -206,7 +220,7 @@ export default function DailyChallengePage() {
                                                 handleSubmit()
                                             }
                                         }}
-                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-lg text-black focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         placeholder="What is..."
                                         autoFocus
                                     />
@@ -233,7 +247,7 @@ export default function DailyChallengePage() {
                                                 handleSubmit()
                                             }
                                         }}
-                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-lg text-black focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                         placeholder="What is..."
                                         autoFocus
                                     />
@@ -319,6 +333,11 @@ export default function DailyChallengePage() {
                                     </div>
                                 </div>
                             )}
+                            
+                            {/* Next Challenge Countdown */}
+                            <div className="mt-6">
+                                <NextChallengeCallout nextChallengeTime={nextChallengeTime} />
+                            </div>
                         </div>
                     )}
                 </div>

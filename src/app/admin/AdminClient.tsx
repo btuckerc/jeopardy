@@ -1120,7 +1120,10 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     }
 
     return (
-        <div className="min-h-screen">
+        // Allow horizontal scrolling within the admin area so mid-width layouts
+        // (e.g., tablets, small laptops) never get content clipped even if a
+        // child component slightly overflows.
+        <div className="min-h-screen w-full overflow-x-auto">
             <div className="container mx-auto px-4 pt-4">
                 <h1 className="text-2xl font-bold text-black mb-6">Admin Dashboard</h1>
             </div>
@@ -1381,7 +1384,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 <button
                                     onClick={handleBatchPush}
                                     disabled={batchPushing || selectedGameIds.size === 0}
-                                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
                                 >
                                     {batchPushing ? (
                                         <>
@@ -1389,10 +1392,10 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                             </svg>
-                                            Pushing...
+                                            <span>Pushing...</span>
                                         </>
                                     ) : (
-                                        `Push Selected (${selectedGameIds.size})`
+                                        <span>Push Selected ({selectedGameIds.size})</span>
                                     )}
                                 </button>
                             </div>
@@ -1841,7 +1844,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
                     {/* Stats */}
                     {dailyChallengesStats && (
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
                                 <div className="text-sm text-blue-600 font-medium mb-1">Coverage</div>
                                 <div className="text-2xl font-bold text-blue-900">
@@ -1986,7 +1989,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         </div>
 
                         {guestStats && (
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
                                     <div className="text-sm text-blue-600 font-medium mb-1">Active Sessions</div>
                                     <div className="text-2xl font-bold text-blue-900">{guestStats.active}</div>
@@ -2009,7 +2012,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         {guestStats?.recent && (
                             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
                                 <h3 className="font-semibold text-gray-900 mb-2">Last 24 Hours</h3>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <div className="text-sm text-gray-600">Unclaimed</div>
                                         <div className="text-xl font-bold text-gray-900">{guestStats.recent.unclaimed}</div>
@@ -2018,7 +2021,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                         <div className="text-sm text-gray-600">Claimed</div>
                                         <div className="text-xl font-bold text-gray-900">{guestStats.recent.claimed}</div>
                                     </div>
-                                    <div className="col-span-2">
+                                    <div className="sm:col-span-2">
                                         <div className="text-sm text-gray-600">Conversion Rate</div>
                                         <div className="text-xl font-bold text-gray-900">
                                             {guestStats.recent.conversionRate.toFixed(1)}%
@@ -2134,8 +2137,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                             />
                                             <span className="text-sm text-gray-700">Guests appear on leaderboard (only if guest participation enabled)</span>
                                         </label>
-                                        <div className="flex items-center gap-2">
-                                            <label htmlFor="dailyChallengeMinLookbackDays" className="text-sm font-medium text-gray-700">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                            <label htmlFor="dailyChallengeMinLookbackDays" className="text-sm font-medium text-gray-700 whitespace-nowrap">
                                                 Minimum Lookback Period (days):
                                             </label>
                                             <input
@@ -2145,7 +2148,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                 min="30"
                                                 max="1825"
                                                 defaultValue={guestConfig.dailyChallengeMinLookbackDays || 365}
-                                                className="w-24 px-2 py-1 border rounded text-gray-900"
+                                                className="w-full sm:w-24 px-2 py-1 border rounded text-gray-900"
                                             />
                                             <span className="text-sm text-gray-600">
                                                 (Default: 365 days / 1 year. Daily challenges will use questions from this many days ago up to 3 years ago)
@@ -2213,7 +2216,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
                         {/* Job Status Cards */}
                         {cronJobs && Object.keys(cronJobs).length > 0 && (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                                 {Object.entries(cronJobs).map(([jobName, job]: [string, any]) => {
                                     const latest = cronLatest[jobName]
                                     const isRunning = latest?.status === 'RUNNING'
@@ -2326,89 +2329,151 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     No executions found
                                 </div>
                             ) : (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Job Name
-                                                </th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Status
-                                                </th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Started
-                                                </th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Duration
-                                                </th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Triggered By
-                                                </th>
-                                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Result
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {cronExecutions.map((execution: any) => (
-                                                <tr key={execution.id} className="hover:bg-gray-50">
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                        {cronJobs?.[execution.jobName]?.name || execution.jobName}
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap">
-                                                        <span
-                                                            className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                                                execution.status === 'RUNNING'
-                                                                    ? 'bg-blue-100 text-blue-800'
-                                                                    : execution.status === 'SUCCESS'
-                                                                    ? 'bg-green-100 text-green-800'
-                                                                    : 'bg-red-100 text-red-800'
-                                                            }`}
-                                                        >
-                                                            {execution.status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                                                        {new Date(execution.startedAt).toLocaleString()}
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                                                        {execution.durationMs
+                                <>
+                                    {/* Mobile Card View */}
+                                    <div className="block md:hidden space-y-3">
+                                        {cronExecutions.map((execution: any) => (
+                                            <div key={execution.id} className="bg-white border rounded-lg p-4 space-y-2">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="font-medium text-sm text-gray-900 break-words">
+                                                            {cronJobs?.[execution.jobName]?.name || execution.jobName}
+                                                        </div>
+                                                    </div>
+                                                    <span
+                                                        className={`px-2 py-1 text-xs font-semibold rounded-full flex-shrink-0 ${
+                                                            execution.status === 'RUNNING'
+                                                                ? 'bg-blue-100 text-blue-800'
+                                                                : execution.status === 'SUCCESS'
+                                                                ? 'bg-green-100 text-green-800'
+                                                                : 'bg-red-100 text-red-800'
+                                                        }`}
+                                                    >
+                                                        {execution.status}
+                                                    </span>
+                                                </div>
+                                                <div className="text-xs text-gray-600 space-y-1">
+                                                    <div>
+                                                        <span className="font-medium">Started:</span> {new Date(execution.startedAt).toLocaleString()}
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium">Duration:</span> {execution.durationMs
                                                             ? `${(execution.durationMs / 1000).toFixed(2)}s`
                                                             : execution.status === 'RUNNING'
                                                             ? '...'
                                                             : '-'}
-                                                    </td>
-                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                                                        {execution.triggeredBy === 'scheduled' ? (
+                                                    </div>
+                                                    <div>
+                                                        <span className="font-medium">Triggered By:</span> {execution.triggeredBy === 'scheduled' ? (
                                                             <span className="text-gray-500">Scheduled</span>
                                                         ) : (
                                                             <span className="text-blue-600">Manual</span>
                                                         )}
-                                                    </td>
-                                                    <td className="px-4 py-3 text-sm text-gray-700">
-                                                        {execution.error ? (
-                                                            <div className="text-red-600 text-xs max-w-xs truncate" title={execution.error}>
-                                                                {execution.error}
-                                                            </div>
-                                                        ) : execution.result ? (
-                                                            <details className="text-xs">
-                                                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
-                                                                    View Result
-                                                                </summary>
-                                                                <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                                                                    {JSON.stringify(execution.result, null, 2)}
-                                                                </pre>
-                                                            </details>
-                                                        ) : (
-                                                            '-'
-                                                        )}
-                                                    </td>
+                                                    </div>
+                                                </div>
+                                                {execution.error && (
+                                                    <div className="text-red-600 text-xs break-words">
+                                                        <span className="font-medium">Error:</span> {execution.error}
+                                                    </div>
+                                                )}
+                                                {execution.result && (
+                                                    <details className="text-xs">
+                                                        <summary className="cursor-pointer text-blue-600 hover:text-blue-800 font-medium">
+                                                            View Result
+                                                        </summary>
+                                                        <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto break-words whitespace-pre-wrap">
+                                                            {JSON.stringify(execution.result, null, 2)}
+                                                        </pre>
+                                                    </details>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {/* Desktop Table View */}
+                                    <div className="hidden md:block overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Job Name
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Status
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Started
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Duration
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Triggered By
+                                                    </th>
+                                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                        Result
+                                                    </th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {cronExecutions.map((execution: any) => (
+                                                    <tr key={execution.id} className="hover:bg-gray-50">
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                                                            {cronJobs?.[execution.jobName]?.name || execution.jobName}
+                                                        </td>
+                                                        <td className="px-4 py-3 whitespace-nowrap">
+                                                            <span
+                                                                className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                                                    execution.status === 'RUNNING'
+                                                                        ? 'bg-blue-100 text-blue-800'
+                                                                        : execution.status === 'SUCCESS'
+                                                                        ? 'bg-green-100 text-green-800'
+                                                                        : 'bg-red-100 text-red-800'
+                                                                }`}
+                                                            >
+                                                                {execution.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                                            {new Date(execution.startedAt).toLocaleString()}
+                                                        </td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                                            {execution.durationMs
+                                                                ? `${(execution.durationMs / 1000).toFixed(2)}s`
+                                                                : execution.status === 'RUNNING'
+                                                                ? '...'
+                                                                : '-'}
+                                                        </td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                                                            {execution.triggeredBy === 'scheduled' ? (
+                                                                <span className="text-gray-500">Scheduled</span>
+                                                            ) : (
+                                                                <span className="text-blue-600">Manual</span>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-sm text-gray-700">
+                                                            {execution.error ? (
+                                                                <div className="text-red-600 text-xs max-w-xs truncate" title={execution.error}>
+                                                                    {execution.error}
+                                                                </div>
+                                                            ) : execution.result ? (
+                                                                <details className="text-xs">
+                                                                    <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
+                                                                        View Result
+                                                                    </summary>
+                                                                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
+                                                                        {JSON.stringify(execution.result, null, 2)}
+                                                                    </pre>
+                                                                </details>
+                                                            ) : (
+                                                                '-'
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
@@ -2462,17 +2527,17 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             </div>
                         </div>
                         
-                        <div className="flex justify-end gap-3 mt-6">
+                        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
                             <button
                                 onClick={() => setEditingGame(null)}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                                className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleSaveGameEdit}
                                 disabled={savingGameEdit}
-                                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
                             >
                                 {savingGameEdit ? 'Saving...' : 'Save Changes'}
                             </button>
@@ -2507,7 +2572,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         {selectedCalendarDate && (
                             <div className="mt-6 p-4 bg-gray-50 rounded border overflow-x-auto">
                                 <div className="flex justify-between items-start mb-4 gap-2">
-                                    <h3 className="font-bold text-lg text-gray-900 break-words">
+                                    <h3 className="font-bold text-lg text-gray-900 break-words flex-1 min-w-0">
                                         {formatDateString(selectedCalendarDate)}
                                     </h3>
                                     <button
@@ -2515,7 +2580,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                             setSelectedCalendarDate(null)
                                             setDateGameData([])
                                         }}
-                                        className="text-gray-500 hover:text-gray-700"
+                                        className="text-gray-500 hover:text-gray-700 flex-shrink-0 p-1"
+                                        aria-label="Close"
                                     >
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2641,9 +2707,9 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 {/* Games List with Selection */}
                 {games.length > 0 && (
                     <div className="mt-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <div className="flex items-center gap-4">
-                                <h3 className="font-bold text-lg text-gray-900">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                <h3 className="font-bold text-lg text-gray-900 break-words">
                                     {games.length} questions across {sortedGameGroups.length} dates
                                 </h3>
                                 <label className="flex items-center gap-2 cursor-pointer">
@@ -2656,11 +2722,11 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     <span className="text-sm text-gray-700">Select All</span>
                                 </label>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                                 <button
                                     onClick={openRefetchConfirmation}
                                     disabled={refetching || selectedExistingDates.size === 0}
-                                    className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
                                 >
                                     {refetching ? (
                                         <>
@@ -2668,26 +2734,26 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                             </svg>
-                                            Re-fetching...
+                                            <span>Re-fetching...</span>
                                         </>
                                     ) : (
                                         <>
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                             </svg>
-                                            Re-fetch Selected ({selectedExistingDates.size})
+                                            <span>Re-fetch ({selectedExistingDates.size})</span>
                                         </>
                                     )}
                                 </button>
                                 <button
                                     onClick={openDeleteConfirmation}
                                     disabled={deleting || selectedExistingDates.size === 0}
-                                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
                                 >
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
-                                    Delete Selected ({selectedExistingDates.size})
+                                    <span>Delete ({selectedExistingDates.size})</span>
                                 </button>
                             </div>
                         </div>
@@ -2718,13 +2784,14 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             {showCalendarFetchModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
                     <div className="bg-white rounded-lg p-6 max-w-3xl w-full shadow-xl max-h-[90vh] overflow-y-auto my-auto">
-                        <div className="flex justify-between items-start mb-4">
-                            <h3 className="text-xl font-bold text-gray-900">
+                        <div className="flex justify-between items-start mb-4 gap-2">
+                            <h3 className="text-xl font-bold text-gray-900 break-words flex-1 min-w-0">
                                 {calendarFetchDate ? `Fetch Game: ${formatDateString(calendarFetchDate)}` : 'Fetch Game'}
                             </h3>
                             <button
                                 onClick={closeCalendarFetchModal}
-                                className="text-gray-500 hover:text-gray-700"
+                                className="text-gray-500 hover:text-gray-700 flex-shrink-0 p-1"
+                                aria-label="Close"
                             >
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -2751,9 +2818,9 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 </div>
                                 
                                 <div className="mb-4">
-                                    <p className="text-sm text-gray-600 mb-2">
-                                        <span className="mr-3">Single: {calendarFetchedGame.categories.filter((c: Category) => c.round === 'single').length} categories</span>
-                                        <span className="mr-3">Double: {calendarFetchedGame.categories.filter((c: Category) => c.round === 'double').length} categories</span>
+                                    <p className="text-sm text-gray-600 mb-2 flex flex-wrap gap-x-3 gap-y-1">
+                                        <span>Single: {calendarFetchedGame.categories.filter((c: Category) => c.round === 'single').length} categories</span>
+                                        <span>Double: {calendarFetchedGame.categories.filter((c: Category) => c.round === 'double').length} categories</span>
                                         <span>Final: {calendarFetchedGame.categories.filter((c: Category) => c.round === 'final').length} categories</span>
                                     </p>
                                 </div>
@@ -2785,17 +2852,17 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     )}
                                 </div>
                                 
-                                <div className="flex justify-end gap-3">
+                                <div className="flex flex-col sm:flex-row justify-end gap-3">
                                     <button
                                         onClick={closeCalendarFetchModal}
-                                        className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                                        className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={handleCalendarPushGame}
                                         disabled={calendarPushing}
-                                        className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
                                     >
                                         {calendarPushing ? (
                                             <>
@@ -2840,16 +2907,16 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         <p className="text-gray-700 mb-4">
                             This will delete the existing data for these dates and replace it with fresh data from j-archive.
                         </p>
-                        <div className="flex justify-end gap-3">
+                        <div className="flex flex-col sm:flex-row justify-end gap-3">
                             <button
                                 onClick={() => setShowRefetchConfirm(false)}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                                className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleRefetchSelected}
-                                className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
+                                className="bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600 whitespace-nowrap"
                             >
                                 Re-fetch Games
                             </button>
@@ -2878,20 +2945,20 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             className="w-full p-3 border rounded text-gray-900 mb-4 font-mono"
                             autoFocus
                         />
-                        <div className="flex justify-end gap-3">
+                        <div className="flex flex-col sm:flex-row justify-end gap-3">
                             <button
                                 onClick={() => {
                                     setShowDeleteConfirm(false)
                                     setDeleteConfirmText('')
                                 }}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+                                className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleConfirmDelete}
                                 disabled={deleteConfirmText !== 'DELETE' || deleting}
-                                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
                             >
                                 {deleting ? (
                                     <>
@@ -2916,7 +2983,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             {showBackToTop && (
                 <button
                     onClick={scrollToTop}
-                    className="fixed bottom-8 right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-4 rounded-full shadow-2xl ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110"
+                    className="fixed bottom-4 right-4 sm:bottom-8 sm:right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-3 sm:p-4 rounded-full shadow-2xl ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110 touch-manipulation"
                     aria-label="Back to top"
                 >
                     <svg 
@@ -2958,13 +3025,13 @@ function CollapsibleCategory({ category }: { category: Category }) {
         <div className="border rounded">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full p-3 bg-gray-100 hover:bg-gray-200 flex justify-between items-center text-left"
+                className="w-full p-3 bg-gray-100 hover:bg-gray-200 flex justify-between items-center text-left gap-2"
             >
-                <span className="font-semibold text-gray-900">
+                <span className="font-semibold text-gray-900 break-words flex-1 min-w-0">
                     {category.name} ({category.round === 'single' ? 'Single Jeopardy' : category.round === 'double' ? 'Double Jeopardy' : 'Final Jeopardy'}) - {category.questions.length} {category.questions.length === 1 ? 'question' : 'questions'}
                 </span>
                 <svg
-                    className={`w-5 h-5 transform transition-transform text-gray-900 ${isOpen ? 'rotate-180' : ''}`}
+                    className={`w-5 h-5 transform transition-transform text-gray-900 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -3031,21 +3098,24 @@ function SelectableGameGroup({ group, isSelected, onToggle }: {
                 </div>
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="flex-1 p-4 pl-0 flex justify-between items-center text-left hover:bg-gray-50"
+                    className="flex-1 p-4 pl-0 flex justify-between items-center text-left hover:bg-gray-50 gap-2 min-w-0"
                 >
-                    <div>
-                        <span className="font-bold text-lg text-gray-900">
+                    <div className="flex-1 min-w-0">
+                        <div className="font-bold text-lg text-gray-900 break-words">
                             {group.airDate === 'unknown' ? 'Unknown Date' : formatDateString(group.airDate)}
-                        </span>
-                        <span className="ml-4 text-gray-700">
-                            {group.questionCount} questions | 
-                            Single: {group.singleJeopardy.length} | 
-                            Double: {group.doubleJeopardy.length} |
-                            Final: {group.finalJeopardy.length}
-                        </span>
+                        </div>
+                        <div className="text-gray-700 text-sm flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                            <span>{group.questionCount} questions</span>
+                            <span className="hidden sm:inline">|</span>
+                            <span>Single: {group.singleJeopardy.length}</span>
+                            <span className="hidden sm:inline">|</span>
+                            <span>Double: {group.doubleJeopardy.length}</span>
+                            <span className="hidden sm:inline">|</span>
+                            <span>Final: {group.finalJeopardy.length}</span>
+                        </div>
                     </div>
                     <svg
-                        className={`w-5 h-5 transform transition-transform text-gray-700 ${isOpen ? 'rotate-180' : ''}`}
+                        className={`w-5 h-5 transform transition-transform text-gray-700 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -3093,20 +3163,22 @@ function CollapsibleGameGroup({ group }: { group: GameGroup }) {
         <div className="border rounded">
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="w-full p-4 bg-gray-100 hover:bg-gray-200 flex justify-between items-center text-left"
+                className="w-full p-4 bg-gray-100 hover:bg-gray-200 flex justify-between items-center text-left gap-2"
             >
-                <div>
-                    <span className="font-bold text-lg text-gray-900">
+                <div className="flex-1 min-w-0">
+                    <div className="font-bold text-lg text-gray-900 break-words">
                         {group.airDate === 'unknown' ? 'Unknown Date' : formatDateString(group.airDate)}
-                    </span>
-                    <span className="ml-4 text-gray-800">
-                        {group.questionCount} questions | 
-                        Single: {group.singleJeopardy.length} categories | 
-                        Double: {group.doubleJeopardy.length} categories
-                    </span>
+                    </div>
+                    <div className="text-gray-800 text-sm flex flex-wrap gap-x-2 gap-y-1 mt-1">
+                        <span>{group.questionCount} questions</span>
+                        <span className="hidden sm:inline">|</span>
+                        <span>Single: {group.singleJeopardy.length} categories</span>
+                        <span className="hidden sm:inline">|</span>
+                        <span>Double: {group.doubleJeopardy.length} categories</span>
+                    </div>
                 </div>
                 <svg
-                    className={`w-5 h-5 transform transition-transform text-gray-900 ${isOpen ? 'rotate-180' : ''}`}
+                    className={`w-5 h-5 transform transition-transform text-gray-900 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -3180,12 +3252,12 @@ function CalendarView({ filledDates, selectedMonth, onMonthChange, onDateClick, 
 
     return (
         <div>
-            <div className="mb-4 flex items-center gap-4">
+            <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                 <input
                     type="month"
                     value={selectedMonth}
                     onChange={(e) => onMonthChange(e.target.value)}
-                    className="p-2 border rounded text-gray-900"
+                    className="p-2 border rounded text-gray-900 w-full sm:w-auto"
                 />
                 <div className="text-sm text-gray-700">
                     Month coverage: {monthFilled} / {monthTotal} days ({monthCoverage}%)
@@ -3229,7 +3301,7 @@ function CalendarView({ filledDates, selectedMonth, onMonthChange, onDateClick, 
                             key={idx}
                             onClick={() => !isFuture && onDateClick(date)}
                             disabled={isFuture}
-                            className={`p-2 text-center text-sm border rounded ${isFuture ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-80'} ${bgColor} ${borderColor} ${textColor} ${
+                            className={`p-1.5 sm:p-2 text-center text-xs sm:text-sm border rounded touch-manipulation ${isFuture ? 'cursor-not-allowed' : 'cursor-pointer hover:opacity-80'} ${bgColor} ${borderColor} ${textColor} ${
                                 isToday ? 'ring-2 ring-blue-500' : ''
                             } ${
                                 isSelected ? 'ring-2 ring-yellow-400' : ''
@@ -3241,21 +3313,21 @@ function CalendarView({ filledDates, selectedMonth, onMonthChange, onDateClick, 
                     )
                 })}
             </div>
-            <div className="mt-4 flex gap-4 text-sm">
+            <div className="mt-4 flex flex-wrap gap-3 sm:gap-4 text-sm">
                 <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-200 border-2 border-green-500 rounded"></div>
+                    <div className="w-4 h-4 bg-green-200 border-2 border-green-500 rounded flex-shrink-0"></div>
                     <span className="text-gray-900">Has data</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-red-100 border-2 border-red-300 rounded"></div>
+                    <div className="w-4 h-4 bg-red-100 border-2 border-red-300 rounded flex-shrink-0"></div>
                     <span className="text-gray-900">Missing</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-gray-100 border-2 border-gray-300 rounded"></div>
+                    <div className="w-4 h-4 bg-gray-100 border-2 border-gray-300 rounded flex-shrink-0"></div>
                     <span className="text-gray-900">Future</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-blue-500 rounded"></div>
+                    <div className="w-4 h-4 border-2 border-blue-500 rounded flex-shrink-0"></div>
                     <span className="text-gray-900">Today</span>
                 </div>
             </div>

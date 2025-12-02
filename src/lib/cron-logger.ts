@@ -6,6 +6,7 @@
 
 import { prisma } from './prisma'
 import { CronJobStatus } from '@prisma/client'
+import { cleanupTimedOutJobs } from './cron-jobs'
 
 export interface CronJobResult {
     success: boolean
@@ -63,12 +64,21 @@ export async function updateCronExecution(
 
 /**
  * Helper to wrap a cron job function with logging
+ * Automatically cleans up any timed out jobs before starting
  */
 export async function withCronLogging<T>(
     jobName: string,
     triggeredBy: string,
     jobFn: () => Promise<T>
 ): Promise<T> {
+    // Clean up any timed out jobs before starting a new execution
+    try {
+        await cleanupTimedOutJobs()
+    } catch (e) {
+        // Don't fail the job if cleanup fails
+        console.error('[Cron] Error cleaning up timed out jobs:', e)
+    }
+
     const executionId = await createCronExecution(jobName, triggeredBy)
     
     try {

@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isAdmin } from '@/lib/clerk-auth'
-import { CRON_JOBS } from '@/lib/cron-jobs'
+import { CRON_JOBS, cleanupTimedOutJobs } from '@/lib/cron-jobs'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +22,9 @@ export async function GET(request: Request) {
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
+
+        // Clean up any timed out jobs before fetching status
+        const timedOutCount = await cleanupTimedOutJobs()
 
         const { searchParams } = new URL(request.url)
         const jobName = searchParams.get('jobName')
@@ -71,6 +74,7 @@ export async function GET(request: Request) {
                 return acc
             }, {} as Record<string, any>),
             jobs: CRON_JOBS,
+            timedOutCount, // Include count of jobs that were just cleaned up
         })
     } catch (error: any) {
         console.error('Error fetching cron jobs:', error)
