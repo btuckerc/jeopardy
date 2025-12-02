@@ -12,7 +12,7 @@ export default async function GameBoardPage({ params }: PageProps) {
     try {
         const gameData = await getGameData(gameId)
         return <GameBoardClient initialGameData={gameData} />
-    } catch (error) {
+        } catch (error) {
         if (error instanceof Error) {
             if (error.message === 'Unauthorized') {
                 redirect('/sign-in?redirect_url=' + encodeURIComponent(`/game/${gameId}`))

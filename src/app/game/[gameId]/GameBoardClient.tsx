@@ -112,7 +112,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const gameId = params?.gameId as string
     const { user } = useAuth()
     
-    const [loading, setLoading] = useState(!initialGameData)
+    // Start loading: if no initial data, or if we have initial data (we still need to load categories/Final Jeopardy)
+    const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [categories, setCategories] = useState<Category[]>([])
     const [gameConfig, setGameConfig] = useState<GameConfig | null>(initialGameData?.config || null)
@@ -124,7 +125,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         initialGameData?.currentRound === 'DOUBLE' || initialGameData?.currentRound === 'FINAL'
     )
     const [showRoundComplete, setShowRoundComplete] = useState(false)
-    const hasInitialized = useRef(!!initialGameData)
+    const hasInitialized = useRef(false)
     const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
     const [userAnswer, setUserAnswer] = useState('')
     const [showAnswer, setShowAnswer] = useState(false)
@@ -204,70 +205,66 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     }, [gameId])
 
     // Load categories - stable function that doesn't change
-    const loadCategories = useCallback(async (round: 'SINGLE' | 'DOUBLE', config: GameConfig, seed?: string | null) => {
-        if (!config) return
-
-        try {
-            const params = new URLSearchParams()
-            params.append('round', round)
-            params.append('isDouble', (round === 'DOUBLE').toString())
-            params.append('mode', config.mode || 'random')
-
-            // Pass gameId so the API uses the game's stored spoiler policy
-            if (gameId) {
-                params.append('gameId', gameId)
-            }
-
-            if (config.categories) {
-                params.append('categories', config.categories.join(','))
-            }
-            if (config.categoryIds) {
-                params.append('categoryIds', config.categoryIds.join(','))
-            }
-            if (config.date) {
-                params.append('date', config.date)
-            }
-            // Pass seed for consistent category ordering
-            if (seed) {
-                params.append('seed', seed)
-            }
-
-            const response = await fetch(`/api/categories/game?${params.toString()}`)
-            
-            if (!response.ok) {
-                let errorMessage = 'Failed to load categories'
-                try {
-                    const errorData = await response.json()
-                    if (errorData.error) {
-                        errorMessage = errorData.error
-                    }
-                } catch {
-                    // Use default message
-                }
-                throw new Error(errorMessage)
-            }
-
-            const data = await response.json()
-            
-            if (!Array.isArray(data) || data.length === 0) {
-                throw new Error('No categories available')
-            }
-
-            const isDouble = round === 'DOUBLE'
-            const organizedCategories = data.map(category => ({
-                ...category,
-                questions: organizeQuestionsByValue(category.questions, isDouble)
-            }))
-
-            setCategories(organizedCategories)
-            setCurrentRound(round)
-            setIsDoubleJeopardy(isDouble)
-            setError(null)
-        } catch (error) {
-            console.error('Error loading categories:', error)
-            setError(error instanceof Error ? error.message : 'Failed to load categories')
-            setCategories([])
+    const loadCategories = useCallback(async (round: 'SINGLE' | 'DOUBLE', config: GameConfig, seed?: string | null): Promise<void> => {
+        if (!config) {
+            throw new Error('No game configuration provided')
         }
+
+        const params = new URLSearchParams()
+        params.append('round', round)
+        params.append('isDouble', (round === 'DOUBLE').toString())
+        params.append('mode', config.mode || 'random')
+
+        // Pass gameId so the API uses the game's stored spoiler policy
+        if (gameId) {
+            params.append('gameId', gameId)
+        }
+
+        if (config.categories) {
+            params.append('categories', config.categories.join(','))
+        }
+        if (config.categoryIds) {
+            params.append('categoryIds', config.categoryIds.join(','))
+        }
+        if (config.date) {
+            params.append('date', config.date)
+        }
+        // Pass seed for consistent category ordering
+        if (seed) {
+            params.append('seed', seed)
+        }
+
+        const response = await fetch(`/api/categories/game?${params.toString()}`)
+        
+        if (!response.ok) {
+            let errorMessage = 'Failed to load categories'
+            try {
+                const errorData = await response.json()
+                if (errorData.error) {
+                    errorMessage = errorData.error
+                }
+            } catch {
+                // Use default message
+            }
+            throw new Error(errorMessage)
+        }
+
+        const data = await response.json()
+        
+        if (!Array.isArray(data) || data.length === 0) {
+            throw new Error('No categories available')
+        }
+
+        const isDouble = round === 'DOUBLE'
+        const organizedCategories = data.map(category => ({
+            ...category,
+            questions: organizeQuestionsByValue(category.questions, isDouble)
+        }))
+
+        setCategories(organizedCategories)
+        setCurrentRound(round)
+        setIsDoubleJeopardy(isDouble)
+        setError(null)
     }, [gameId])
 
     // Load Final Jeopardy question
@@ -344,13 +341,26 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
     // Initialize game from server - runs only once, or use initial data if provided
     useEffect(() => {
-        if (hasInitialized.current || !gameId) return
+        if (hasInitialized.current || !gameId) {
+            return
+        }
+        
+        hasInitialized.current = true
         
         // If we have initial data from server, use it and load categories
         if (initialGameData) {
-            hasInitialized.current = true
             const config = initialGameData.config
             const round = initialGameData.currentRound
+            
+            if (!config) {
+                console.error('No config in initialGameData')
+                setError('Invalid game configuration')
+                setLoading(false)
+                return
+            }
+            
+            // Set loading to true while we fetch categories/Final Jeopardy
+            setLoading(true)
             
             if (round === 'FINAL') {
                 // Handle Final Jeopardy restoration
@@ -368,7 +378,12 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     if (config.date) params.append('date', config.date)
                     
                     fetch(`/api/game/final?${params.toString()}`)
-                        .then(res => res.json())
+                        .then(res => {
+                            if (!res.ok) {
+                                throw new Error(`Failed to load Final Jeopardy: ${res.status}`)
+                            }
+                            return res.json()
+                        })
                         .then(data => {
                             setFinalJeopardyQuestion(data)
                             setShowFinalJeopardy(true)
@@ -379,7 +394,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         })
                         .catch(err => {
                             console.error('Error loading Final Jeopardy:', err)
-                            setError('Failed to load Final Jeopardy')
+                            setError(err instanceof Error ? err.message : 'Failed to load Final Jeopardy')
                             setLoading(false)
                         })
                 } else if (fjQuestionId) {
@@ -391,7 +406,12 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     if (config.date) params.append('date', config.date)
                     
                     fetch(`/api/game/final?${params.toString()}`)
-                        .then(res => res.json())
+                        .then(res => {
+                            if (!res.ok) {
+                                throw new Error(`Failed to load Final Jeopardy: ${res.status}`)
+                            }
+                            return res.json()
+                        })
                         .then(data => {
                             setFinalJeopardyQuestion(data)
                             setShowFinalJeopardy(true)
@@ -403,22 +423,40 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         })
                         .catch(err => {
                             console.error('Error loading Final Jeopardy:', err)
-                            setError('Failed to load Final Jeopardy')
+                            setError(err instanceof Error ? err.message : 'Failed to load Final Jeopardy')
                             setLoading(false)
                         })
                 } else {
-                    setLoading(false)
                     loadFinalJeopardy(config)
                 }
             } else {
                 // Load categories for current round
-                loadCategories(round, config, initialGameData.seed).then(() => setLoading(false))
+                // Safety timeout to prevent infinite loading
+                const timeoutId = setTimeout(() => {
+                    console.error('loadCategories timed out after 30 seconds')
+                    setError('Loading categories timed out. Please refresh the page.')
+                    setLoading(false)
+                }, 30000)
+                
+                loadCategories(round, config, initialGameData.seed)
+                    .then(() => {
+                        clearTimeout(timeoutId)
+                        setLoading(false)
+                    })
+                    .catch((err) => {
+                        console.error('Error loading categories:', err)
+                        clearTimeout(timeoutId)
+                        setError(err instanceof Error ? err.message : 'Failed to load categories')
+                        setLoading(false)
+                    })
+                    .finally(() => {
+                        clearTimeout(timeoutId)
+                    })
             }
             return
         }
         
         // Fallback: fetch from API if no initial data (shouldn't happen in production)
-        hasInitialized.current = true
         const initGame = async () => {
             setLoading(true)
             try {
@@ -1208,12 +1246,18 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             {/* Game Board Container */}
             <div className="py-4 sm:py-6 px-2 sm:px-4">
                 <div className="max-w-7xl mx-auto">
-                    {/* Board wrapper with overflow visible for hover effects */}
-                    <div className="game-board overflow-visible">
-                        {/* Mobile: Vertical scroll layout */}
-                        <div className="block lg:hidden">
-                            <div className="space-y-4">
-                                {categories.map((category) => (
+                    {categories.length === 0 ? (
+                        <div className="text-center py-12">
+                            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-4"></div>
+                            <p className="text-gray-600">Loading game board...</p>
+                        </div>
+                    ) : (
+                        /* Board wrapper with overflow visible for hover effects */
+                        <div className="game-board overflow-visible">
+                            {/* Mobile: Vertical scroll layout */}
+                            <div className="block lg:hidden">
+                                <div className="space-y-4">
+                                    {categories.map((category) => (
                                     <div key={category.id} className="bg-blue-800/50 rounded-lg p-3">
                                         <h3 className="text-white text-center font-bold text-sm uppercase tracking-wide mb-3 px-2">
                                             {category.name}
@@ -1302,7 +1346,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                 </div>
                             </div>
                         </div>
-                    </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

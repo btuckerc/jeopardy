@@ -2,32 +2,22 @@
 
 import Link from 'next/link'
 
-interface ResumableGame {
-    id: string
-    seed: string | null
-    label: string
-    status: string
-    currentRound: string
-    currentScore: number
-    roundBadges: string[]
+import type { ResumableGame } from '@/lib/resumable-games'
+
+// Convert Date objects to strings for client component compatibility
+// Also remove totalCount since it's not used by the component
+export type ClientResumableGame = Omit<ResumableGame, 'createdAt' | 'updatedAt' | 'categories'> & {
+    createdAt: string
+    updatedAt: string
     categories: Array<{
         id: string
         name: string
         answeredCount: number
-        totalCount: number
     }>
-    progress: {
-        totalQuestions: number
-        answeredQuestions: number
-        correctQuestions: number
-        percentComplete: number
-    }
-    createdAt: string
-    updatedAt: string
 }
 
 interface GameResumableListProps {
-    games: ResumableGame[]
+    games: ClientResumableGame[]
     loading: boolean
     onEndGame: (gameId: string) => void
 }
