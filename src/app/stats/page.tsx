@@ -44,6 +44,7 @@ type RoundHistoryQuestion = {
     categoryName: string
     timestamp: string
     lastIncorrectUserAnswer?: string | null
+    round: 'SINGLE' | 'DOUBLE' | 'FINAL'
 }
 
 type RoundHistoryCategory = {
