@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { checkAndUnlockAchievements } from '@/lib/achievements'
 import crypto from 'crypto'
 import { Prisma, KnowledgeCategory, Question, Category, GameHistory } from '@prisma/client'
 import { startOfDay } from 'date-fns'
@@ -443,6 +444,18 @@ export async function saveAnswer(
                     points: shouldAwardPoints ? questionValue : 0
                 }
             })
+        })
+
+        // Check for achievements asynchronously (don't block the response)
+        // This allows real-time achievement tracking for practice mode
+        checkAndUnlockAchievements(userId, {
+            type: 'question_answered',
+            data: {
+                questionId,
+                correct: isCorrect
+            }
+        }).catch(error => {
+            console.error('Error checking achievements after saving practice answer:', error)
         })
 
         return {

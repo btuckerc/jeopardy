@@ -247,6 +247,15 @@ export async function claimGuestSession(
                                 userAnswer: data.userAnswer || null
                             }
                         })
+
+                        // Check for achievements after claiming daily challenge
+                        const { checkAndUnlockAchievements } = await import('./achievements')
+                        checkAndUnlockAchievements(userId, {
+                            type: 'daily_challenge_completed',
+                            data: { challengeId: data.challengeId, correct: data.correct }
+                        }).catch(error => {
+                            console.error('Error checking achievements after claiming guest daily challenge:', error)
+                        })
                     }
                 }
                 
@@ -364,10 +373,22 @@ export async function claimGuestSession(
                         }
                     })
                     
-                    return game.id
+                    return { gameId: game.id, completed: game.status === 'COMPLETED', finalScore: game.currentScore }
                 })
                 
-                return { success: true, gameId: result }
+                // Check for achievements after claiming guest game
+                // This is done outside the transaction to avoid blocking
+                if (result.completed) {
+                    const { checkAndUnlockAchievements } = await import('./achievements')
+                    checkAndUnlockAchievements(userId, {
+                        type: 'game_completed',
+                        data: { gameId: result.gameId, finalScore: result.finalScore }
+                    }).catch(error => {
+                        console.error('Error checking achievements after claiming guest game:', error)
+                    })
+                }
+                
+                return { success: true, gameId: result.gameId }
             }
             
             default:

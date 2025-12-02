@@ -111,6 +111,34 @@ async function generatePrismaClient() {
   }
 }
 
+async function seedAchievements() {
+  console.log('🏆 Seeding achievements...');
+  
+  try {
+    // Check if ts-node is available (it might not be in production builds)
+    try {
+      execSync('npx ts-node --version', { stdio: 'pipe' });
+    } catch (checkError) {
+      console.log('⚠️  ts-node not available, skipping achievement seeding');
+      console.log('⚠️  Achievements should be seeded manually or via a separate process');
+      return;
+    }
+    
+    // Use ts-node to run the TypeScript seed script
+    execSync('npx ts-node --project tsconfig.json src/scripts/seed-achievements.ts', { 
+      stdio: 'inherit',
+      env: { ...process.env, NODE_ENV: process.env.NODE_ENV || 'development' }
+    });
+    console.log('✅ Achievements seeded successfully');
+  } catch (error) {
+    console.error('⚠️  Achievement seeding failed:', error.message);
+    // This is non-critical - achievements might already be seeded
+    // Don't fail the startup, just log the warning
+    console.log('⚠️  Continuing without seeding achievements...');
+    console.log('⚠️  You may need to seed achievements manually: npm run db:seed:achievements');
+  }
+}
+
 async function main() {
   const command = process.argv.slice(2);
   
@@ -127,6 +155,9 @@ async function main() {
     
     // Only regenerate Prisma client if migrations succeeded
     await generatePrismaClient();
+    
+    // Seed achievements (non-blocking, uses upsert so safe to run multiple times)
+    await seedAchievements();
     
     console.log('✅ Setup complete, starting application...\n');
     

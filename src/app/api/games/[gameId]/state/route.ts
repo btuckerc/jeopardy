@@ -233,9 +233,18 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
                             lastGameDate: today
                         }
                     })
+
+                    // Check streak-based achievements
+                    const streakAchievements = await checkAndUnlockAchievements(appUser.id, {
+                        type: 'streak_updated',
+                        data: { 
+                            userId: appUser.id,
+                            currentStreak: newStreak
+                        }
+                    })
                 }
 
-                // Check for achievements
+                // Check for game completion achievements
                 const newlyUnlocked = await checkAndUnlockAchievements(appUser.id, {
                     type: 'game_completed',
                     data: { gameId, finalScore }

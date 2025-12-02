@@ -3,6 +3,7 @@
 import { prisma } from '../lib/prisma'
 import type { Prisma } from '@prisma/client'
 import crypto from 'crypto'
+import { checkAndUnlockAchievements } from '../lib/achievements'
 
 type GameCategory = {
     id: string
@@ -270,6 +271,19 @@ export async function saveGameHistory(
                     points: isCorrect ? points : 0
                 }
             })
+        })
+
+        // Check for achievements asynchronously (don't block the response)
+        // This allows real-time achievement tracking without slowing down gameplay
+        checkAndUnlockAchievements(userId, {
+            type: 'question_answered',
+            data: {
+                questionId,
+                correct: isCorrect,
+                gameId
+            }
+        }).catch(error => {
+            console.error('Error checking achievements after question answer:', error)
         })
 
         return { success: true }

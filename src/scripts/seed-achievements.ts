@@ -1,81 +1,50 @@
 import { prisma } from '../lib/prisma'
-
-const achievements = [
-    {
-        code: 'FIRST_GAME',
-        name: 'First Steps',
-        description: 'Complete your first game',
-        icon: '🎮'
-    },
-    {
-        code: 'PERFECT_ROUND',
-        name: 'Perfect Round',
-        description: 'Answer every question correctly in a round',
-        icon: '⭐'
-    },
-    {
-        code: 'TRIPLE_STUMPER_MASTER',
-        name: 'Triple Stumper Master',
-        description: 'Answer 10 triple stumper questions correctly',
-        icon: '🧠'
-    },
-    {
-        code: 'STREAK_MASTER_7',
-        name: 'Week Warrior',
-        description: 'Maintain a 7-day streak',
-        icon: '🔥'
-    },
-    {
-        code: 'STREAK_MASTER_30',
-        name: 'Monthly Master',
-        description: 'Maintain a 30-day streak',
-        icon: '💪'
-    },
-    {
-        code: 'SCORE_MASTER_10000',
-        name: 'High Roller',
-        description: 'Score $10,000 or more in a single game',
-        icon: '💰'
-    },
-    {
-        code: 'SCORE_MASTER_20000',
-        name: 'Jeopardy Champion',
-        description: 'Score $20,000 or more in a single game',
-        icon: '🏆'
-    },
-    {
-        code: 'DAILY_CHALLENGE_STREAK_7',
-        name: 'Daily Dedication',
-        description: 'Complete 7 daily challenges in a row',
-        icon: '📅'
-    },
-    {
-        code: 'QUESTIONS_MASTER_100',
-        name: 'Century Club',
-        description: 'Answer 100 questions',
-        icon: '💯'
-    },
-    {
-        code: 'QUESTIONS_MASTER_1000',
-        name: 'Millennium Master',
-        description: 'Answer 1,000 questions',
-        icon: '🌟'
-    }
-]
+import { ACHIEVEMENT_DEFINITIONS } from '../lib/achievement-definitions'
 
 async function main() {
     console.log('Seeding achievements...')
+    console.log(`Total achievements: ${ACHIEVEMENT_DEFINITIONS.length}`)
 
-    for (const achievement of achievements) {
-        await prisma.achievement.upsert({
-            where: { code: achievement.code },
-            update: achievement,
-            create: achievement
+    let seeded = 0
+    let updated = 0
+
+    for (const achievement of ACHIEVEMENT_DEFINITIONS) {
+        const existing = await prisma.achievement.findUnique({
+            where: { code: achievement.code }
         })
-        console.log(`✓ ${achievement.name}`)
+
+        const data = {
+            name: achievement.name,
+            description: achievement.description,
+            icon: achievement.icon,
+            category: achievement.category,
+            tier: achievement.tier ?? null,
+            isHidden: achievement.isHidden ?? false
+        }
+
+        if (existing) {
+            await prisma.achievement.update({
+                where: { code: achievement.code },
+                data
+            })
+            updated++
+            console.log(`↻ Updated: ${achievement.name}`)
+        } else {
+            await prisma.achievement.create({
+                data: {
+                    code: achievement.code,
+                    ...data
+                }
+            })
+            seeded++
+            console.log(`✓ Created: ${achievement.name}`)
+        }
     }
 
-    console.log('Achievements seeded successfully!')
+    console.log(`\nSeeding complete!`)
+    console.log(`  Created: ${seeded}`)
+    console.log(`  Updated: ${updated}`)
+    console.log(`  Total: ${ACHIEVEMENT_DEFINITIONS.length}`)
 }
 
 main()

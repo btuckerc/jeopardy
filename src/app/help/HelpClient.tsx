@@ -268,6 +268,15 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                         </p>
                     </div>
                     <div className="pt-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">What are achievements?</h3>
+                        <p className="text-gray-600">
+                            Achievements are milestones you unlock as you play. They recognize everything from your first game to 
+                            impressive streaks, high scores, and mastery of different knowledge categories. Some achievements are 
+                            visible from the start, while others remain hidden until you unlock them. Check your achievements page 
+                            to see your progress and discover new goals to work toward.
+                        </p>
+                    </div>
+                    <div className="pt-6">
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">Who made this?</h3>
                         <p className="text-gray-600">
                             My name is Tucker. I&apos;m a senior software engineer. This is a personal project. I really like Jeopardy, 

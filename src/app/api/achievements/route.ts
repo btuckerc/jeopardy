@@ -13,9 +13,14 @@ export async function GET(request: Request) {
             return unauthorizedResponse()
         }
 
-        // Get all achievements
+        // Get all achievements, prioritizing visible ones
         const allAchievements = await prisma.achievement.findMany({
-            orderBy: { name: 'asc' }
+            orderBy: [
+                { isHidden: 'asc' }, // Show visible achievements first
+                { category: 'asc' },
+                { tier: 'asc' },
+                { name: 'asc' }
+            ]
         })
 
         // Get user's unlocked achievements
@@ -30,11 +35,20 @@ export async function GET(request: Request) {
         const unlockedIds = new Set(userAchievements.map(ua => ua.achievementId))
 
         // Combine with unlock status
-        const achievements = allAchievements.map(achievement => ({
-            ...achievement,
-            unlocked: unlockedIds.has(achievement.id),
-            unlockedAt: userAchievements.find(ua => ua.achievementId === achievement.id)?.unlockedAt || null
-        }))
+        // Filter: show hidden achievements only if unlocked
+        const achievements = allAchievements
+            .filter(achievement => {
+                // Show hidden achievements only if unlocked
+                if (achievement.isHidden && !unlockedIds.has(achievement.id)) {
+                    return false
+                }
+                return true
+            })
+            .map(achievement => ({
+                ...achievement,
+                unlocked: unlockedIds.has(achievement.id),
+                unlockedAt: userAchievements.find(ua => ua.achievementId === achievement.id)?.unlockedAt || null
+            }))
 
         return jsonResponse({
             achievements,

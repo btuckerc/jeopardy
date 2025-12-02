@@ -5,6 +5,7 @@ import { jsonResponse, unauthorizedResponse, notFoundResponse, badRequestRespons
 import { z } from 'zod'
 import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
 import { getStatsPoints } from '@/lib/scoring'
+import { checkAndUnlockAchievements } from '@/lib/achievements'
 import crypto from 'crypto'
 
 const gradeAnswerSchema = z.object({
@@ -191,6 +192,19 @@ export async function POST(request: NextRequest) {
             userAnswer,
             mode
         } : null
+
+        // Check for achievements asynchronously (don't block the response)
+        // This allows real-time achievement tracking for both game and practice mode
+        checkAndUnlockAchievements(appUser.id, {
+            type: 'question_answered',
+            data: {
+                questionId,
+                correct,
+                gameId: gameId || undefined
+            }
+        }).catch(error => {
+            console.error('Error checking achievements after grading answer:', error)
+        })
 
         return jsonResponse({
             correct,

@@ -362,9 +362,13 @@ model Achievement {
   name             String
   description      String
   icon             String?
+  category         String?           // Achievement category: onboarding, streak, volume, skill, knowledge, hidden
+  tier             Int?              // Tier level (1 = easiest, higher = harder)
+  isHidden         Boolean           @default(false) // Whether achievement is hidden until unlocked
   userAchievements UserAchievement[]
 
   @@index([code])
+  @@index([category])
 }
 
 model UserAchievement {
