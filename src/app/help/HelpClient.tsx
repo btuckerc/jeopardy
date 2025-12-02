@@ -299,16 +299,19 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                         </p>
                         <ul className="text-gray-600 list-disc list-inside space-y-1 mb-2">
                             <li>Must be between 3 and 20 characters (after trimming spaces)</li>
+                            <li>Must contain at least one letter (cannot be all numbers)</li>
                             <li>Can contain letters, numbers, spaces, and these characters: . _ -</li>
                             <li>Must be unique (case-insensitive, ignoring leading/trailing spaces)</li>
-                            <li>Cannot contain profanity or offensive language</li>
+                            <li>Cannot contain profanity or offensive language (including workarounds like leetspeak or missing vowels)</li>
                             <li>Cannot impersonate official roles (e.g., &quot;admin&quot;, &quot;moderator&quot;, &quot;official&quot;, &quot;staff&quot;)</li>
                             <li>Cannot use reserved names like &quot;Jeopardy&quot; or &quot;system&quot;</li>
                         </ul>
                         <p className="text-gray-600">
                             Display names are case-insensitive for uniqueness checks, meaning &quot;Alice&quot;, &quot;alice&quot;, and &quot;ALICE&quot; 
-                            are considered the same name. Leading and trailing spaces are automatically trimmed. Existing display names 
-                            that don&apos;t meet these rules are grandfathered in, but any future changes must comply with all rules.
+                            are considered the same name. Leading and trailing spaces are automatically trimmed. The profanity filter 
+                            detects common workarounds including character substitutions, leetspeak, missing vowels, and spacing tricks. 
+                            Existing display names that don&apos;t meet these rules are grandfathered in, but any future changes must 
+                            comply with all rules.
                         </p>
                     </div>
                 </div>
