@@ -135,6 +135,7 @@ function StatsDetailModal({
     onClose: () => void 
 }) {
     const { user } = useAuth()
+    const router = useRouter()
     const [questions, setQuestions] = useState<HistoryQuestion[]>([])
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<'correct' | 'incorrect'>('incorrect')
@@ -475,12 +476,35 @@ function StatsDetailModal({
 
                 {/* Footer */}
                 <div className="p-3 md:p-4 border-t bg-gray-50">
-                    <button
-                        onClick={onClose}
-                        className="btn-secondary w-full"
-                    >
-                        Close
-                    </button>
+                    {type === 'tripleStumpers' ? (
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <button
+                                onClick={() => {
+                                    onClose()
+                                    router.push('/practice/triple-stumpers')
+                                }}
+                                className="btn-primary flex-1 flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                                Practice Triple Stumpers
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="btn-secondary flex-1 sm:flex-initial sm:min-w-[100px]"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={onClose}
+                            className="btn-secondary w-full"
+                        >
+                            Close
+                        </button>
+                    )}
                 </div>
             </div>
         </div>
@@ -1648,6 +1672,13 @@ export default function StatsPage() {
 
             const { knowledgeCategory, categoryId } = await response.json()
 
+            // If filtering by triple stumpers, route to triple stumpers practice mode
+            if (activeCategoryFilter === 'TRIPLE_STUMPER') {
+                router.push(`/practice/triple-stumpers?category=${encodeURIComponent(categoryId)}`)
+                return
+            }
+
+            // Otherwise, use the standard category practice routing
             // If category is complete, go to the categories list within that knowledge category
             if (isComplete) {
                 router.push(`/practice/category?knowledgeCategory=${encodeURIComponent(knowledgeCategory)}`)
@@ -1658,7 +1689,11 @@ export default function StatsPage() {
         } catch (error) {
             console.error('Error navigating to practice category:', error)
             // Fallback to simple navigation if there's an error
-            router.push('/practice/category')
+            if (activeCategoryFilter === 'TRIPLE_STUMPER') {
+                router.push('/practice/triple-stumpers')
+            } else {
+                router.push('/practice/category')
+            }
         }
     }
 

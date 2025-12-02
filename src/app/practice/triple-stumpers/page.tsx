@@ -331,8 +331,13 @@ function TripleStumpersContent() {
                     const transformedQuestions = transformQuestions(questionsData)
                     
                     if (transformedQuestions.length === 0) {
+                        // No triple stumper questions found for this category - clear the URL param and show message
+                        updateUrlParams({ category: null, question: null })
                         setSelectedCategory(null)
+                        setSelectedQuestion(null)
+                        setQuestions([])
                         setIsTransitioning(false)
+                        toast.error('No triple stumper questions found in this category')
                         isRestoringFromUrl.current = false
                         return
                     }
@@ -424,11 +429,22 @@ function TripleStumpersContent() {
             const questionsData = await getTripleStumperCategoryQuestions(categoryId, user?.id)
             const transformedQuestions = transformQuestions(questionsData)
             
+            if (transformedQuestions.length === 0) {
+                // No triple stumper questions found - clear selection and show message
+                updateUrlParams({ category: null, question: null })
+                setSelectedCategory(null)
+                setSelectedQuestion(null)
+                setQuestions([])
+                toast.error('No triple stumper questions found in this category')
+                return
+            }
+            
             setSelectedCategory(categoryId)
             setSelectedQuestion(null)
             setQuestions(transformedQuestions)
         } catch (error) {
             console.error('Error loading questions:', error)
+            toast.error('Failed to load questions')
         } finally {
             setLoadingQuestions(false)
             setIsTransitioning(false)
@@ -444,20 +460,48 @@ function TripleStumpersContent() {
         updateUrlParams({ question: question.id })
     }, [updateUrlParams])
 
-    const handleBackToQuestions = useCallback(() => {
+    const handleBackToQuestions = useCallback(async () => {
         setSelectedQuestion(null)
         setUserAnswer('')
         setShowAnswer(false)
         setIsCorrect(null)
         updateUrlParams({ question: null })
-    }, [updateUrlParams])
+        
+        // Refresh questions to update progress after answering
+        if (selectedCategory && user?.id) {
+            try {
+                const questionsData = await getTripleStumperCategoryQuestions(selectedCategory, user.id)
+                const transformedQuestions = transformQuestions(questionsData)
+                setQuestions(transformedQuestions)
+            } catch (error) {
+                console.error('Error refreshing questions:', error)
+            }
+        }
+    }, [updateUrlParams, selectedCategory, user?.id])
 
-    const handleBackToCategories = useCallback(() => {
+    const handleBackToCategories = useCallback(async () => {
         setSelectedCategory(null)
         setSelectedQuestion(null)
         setQuestions([])
         updateUrlParams({ category: null, question: null })
-    }, [updateUrlParams])
+        
+        // Refresh categories to update progress after answering questions
+        if (user?.id) {
+            try {
+                const result = await getTripleStumperCategories(user.id, 1, 20, sortBy)
+                setCategories(result.categories)
+                setHasMore(result.hasMore)
+                setCurrentPage(1)
+                
+                // Recalculate total stats
+                const total = result.categories.reduce((sum, c) => sum + c.totalQuestions, 0)
+                const conquered = result.categories.reduce((sum, c) => sum + c.correctQuestions, 0)
+                setTotalStats({ total, conquered })
+            } catch (error) {
+                console.error('Error refreshing categories:', error)
+            }
+        }
+    }, [updateUrlParams, user?.id, sortBy])
 
     const handleAnswerSubmit = async () => {
         if (!selectedQuestion?.answer || !userAnswer) return
