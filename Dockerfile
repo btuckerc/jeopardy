@@ -23,8 +23,8 @@ RUN chmod +x ./scripts/docker-entrypoint.js
 ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 
-# Generate Prisma client and build the Next.js app
-RUN npm run db:generate && npm run build
+# Clear any cached Prisma client and regenerate, then build
+RUN rm -rf node_modules/.prisma node_modules/@prisma/client && npm run db:generate && npm run build
 
 ENV NODE_ENV=production
 ENV PORT=3000

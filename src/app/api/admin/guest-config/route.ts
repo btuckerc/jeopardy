@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { jsonResponse, serverErrorResponse, requireAdmin, parseBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -43,7 +44,7 @@ export async function GET() {
                     dailyChallengeGuestEnabled: false,
                     dailyChallengeGuestAppearsOnLeaderboard: false,
                     dailyChallengeMinLookbackDays: 365, // Default 1 year
-                    dailyChallengeSeasons: null, // Default: auto-calculate from 1-3 years ago
+                    dailyChallengeSeasons: Prisma.JsonNull, // Default: auto-calculate from 1-3 years ago
                     timeToAuthenticateMinutes: 1440
                 }
             })
@@ -70,17 +71,29 @@ export async function PUT(request: Request) {
         // Get or create config
         let config = await prisma.guestConfig.findFirst()
 
+        // Transform the body for Prisma - handle JSON null values
+        const { dailyChallengeSeasons, ...rest } = body
+        const prismaData: Prisma.GuestConfigUpdateInput = {
+            ...rest,
+            // Handle JSON null - Prisma requires Prisma.JsonNull instead of null
+            ...(dailyChallengeSeasons !== undefined && {
+                dailyChallengeSeasons: dailyChallengeSeasons === null 
+                    ? Prisma.JsonNull 
+                    : dailyChallengeSeasons
+            }),
+        }
+
         if (!config) {
             config = await prisma.guestConfig.create({
                 data: {
                     id: 'default',
-                    ...body
-                }
+                    ...prismaData
+                } as Prisma.GuestConfigCreateInput
             })
         } else {
             config = await prisma.guestConfig.update({
                 where: { id: config.id },
-                data: body
+                data: prismaData
             })
         }
 

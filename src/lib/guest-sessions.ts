@@ -6,7 +6,8 @@
 
 import { prisma } from './prisma'
 import { updateGameHistory } from './game-utils'
-import type { GuestSessionType, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
+import type { GuestSessionType } from '@prisma/client'
 import { nanoid } from 'nanoid'
 
 export interface GuestConfig {
@@ -44,13 +45,17 @@ export async function getGuestConfig(): Promise<GuestConfig> {
                 dailyChallengeGuestEnabled: false,
                 dailyChallengeGuestAppearsOnLeaderboard: false,
                 dailyChallengeMinLookbackDays: 365, // Default 1 year
-                dailyChallengeSeasons: null, // Default: auto-calculate from 1-3 years ago
+                dailyChallengeSeasons: Prisma.JsonNull, // Default: auto-calculate from 1-3 years ago
                 timeToAuthenticateMinutes: 1440, // 24 hours
             }
         })
     }
     
-    return config
+    // Transform Prisma's JsonValue to our expected type
+    return {
+        ...config,
+        dailyChallengeSeasons: config.dailyChallengeSeasons as number[] | null
+    }
 }
 
 /**
@@ -67,7 +72,7 @@ export async function createGuestSession(
     const session = await prisma.guestSession.create({
         data: {
             type,
-            data: initialData || {},
+            data: initialData ? (initialData as Prisma.InputJsonValue) : Prisma.JsonNull,
             expiresAt,
         }
     })
@@ -281,7 +286,7 @@ export async function claimGuestSession(
                         data: {
                             userId,
                             seed: guestGame.seed || nanoid(10),
-                            config: guestGame.config,
+                            config: guestGame.config === null ? Prisma.JsonNull : guestGame.config as Prisma.InputJsonValue,
                             status: guestGame.status,
                             currentRound: guestGame.currentRound,
                             currentScore: guestGame.currentScore,

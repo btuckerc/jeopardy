@@ -53,15 +53,18 @@ async function getDailyChallenge(userId: string | null) {
 
         return {
             id: challenge.id,
-            date: challenge.date,
+            date: challenge.date.toISOString(),
             question: {
                 id: challenge.question.id,
                 question: challenge.question.question,
                 answer: challenge.question.answer,
                 category: challenge.question.category.name,
-                airDate: challenge.question.airDate
+                airDate: challenge.question.airDate?.toISOString() ?? null
             },
-            userAnswer
+            userAnswer: userAnswer ? {
+                correct: userAnswer.correct,
+                completedAt: userAnswer.completedAt.toISOString()
+            } : null
         }
     } catch (error) {
         console.error('Error fetching daily challenge:', error)

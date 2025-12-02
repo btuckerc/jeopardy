@@ -5,7 +5,7 @@
  */
 
 import { prisma } from './prisma'
-import { CronJobStatus } from '@prisma/client'
+import { CronJobStatus, Prisma } from '@prisma/client'
 import { cleanupTimedOutJobs } from './cron-jobs'
 
 export interface CronJobResult {
@@ -56,7 +56,7 @@ export async function updateCronExecution(
             status,
             completedAt: new Date(),
             durationMs,
-            result: result ? result : undefined,
+            result: result ? (result as unknown as Prisma.InputJsonValue) : undefined,
             error: error || undefined,
         },
     })
