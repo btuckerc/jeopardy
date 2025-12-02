@@ -126,13 +126,14 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [loadingDisputes, setLoadingDisputes] = useState(false)
     const [disputesError, setDisputesError] = useState<string | null>(null)
     const [disputeFilterStatus, setDisputeFilterStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | ''>('PENDING')
-    const [disputeFilterMode, setDisputeFilterMode] = useState<'GAME' | 'PRACTICE' | ''>('')
+    const [disputeFilterMode, setDisputeFilterMode] = useState<'GAME' | 'PRACTICE' | 'DAILY_CHALLENGE' | ''>('')
     const [disputePage, setDisputePage] = useState(1)
     const [disputeTotalPages, setDisputeTotalPages] = useState(1)
     const [processingDisputeId, setProcessingDisputeId] = useState<string | null>(null)
     const [disputeAdminComment, setDisputeAdminComment] = useState<Record<string, string>>({})
     const [disputeOverrideText, setDisputeOverrideText] = useState<Record<string, string>>({})
     const [disputesLoaded, setDisputesLoaded] = useState(false)
+    const [pendingDisputesCount, setPendingDisputesCount] = useState<number | null>(null)
 
     // Existing games management state
     const [filterStartDate, setFilterStartDate] = useState('')
@@ -286,6 +287,26 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             fetchDisputes()
         }
     }, [activeTab, disputesLoaded, fetchDisputes])
+
+    // Fetch pending dispute count on mount
+    useEffect(() => {
+        fetch('/api/admin/disputes/stats')
+            .then(res => {
+                if (res.ok) {
+                    return res.json()
+                }
+                return null
+            })
+            .then(data => {
+                if (data?.pendingCount !== undefined) {
+                    setPendingDisputesCount(data.pendingCount)
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching dispute stats:', error)
+                setPendingDisputesCount(null)
+            })
+    }, [])
 
     // Fetch cron jobs
     const fetchCronJobs = useCallback(async () => {
@@ -1164,13 +1185,22 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         </button>
                         <button
                             onClick={() => setActiveTab('disputes')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap relative ${
                                 activeTab === 'disputes'
                                     ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
                                     : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
                             }`}
                         >
                             Disputes
+                            {pendingDisputesCount !== null && pendingDisputesCount > 0 && (
+                                <span className={`absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full text-[0.7rem] font-bold flex items-center justify-center text-white shadow-md border-2 ${
+                                    activeTab === 'disputes'
+                                        ? 'bg-red-500 border-blue-600'
+                                        : 'bg-red-600 border-white'
+                                }`}>
+                                    {pendingDisputesCount > 9 ? '9+' : pendingDisputesCount}
+                                </span>
+                            )}
                         </button>
                         <button
                             onClick={() => setActiveTab('daily-challenges')}
@@ -1606,6 +1636,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 <option value="">All</option>
                                 <option value="GAME">Game</option>
                                 <option value="PRACTICE">Practice</option>
+                                <option value="DAILY_CHALLENGE">Daily Challenge</option>
                             </select>
                         </div>
                         <div className="flex items-end">

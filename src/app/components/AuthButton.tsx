@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import UserSettings from '@/components/UserSettings'
+import AchievementsModal from '@/components/AchievementsModal'
 import UserAvatar from '@/components/UserAvatar'
 import { useClerk, SignInButton } from '@clerk/nextjs'
 import type { AppUser } from '@/lib/clerk-auth'
@@ -15,6 +16,8 @@ interface AuthButtonProps {
 export function AuthButton({ appUser }: AuthButtonProps) {
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
+    const [showAchievements, setShowAchievements] = useState(false)
+    const [pendingDisputesCount, setPendingDisputesCount] = useState<number | null>(null)
     const menuRef = useRef<HTMLDivElement>(null)
     const buttonRef = useRef<HTMLButtonElement>(null)
     const { signOut } = useClerk()
@@ -38,6 +41,32 @@ export function AuthButton({ appUser }: AuthButtonProps) {
             setDisplayName(appUser.displayName ?? null)
             setSelectedIcon(appUser.selectedIcon ?? null)
             setAvatarBackground(appUser.avatarBackground ?? null)
+        }
+    }, [appUser])
+
+    // Fetch pending dispute count for admins
+    useEffect(() => {
+        if (appUser?.role === 'ADMIN') {
+            fetch('/api/admin/disputes/stats')
+                .then(res => {
+                    if (res.ok) {
+                        return res.json()
+                    }
+                    return null
+                })
+                .then(data => {
+                    if (data?.pendingCount !== undefined) {
+                        setPendingDisputesCount(data.pendingCount)
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching dispute stats:', error)
+                    // Keep badge hidden on error
+                    setPendingDisputesCount(null)
+                })
+        } else {
+            // Reset count for non-admins
+            setPendingDisputesCount(null)
         }
     }, [appUser])
 
@@ -148,16 +177,27 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                     className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 text-white px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
                     aria-expanded={showUserMenu}
                     aria-haspopup="true"
-                    aria-label="User menu"
+                    aria-label={
+                        appUser.role === 'ADMIN' && pendingDisputesCount !== null && pendingDisputesCount > 0
+                            ? `User menu – ${pendingDisputesCount} pending dispute${pendingDisputesCount !== 1 ? 's' : ''}`
+                            : 'User menu'
+                    }
                 >
-                    <UserAvatar
-                        email={appUser.email}
-                        displayName={displayName}
-                        selectedIcon={selectedIcon}
-                        avatarBackground={avatarBackground}
-                        size="sm"
-                        interactive={true}
-                    />
+                    <div className="relative">
+                        <UserAvatar
+                            email={appUser.email}
+                            displayName={displayName}
+                            selectedIcon={selectedIcon}
+                            avatarBackground={avatarBackground}
+                            size="sm"
+                            interactive={true}
+                        />
+                        {appUser.role === 'ADMIN' && pendingDisputesCount !== null && pendingDisputesCount > 0 && (
+                            <span className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full bg-red-600 text-[0.7rem] font-bold flex items-center justify-center text-white shadow-md border-2 border-blue-700 z-10">
+                                {pendingDisputesCount > 9 ? '9+' : pendingDisputesCount}
+                            </span>
+                        )}
+                    </div>
                     <span className="hidden lg:inline-block max-w-[120px] truncate">{displayName || 'User'}</span>
                     <svg 
                         className={`w-4 h-4 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`}
@@ -213,6 +253,19 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                             <div className="py-1 max-h-[min(80vh,24rem)] overflow-y-auto">
                                 <button
                                     onClick={() => {
+                                        setShowAchievements(true)
+                                        setShowUserMenu(false)
+                                    }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 text-left"
+                                    role="menuitem"
+                                >
+                                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                                    </svg>
+                                    <span>Achievements</span>
+                                </button>
+                                <button
+                                    onClick={() => {
                                         setShowSettings(true)
                                         setShowUserMenu(false)
                                     }}
@@ -230,13 +283,18 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                                     <Link
                                         href="/admin"
                                         onClick={() => setShowUserMenu(false)}
-                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 text-left"
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors duration-150 text-left relative"
                                         role="menuitem"
                                     >
                                         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                         </svg>
                                         <span>Admin</span>
+                                        {pendingDisputesCount !== null && pendingDisputesCount > 0 && (
+                                            <span className="absolute right-3 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-[0.65rem] font-bold flex items-center justify-center text-white">
+                                                {pendingDisputesCount > 9 ? '9+' : pendingDisputesCount}
+                                            </span>
+                                        )}
                                     </Link>
                                 )}
                                 
@@ -268,6 +326,10 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                 displayName={displayName}
                 selectedIcon={selectedIcon}
                 avatarBackground={avatarBackground}
+            />
+            <AchievementsModal
+                isOpen={showAchievements}
+                onClose={() => setShowAchievements(false)}
             />
         </>
     )

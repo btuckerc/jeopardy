@@ -122,9 +122,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             // Re-grade each incorrect history entry
             // We'll need to import checkAnswer with overrides support
             const { checkAnswer } = await import('@/app/lib/answer-checker')
-            const { getQuestionOverrides } = await import('@/lib/answer-overrides')
             
-            const allOverrides = await getQuestionOverrides(dispute.questionId)
+            // Query overrides using the transaction client to see the newly created override
+            const allOverrides = await tx.answerOverride.findMany({
+                where: { questionId: dispute.questionId },
+                orderBy: { createdAt: 'asc' }
+            })
             const overrideTexts = allOverrides.map(o => o.text)
 
             for (const history of incorrectHistories) {
@@ -289,6 +292,46 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                             currentScore: { increment: statsPoints }
                         }
                     })
+                }
+            }
+
+            // If this was a daily challenge dispute, update UserDailyChallenge
+            // When a dispute is approved, we always mark the user's submission as correct
+            // since the admin is explicitly saying the answer should be accepted
+            if (dispute.mode === 'DAILY_CHALLENGE') {
+                // Find the DailyChallenge by questionId
+                const dailyChallenge = await tx.dailyChallenge.findFirst({
+                    where: {
+                        questionId: dispute.questionId
+                    }
+                })
+
+                if (dailyChallenge) {
+                    // Find the UserDailyChallenge for this user and challenge
+                    const userDailyChallenge = await tx.userDailyChallenge.findUnique({
+                        where: {
+                            userId_challengeId: {
+                                userId: dispute.userId,
+                                challengeId: dailyChallenge.id
+                            }
+                        }
+                    })
+
+                    // Update to mark as correct, preserving completedAt
+                    if (userDailyChallenge && !userDailyChallenge.correct) {
+                        await tx.userDailyChallenge.update({
+                            where: {
+                                userId_challengeId: {
+                                    userId: dispute.userId,
+                                    challengeId: dailyChallenge.id
+                                }
+                            },
+                            data: {
+                                correct: true
+                                // completedAt is not updated - it preserves the original submission time
+                            }
+                        })
+                    }
                 }
             }
         })

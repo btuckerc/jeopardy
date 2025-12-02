@@ -6,7 +6,7 @@ import { z } from 'zod'
 
 const disputesQuerySchema = z.object({
     status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
-    mode: z.enum(['GAME', 'PRACTICE']).optional(),
+    mode: z.enum(['GAME', 'PRACTICE', 'DAILY_CHALLENGE']).optional(),
     page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
     pageSize: z.string().optional().transform(val => val ? parseInt(val, 10) : 20)
 })

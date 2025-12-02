@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "DisputeMode" ADD VALUE 'DAILY_CHALLENGE';
+

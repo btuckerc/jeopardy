@@ -257,6 +257,7 @@ enum DisputeStatus {
 enum DisputeMode {
   GAME
   PRACTICE
+  DAILY_CHALLENGE
 }
 
 enum OverrideSource {

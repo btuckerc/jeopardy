@@ -59,6 +59,8 @@ export default function DailyChallengePage() {
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
     const [leaderboardLoading, setLeaderboardLoading] = useState(false)
     const [nextChallengeTime] = useState(() => getNextChallengeTime())
+    const [disputeSubmitted, setDisputeSubmitted] = useState(false)
+    const [disputeSubmitting, setDisputeSubmitting] = useState(false)
 
     useEffect(() => {
         loadChallenge()
@@ -146,6 +148,40 @@ export default function DailyChallengePage() {
             alert('Failed to submit answer. Please try again.')
         } finally {
             setSubmitting(false)
+        }
+    }
+
+    const handleDispute = async () => {
+        if (!challenge || !userAnswer.trim() || !user?.id || disputeSubmitted || disputeSubmitting) return
+
+        setDisputeSubmitting(true)
+        try {
+            const response = await fetch('/api/answers/disputes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionId: challenge.question.id,
+                    gameId: null,
+                    mode: 'DAILY_CHALLENGE',
+                    round: 'FINAL',
+                    userAnswer: userAnswer.trim(),
+                    systemWasCorrect: false
+                })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                console.error('Failed to submit dispute:', error.error)
+                alert('Failed to submit dispute. Please try again.')
+                return
+            }
+
+            setDisputeSubmitted(true)
+        } catch (error) {
+            console.error('Error submitting dispute:', error)
+            alert('Failed to submit dispute. Please try again.')
+        } finally {
+            setDisputeSubmitting(false)
         }
     }
 
@@ -305,6 +341,35 @@ export default function DailyChallengePage() {
                                             </svg>
                                             Reveal Answer
                                         </button>
+                                    </div>
+                                )}
+                                
+                                {!isCorrect && revealAnswer && user?.id && userAnswer.trim() && (
+                                    <div className="mt-4 flex justify-end">
+                                        {disputeSubmitted ? (
+                                            <span className="text-sm text-blue-600 flex items-center gap-1">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Dispute submitted
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1">
+                                                <button
+                                                    onClick={handleDispute}
+                                                    disabled={disputeSubmitting}
+                                                    className="text-sm text-blue-600 hover:text-blue-800 underline disabled:opacity-50"
+                                                >
+                                                    {disputeSubmitting ? 'Submitting...' : 'Dispute this answer'}
+                                                </button>
+                                                <span className="relative group">
+                                                    <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-blue-500 hover:text-blue-700 cursor-help border border-blue-300 rounded-full">i</span>
+                                                    <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                        An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                    </span>
+                                                </span>
+                                            </span>
+                                        )}
                                     </div>
                                 )}
                             </div>

@@ -7,6 +7,7 @@ import { checkAnswer } from '@/app/lib/answer-checker'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import { getGuestConfig, createGuestSession } from '@/lib/guest-sessions'
 import { isWeekday } from '@/lib/game-utils'
+import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
 
 /**
  * GET /api/daily-challenge
@@ -159,8 +160,13 @@ export async function POST(request: Request) {
             return jsonResponse({ error: 'Daily challenge not available' }, 404)
         }
 
-        // Check answer using the answer-checker library
-        const correct = checkAnswer(body.answer, challenge.question.answer)
+        // Check answer using override-aware checking
+        const overrides = await getQuestionOverrides(challenge.questionId)
+        const correct = isAnswerAcceptedWithOverrides(
+            body.answer,
+            challenge.question.answer,
+            overrides
+        )
 
         // Handle guest vs authenticated user differently
         if (isGuest) {

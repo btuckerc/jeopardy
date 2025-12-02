@@ -21,6 +21,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:push": "prisma db push",
     "db:seed": "ts-node --project tsconfig.json src/scripts/seed-database.ts",
+    "db:seed:achievements": "ts-node --project tsconfig.json src/scripts/seed-achievements.ts",
     "db:seed:embeddings": "ts-node --project tsconfig.json src/scripts/seed-knowledge-embeddings.ts",
     "db:create-indexes": "ts-node --project tsconfig.json src/scripts/create-vector-indexes.ts",
     "db:fetch": "ts-node --project tsconfig.json src/scripts/fetch-jeopardy-data.ts",

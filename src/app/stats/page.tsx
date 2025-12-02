@@ -97,6 +97,31 @@ type Stats = {
     roundStats?: RoundStats[]
 }
 
+type DailyChallengeStats = {
+    totalCompleted: number
+    totalCorrect: number
+    totalIncorrect: number
+    accuracy: number
+    participationStreak: {
+        current: number
+        longest: number
+    }
+    correctnessStreak: {
+        current: number
+        longest: number
+    }
+    history: Array<{
+        challengeDate: string
+        completedAt: string
+        correct: boolean
+        questionId: string
+        categoryName: string
+        question: string
+        answer: string
+        airDate: string | null
+    }>
+}
+
 // Stats Detail Modal Component
 function StatsDetailModal({ 
     type, 
@@ -880,95 +905,196 @@ function InfoTooltip({ content }: { content: string }) {
 
 type SectionTab = 'overview' | 'rounds' | 'categories'
 
-interface Achievement {
-    id: string
-    code: string
-    name: string
-    description: string
-    icon: string | null
-    unlocked: boolean
-    unlockedAt: string | null
-}
+// Daily Challenge History Modal Component
+function DailyChallengeHistoryModal({ 
+    stats, 
+    onClose 
+}: { 
+    stats: DailyChallengeStats | null
+    onClose: () => void 
+}) {
+    const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({})
 
-// Achievements Section Component
-function AchievementsSection() {
-    const { user } = useAuth()
-    const [achievements, setAchievements] = useState<Achievement[]>([])
-    const [loading, setLoading] = useState(true)
-
+    // Prevent background scrolling when modal is open
     useEffect(() => {
-        if (user) {
-            loadAchievements()
+        document.body.style.overflow = 'hidden'
+        return () => {
+            document.body.style.overflow = 'unset'
         }
-    }, [user])
+    }, [])
 
-    const loadAchievements = async () => {
-        try {
-            const response = await fetch('/api/achievements')
-            if (response.ok) {
-                const data = await response.json()
-                setAchievements(data.achievements || [])
-            }
-        } catch (error) {
-            console.error('Error loading achievements:', error)
-        } finally {
-            setLoading(false)
-        }
+    const toggleAnswer = (questionId: string) => {
+        setRevealedAnswers(prev => ({
+            ...prev,
+            [questionId]: !prev[questionId]
+        }))
     }
 
-    if (loading) {
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        })
+    }
+
+    if (!stats || stats.history.length === 0) {
         return (
-            <div className="mt-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Achievements</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {[1, 2, 3, 4, 5].map(i => (
-                        <div key={i} className="card p-4 animate-pulse">
-                            <div className="h-12 w-12 bg-gray-200 rounded-full mx-auto mb-2"></div>
-                            <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-fade-in">
+                <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in-slide-down">
+                    <div className="p-4 md:p-6 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                        <div className="flex justify-between items-start gap-4">
+                            <div className="min-w-0">
+                                <h2 className="text-xl md:text-2xl font-bold truncate">Daily Challenge History</h2>
+                                <p className="text-blue-100 mt-1 text-xs md:text-sm">Your daily challenge attempts</p>
+                            </div>
+                            <button 
+                                onClick={onClose} 
+                                className="text-white/80 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-white/50"
+                                aria-label="Close modal"
+                            >
+                                <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
                         </div>
-                    ))}
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+                        <div className="text-center">
+                            <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <p className="text-gray-500 text-lg mb-2">No daily challenge history yet</p>
+                            <p className="text-gray-400 text-sm mb-4">Start playing daily challenges to see your progress here!</p>
+                            <Link href="/daily-challenge" className="btn-primary inline-block">
+                                Play Daily Challenge
+                            </Link>
+                        </div>
+                    </div>
+                    <div className="p-3 md:p-4 border-t bg-gray-50">
+                        <button
+                            onClick={onClose}
+                            className="btn-secondary w-full"
+                        >
+                            Close
+                        </button>
+                    </div>
                 </div>
             </div>
         )
     }
 
-    const unlocked = achievements.filter(a => a.unlocked)
-    const locked = achievements.filter(a => !a.unlocked)
-
     return (
-        <div className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Achievements</h2>
-                <span className="text-sm text-gray-600">
-                    {unlocked.length} / {achievements.length} unlocked
-                </span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {[...unlocked, ...locked].map((achievement) => (
-                    <div
-                        key={achievement.id}
-                        className={`card p-4 text-center transition-all ${
-                            achievement.unlocked
-                                ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-200'
-                                : 'bg-gray-50 border-2 border-gray-200 opacity-60'
-                        }`}
-                        title={achievement.description}
-                    >
-                        <div className="text-4xl mb-2">
-                            {achievement.unlocked ? achievement.icon || '🏆' : '🔒'}
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 md:p-4 z-50 animate-fade-in">
+            <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-fade-in-slide-down">
+                {/* Header */}
+                <div className="p-4 md:p-6 border-b bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+                    <div className="flex justify-between items-start gap-4">
+                        <div className="min-w-0">
+                            <h2 className="text-xl md:text-2xl font-bold truncate">Daily Challenge History</h2>
+                            <p className="text-blue-100 mt-1 text-xs md:text-sm">Your daily challenge attempts</p>
                         </div>
-                        <div className={`text-sm font-medium ${
-                            achievement.unlocked ? 'text-gray-900' : 'text-gray-500'
-                        }`}>
-                            {achievement.name}
-                        </div>
-                        {achievement.unlocked && achievement.unlockedAt && (
-                            <div className="text-xs text-gray-500 mt-1">
-                                {new Date(achievement.unlockedAt).toLocaleDateString()}
-                            </div>
-                        )}
+                        <button 
+                            onClick={onClose} 
+                            className="text-white/80 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-white/50"
+                            aria-label="Close modal"
+                        >
+                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
                     </div>
-                ))}
+                    
+                    {/* Summary stats */}
+                    <div className="flex flex-wrap gap-3 md:gap-6 mt-4 text-xs md:text-sm">
+                        <div>
+                            <span className="text-blue-200">Completed:</span>
+                            <span className="ml-1.5 font-semibold">{stats.totalCompleted}</span>
+                        </div>
+                        <div>
+                            <span className="text-blue-200">Correct:</span>
+                            <span className="ml-1.5 font-semibold text-green-300">{stats.totalCorrect}</span>
+                        </div>
+                        <div>
+                            <span className="text-blue-200">Accuracy:</span>
+                            <span className="ml-1.5 font-semibold">{stats.accuracy}%</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="overflow-y-auto flex-1 p-4">
+                    <div className="space-y-3">
+                        {stats.history.map((entry) => (
+                            <div
+                                key={entry.questionId}
+                                className={`border rounded-lg p-4 transition-all ${
+                                    entry.correct 
+                                        ? 'bg-green-50 border-green-200' 
+                                        : 'bg-red-50 border-red-200'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-3">
+                                        <span className={`text-lg ${entry.correct ? 'text-green-600' : 'text-red-500'}`}>
+                                            {entry.correct ? '✓' : '✗'}
+                                        </span>
+                                        <div>
+                                            <div className="font-semibold text-gray-900">{formatDate(entry.challengeDate)}</div>
+                                            <div className="text-sm text-gray-600">{entry.categoryName}</div>
+                                        </div>
+                                    </div>
+                                    {entry.airDate && (
+                                        <div className="text-right text-xs text-gray-500">
+                                            <div>Originally aired:</div>
+                                            <div>{formatDate(entry.airDate)}</div>
+                                        </div>
+                                    )}
+                                </div>
+                                
+                                <p className="text-gray-900 mb-3">{entry.question}</p>
+                                
+                                <button
+                                    onClick={() => toggleAnswer(entry.questionId)}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+                                >
+                                    {revealedAnswers[entry.questionId] ? (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                            </svg>
+                                            Hide Answer
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
+                                            Show Answer
+                                        </>
+                                    )}
+                                </button>
+                                
+                                {revealedAnswers[entry.questionId] && (
+                                    <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                                        <p className="text-gray-700 font-medium italic">{entry.answer}</p>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-3 md:p-4 border-t bg-gray-50">
+                    <button
+                        onClick={onClose}
+                        className="btn-secondary w-full"
+                    >
+                        Close
+                    </button>
+                </div>
             </div>
         </div>
     )
@@ -984,6 +1110,10 @@ export default function StatsPage() {
     const [showUnstarted, setShowUnstarted] = useState(false)
     const [showBackToTop, setShowBackToTop] = useState(false)
     const [activeCategoryFilter, setActiveCategoryFilter] = useState<CategoryFilter>('ALL')
+    const [dailyChallengeStats, setDailyChallengeStats] = useState<DailyChallengeStats | null>(null)
+    const [dailyChallengeLoading, setDailyChallengeLoading] = useState(true)
+    const [showDailyChallengeHistory, setShowDailyChallengeHistory] = useState(false)
+    const [todayChallengeCompleted, setTodayChallengeCompleted] = useState<boolean | null>(null)
     const { user, loading: authLoading } = useAuth()
     const router = useRouter()
 
@@ -1120,6 +1250,69 @@ export default function StatsPage() {
             mounted = false
         }
     }, [user, authLoading, router])
+
+    // Fetch daily challenge stats and today's challenge status
+    useEffect(() => {
+        let mounted = true
+
+        const fetchDailyChallengeData = async () => {
+            if (authLoading || !user) {
+                return
+            }
+
+            setDailyChallengeLoading(true)
+            try {
+                // Fetch stats
+                const statsResponse = await fetch('/api/daily-challenge/stats')
+                if (statsResponse.ok) {
+                    const statsData = await statsResponse.json()
+                    if (mounted) {
+                        setDailyChallengeStats(statsData)
+                    }
+                } else if (statsResponse.status === 401) {
+                    // Not authenticated, skip silently
+                    if (mounted) {
+                        setDailyChallengeStats(null)
+                    }
+                } else {
+                    // Other error, log but don't show error to user
+                    console.error('Error fetching daily challenge stats:', await statsResponse.text())
+                    if (mounted) {
+                        setDailyChallengeStats(null)
+                    }
+                }
+
+                // Check if today's challenge is completed
+                const todayResponse = await fetch('/api/daily-challenge')
+                if (todayResponse.ok) {
+                    const todayData = await todayResponse.json()
+                    if (mounted) {
+                        setTodayChallengeCompleted(todayData.userAnswer !== null)
+                    }
+                } else {
+                    if (mounted) {
+                        setTodayChallengeCompleted(false)
+                    }
+                }
+            } catch (err) {
+                console.error('Error fetching daily challenge data:', err)
+                if (mounted) {
+                    setDailyChallengeStats(null)
+                    setTodayChallengeCompleted(false)
+                }
+            } finally {
+                if (mounted) {
+                    setDailyChallengeLoading(false)
+                }
+            }
+        }
+
+        fetchDailyChallengeData()
+
+        return () => {
+            mounted = false
+        }
+    }, [user, authLoading])
 
     const handleCategoryClick = async (category: CategoryStats) => {
         try {
@@ -1455,8 +1648,130 @@ export default function StatsPage() {
                     </button>
                     </div>
 
-                    {/* Achievements Section */}
-                    <AchievementsSection />
+                    {/* Daily Challenge Section */}
+                    <div className="mt-8 md:mt-10">
+                        {dailyChallengeLoading ? (
+                            <div className="card p-6 animate-pulse">
+                                <div className="h-6 bg-gray-300 rounded w-48 mb-4"></div>
+                                <div className="h-20 bg-gray-200 rounded"></div>
+                            </div>
+                        ) : (
+                            <div className="card p-6 md:p-8 bg-gradient-to-br from-purple-50 via-blue-50 to-white border-2 border-purple-200">
+                                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-3 bg-purple-100 rounded-xl">
+                                            <svg className="w-6 h-6 md:w-7 md:h-7 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl md:text-2xl font-bold text-gray-900">Daily Challenge</h2>
+                                            <p className="text-sm text-gray-600">Test your knowledge with a Final Jeopardy question each day</p>
+                                        </div>
+                                    </div>
+                                    {todayChallengeCompleted === false && (
+                                        <Link 
+                                            href="/daily-challenge"
+                                            className="btn-primary whitespace-nowrap flex items-center gap-2 justify-center"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                            </svg>
+                                            Play Today&apos;s Challenge
+                                        </Link>
+                                    )}
+                                </div>
+
+                                {dailyChallengeStats && dailyChallengeStats.totalCompleted > 0 ? (
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                        <div className="text-center">
+                                            <div className="text-2xl md:text-3xl font-bold text-purple-600 mb-1">
+                                                {dailyChallengeStats.correctnessStreak.current}
+                                            </div>
+                                            <div className="text-xs md:text-sm text-gray-600">Correct Streak</div>
+                                            <div className="text-xs text-gray-500 mt-1">Best: {dailyChallengeStats.correctnessStreak.longest}</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-2xl md:text-3xl font-bold text-blue-600 mb-1">
+                                                {dailyChallengeStats.participationStreak.current}
+                                            </div>
+                                            <div className="text-xs md:text-sm text-gray-600">Participation Streak</div>
+                                            <div className="text-xs text-gray-500 mt-1">Best: {dailyChallengeStats.participationStreak.longest}</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-2xl md:text-3xl font-bold text-green-600 mb-1">
+                                                {dailyChallengeStats.totalCorrect}
+                                            </div>
+                                            <div className="text-xs md:text-sm text-gray-600">Total Correct</div>
+                                            <div className="text-xs text-gray-500 mt-1">of {dailyChallengeStats.totalCompleted} completed</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-2xl md:text-3xl font-bold text-amber-600 mb-1">
+                                                {dailyChallengeStats.accuracy}%
+                                            </div>
+                                            <div className="text-xs md:text-sm text-gray-600">Accuracy</div>
+                                            <div className="text-xs text-gray-500 mt-1">
+                                                {dailyChallengeStats.totalIncorrect} incorrect
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 mb-6">
+                                        <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <p className="text-gray-600 mb-2">No daily challenges completed yet</p>
+                                        <p className="text-sm text-gray-500 mb-4">Start your streak today!</p>
+                                        {todayChallengeCompleted === false && (
+                                            <Link href="/daily-challenge" className="btn-primary inline-flex items-center gap-2">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                                Play Today&apos;s Challenge
+                                            </Link>
+                                        )}
+                                    </div>
+                                )}
+
+                                {dailyChallengeStats && dailyChallengeStats.totalCompleted > 0 && (
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <button
+                                            onClick={() => setShowDailyChallengeHistory(true)}
+                                            className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            View History
+                                        </button>
+                                        {todayChallengeCompleted === false && (
+                                            <Link 
+                                                href="/daily-challenge"
+                                                className="btn-primary flex-1 flex items-center justify-center gap-2"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                </svg>
+                                                Play Today&apos;s Challenge
+                                            </Link>
+                                        )}
+                                        {todayChallengeCompleted === true && (
+                                            <Link 
+                                                href="/daily-challenge"
+                                                className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                                            >
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                                View Today&apos;s Result
+                                            </Link>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Section: Rounds (Performance by Round) */}
@@ -1874,6 +2189,13 @@ export default function StatsPage() {
                         round={selectedRound}
                         roundStats={stats.roundStats?.find(r => r.round === selectedRound)}
                         onClose={() => setSelectedRound(null)}
+                    />
+                )}
+
+                {showDailyChallengeHistory && (
+                    <DailyChallengeHistoryModal
+                        stats={dailyChallengeStats}
+                        onClose={() => setShowDailyChallengeHistory(false)}
                     />
                 )}
 
