@@ -1,13 +1,40 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../lib/auth'
-import { Combobox } from '@headlessui/react'
-import { CheckIcon } from '@heroicons/react/20/solid'
-import DatePicker from 'react-datepicker'
-import "react-datepicker/dist/react-datepicker.css"
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
+
+// Dynamically import heavy components to reduce initial bundle size
+const CustomCategoryPicker = dynamic(
+    () => import('./components/CustomCategoryPicker'),
+    { ssr: false }
+)
+
+const DateModeSection = dynamic(
+    () => import('./components/DateModeSection'),
+    { ssr: false }
+)
+
+const SeedLookupModal = dynamic(
+    () => import('./components/SeedLookupModal'),
+    { ssr: false }
+)
+
+const WarningModal = dynamic(
+    () => import('./components/WarningModal'),
+    { ssr: false }
+)
+
+const SpoilerWarningModal = dynamic(
+    () => import('./components/SpoilerWarningModal'),
+    { ssr: false }
+)
+
+// Regular imports for lighter components
+import GameResumableList from './components/GameResumableList'
+import GameModeSelector from './components/GameModeSelector'
 
 interface Category {
     id: string
@@ -43,12 +70,6 @@ interface ResumableGame {
     updatedAt: string
 }
 
-interface ComboboxRenderPropArg {
-    active: boolean
-    disabled: boolean
-    selected: boolean
-}
-
 const KNOWLEDGE_CATEGORIES = [
     'GEOGRAPHY_AND_HISTORY',
     'ENTERTAINMENT',
@@ -73,12 +94,7 @@ export default function GameHubPage() {
     const [selectedCategories, setSelectedCategories] = useState<KnowledgeCategory[]>([])
     const [selectedDate, setSelectedDate] = useState<string>('')
     const [selectedDateObj, setSelectedDateObj] = useState<Date | null>(null)
-    const [availableCategories, setAvailableCategories] = useState<Category[]>([])
-    const [searchQuery, setSearchQuery] = useState('')
     const [customCategories, setCustomCategories] = useState<Category[]>([])
-    const [isSearching, setIsSearching] = useState(false)
-    const [availableDates, setAvailableDates] = useState<string[]>([])
-    const [isLoadingDates, setIsLoadingDates] = useState(false)
     const [rounds, setRounds] = useState({ single: true, double: true, final: false })
     const [finalCategoryMode, setFinalCategoryMode] = useState<'shuffle' | 'byDate' | 'specificCategory'>('byDate')
     const [finalCategoryId, setFinalCategoryId] = useState<string | null>(null)
@@ -89,7 +105,6 @@ export default function GameHubPage() {
     const [pendingGameConfig, setPendingGameConfig] = useState<any>(null)
     const [availableCategoriesForFill, setAvailableCategoriesForFill] = useState<Category[]>([])
     const [isLoadingFillCategories, setIsLoadingFillCategories] = useState(false)
-    const [fillCategorySearchQuery, setFillCategorySearchQuery] = useState('')
 
     // Seed lookup state
     const [seedInput, setSeedInput] = useState('')
@@ -157,63 +172,10 @@ export default function GameHubPage() {
         fetchSpoilerSettings()
     }, [user?.id])
 
-    // Date picker utilities
-    const availableDateObjects = useMemo(() =>
-        availableDates.map(date => new Date(date)),
-        [availableDates]
-    )
-
-    const { availableYears, minYear, maxYear } = useMemo(() => {
-        if (availableDates.length === 0) {
-            return { availableYears: [], minYear: new Date().getFullYear(), maxYear: new Date().getFullYear() }
-        }
-        const years = availableDates.map(date => new Date(date).getFullYear())
-        const uniqueYears = Array.from(new Set(years)).sort((a, b) => b - a)
-        return {
-            availableYears: uniqueYears,
-            minYear: Math.min(...uniqueYears),
-            maxYear: Math.max(...uniqueYears)
-        }
-    }, [availableDates])
-
     const handleDateChange = (date: Date | null) => {
         setSelectedDateObj(date)
         setSelectedDate(date ? date.toISOString().split('T')[0] : '')
     }
-
-    const isDateAvailable = (date: Date) => {
-        return availableDateObjects.some(availableDate =>
-            availableDate.toISOString().split('T')[0] === date.toISOString().split('T')[0]
-        )
-    }
-
-    const renderYearContent = (year: number) => {
-        const hasEpisodes = availableYears.includes(year)
-        return (
-            <span className={!hasEpisodes ? 'text-gray-300' : undefined}>
-                {year}
-            </span>
-        )
-    }
-
-    // Fetch available dates
-    useEffect(() => {
-        const fetchAvailableDates = async () => {
-            setIsLoadingDates(true)
-            try {
-                const response = await fetch('/api/game/available-dates')
-                const data = await response.json()
-                if (data.dates) {
-                    setAvailableDates(data.dates)
-                }
-            } catch (error) {
-                console.error('Error fetching available dates:', error)
-            }
-            setIsLoadingDates(false)
-        }
-
-        fetchAvailableDates()
-    }, [])
 
     // Update final category mode when switching to/from "By Air Date" mode
     useEffect(() => {
@@ -226,38 +188,6 @@ export default function GameHubPage() {
         }
     }, [selectedMode, finalCategoryMode])
 
-    // Debounced search for categories
-    useEffect(() => {
-        if (selectedMode !== 'custom' || !searchQuery || searchQuery.length < 2) {
-            setAvailableCategories([])
-            return
-        }
-
-        const timer = setTimeout(async () => {
-            setIsSearching(true)
-            try {
-                const response = await fetch(`/api/categories/search?q=${encodeURIComponent(searchQuery)}`)
-                if (!response.ok) throw new Error('Failed to search categories')
-                const data = await response.json()
-                setAvailableCategories(data.filter((cat: Category) => !cat.isDoubleJeopardy))
-            } catch (error) {
-                console.error('Error searching categories:', error)
-            } finally {
-                setIsSearching(false)
-            }
-        }, 300)
-
-        return () => clearTimeout(timer)
-    }, [searchQuery, selectedMode])
-
-    const filteredCategories = useMemo(() =>
-        searchQuery === ''
-            ? availableCategories
-            : availableCategories.filter((category) =>
-                category.name.toLowerCase().includes(searchQuery.toLowerCase())
-            ),
-        [searchQuery, availableCategories]
-    )
 
     const checkIfWarningNeeded = async (config: any, mode: string): Promise<boolean> => {
         const selectedRounds = [rounds.single, rounds.double].filter(Boolean).length
@@ -662,20 +592,6 @@ export default function GameHubPage() {
         }
     }
 
-    const formatTimeAgo = (dateString: string) => {
-        const date = new Date(dateString)
-        const now = new Date()
-        const diffMs = now.getTime() - date.getTime()
-        const diffMins = Math.floor(diffMs / 60000)
-        const diffHours = Math.floor(diffMs / 3600000)
-        const diffDays = Math.floor(diffMs / 86400000)
-
-        if (diffMins < 1) return 'just now'
-        if (diffMins < 60) return `${diffMins}m ago`
-        if (diffHours < 24) return `${diffHours}h ago`
-        if (diffDays === 1) return 'yesterday'
-        return `${diffDays}d ago`
-    }
 
     // Show sign-in prompt if not authenticated
     if (!authLoading && !user) {
@@ -721,135 +637,11 @@ export default function GameHubPage() {
                             </svg>
                             Your Games
                         </h2>
-
-                        {loadingGames ? (
-                            <div className="card p-6 text-center">
-                                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-2"></div>
-                                <p className="text-gray-500">Loading your games...</p>
-                            </div>
-                        ) : resumableGames.length === 0 ? (
-                            <div className="card p-6 text-center bg-gray-50 border-dashed">
-                                <p className="text-gray-500">No games in progress. Start a new game below!</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {resumableGames.map(game => {
-                                    const MAX_VISIBLE_CATEGORIES = 3
-                                    const visibleCategories = game.categories.slice(0, MAX_VISIBLE_CATEGORIES)
-                                    const hiddenCount = game.categories.length - MAX_VISIBLE_CATEGORIES
-
-                                    return (
-                                        <div
-                                            key={game.id}
-                                            className="card p-4 hover:shadow-md transition-shadow border border-gray-100"
-                                        >
-                                            {/* Top row: title + metadata on left, actions on right */}
-                                            <div className="flex items-start justify-between gap-4">
-                                                {/* Left: Game info */}
-                                                <div className="flex-1 min-w-0">
-                                                    {/* Title row */}
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <h3 className="font-semibold text-gray-900">
-                                                            {game.label}
-                                                        </h3>
-                                                        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-700">
-                                                            {game.currentRound === 'SINGLE' ? 'Single' : 
-                                                             game.currentRound === 'DOUBLE' ? 'Double' : 
-                                                             'Final'}
-                                                        </span>
-                                                        <span className="text-xs text-gray-400">
-                                                            {formatTimeAgo(game.updatedAt)}
-                                                        </span>
-                                                        {game.seed && (
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    navigator.clipboard.writeText(game.seed!)
-                                                                    const btn = e.currentTarget
-                                                                    const originalText = btn.textContent
-                                                                    btn.textContent = 'Copied!'
-                                                                    btn.classList.add('text-green-600', 'bg-green-50')
-                                                                    btn.classList.remove('text-gray-400', 'bg-gray-50')
-                                                                    setTimeout(() => {
-                                                                        btn.textContent = originalText
-                                                                        btn.classList.remove('text-green-600', 'bg-green-50')
-                                                                        btn.classList.add('text-gray-400', 'bg-gray-50')
-                                                                    }, 1500)
-                                                                }}
-                                                                className="text-xs text-gray-400 hover:text-gray-600 font-mono bg-gray-50 px-1.5 py-0.5 rounded transition-colors"
-                                                                title="Click to copy seed and share with friends"
-                                                            >
-                                                                {game.seed}
-                                                            </button>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Categories row */}
-                                                    {game.categories.length > 0 && (
-                                                        <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                                            {visibleCategories.map(cat => (
-                                                                <span
-                                                                    key={cat.id}
-                                                                    className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded whitespace-nowrap"
-                                                                >
-                                                                    {cat.name}
-                                                                </span>
-                                                            ))}
-                                                            {hiddenCount > 0 && (
-                                                                <span className="text-xs text-gray-400">
-                                                                    +{hiddenCount} more
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Right: Actions */}
-                                                <div className="flex items-center gap-3 flex-shrink-0">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            handleEndGame(game.id)
-                                                        }}
-                                                        className="text-xs text-gray-400 hover:text-red-500 focus:text-red-500 focus:outline-none transition-colors"
-                                                        title="End game"
-                                                    >
-                                                        End
-                                                    </button>
-                                                    <Link
-                                                        href={`/game/${game.id}`}
-                                                        className="btn-primary px-4 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                                                    >
-                                                        Resume
-                                                    </Link>
-                                                </div>
-                                            </div>
-
-                                            {/* Bottom row: Progress bar + stats */}
-                                            <div className="flex items-center gap-4 mt-3 pt-3 border-t border-gray-100">
-                                                {/* Progress bar */}
-                                                <div className="flex-1">
-                                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                                        <div 
-                                                            className="h-full bg-blue-500 rounded-full transition-all"
-                                                            style={{ width: `${game.progress.percentComplete}%` }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                                {/* Stats inline */}
-                                                <div className="flex items-center gap-4 text-xs text-gray-500 flex-shrink-0">
-                                                    <span>{game.progress.percentComplete}%</span>
-                                                    <span>{game.progress.correctQuestions}/{game.progress.answeredQuestions} correct</span>
-                                                    <span className={`font-medium ${game.currentScore >= 0 ? 'text-blue-600' : 'text-red-500'}`}>
-                                                        {game.currentScore < 0 ? '-' : ''}${Math.abs(game.currentScore).toLocaleString()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
+                        <GameResumableList 
+                            games={resumableGames}
+                            loading={loadingGames}
+                            onEndGame={handleEndGame}
+                        />
                     </div>
                 )}
 
@@ -864,47 +656,10 @@ export default function GameHubPage() {
 
                     <div className="space-y-6">
                         {/* Mode Selection */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Game Mode</label>
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                                <button
-                                    onClick={() => setSelectedMode('date')}
-                                    className={`p-3 rounded-lg text-center text-sm font-medium transition-all ${selectedMode === 'date'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    By Air Date
-                                </button>
-                                <button
-                                    onClick={() => setSelectedMode('random')}
-                                    className={`p-3 rounded-lg text-center text-sm font-medium transition-all ${selectedMode === 'random'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    Random
-                                </button>
-                                <button
-                                    onClick={() => setSelectedMode('knowledge')}
-                                    className={`p-3 rounded-lg text-center text-sm font-medium transition-all ${selectedMode === 'knowledge'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    Knowledge Areas
-                                </button>
-                                <button
-                                    onClick={() => setSelectedMode('custom')}
-                                    className={`p-3 rounded-lg text-center text-sm font-medium transition-all ${selectedMode === 'custom'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-                                    }`}
-                                >
-                                    Custom
-                                </button>
-                            </div>
-                        </div>
+                        <GameModeSelector 
+                            selectedMode={selectedMode}
+                            onModeChange={setSelectedMode}
+                        />
 
                         {/* Mode-specific options */}
                         {selectedMode === 'knowledge' && (
@@ -933,118 +688,19 @@ export default function GameHubPage() {
                         )}
 
                         {selectedMode === 'custom' && (
-                            <div className="bg-gray-50 rounded-lg p-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Select Categories (up to 5)</label>
-                                <Combobox
-                                    value={null}
-                                    onChange={(category: Category | null) => {
-                                        if (!category) return
-                                        if (customCategories.some(c => c.id === category.id)) {
-                                            setCustomCategories(customCategories.filter(c => c.id !== category.id))
-                                        } else if (customCategories.length < 5) {
-                                            setCustomCategories([...customCategories, category])
-                                        }
-                                        setSearchQuery('')
-                                    }}
-                                >
-                                    <div className="relative">
-                                        <Combobox.Input
-                                            className="w-full rounded-lg border border-gray-300 py-2 px-3 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(event.target.value)}
-                                            displayValue={() => ''}
-                                            placeholder="Type to search categories..."
-                                        />
-                                        <Combobox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-lg bg-white py-1 shadow-lg border border-gray-200">
-                                            {isSearching ? (
-                                                <div className="px-4 py-2 text-sm text-gray-500">Searching...</div>
-                                            ) : searchQuery.length < 2 ? (
-                                                <div className="px-4 py-2 text-sm text-gray-500">Type at least 2 characters...</div>
-                                            ) : filteredCategories.length === 0 ? (
-                                                <div className="px-4 py-2 text-sm text-gray-500">No categories found</div>
-                                            ) : (
-                                                filteredCategories.map((category) => {
-                                                    const isSelected = customCategories.some(c => c.id === category.id)
-                                                    const isDisabled = customCategories.length >= 5 && !isSelected
-                                                    return (
-                                                        <Combobox.Option
-                                                            key={category.id}
-                                                            value={category}
-                                                            disabled={isDisabled}
-                                                            className={({ active, disabled }: ComboboxRenderPropArg) =>
-                                                                `relative cursor-default select-none py-2 pl-10 pr-4 ${active ? 'bg-blue-600 text-white' : 'text-gray-900'
-                                                                } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`
-                                                            }
-                                                        >
-                                                            {({ active }: { active: boolean }) => (
-                                                                <>
-                                                                    <span className={`block truncate ${isSelected ? 'font-medium' : 'font-normal'}`}>
-                                                                        {category.name}
-                                                                        {category._count && ` (${category._count.questions} questions)`}
-                                                                    </span>
-                                                                    {isSelected && (
-                                                                        <span className={`absolute inset-y-0 left-0 flex items-center pl-3 ${active ? 'text-white' : 'text-blue-600'}`}>
-                                                                            <CheckIcon className="h-5 w-5" aria-hidden="true" />
-                                                                        </span>
-                                                                    )}
-                                                                </>
-                                                            )}
-                                                        </Combobox.Option>
-                                                    )
-                                                })
-                                            )}
-                                        </Combobox.Options>
-                                    </div>
-                                </Combobox>
-                                {customCategories.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-3">
-                                        {customCategories.map((category) => (
-                                            <span
-                                                key={category.id}
-                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800"
-                                            >
-                                                {category.name}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setCustomCategories(customCategories.filter(c => c.id !== category.id))}
-                                                    className="ml-2 inline-flex items-center p-0.5 rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-500"
-                                                >
-                                                    ×
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                            <CustomCategoryPicker
+                                selectedCategories={customCategories}
+                                onCategoriesChange={setCustomCategories}
+                                maxCategories={5}
+                            />
                         )}
 
                         {selectedMode === 'date' && (
-                            <div className="bg-gray-50 rounded-lg p-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Select Air Date</label>
-                                {isLoadingDates ? (
-                                    <div className="text-gray-500">Loading available dates...</div>
-                                ) : availableDates.length === 0 ? (
-                                    <div className="text-gray-500">No dates available</div>
-                                ) : (
-                                    <DatePicker
-                                        selected={selectedDateObj}
-                                        onChange={handleDateChange}
-                                        filterDate={isDateAvailable}
-                                        dateFormat="MMMM d, yyyy"
-                                        placeholderText="Select an air date"
-                                        className="w-full rounded-lg border border-gray-300 py-2 px-3 text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        calendarClassName="bg-white shadow-lg rounded-lg border border-gray-200"
-                                        showMonthDropdown
-                                        showYearDropdown
-                                        dropdownMode="select"
-                                        minDate={new Date(minYear, 0, 1)}
-                                        maxDate={new Date(maxYear, 11, 31)}
-                                        renderYearContent={renderYearContent}
-                                        yearDropdownItemNumber={maxYear - minYear + 1}
-                                        scrollableYearDropdown
-                                        isClearable
-                                    />
-                                )}
-                            </div>
+                            <DateModeSection
+                                selectedDate={selectedDate}
+                                selectedDateObj={selectedDateObj}
+                                onDateChange={handleDateChange}
+                            />
                         )}
 
                         {/* Rounds Selection */}
@@ -1181,312 +837,51 @@ export default function GameHubPage() {
             </div>
 
             {/* Seed Preview Modal */}
-            {showSeedModal && seedLookupResult && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl">
-                        <div className="flex justify-between items-start mb-4">
-                            <h2 className="text-xl font-bold text-gray-900">Play Shared Game</h2>
-                            <button
-                                onClick={() => {
-                                    setShowSeedModal(false)
-                                    setSeedLookupResult(null)
-                                }}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-
-                        <div className="space-y-4">
-                            {/* Game Info */}
-                            <div className="bg-blue-50 rounded-lg p-4">
-                                <h3 className="font-bold text-lg text-gray-900 mb-2">{seedLookupResult.label}</h3>
-                                <div className="space-y-1 text-sm text-gray-600">
-                                    <p>
-                                        <span className="font-medium">Mode:</span>{' '}
-                                        {seedLookupResult.mode === 'random' ? 'Random' :
-                                         seedLookupResult.mode === 'knowledge' ? 'Knowledge Areas' :
-                                         seedLookupResult.mode === 'custom' ? 'Custom Categories' :
-                                         seedLookupResult.mode === 'date' ? 'By Air Date' : seedLookupResult.mode}
-                                    </p>
-                                    <p>
-                                        <span className="font-medium">Rounds:</span>{' '}
-                                        {seedLookupResult.rounds.join(', ')}
-                                    </p>
-                                    <p>
-                                        <span className="font-medium">Shared by:</span>{' '}
-                                        {seedLookupResult.createdBy}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Seed Display */}
-                            <div className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg">
-                                <span className="text-xs text-gray-500 uppercase tracking-wide">Seed:</span>
-                                <code className="flex-1 font-mono text-sm text-gray-800">{seedLookupResult.seed}</code>
-                            </div>
-
-                            {seedLookupError && (
-                                <p className="text-sm text-red-600">{seedLookupError}</p>
-                            )}
-
-                            {/* Actions */}
-                            <div className="flex gap-3 pt-2">
-                                <button
-                                    onClick={() => {
-                                        setShowSeedModal(false)
-                                        setSeedLookupResult(null)
-                                    }}
-                                    className="flex-1 btn-secondary"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={handleStartFromSeed}
-                                    disabled={startingFromSeed}
-                                    className={`flex-1 btn-primary ${startingFromSeed ? 'opacity-50 cursor-wait' : ''}`}
-                                >
-                                    {startingFromSeed ? 'Starting...' : 'Start Game'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <SeedLookupModal
+                isOpen={showSeedModal}
+                result={seedLookupResult}
+                error={seedLookupError}
+                isLoading={seedLookupLoading}
+                isStarting={startingFromSeed}
+                onClose={() => {
+                    setShowSeedModal(false)
+                    setSeedLookupResult(null)
+                }}
+                onStart={handleStartFromSeed}
+            />
 
             {/* Warning Modal */}
-            {showWarningModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-xl">
-                        <h2 className="text-2xl font-bold mb-4 text-gray-900">Insufficient Categories</h2>
-                        <p className="text-gray-700 mb-6">
-                            {selectedMode === 'custom' ? (
-                                <>You have selected <strong>{customCategories.length}</strong> categor{customCategories.length === 1 ? 'y' : 'ies'}</>
-                            ) : (
-                                <>You have selected <strong>{selectedCategories.length}</strong> knowledge area{selectedCategories.length !== 1 ? 's' : ''}</>
-                            )}
-                            {' '}but a full game typically requires 5 categories per round. This may result in a partial game board.
-                        </p>
-                        
-                        {selectedMode === 'custom' && availableCategoriesForFill.length > 0 && customCategories.length < 5 && (
-                            <div className="border rounded-lg p-4 mb-4">
-                                <h3 className="font-medium mb-2 text-gray-900">Add Random Categories</h3>
-                                <p className="text-sm text-gray-600 mb-3">
-                                    Automatically add {5 - customCategories.length} random category{5 - customCategories.length !== 1 ? 'ies' : ''} to fill the board.
-                                </p>
-                                <button
-                                    onClick={handleAddRandomCategories}
-                                    className="btn-primary btn-sm"
-                                >
-                                    Add Random Categories
-                                </button>
-                            </div>
-                        )}
-
-                        {selectedMode === 'custom' && customCategories.length < 5 && (
-                            <div className="border rounded-lg p-4 mb-4">
-                                <h3 className="font-medium mb-2 text-gray-900">Select Additional Categories</h3>
-                                <input
-                                    type="text"
-                                    value={fillCategorySearchQuery}
-                                    onChange={(e) => setFillCategorySearchQuery(e.target.value)}
-                                    className="w-full p-2 border rounded-lg mb-3 text-gray-900"
-                                    placeholder="Search categories..."
-                                />
-                                {isLoadingFillCategories ? (
-                                    <div className="text-gray-500">Loading...</div>
-                                ) : (
-                                    <div className="max-h-48 overflow-y-auto space-y-2">
-                                        {availableCategoriesForFill
-                                            .filter(cat => 
-                                                fillCategorySearchQuery === '' ||
-                                                cat.name.toLowerCase().includes(fillCategorySearchQuery.toLowerCase())
-                                            )
-                                            .slice(0, 20)
-                                            .map((category) => (
-                                                <button
-                                                    key={category.id}
-                                                    onClick={() => handleAddSelectedCategory(category)}
-                                                    disabled={customCategories.length >= 5 || customCategories.some(c => c.id === category.id)}
-                                                    className={`w-full text-left p-2 rounded text-sm ${
-                                                        customCategories.some(c => c.id === category.id)
-                                                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                                                            : 'bg-gray-50 hover:bg-gray-100 text-gray-900'
-                                                    }`}
-                                                >
-                                                    {category.name} ({category._count?.questions || 0} questions)
-                                                </button>
-                                            ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="flex gap-3 justify-end">
-                            <button
-                                onClick={() => {
-                                    setShowWarningModal(false)
-                                    setPendingGameConfig(null)
-                                }}
-                                className="btn-secondary"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleConfirmStartGame}
-                                className="btn-primary"
-                            >
-                                Start Anyway
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <WarningModal
+                isOpen={showWarningModal}
+                mode={selectedMode === 'custom' ? 'custom' : 'knowledge'}
+                customCategories={customCategories}
+                knowledgeCategoriesCount={selectedCategories.length}
+                availableCategoriesForFill={availableCategoriesForFill}
+                isLoadingFillCategories={isLoadingFillCategories}
+                onClose={() => {
+                    setShowWarningModal(false)
+                    setPendingGameConfig(null)
+                }}
+                onConfirm={handleConfirmStartGame}
+                onAddRandom={handleAddRandomCategories}
+                onAddCategory={handleAddSelectedCategory}
+            />
 
             {/* Spoiler Warning Modal */}
-            {showSpoilerWarningModal && spoilerWarningConfig && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl">
-                        <div className="flex items-start gap-4 mb-4">
-                            <div className="flex-shrink-0 w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
-                                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-bold text-gray-900">Spoiler Warning</h2>
-                                <p className="text-sm text-gray-500 mt-1">This game may include questions you haven&apos;t seen yet</p>
-                            </div>
-                        </div>
-
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-6">
-                            <p className="text-gray-800">
-                                Based on your spoiler settings, this game might include questions which spoil up to{' '}
-                                <strong>{spoilerWarningDate}</strong>.
-                            </p>
-                            {spoilerSettings?.cutoffDate && (
-                                <p className="text-gray-600 text-sm mt-2">
-                                    Your current spoiler protection blocks episodes from{' '}
-                                    <strong>
-                                        {spoilerSettings.cutoffDate.toLocaleDateString('en-US', {
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}
-                                    </strong>{' '}
-                                    and later.
-                                </p>
-                            )}
-                        </div>
-
-                        <div className="space-y-3">
-                            <p className="text-sm font-medium text-gray-700">What would you like to do?</p>
-
-                            {/* Option 1: Update spoiler date */}
-                            {spoilerWarningConfig.date && (
-                                <button
-                                    onClick={() => {
-                                        // Set the new cutoff to the day after the episode date
-                                        const episodeDate = new Date(spoilerWarningConfig.date)
-                                        const newCutoff = new Date(episodeDate)
-                                        newCutoff.setDate(newCutoff.getDate() + 1)
-                                        handleUpdateSpoilerDate(newCutoff)
-                                    }}
-                                    disabled={updatingSpoilerDate}
-                                    className="w-full p-3 text-left rounded-lg border border-gray-200 hover:border-blue-500 hover:bg-blue-50 transition-colors group"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200">
-                                            <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                            </svg>
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900">Update my spoiler date</p>
-                                            <p className="text-sm text-gray-500">
-                                                Change your cutoff to include this episode ({spoilerWarningDate})
-                                            </p>
-                                        </div>
-                                    </div>
-                                </button>
-                            )}
-
-                            {/* Option 2: Proceed anyway */}
-                            <button
-                                onClick={handleProceedWithSpoiler}
-                                disabled={updatingSpoilerDate}
-                                className="w-full p-3 text-left rounded-lg border border-gray-200 hover:border-amber-500 hover:bg-amber-50 transition-colors group"
-                            >
-                                <div className="flex items-center gap-3">
-                                    <div className="flex-shrink-0 w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center group-hover:bg-amber-200">
-                                        <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-gray-900">Proceed anyway for this game</p>
-                                        <p className="text-sm text-gray-500">
-                                            Start the game without changing your spoiler settings
-                                        </p>
-                                    </div>
-                                </div>
-                            </button>
-
-                            {/* Option 3: Choose a custom date */}
-                            <div className="p-3 rounded-lg border border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-colors">
-                                <div className="flex items-center gap-3 mb-3">
-                                    <div className="flex-shrink-0 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                                        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-gray-900">Choose a different cutoff date</p>
-                                        <p className="text-sm text-gray-500">
-                                            Set a custom date for your spoiler protection
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="pl-11">
-                                    <input
-                                        type="date"
-                                        value={spoilerSettings?.cutoffDate ? spoilerSettings.cutoffDate.toISOString().split('T')[0] : ''}
-                                        onChange={(e) => {
-                                            if (e.target.value) {
-                                                const newDate = new Date(e.target.value)
-                                                // Add one day to make it the cutoff (show episodes before this date)
-                                                newDate.setDate(newDate.getDate() + 1)
-                                                handleUpdateSpoilerDate(newDate)
-                                            }
-                                        }}
-                                        disabled={updatingSpoilerDate}
-                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 text-gray-900 text-sm transition-all duration-200"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Episodes aired before this date will be available
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="mt-6 pt-4 border-t border-gray-200">
-                            <button
-                                onClick={() => {
-                                    setShowSpoilerWarningModal(false)
-                                    setSpoilerWarningConfig(null)
-                                    setSpoilerWarningDate(null)
-                                }}
-                                disabled={updatingSpoilerDate}
-                                className="w-full btn-secondary"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <SpoilerWarningModal
+                isOpen={showSpoilerWarningModal}
+                spoilerSettings={spoilerSettings}
+                conflictDate={spoilerWarningDate}
+                gameConfigDate={spoilerWarningConfig?.date}
+                updatingSpoilerDate={updatingSpoilerDate}
+                onClose={() => {
+                    setShowSpoilerWarningModal(false)
+                    setSpoilerWarningConfig(null)
+                    setSpoilerWarningDate(null)
+                }}
+                onProceed={handleProceedWithSpoiler}
+                onUpdateSpoilerDate={handleUpdateSpoilerDate}
+            />
         </div>
     )
 }

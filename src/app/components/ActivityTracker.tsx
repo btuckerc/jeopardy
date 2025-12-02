@@ -8,12 +8,14 @@ import { useUser } from '@clerk/nextjs'
  * ActivityTracker component
  * Tracks user activity (last online time and current page) for authenticated users
  * Updates are throttled client-side (once per page navigation) and server-side (once per minute)
+ * Deferred to avoid blocking initial render
  */
 export function ActivityTracker() {
     const { isLoaded, isSignedIn } = useUser()
     const pathname = usePathname()
     const lastPathRef = useRef<string | null>(null)
     const isTrackingRef = useRef(false)
+    const timeoutRef = useRef<NodeJS.Timeout>()
 
     useEffect(() => {
         // Only track for authenticated users
@@ -31,28 +33,45 @@ export function ActivityTracker() {
             return
         }
 
-        // Track the current path
-        const trackActivity = async () => {
+        // Clear any pending timeout
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+        }
+
+        // Defer tracking to avoid blocking navigation
+        // Use requestIdleCallback if available, otherwise setTimeout
+        const trackActivity = () => {
             isTrackingRef.current = true
             lastPathRef.current = pathname
 
-            try {
-                await fetch('/api/user/activity', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ path: pathname }),
+            fetch('/api/user/activity', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ path: pathname }),
+            })
+                .catch(() => {
+                    // Silently fail - activity tracking shouldn't break the app
                 })
-            } catch (error) {
-                // Silently fail - activity tracking shouldn't break the app
-                console.error('Failed to track activity:', error)
-            } finally {
-                isTrackingRef.current = false
-            }
+                .finally(() => {
+                    isTrackingRef.current = false
+                })
         }
 
-        trackActivity()
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            timeoutRef.current = setTimeout(() => {
+                requestIdleCallback(trackActivity, { timeout: 2000 })
+            }, 100) as any
+        } else {
+            timeoutRef.current = setTimeout(trackActivity, 500)
+        }
+
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current)
+            }
+        }
     }, [isLoaded, isSignedIn, pathname])
 
     // Track activity on page unload using sendBeacon

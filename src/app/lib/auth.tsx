@@ -28,9 +28,15 @@ export function useAuth() {
     const [hasFetched, setHasFetched] = useState(false)
     
     // Fetch app user data from our API when Clerk is loaded and signed in
+    // Deferred slightly to avoid blocking initial render
     useEffect(() => {
         async function fetchAppUser() {
             if (!isLoaded || !isSignedIn || fetchingUser || hasFetched) return
+            
+            // Small delay to avoid blocking initial render
+            await new Promise(resolve => setTimeout(resolve, 50))
+            
+            if (fetchingUser || hasFetched) return // Check again after delay
             
             setFetchingUser(true)
             try {
