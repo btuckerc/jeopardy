@@ -1128,10 +1128,10 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 <h1 className="text-2xl font-bold text-black mb-6">Admin Dashboard</h1>
             </div>
 
-            {/* Tab Navigation - Full width scrollable */}
+            {/* Tab Navigation - wraps on small screens, scrolls on very narrow widths */}
             <div className="mb-6 border-b border-gray-200 bg-gray-50 relative">
-                <div className="overflow-x-auto pb-2 scrollbar-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    <div className="flex gap-2 px-4 py-2 min-w-max">
+                <div className="pb-2 overflow-x-auto scrollbar-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <div className="flex flex-wrap gap-2 px-4 py-2">
                         <button
                             onClick={() => setActiveTab('manage')}
                             className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
@@ -2330,8 +2330,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 </div>
                             ) : (
                                 <>
-                                    {/* Mobile Card View */}
-                                    <div className="block md:hidden space-y-3">
+                                    {/* Mobile / Tablet Card View */}
+                                    <div className="block lg:hidden space-y-3">
                                         {cronExecutions.map((execution: any) => (
                                             <div key={execution.id} className="bg-white border rounded-lg p-4 space-y-2">
                                                 <div className="flex items-start justify-between gap-2">
@@ -2390,7 +2390,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                         ))}
                                     </div>
                                     {/* Desktop Table View */}
-                                    <div className="hidden md:block overflow-x-auto">
+                                    <div className="hidden lg:block overflow-x-auto">
                                         <table className="min-w-full divide-y divide-gray-200">
                                             <thead className="bg-gray-50">
                                                 <tr>
