@@ -22,6 +22,10 @@ interface DailyChallenge {
         completedAt: string
         userAnswerText?: string | null
     } | null
+    guestConfig?: {
+        guestEnabled: boolean
+        guestAppearsOnLeaderboard: boolean
+    }
 }
 
 interface LeaderboardEntry {
@@ -64,6 +68,7 @@ export default function DailyChallengePage() {
     const [revealMyAnswer, setRevealMyAnswer] = useState(false)
     const [storedUserAnswer, setStoredUserAnswer] = useState<string | null>(null)
     const [showBackToTop, setShowBackToTop] = useState(false)
+    const [showQuestion, setShowQuestion] = useState(false)
 
     useEffect(() => {
         loadChallenge()
@@ -91,6 +96,8 @@ export default function DailyChallengePage() {
                 const data = await response.json()
                 setChallenge(data)
                 if (data.userAnswer) {
+                    // User has already answered - show question and result immediately
+                    setShowQuestion(true)
                     setShowAnswer(true)
                     setIsCorrect(data.userAnswer.correct)
                     // Store the user's previous answer text if available
@@ -101,6 +108,9 @@ export default function DailyChallengePage() {
                     if (data.userAnswer.correct) {
                         setRevealAnswer(true)
                     }
+                } else {
+                    // User hasn't answered yet - start with category-only view
+                    setShowQuestion(false)
                 }
             }
         } catch (error) {
@@ -139,8 +149,9 @@ export default function DailyChallengePage() {
             if (!response.ok) {
                 const error = await response.json()
                 if (error.requiresAuth) {
-                    // Guest participation disabled - redirect to sign in
-                    router.push('/sign-in')
+                    // Guest participation disabled - redirect to sign in with return URL
+                    const currentPath = window.location.pathname
+                    router.push(`/sign-in?redirect_url=${encodeURIComponent(currentPath)}`)
                     return
                 }
                 throw new Error(error.error || 'Failed to submit answer')
@@ -148,6 +159,7 @@ export default function DailyChallengePage() {
 
             const data = await response.json()
             setIsCorrect(data.correct)
+            setShowQuestion(true) // Ensure question is visible in result view
             setShowAnswer(true)
             // Auto-reveal answer if correct, otherwise require button click
             if (data.correct) {
@@ -337,48 +349,114 @@ export default function DailyChallengePage() {
                             <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')] pointer-events-none"></div>
                             
                             <div className="relative p-5 sm:p-8 md:p-10 lg:p-12">
-                                <h2 className="text-white text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-6 sm:mb-8 md:mb-10 leading-relaxed text-center">
-                                    {challenge.question.question}
-                                </h2>
-
-                                {!showAnswer ? (
-                                    <div className="space-y-4 sm:space-y-5 max-w-2xl mx-auto">
-                                        <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-5 border border-white/20">
-                                            <input
-                                                type="text"
-                                                value={userAnswer}
-                                                onChange={(e) => setUserAnswer(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && userAnswer.trim() && !submitting) {
-                                                        handleSubmit()
-                                                    }
-                                                }}
-                                                className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-white rounded-lg text-base sm:text-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 border-2 border-transparent"
-                                                placeholder="What is..."
-                                                autoFocus
-                                            />
+                                {/* Check if user needs to sign in (guest disabled) - wait for auth to finish loading */}
+                                {authLoading ? (
+                                    <div className="text-center py-12">
+                                        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-amber-400 border-r-transparent"></div>
+                                    </div>
+                                ) : !user && !challenge.guestConfig?.guestEnabled ? (
+                                    <div className="space-y-6 sm:space-y-8 text-center">
+                                        <div className="bg-gradient-to-b from-blue-700 to-blue-800 py-12 sm:py-16 px-8 rounded-xl">
+                                            <p className="text-blue-300 text-lg sm:text-xl mb-4 uppercase tracking-widest">The Category Is</p>
+                                            <h2 className="text-white text-2xl sm:text-4xl md:text-5xl font-bold uppercase tracking-wide leading-tight">
+                                                {challenge.question.category}
+                                            </h2>
                                         </div>
-                                        <button
-                                            onClick={handleSubmit}
-                                            disabled={!userAnswer.trim() || submitting}
-                                            className={`w-full py-3 sm:py-4 rounded-lg sm:rounded-xl font-bold text-base sm:text-lg transition-all ${
-                                                !userAnswer.trim() || submitting
-                                                    ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
-                                                    : 'bg-amber-400 text-blue-900 hover:bg-amber-500 shadow-lg hover:shadow-xl'
-                                            }`}
-                                        >
-                                            {submitting ? (
-                                                <span className="flex items-center justify-center gap-2">
-                                                    <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-blue-900 border-r-transparent"></span>
-                                                    Submitting...
-                                                </span>
-                                            ) : (
-                                                'Submit Answer'
-                                            )}
-                                        </button>
+                                        
+                                        <div className="space-y-4 sm:space-y-6">
+                                            <div className="bg-amber-500/20 border border-amber-400/30 rounded-lg sm:rounded-xl p-6 sm:p-8">
+                                                <h3 className="text-xl sm:text-2xl font-bold text-amber-300 mb-3 sm:mb-4">Sign In to Play Today&apos;s Daily Challenge</h3>
+                                                <p className="text-blue-200 mb-6 sm:mb-8 leading-relaxed text-sm sm:text-base">
+                                                    Create an account or sign in to reveal the clue and participate in today&apos;s challenge.
+                                                </p>
+                                                <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 max-w-md mx-auto">
+                                                    <Link 
+                                                        href={`/sign-up?redirect_url=${encodeURIComponent('/daily-challenge')}`} 
+                                                        className="btn-primary flex-1 text-center py-3 sm:py-3.5"
+                                                    >
+                                                        Sign Up
+                                                    </Link>
+                                                    <Link 
+                                                        href={`/sign-in?redirect_url=${encodeURIComponent('/daily-challenge')}`} 
+                                                        className="btn-secondary flex-1 text-center py-3 sm:py-3.5"
+                                                    >
+                                                        Sign In
+                                                    </Link>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : !showQuestion ? (
+                                    <div className="space-y-6 sm:space-y-8">
+                                        <div className="bg-gradient-to-b from-blue-700 to-blue-800 py-12 sm:py-16 px-8 rounded-xl text-center">
+                                            <p className="text-blue-300 text-lg sm:text-xl mb-4 uppercase tracking-widest">The Category Is</p>
+                                            <h2 className="text-white text-2xl sm:text-4xl md:text-5xl font-bold uppercase tracking-wide leading-tight">
+                                                {challenge.question.category}
+                                            </h2>
+                                        </div>
+                                        
+                                        <div className="text-center">
+                                            <button
+                                                onClick={() => setShowQuestion(true)}
+                                                className="inline-flex items-center gap-3 px-8 sm:px-10 py-4 sm:py-5 bg-amber-400 text-blue-900 rounded-xl sm:rounded-2xl hover:bg-amber-500 transition-all font-bold shadow-lg hover:shadow-xl text-lg sm:text-xl"
+                                            >
+                                                <svg className="w-6 h-6 sm:w-7 sm:h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                                Reveal the Clue
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : !showAnswer ? (
+                                    <div className="space-y-6 sm:space-y-8">
+                                        <h2 className="text-white text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-6 sm:mb-8 md:mb-10 leading-relaxed text-center">
+                                            {challenge.question.question}
+                                        </h2>
+                                        
+                                        <div className="space-y-4 sm:space-y-5 max-w-2xl mx-auto">
+                                            <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-5 border border-white/20">
+                                                <input
+                                                    type="text"
+                                                    value={userAnswer}
+                                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && userAnswer.trim() && !submitting) {
+                                                            handleSubmit()
+                                                        }
+                                                    }}
+                                                    className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-white rounded-lg text-base sm:text-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 border-2 border-transparent"
+                                                    placeholder="What is..."
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={handleSubmit}
+                                                disabled={!userAnswer.trim() || submitting}
+                                                className={`w-full py-3 sm:py-4 rounded-lg sm:rounded-xl font-bold text-base sm:text-lg transition-all ${
+                                                    !userAnswer.trim() || submitting
+                                                        ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
+                                                        : 'bg-amber-400 text-blue-900 hover:bg-amber-500 shadow-lg hover:shadow-xl'
+                                                }`}
+                                            >
+                                                {submitting ? (
+                                                    <span className="flex items-center justify-center gap-2">
+                                                        <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-blue-900 border-r-transparent"></span>
+                                                        Submitting...
+                                                    </span>
+                                                ) : (
+                                                    'Submit Answer'
+                                                )}
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="space-y-4 sm:space-y-6 max-w-3xl mx-auto">
+                                        {/* Question Text - shown in result view */}
+                                        <h2 className="text-white text-lg sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-6 sm:mb-8 md:mb-10 leading-relaxed text-center">
+                                            {challenge.question.question}
+                                        </h2>
+                                        
                                         {/* Result Feedback */}
                                         <div className={`p-4 sm:p-6 md:p-8 rounded-lg sm:rounded-xl text-center ${
                                             isCorrect 
@@ -507,10 +585,16 @@ export default function DailyChallengePage() {
                                                             Your answer has been graded, but you won&apos;t appear on the leaderboard until you sign in.
                                                         </p>
                                                         <div className="flex gap-2 sm:gap-3">
-                                                            <Link href="/sign-up" className="btn-primary flex-1 text-center text-sm sm:text-base py-2 sm:py-2.5">
+                                                            <Link 
+                                                                href={`/sign-up?redirect_url=${encodeURIComponent('/daily-challenge')}`} 
+                                                                className="btn-primary flex-1 text-center text-sm sm:text-base py-2 sm:py-2.5"
+                                                            >
                                                                 Sign Up
                                                             </Link>
-                                                            <Link href="/sign-in" className="btn-secondary flex-1 text-center text-sm sm:text-base py-2 sm:py-2.5">
+                                                            <Link 
+                                                                href={`/sign-in?redirect_url=${encodeURIComponent('/daily-challenge')}`} 
+                                                                className="btn-secondary flex-1 text-center text-sm sm:text-base py-2 sm:py-2.5"
+                                                            >
                                                                 Sign In
                                                             </Link>
                                                         </div>

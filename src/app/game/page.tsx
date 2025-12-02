@@ -691,7 +691,7 @@ export default function GameHubPage() {
                         </div>
                         <h1 className="text-2xl font-bold text-gray-900 mb-2">Play Jeopardy!</h1>
                         <p className="text-gray-600 mb-6">Sign in to start a new game or resume where you left off.</p>
-                        <Link href="/auth/signin" className="btn-primary inline-flex items-center gap-2">
+                        <Link href="/sign-in?redirect_url=/game" className="btn-primary inline-flex items-center gap-2">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                             </svg>

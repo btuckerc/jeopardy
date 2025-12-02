@@ -20,7 +20,14 @@ export const metadata: Metadata = {
     },
 }
 
-export default function SignInPage() {
+export default async function SignInPage({
+    searchParams,
+}: {
+    searchParams: Promise<{ redirect_url?: string }>
+}) {
+    const params = await searchParams
+    const redirectUrl = params?.redirect_url || '/'
+    
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-md w-full space-y-8">
@@ -45,7 +52,8 @@ export default function SignInPage() {
                         }}
                         routing="path"
                         path="/sign-in"
-                        signUpUrl="/sign-up"
+                        signUpUrl={`/sign-up${redirectUrl !== '/' ? `?redirect_url=${encodeURIComponent(redirectUrl)}` : ''}`}
+                        afterSignInUrl={redirectUrl}
                     />
                 </div>
 

@@ -59,9 +59,7 @@ export async function POST(
             jobName,
             user.id, // Store admin user ID as triggeredBy
             async () => {
-                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
-                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
-                    'http://localhost:3000'
+                const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
                 
                 const response = await fetch(`${baseUrl}${job.endpoint}`, {
                     method: 'GET',

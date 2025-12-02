@@ -1526,7 +1526,7 @@ export default function StatsPage() {
             if (authLoading) return
             
             if (!user) {
-                router.push('/auth/signin')
+                router.push('/sign-in?redirect_url=/stats')
                 return
             }
 
