@@ -1,11 +1,61 @@
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 
+export interface GameConfig {
+    mode: 'random' | 'knowledge' | 'custom' | 'date'
+    categories?: string[]
+    categoryIds?: string[]
+    date?: string
+    rounds: {
+        single: boolean
+        double: boolean
+        final: boolean
+    }
+    finalCategoryMode?: string
+    finalCategoryId?: string
+    finalJeopardyQuestionId?: string
+    finalJeopardyStage?: 'category' | 'question' | 'result'
+    finalJeopardyWager?: number
+}
+
+export interface GameData {
+    id: string
+    seed: string | null
+    config: GameConfig
+    status: string
+    currentRound: 'SINGLE' | 'DOUBLE' | 'FINAL'
+    currentScore: number
+    visibility: string
+    owner: {
+        id: string
+        displayName: string | null
+        selectedIcon: string | null
+        avatarBackground: string | null
+    }
+    isOwner: boolean
+    questions: Record<string, {
+        id: string
+        answered: boolean
+        correct: boolean | null
+        questionId: string
+        categoryId: string
+        categoryName: string
+    }>
+    stats: {
+        totalQuestions: number
+        answeredQuestions: number
+        correctQuestions: number
+        percentComplete: number
+    }
+    createdAt: Date
+    updatedAt: Date
+}
+
 /**
  * Server-side utility to fetch game data
  * Reuses logic from the API route but can be called directly from server components
  */
-export async function getGameData(gameId: string) {
+export async function getGameData(gameId: string): Promise<GameData> {
     const appUser = await getAppUser()
     if (!appUser) {
         throw new Error('Unauthorized')
@@ -75,10 +125,15 @@ export async function getGameData(gameId: string) {
     const answeredQuestions = game.questions.filter(q => q.answered).length
     const correctQuestions = game.questions.filter(q => q.correct === true).length
 
+    // Validate and cast config
+    if (!game.config || typeof game.config !== 'object' || Array.isArray(game.config)) {
+        throw new Error('Invalid game configuration')
+    }
+
     return {
         id: game.id,
         seed: game.seed,
-        config: game.config,
+        config: game.config as GameConfig,
         status: game.status,
         currentRound: game.currentRound,
         currentScore: game.currentScore,

@@ -100,23 +100,10 @@ const organizeQuestionsByValue = (questions: Question[], isDoubleJeopardy: boole
     return organized
 }
 
+import type { GameData } from '@/lib/game-data'
+
 interface GameBoardByIdProps {
-    initialGameData?: {
-        id: string
-        seed: string | null
-        config: GameConfig
-        status: string
-        currentRound: 'SINGLE' | 'DOUBLE' | 'FINAL'
-        currentScore: number
-        questions: Record<string, {
-            id: string
-            answered: boolean
-            correct: boolean | null
-            questionId: string
-            categoryId: string
-            categoryName: string
-        }>
-    }
+    initialGameData?: GameData
 }
 
 export default function GameBoardById({ initialGameData }: GameBoardByIdProps = {}) {
