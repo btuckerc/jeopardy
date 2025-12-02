@@ -6,23 +6,6 @@ import Link from 'next/link'
 import { useAuth } from '../../lib/auth'
 import { checkAnswer } from '../../lib/answer-checker'
 import Scoreboard, { Player } from '@/components/Scoreboard'
-import dynamic from 'next/dynamic'
-
-// Dynamically import heavy components
-const FinalJeopardyView = dynamic(
-    () => import('./components/FinalJeopardyView').catch(() => ({ default: () => null })),
-    { ssr: false }
-)
-
-const DisputeModal = dynamic(
-    () => import('./components/DisputeModal').catch(() => ({ default: () => null })),
-    { ssr: false }
-)
-
-const CelebrationModal = dynamic(
-    () => import('./components/CelebrationModal').catch(() => ({ default: () => null })),
-    { ssr: false }
-)
 
 interface Question {
     id: string
