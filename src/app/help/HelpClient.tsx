@@ -292,6 +292,25 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                             to see your progress and discover new goals to work toward.
                         </p>
                     </div>
+                    <div className="pt-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">What are the display name rules?</h3>
+                        <p className="text-gray-600 mb-2">
+                            Display names must follow these rules:
+                        </p>
+                        <ul className="text-gray-600 list-disc list-inside space-y-1 mb-2">
+                            <li>Must be between 3 and 20 characters (after trimming spaces)</li>
+                            <li>Can contain letters, numbers, spaces, and these characters: . _ -</li>
+                            <li>Must be unique (case-insensitive, ignoring leading/trailing spaces)</li>
+                            <li>Cannot contain profanity or offensive language</li>
+                            <li>Cannot impersonate official roles (e.g., &quot;admin&quot;, &quot;moderator&quot;, &quot;official&quot;, &quot;staff&quot;)</li>
+                            <li>Cannot use reserved names like &quot;Jeopardy&quot; or &quot;system&quot;</li>
+                        </ul>
+                        <p className="text-gray-600">
+                            Display names are case-insensitive for uniqueness checks, meaning &quot;Alice&quot;, &quot;alice&quot;, and &quot;ALICE&quot; 
+                            are considered the same name. Leading and trailing spaces are automatically trimmed. Existing display names 
+                            that don&apos;t meet these rules are grandfathered in, but any future changes must comply with all rules.
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

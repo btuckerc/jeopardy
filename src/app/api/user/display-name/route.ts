@@ -6,7 +6,7 @@ import {
     badRequestResponse,
     serverErrorResponse
 } from '@/lib/api-utils'
-import { generateRandomDisplayName } from '@/lib/display-name'
+import { generateRandomDisplayName, validateDisplayName, normalizeDisplayName } from '@/lib/display-name'
 
 export async function GET() {
     const appUser = await getAppUser()
@@ -45,29 +45,68 @@ export async function POST(request: Request) {
     try {
         const { displayName, selectedIcon, avatarBackground } = await request.json()
 
-        if (displayName && typeof displayName !== 'string') {
-            return badRequestResponse('Display name must be a string')
-        }
-
-        if (displayName && (displayName.length < 3 || displayName.length > 20)) {
-            return badRequestResponse('Display name must be between 3 and 20 characters')
-        }
-
-        const user = await prisma.user.update({
-            where: { id: appUser.id },
-            data: {
-                displayName: displayName || undefined,
-                selectedIcon: selectedIcon === null ? null : selectedIcon || undefined,
-                avatarBackground: avatarBackground === null ? null : avatarBackground || undefined
-            },
-            select: {
-                displayName: true,
-                selectedIcon: true,
-                avatarBackground: true
+        // Validate display name if provided
+        if (displayName !== undefined && displayName !== null) {
+            if (typeof displayName !== 'string') {
+                return badRequestResponse('Display name must be a string')
             }
-        })
 
-        return jsonResponse(user)
+            // Validate using shared validation function
+            const validation = validateDisplayName(displayName)
+            if (!validation.ok) {
+                return badRequestResponse(validation.message)
+            }
+
+            // Check for uniqueness (case-insensitive, trimmed)
+            const normalized = validation.normalized
+            const existingUser = await prisma.user.findFirst({
+                where: {
+                    id: { not: appUser.id },
+                    displayName: {
+                        equals: normalized,
+                        mode: 'insensitive'
+                    }
+                },
+                select: { id: true }
+            })
+
+            if (existingUser) {
+                return badRequestResponse('That display name is already taken. Please choose another.')
+            }
+
+            // Update with normalized display name
+            const user = await prisma.user.update({
+                where: { id: appUser.id },
+                data: {
+                    displayName: normalized,
+                    selectedIcon: selectedIcon === null ? null : selectedIcon || undefined,
+                    avatarBackground: avatarBackground === null ? null : avatarBackground || undefined
+                },
+                select: {
+                    displayName: true,
+                    selectedIcon: true,
+                    avatarBackground: true
+                }
+            })
+
+            return jsonResponse(user)
+        } else {
+            // Only updating icon or avatar background, not display name
+            const user = await prisma.user.update({
+                where: { id: appUser.id },
+                data: {
+                    selectedIcon: selectedIcon === null ? null : selectedIcon || undefined,
+                    avatarBackground: avatarBackground === null ? null : avatarBackground || undefined
+                },
+                select: {
+                    displayName: true,
+                    selectedIcon: true,
+                    avatarBackground: true
+                }
+            })
+
+            return jsonResponse(user)
+        }
     } catch (error) {
         return serverErrorResponse('Failed to update user data', error)
     }
