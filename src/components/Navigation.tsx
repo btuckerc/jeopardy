@@ -27,7 +27,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
     }, [])
 
     return (
-        <nav className="bg-blue-800 text-white shadow-lg">
+        <nav className="bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 text-white shadow-lg">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex min-h-16 py-2 items-center justify-between">
                     {/* Left side: Logo and Navigation */}

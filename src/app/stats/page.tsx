@@ -133,11 +133,13 @@ function StatsDetailModal({
     type: StatModalType
     onClose: () => void 
 }) {
+    const { user } = useAuth()
     const [questions, setQuestions] = useState<HistoryQuestion[]>([])
     const [loading, setLoading] = useState(true)
     const [activeTab, setActiveTab] = useState<'correct' | 'incorrect'>('incorrect')
     const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({})
     const [revealedMyAnswers, setRevealedMyAnswers] = useState<Record<string, boolean>>({})
+    const [disputeSubmitted, setDisputeSubmitted] = useState<Record<string, boolean>>({})
     const [summary, setSummary] = useState({ totalCorrect: 0, totalIncorrect: 0, totalTripleStumpers: 0, totalAttempted: 0 })
 
     // Prevent background scrolling when modal is open
@@ -177,6 +179,7 @@ function StatsDetailModal({
         setActiveTab(tab)
         setRevealedAnswers({})
         setRevealedMyAnswers({})
+        setDisputeSubmitted({})
         fetchQuestions(tab)
     }
 
@@ -192,6 +195,38 @@ function StatsDetailModal({
             ...prev,
             [questionId]: !prev[questionId]
         }))
+    }
+
+    const handleDispute = async (question: HistoryQuestion) => {
+        if (!user?.id || !question.lastIncorrectUserAnswer || disputeSubmitted[question.id]) return
+
+        try {
+            const response = await fetch('/api/answers/disputes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionId: question.id,
+                    gameId: null,
+                    mode: 'PRACTICE',
+                    round: question.round as 'SINGLE' | 'DOUBLE' | 'FINAL',
+                    userAnswer: question.lastIncorrectUserAnswer,
+                    systemWasCorrect: false
+                })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                console.error('Failed to submit dispute:', error.error)
+                return
+            }
+
+            setDisputeSubmitted(prev => ({
+                ...prev,
+                [question.id]: true
+            }))
+        } catch (error) {
+            console.error('Error submitting dispute:', error)
+        }
     }
 
     const formatDate = (dateString: string | null) => {
@@ -395,6 +430,33 @@ function StatsDetailModal({
                                     {revealedAnswers[question.id] && (
                                         <div className="mt-3 p-3 bg-white rounded border border-gray-200">
                                             <p className="text-gray-700 font-medium italic">{question.answer}</p>
+                                            {!question.correct && question.lastIncorrectUserAnswer && user?.id && (
+                                                <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                                                    {disputeSubmitted[question.id] ? (
+                                                        <span className="text-sm text-gray-500 flex items-center gap-1">
+                                                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                            Dispute submitted
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1">
+                                                            <button
+                                                                onClick={() => handleDispute(question)}
+                                                                className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                            >
+                                                                Dispute this answer
+                                                            </button>
+                                                            <span className="relative group">
+                                                                <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
+                                                                <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                                    An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                                </span>
+                                                            </span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     
@@ -577,12 +639,14 @@ function RoundHistoryModal({
     roundStats: RoundStats | undefined
     onClose: () => void 
 }) {
+    const { user } = useAuth()
     const router = useRouter()
     const [questions, setQuestions] = useState<RoundHistoryQuestion[]>([])
     const [categories, setCategories] = useState<RoundHistoryCategory[]>([])
     const [loading, setLoading] = useState(true)
     const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({})
     const [revealedMyAnswers, setRevealedMyAnswers] = useState<Record<string, boolean>>({})
+    const [disputeSubmitted, setDisputeSubmitted] = useState<Record<string, boolean>>({})
     const [summary, setSummary] = useState({ totalCorrect: 0, totalIncorrect: 0, totalAttempted: 0, totalPoints: 0 })
     const [viewMode, setViewMode] = useState<'questions' | 'categories'>('questions')
 
@@ -627,6 +691,38 @@ function RoundHistoryModal({
             ...prev,
             [questionId]: !prev[questionId]
         }))
+    }
+
+    const handleDispute = async (question: RoundHistoryQuestion) => {
+        if (!user?.id || !question.lastIncorrectUserAnswer || disputeSubmitted[question.id]) return
+
+        try {
+            const response = await fetch('/api/answers/disputes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionId: question.id,
+                    gameId: null,
+                    mode: 'PRACTICE',
+                    round: question.round as 'SINGLE' | 'DOUBLE' | 'FINAL',
+                    userAnswer: question.lastIncorrectUserAnswer,
+                    systemWasCorrect: false
+                })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                console.error('Failed to submit dispute:', error.error)
+                return
+            }
+
+            setDisputeSubmitted(prev => ({
+                ...prev,
+                [question.id]: true
+            }))
+        } catch (error) {
+            console.error('Error submitting dispute:', error)
+        }
     }
 
     const formatDate = (dateString: string | null) => {
@@ -890,6 +986,33 @@ function RoundHistoryModal({
                                         {revealedAnswers[question.id] && (
                                             <div className="mt-3 p-3 bg-white rounded border border-gray-200">
                                                 <p className="text-gray-700 font-medium italic">{question.answer}</p>
+                                                {!question.correct && question.lastIncorrectUserAnswer && user?.id && (
+                                                    <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                                                        {disputeSubmitted[question.id] ? (
+                                                            <span className="text-sm text-gray-500 flex items-center gap-1">
+                                                                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                                Dispute submitted
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1">
+                                                                <button
+                                                                    onClick={() => handleDispute(question)}
+                                                                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                                >
+                                                                    Dispute this answer
+                                                                </button>
+                                                                <span className="relative group">
+                                                                    <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
+                                                                    <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                                        An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                                    </span>
+                                                                </span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                         
@@ -997,8 +1120,10 @@ function DailyChallengeHistoryModal({
     stats: DailyChallengeStats | null
     onClose: () => void 
 }) {
+    const { user } = useAuth()
     const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({})
     const [revealedMyAnswers, setRevealedMyAnswers] = useState<Record<string, boolean>>({})
+    const [disputeSubmitted, setDisputeSubmitted] = useState<Record<string, boolean>>({})
 
     // Prevent background scrolling when modal is open
     useEffect(() => {
@@ -1020,6 +1145,38 @@ function DailyChallengeHistoryModal({
             ...prev,
             [questionId]: !prev[questionId]
         }))
+    }
+
+    const handleDispute = async (entry: DailyChallengeStats['history'][0]) => {
+        if (!user?.id || !entry.userAnswer || disputeSubmitted[entry.questionId]) return
+
+        try {
+            const response = await fetch('/api/answers/disputes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    questionId: entry.questionId,
+                    gameId: null,
+                    mode: 'DAILY_CHALLENGE',
+                    round: 'FINAL' as const,
+                    userAnswer: entry.userAnswer,
+                    systemWasCorrect: false
+                })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                console.error('Failed to submit dispute:', error.error)
+                return
+            }
+
+            setDisputeSubmitted(prev => ({
+                ...prev,
+                [entry.questionId]: true
+            }))
+        } catch (error) {
+            console.error('Error submitting dispute:', error)
+        }
     }
 
     const formatDate = (dateString: string) => {
@@ -1196,6 +1353,33 @@ function DailyChallengeHistoryModal({
                                 {revealedAnswers[entry.questionId] && (
                                     <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
                                         <p className="text-gray-700 font-medium italic">{entry.answer}</p>
+                                        {!entry.correct && entry.userAnswer && user?.id && (
+                                            <div className="mt-2 pt-2 border-t border-gray-100 flex justify-end">
+                                                {disputeSubmitted[entry.questionId] ? (
+                                                    <span className="text-sm text-gray-500 flex items-center gap-1">
+                                                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                        Dispute submitted
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center gap-1">
+                                                        <button
+                                                            onClick={() => handleDispute(entry)}
+                                                            className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                        >
+                                                            Dispute this answer
+                                                        </button>
+                                                        <span className="relative group">
+                                                            <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
+                                                            <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                                An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                            </span>
+                                                        </span>
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 
