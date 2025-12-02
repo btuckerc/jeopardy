@@ -282,7 +282,8 @@ export function validateDisplayName(name: string): DisplayNameValidationResult {
     
     // Check for valid characters: letters, numbers, spaces, and limited punctuation (- _ .)
     // Allow Unicode letters and numbers for international support
-    const validCharRegex = /^[\p{L}\p{N}\s._-]+$/u
+    // Using RegExp constructor to avoid TypeScript regex flag issues in strict mode
+    const validCharRegex = new RegExp('^[\\p{L}\\p{N}\\s._-]+$', 'u')
     if (!validCharRegex.test(normalized)) {
         return {
             ok: false,
@@ -292,7 +293,8 @@ export function validateDisplayName(name: string): DisplayNameValidationResult {
     }
     
     // Industry best practice: Must contain at least one letter (not just numbers)
-    const hasLetter = /[\p{L}]/u.test(normalized)
+    const hasLetterRegex = new RegExp('[\\p{L}]', 'u')
+    const hasLetter = hasLetterRegex.test(normalized)
     if (!hasLetter) {
         return {
             ok: false,
