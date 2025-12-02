@@ -38,6 +38,8 @@ export interface AppUser {
     avatarBackground: string | null
     role: UserRole
     image: string | null
+    lastOnlineAt?: Date | null
+    lastSeenPath?: string | null
 }
 
 /**
@@ -218,6 +220,8 @@ function toAppUser(user: {
     avatarBackground: string | null
     role: UserRole
     image: string | null
+    lastOnlineAt?: Date | null
+    lastSeenPath?: string | null
 }): AppUser {
     return {
         id: user.id,
@@ -229,6 +233,8 @@ function toAppUser(user: {
         avatarBackground: user.avatarBackground,
         role: user.role,
         image: user.image,
+        lastOnlineAt: user.lastOnlineAt,
+        lastSeenPath: user.lastSeenPath,
     }
 }
 

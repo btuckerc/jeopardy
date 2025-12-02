@@ -71,7 +71,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [pushing, setPushing] = useState(false)
     
     // Tab state
-    const [activeTab, setActiveTab] = useState<'manage' | 'fetch' | 'player-games' | 'disputes' | 'daily-challenges' | 'guest-config' | 'cron'>('manage')
+    const [activeTab, setActiveTab] = useState<'manage' | 'fetch' | 'player-games' | 'disputes' | 'daily-challenges' | 'guest-config' | 'cron' | 'users'>('manage')
     
     // Cron jobs state
     const [cronExecutions, setCronExecutions] = useState<any[]>([])
@@ -80,7 +80,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [cronJobs, setCronJobs] = useState<any>(null)
     const [loadingCronJobs, setLoadingCronJobs] = useState(false)
     const [triggeringJob, setTriggeringJob] = useState<string | null>(null)
-    const [cronFilter, setCronFilter] = useState<'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games'>('all')
+    const [cronFilter, setCronFilter] = useState<'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games' | 'dispute-summary'>('all')
     const [cronStatusFilter, setCronStatusFilter] = useState<'all' | 'RUNNING' | 'SUCCESS' | 'FAILED'>('all')
     
     // Guest config state
@@ -106,6 +106,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [playerGames, setPlayerGames] = useState<any[]>([])
     const [loadingPlayerGames, setLoadingPlayerGames] = useState(false)
     const [playerGamesFilter, setPlayerGamesFilter] = useState<'all' | 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'>('all')
+    const [playerGamesUserIdFilter, setPlayerGamesUserIdFilter] = useState<string | null>(null)
     const [editingGame, setEditingGame] = useState<any>(null)
     const [editGameScore, setEditGameScore] = useState('')
     const [editGameRound, setEditGameRound] = useState('')
@@ -134,6 +135,23 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [disputeOverrideText, setDisputeOverrideText] = useState<Record<string, string>>({})
     const [disputesLoaded, setDisputesLoaded] = useState(false)
     const [pendingDisputesCount, setPendingDisputesCount] = useState<number | null>(null)
+
+    // User management state
+    const [users, setUsers] = useState<any[]>([])
+    const [loadingUsers, setLoadingUsers] = useState(false)
+    const [usersError, setUsersError] = useState<string | null>(null)
+    const [userSearch, setUserSearch] = useState('')
+    const [selectedUser, setSelectedUser] = useState<any>(null)
+    const [userGamesExpanded, setUserGamesExpanded] = useState<Set<string>>(new Set())
+    const [userAllGames, setUserAllGames] = useState<Record<string, any[]>>({})
+    const [loadingUserGames, setLoadingUserGames] = useState<Set<string>>(new Set())
+    const [showDeleteUserModal, setShowDeleteUserModal] = useState(false)
+    const [deleteUserConfirmText, setDeleteUserConfirmText] = useState('')
+    const [deletingUser, setDeletingUser] = useState(false)
+    const [showSendEmailModal, setShowSendEmailModal] = useState(false)
+    const [emailSubject, setEmailSubject] = useState('')
+    const [emailBody, setEmailBody] = useState('')
+    const [sendingEmail, setSendingEmail] = useState(false)
 
     // Existing games management state
     const [filterStartDate, setFilterStartDate] = useState('')
@@ -166,6 +184,136 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }
 
+    // Helper function to render cron job result
+    const renderCronResult = (result: any, jobName: string) => {
+        // Special rendering for dispute-summary job
+        if (jobName === 'dispute-summary' && result) {
+            // Handle nested data structure (result.data) or direct result
+            const data = result.data || result
+            
+            return (
+                <div className="space-y-4">
+                    {/* Summary Section */}
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
+                        <h4 className="font-semibold text-gray-900 mb-3">Summary</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div>
+                                <div className="text-xs text-gray-600 uppercase">Total Disputes</div>
+                                <div className="text-2xl font-bold text-gray-900">{data.pendingCount || data.summary?.totalDisputes || 0}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-600 uppercase">Recipients</div>
+                                <div className="text-2xl font-bold text-gray-900">{data.recipientCount || 0}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-600 uppercase">Emails Sent</div>
+                                <div className="text-2xl font-bold text-green-600">{data.successfulEmails || data.emailStatus?.sent || 0}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-600 uppercase">Failed</div>
+                                <div className="text-2xl font-bold text-red-600">{data.failedEmails || data.emailStatus?.failed || 0}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* By Mode Breakdown */}
+                    {data.summary?.byMode && Object.keys(data.summary.byMode).length > 0 && (
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-3">Disputes by Mode</h4>
+                            <div className="flex flex-wrap gap-3">
+                                {Object.entries(data.summary.byMode).map(([mode, count]: [string, any]) => (
+                                    <div key={mode} className="bg-gray-50 px-4 py-2 rounded-lg">
+                                        <div className="text-xs text-gray-600 uppercase">{mode.replace('_', ' ')}</div>
+                                        <div className="text-xl font-bold text-gray-900">{count}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Email Status */}
+                    {data.emailStatus && (
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-3">Email Recipients</h4>
+                            <div className="space-y-2">
+                                {data.emailStatus.recipients?.map((recipient: any, idx: number) => {
+                                    const emailResult = data.emailStatus.results?.[idx]
+                                    return (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                            <div>
+                                                <div className="font-medium text-sm">{recipient.name}</div>
+                                                <div className="text-xs text-gray-600">{recipient.email}</div>
+                                            </div>
+                                            {emailResult?.success ? (
+                                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Sent</span>
+                                            ) : (
+                                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                                                    Failed {emailResult?.error ? `: ${emailResult.error}` : ''}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Disputes List */}
+                    {data.disputes && data.disputes.length > 0 && (
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-3">Disputes ({data.disputes.length} shown)</h4>
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                {data.disputes.map((dispute: any, idx: number) => (
+                                    <div key={idx} className="border-l-4 border-blue-500 pl-3 py-2 bg-gray-50 rounded-r">
+                                        <div className="flex items-start justify-between mb-1">
+                                            <div className="font-medium text-sm text-gray-900">#{idx + 1} - {dispute.userName}</div>
+                                            <div className="text-xs text-gray-500">{dispute.createdAt}</div>
+                                        </div>
+                                        <div className="text-xs text-gray-600 space-y-1">
+                                            <div><span className="font-medium">Mode:</span> {dispute.mode} | <span className="font-medium">Round:</span> {dispute.round}</div>
+                                            <div><span className="font-medium">Category:</span> {dispute.category}</div>
+                                            <div><span className="font-medium">Question:</span> {dispute.questionPreview}</div>
+                                            <div><span className="font-medium">User Answer:</span> {dispute.userAnswer}</div>
+                                            <div>
+                                                <span className={`px-2 py-0.5 rounded text-xs ${dispute.systemWasCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                    System: {dispute.systemWasCorrect ? 'Correct' : 'Incorrect'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Message */}
+                    {data.message && (
+                        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
+                            <div className="text-sm text-blue-900">{data.message}</div>
+                        </div>
+                    )}
+
+                    {/* Raw JSON fallback */}
+                    <details className="text-xs">
+                        <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-medium">
+                            View Raw JSON
+                        </summary>
+                        <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto break-words whitespace-pre-wrap text-gray-900">
+                            {JSON.stringify(result, null, 2)}
+                        </pre>
+                    </details>
+                </div>
+            )
+        }
+
+        // Default JSON rendering for other jobs
+        return (
+            <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto break-words whitespace-pre-wrap text-gray-900">
+                {JSON.stringify(result, null, 2)}
+            </pre>
+        )
+    }
+
     // Function to fetch calendar stats
     const fetchCalendarStats = useCallback(async () => {
         try {
@@ -190,6 +338,9 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             if (playerGamesFilter !== 'all') {
                 params.append('status', playerGamesFilter)
             }
+            if (playerGamesUserIdFilter) {
+                params.append('userId', playerGamesUserIdFilter)
+            }
             params.append('limit', '100')
             
             const response = await fetch(`/api/admin/player-games?${params}`)
@@ -202,14 +353,94 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         } finally {
             setLoadingPlayerGames(false)
         }
-    }, [playerGamesFilter])
+    }, [playerGamesFilter, playerGamesUserIdFilter])
 
-    // Load player games when tab is active
+    // Load player games when tab is active or filters change
     useEffect(() => {
         if (activeTab === 'player-games') {
             fetchPlayerGames()
         }
-    }, [activeTab, fetchPlayerGames])
+    }, [activeTab, playerGamesFilter, playerGamesUserIdFilter, fetchPlayerGames])
+
+    // Fetch users
+    const fetchUsers = useCallback(async () => {
+        setLoadingUsers(true)
+        setUsersError(null)
+        try {
+            const params = new URLSearchParams()
+            if (userSearch) {
+                params.append('search', userSearch)
+            }
+            params.append('limit', '100')
+            
+            const response = await fetch(`/api/admin/users?${params}`)
+            if (response.ok) {
+                const data = await response.json()
+                setUsers(data.users || [])
+            } else {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to fetch users' }))
+                setUsersError(errorData.error || 'Failed to fetch users')
+            }
+        } catch (error) {
+            console.error('Error fetching users:', error)
+            setUsersError('Failed to fetch users')
+        } finally {
+            setLoadingUsers(false)
+        }
+    }, [userSearch])
+
+    // Load users when tab is active
+    useEffect(() => {
+        if (activeTab === 'users') {
+            fetchUsers()
+        }
+    }, [activeTab, fetchUsers])
+
+    // Fetch all games for a specific user
+    const fetchUserAllGames = useCallback(async (userId: string) => {
+        if (userAllGames[userId] || loadingUserGames.has(userId)) {
+            return // Already loaded or loading
+        }
+
+        setLoadingUserGames(prev => new Set(prev).add(userId))
+        try {
+            const params = new URLSearchParams()
+            params.append('userId', userId)
+            params.append('limit', '100')
+            
+            const response = await fetch(`/api/admin/player-games?${params}`)
+            if (response.ok) {
+                const data = await response.json()
+                setUserAllGames(prev => ({ ...prev, [userId]: data.games || [] }))
+            }
+        } catch (error) {
+            console.error('Error fetching user games:', error)
+        } finally {
+            setLoadingUserGames(prev => {
+                const next = new Set(prev)
+                next.delete(userId)
+                return next
+            })
+        }
+    }, [userAllGames, loadingUserGames])
+
+    // Navigate to Games tab filtered by user
+    const navigateToUserGames = useCallback((userId: string) => {
+        setPlayerGamesUserIdFilter(userId)
+        setActiveTab('player-games')
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, [])
+
+    // Navigate to Users tab and highlight user
+    const navigateToUser = useCallback((userId: string) => {
+        setActiveTab('users')
+        // Scroll to top and fetch users if needed
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        if (users.length === 0) {
+            fetchUsers()
+        }
+    }, [users.length, fetchUsers])
 
     // Fetch guest config and stats
     const fetchGuestConfig = useCallback(async () => {
@@ -1184,6 +1415,16 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             Games
                         </button>
                         <button
+                            onClick={() => setActiveTab('users')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'users'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Users
+                        </button>
+                        <button
                             onClick={() => setActiveTab('disputes')}
                             className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap relative ${
                                 activeTab === 'disputes'
@@ -1494,6 +1735,20 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             <option value="COMPLETED">Completed</option>
                             <option value="ABANDONED">Abandoned</option>
                         </select>
+                        {playerGamesUserIdFilter && (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                                <span>Filtered by user</span>
+                                <button
+                                    onClick={() => {
+                                        setPlayerGamesUserIdFilter(null)
+                                    }}
+                                    className="text-blue-600 hover:text-blue-900 font-bold"
+                                    title="Clear user filter"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        )}
                         <button
                             onClick={fetchPlayerGames}
                             disabled={loadingPlayerGames}
@@ -1519,10 +1774,19 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 <div key={game.id} className="border rounded-lg p-4 bg-gray-50">
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                 <span className="font-bold text-gray-900">
                                                     {game.user?.displayName || game.user?.email || 'Unknown User'}
                                                 </span>
+                                                {game.user?.id && (
+                                                    <button
+                                                        onClick={() => navigateToUser(game.user.id)}
+                                                        className="bg-blue-600 text-white px-2 py-0.5 rounded text-xs hover:bg-blue-700 whitespace-nowrap font-medium transition-colors"
+                                                        aria-label={`View user details for ${game.user?.displayName || game.user?.email}`}
+                                                    >
+                                                        View User →
+                                                    </button>
+                                                )}
                                                 <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                                                     game.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
                                                     game.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
@@ -2328,6 +2592,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     <option value="daily-challenge">Daily Challenge</option>
                                     <option value="fetch-questions">Fetch Questions</option>
                                     <option value="fetch-games">Fetch Games</option>
+                                    <option value="dispute-summary">Dispute Summary</option>
                                 </select>
                             </div>
                             <div>
@@ -2412,9 +2677,9 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                         <summary className="cursor-pointer text-blue-600 hover:text-blue-800 font-medium">
                                                             View Result
                                                         </summary>
-                                                        <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto break-words whitespace-pre-wrap">
-                                                            {JSON.stringify(execution.result, null, 2)}
-                                                        </pre>
+                                                        <div className="mt-2">
+                                                            {renderCronResult(execution.result, execution.jobName)}
+                                                        </div>
                                                     </details>
                                                 )}
                                             </div>
@@ -2491,9 +2756,9 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                                     <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
                                                                         View Result
                                                                     </summary>
-                                                                    <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto">
-                                                                        {JSON.stringify(execution.result, null, 2)}
-                                                                    </pre>
+                                                                    <div className="mt-2 max-w-4xl">
+                                                                        {renderCronResult(execution.result, execution.jobName)}
+                                                                    </div>
                                                                 </details>
                                                             ) : (
                                                                 '-'
@@ -2506,6 +2771,367 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     </div>
                                 </>
                             )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* USERS TAB */}
+            {activeTab === 'users' && (
+                <div className="space-y-6">
+                    <div className="bg-white rounded-lg shadow-md p-6">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+                            <div>
+                                <h2 className="text-xl font-semibold text-black mb-2">User Management</h2>
+                                <p className="text-gray-600 text-sm">
+                                    View user activity, manage accounts, and send emails
+                                </p>
+                            </div>
+                            <button
+                                onClick={fetchUsers}
+                                disabled={loadingUsers}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {loadingUsers ? 'Loading...' : 'Refresh'}
+                            </button>
+                        </div>
+
+                        {/* Search */}
+                        <div className="mb-4">
+                            <input
+                                type="text"
+                                placeholder="Search by email, name, or display name..."
+                                value={userSearch}
+                                onChange={(e) => {
+                                    setUserSearch(e.target.value)
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        fetchUsers()
+                                    }
+                                }}
+                                className="w-full p-2 border rounded text-gray-900"
+                            />
+                        </div>
+
+                        {/* Error Display */}
+                        {usersError && (
+                            <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                                {usersError}
+                            </div>
+                        )}
+
+                        {/* Users List */}
+                        {loadingUsers ? (
+                            <div className="text-center py-8">
+                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                <p className="mt-2 text-gray-600">Loading users...</p>
+                            </div>
+                        ) : users.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                                No users found matching your search.
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {users.map((user: any) => {
+                                    const lastOnline = user.lastOnlineAt
+                                        ? new Date(user.lastOnlineAt).toLocaleString()
+                                        : 'Never'
+                                    const inProgressCount = user.games?.length || 0
+
+                                    return (
+                                        <div key={user.id} className="border rounded-lg p-4 bg-gray-50">
+                                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        <span className="font-bold text-gray-900">
+                                                            {user.displayName || user.name || 'No name'}
+                                                        </span>
+                                                        <span className="text-sm text-gray-500">
+                                                            {user.email}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
+                                                        <span>Last Online: {lastOnline}</span>
+                                                        {user.lastSeenPath && (
+                                                            <>
+                                                                <span className="hidden sm:inline">|</span>
+                                                                <span>Last Page: <code className="bg-gray-200 px-1 rounded text-xs font-mono">{user.lastSeenPath}</code></span>
+                                                            </>
+                                                        )}
+                                                    </p>
+                                                    
+                                                    {/* In-Progress Games Section */}
+                                                    <div className="mt-3 space-y-2">
+                                                        {inProgressCount > 0 ? (
+                                                            <div className="space-y-2">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="font-semibold text-gray-900">{inProgressCount}</span>
+                                                                    <span className="text-sm text-gray-600">
+                                                                        {inProgressCount === 1 ? 'in-progress game' : 'in-progress games'}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => navigateToUserGames(user.id)}
+                                                                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 whitespace-nowrap font-medium transition-colors"
+                                                                        aria-label={`View all games for ${user.displayName || user.email}`}
+                                                                    >
+                                                                        View All Games →
+                                                                    </button>
+                                                                </div>
+                                                                <details className="group">
+                                                                    <summary className="cursor-pointer text-blue-600 hover:text-blue-800 text-sm font-medium list-none flex items-center gap-1">
+                                                                        <span className="group-open:hidden">▶</span>
+                                                                        <span className="hidden group-open:inline">▼</span>
+                                                                        View In-Progress Games
+                                                                    </summary>
+                                                                    <div className="mt-2 space-y-2 pl-4 border-l-2 border-gray-300">
+                                                                        {user.games.map((game: any) => (
+                                                                            <div key={game.id} className="pt-2">
+                                                                                <div className="text-sm text-gray-700 space-y-1">
+                                                                                    <div className="flex flex-wrap gap-x-2 gap-y-1">
+                                                                                        <span className="font-medium">Round:</span>
+                                                                                        <span>{game.currentRound}</span>
+                                                                                        <span className="hidden sm:inline">|</span>
+                                                                                        <span className="font-medium">Score:</span>
+                                                                                        <span className={game.currentScore >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                                                                            ${game.currentScore.toLocaleString()}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div className="text-xs text-gray-500">
+                                                                                        Updated: {new Date(game.updatedAt).toLocaleString()}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </details>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <span className="text-sm text-gray-400">No in-progress games</span>
+                                                                <button
+                                                                    onClick={() => navigateToUserGames(user.id)}
+                                                                    className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 whitespace-nowrap font-medium transition-colors"
+                                                                    aria-label={`View all games for ${user.displayName || user.email}`}
+                                                                >
+                                                                    View All Games →
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 flex-shrink-0">
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedUser(user)
+                                                            setShowSendEmailModal(true)
+                                                            setEmailSubject('')
+                                                            setEmailBody('')
+                                                        }}
+                                                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 whitespace-nowrap"
+                                                        aria-label={`Send email to ${user.displayName || user.email}`}
+                                                    >
+                                                        Email
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedUser(user)
+                                                            setShowDeleteUserModal(true)
+                                                            setDeleteUserConfirmText('')
+                                                        }}
+                                                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 whitespace-nowrap"
+                                                        aria-label={`Delete account for ${user.displayName || user.email}`}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Delete User Confirmation Modal */}
+            {showDeleteUserModal && selectedUser && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl my-auto">
+                        <h3 className="text-xl font-bold text-red-600 mb-4">Delete User Account</h3>
+                        <p className="text-gray-700 mb-4">
+                            You are about to delete the account for <strong>{selectedUser.displayName || selectedUser.name || selectedUser.email}</strong> ({selectedUser.email}).
+                        </p>
+                        <p className="text-gray-700 mb-4">
+                            This will permanently delete all user data from the database, including:
+                        </p>
+                        <ul className="list-disc list-inside text-gray-700 mb-4 space-y-1">
+                            <li>All games and game history</li>
+                            <li>User progress and achievements</li>
+                            <li>Daily challenge completions</li>
+                            <li>Disputes and answer overrides</li>
+                        </ul>
+                        <p className="text-yellow-600 font-semibold mb-4">
+                            Note: This does NOT delete the Clerk account. The user will still be able to sign in, but will need to create a new account.
+                        </p>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Type the user's email to confirm deletion:
+                            </label>
+                            <input
+                                type="text"
+                                value={deleteUserConfirmText}
+                                onChange={(e) => setDeleteUserConfirmText(e.target.value)}
+                                placeholder={selectedUser.email}
+                                className="w-full p-2 border rounded text-gray-900"
+                            />
+                        </div>
+                        <div className="flex flex-col sm:flex-row justify-end gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowDeleteUserModal(false)
+                                    setSelectedUser(null)
+                                    setDeleteUserConfirmText('')
+                                }}
+                                className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (deleteUserConfirmText !== selectedUser.email) {
+                                        alert('Email does not match. Please type the email exactly to confirm deletion.')
+                                        return
+                                    }
+
+                                    setDeletingUser(true)
+                                    try {
+                                        const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
+                                            method: 'DELETE',
+                                        })
+
+                                        if (response.ok) {
+                                            setMessage(`Successfully deleted user ${selectedUser.email}`)
+                                            setShowDeleteUserModal(false)
+                                            setSelectedUser(null)
+                                            setDeleteUserConfirmText('')
+                                            fetchUsers()
+                                        } else {
+                                            const error = await response.json()
+                                            alert(error.error || 'Failed to delete user')
+                                        }
+                                    } catch (error) {
+                                        console.error('Error deleting user:', error)
+                                        alert('Failed to delete user')
+                                    } finally {
+                                        setDeletingUser(false)
+                                    }
+                                }}
+                                disabled={deletingUser || deleteUserConfirmText !== selectedUser.email}
+                                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                                {deletingUser ? 'Deleting...' : 'Delete Account'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Send Email Modal */}
+            {showSendEmailModal && selectedUser && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl my-auto">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4">Send Email</h3>
+                        <div className="mb-4">
+                            <p className="text-sm text-gray-600 mb-2">
+                                <strong>To:</strong> {selectedUser.displayName || selectedUser.name || 'No name'} ({selectedUser.email})
+                            </p>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Subject
+                                </label>
+                                <input
+                                    type="text"
+                                    value={emailSubject}
+                                    onChange={(e) => setEmailSubject(e.target.value)}
+                                    placeholder="Email subject"
+                                    className="w-full p-2 border rounded text-gray-900"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Message
+                                </label>
+                                <textarea
+                                    value={emailBody}
+                                    onChange={(e) => setEmailBody(e.target.value)}
+                                    placeholder="Email message"
+                                    rows={6}
+                                    className="w-full p-2 border rounded text-gray-900"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setShowSendEmailModal(false)
+                                    setSelectedUser(null)
+                                    setEmailSubject('')
+                                    setEmailBody('')
+                                }}
+                                className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!emailSubject.trim() || !emailBody.trim()) {
+                                        alert('Subject and message are required')
+                                        return
+                                    }
+
+                                    if (!confirm('Are you sure you want to send this email?')) {
+                                        return
+                                    }
+
+                                    setSendingEmail(true)
+                                    try {
+                                        const response = await fetch('/api/admin/users/send-email', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                userId: selectedUser.id,
+                                                subject: emailSubject,
+                                                body: emailBody,
+                                            }),
+                                        })
+
+                                        if (response.ok) {
+                                            const data = await response.json()
+                                            setMessage(data.message || 'Email sent successfully')
+                                            setShowSendEmailModal(false)
+                                            setSelectedUser(null)
+                                            setEmailSubject('')
+                                            setEmailBody('')
+                                        } else {
+                                            const error = await response.json()
+                                            alert(error.error || 'Failed to send email')
+                                        }
+                                    } catch (error) {
+                                        console.error('Error sending email:', error)
+                                        alert('Failed to send email. Please check your SMTP configuration.')
+                                    } finally {
+                                        setSendingEmail(false)
+                                    }
+                                }}
+                                disabled={sendingEmail || !emailSubject.trim() || !emailBody.trim()}
+                                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                                {sendingEmail ? 'Sending...' : 'Send Email'}
+                            </button>
                         </div>
                     </div>
                 </div>

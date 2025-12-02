@@ -65,6 +65,8 @@ model User {
   currentStreak       Int            @default(0)
   longestStreak       Int            @default(0)
   lastGameDate        DateTime?
+  lastOnlineAt        DateTime?
+  lastSeenPath        String?
   accounts            Account[]
   sessions            Session[]
   games               Game[]
@@ -76,6 +78,8 @@ model User {
   dailyChallenges     UserDailyChallenge[]
   achievements        UserAchievement[]
   claimedGuestSessions GuestSession[] @relation("ClaimedGuestSessions")
+
+  @@index([lastOnlineAt])
 }
 
 model Question {

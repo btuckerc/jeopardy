@@ -35,6 +35,12 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       # Cron jobs
       CRON_SECRET: ${CRON_SECRET}
+      # Email/SMTP configuration
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
 
 volumes:
   db-data:

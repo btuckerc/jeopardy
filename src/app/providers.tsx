@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { useUser } from '@clerk/nextjs'
 import { useAuth } from './lib/auth'
 import { useRouter } from 'next/navigation'
+import { ActivityTracker } from './components/ActivityTracker'
 
 interface ProvidersProps {
     children: React.ReactNode
@@ -92,6 +93,7 @@ export function Providers({ children }: ProvidersProps) {
     return (
         <QueryClientProvider client={queryClient}>
             <GuestSessionClaimer />
+            <ActivityTracker />
             {children}
         </QueryClientProvider>
     )

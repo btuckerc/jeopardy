@@ -1,87 +1,51 @@
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
-import { FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
+import { requireAuth } from '@/lib/clerk-auth'
+import { jsonResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
 
 /**
- * GET /api/user/activity
- * Get user's recent activity stats for homepage feed
+ * POST /api/user/activity
+ * Record user activity (last online time and current page)
+ * Throttled to update at most once per minute per user
  */
-export async function GET(request: Request) {
+export async function POST(request: Request) {
     try {
-        const user = await getAppUser()
-        if (!user) {
-            return unauthorizedResponse()
+        const user = await requireAuth()
+        
+        const body = await request.json()
+        const { path } = body
+        
+        if (!path || typeof path !== 'string') {
+            return badRequestResponse('path is required and must be a string')
         }
-
-        // Get games played this week
-        const weekAgo = new Date()
-        weekAgo.setDate(weekAgo.getDate() - 7)
-        weekAgo.setHours(0, 0, 0, 0)
-
-        const gamesThisWeek = await prisma.game.count({
-            where: {
-                userId: user.id,
-                createdAt: {
-                    gte: weekAgo
-                },
-                status: 'COMPLETED'
+        
+        // Throttle updates: only update if lastOnlineAt is more than 60 seconds ago
+        // This prevents excessive database writes while still tracking recent activity
+        const now = new Date()
+        const oneMinuteAgo = new Date(now.getTime() - 60 * 1000)
+        
+        // Check current user's lastOnlineAt
+        const currentUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { lastOnlineAt: true }
+        })
+        
+        // Only update if lastOnlineAt is null or more than 1 minute ago
+        if (currentUser && currentUser.lastOnlineAt && currentUser.lastOnlineAt > oneMinuteAgo) {
+            // Too soon to update, but return success anyway
+            return jsonResponse({ success: true, skipped: true })
+        }
+        
+        // Update user's activity
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                lastOnlineAt: now,
+                lastSeenPath: path
             }
         })
-
-        // Get best score
-        const bestGame = await prisma.game.findFirst({
-            where: {
-                userId: user.id,
-                status: 'COMPLETED'
-            },
-            orderBy: {
-                score: 'desc'
-            },
-            select: {
-                score: true
-            }
-        })
-
-        // Get leaderboard rank
-        const userStats = await prisma.$queryRaw<Array<{
-            id: string
-            total_points: number
-        }>>`
-            SELECT 
-                u.id,
-                COALESCE(SUM(
-                    CASE 
-                        WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
-                        WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
-                        ELSE 0 
-                    END
-                ), 0)::integer as total_points
-            FROM "User" u
-            LEFT JOIN "GameHistory" gh ON u.id = gh."userId"
-            LEFT JOIN "Question" q ON q.id = gh."questionId"
-            GROUP BY u.id
-            HAVING COALESCE(SUM(
-                CASE 
-                    WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
-                    WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
-                    ELSE 0 
-                END
-            ), 0) > 0
-            ORDER BY total_points DESC
-        `
-
-        const userRank = userStats.findIndex(u => u.id === user.id) + 1
-        const totalPlayers = userStats.length
-
-        return jsonResponse({
-            gamesThisWeek,
-            bestScore: bestGame?.score || 0,
-            leaderboardRank: userRank > 0 ? userRank : null,
-            totalPlayers
-        })
+        
+        return jsonResponse({ success: true })
     } catch (error) {
-        return serverErrorResponse('Error fetching activity', error)
+        return serverErrorResponse('Failed to record activity', error)
     }
 }
-

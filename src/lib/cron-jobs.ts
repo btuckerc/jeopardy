@@ -26,6 +26,13 @@ export const CRON_JOBS = {
         endpoint: '/api/cron/fetch-questions',
         timeoutMs: 5 * 60 * 1000, // 5 minutes
     },
+    'dispute-summary': {
+        name: 'Dispute Summary Email',
+        description: 'Sends daily email summary of outstanding disputes to all admin users',
+        schedule: '0 8 * * *',
+        endpoint: '/api/cron/dispute-summary',
+        timeoutMs: 120 * 1000, // 2 minutes
+    },
     'fetch-games': {
         name: 'Fetch Games',
         description: 'Fetches games for the last 7 days (internal cron)',

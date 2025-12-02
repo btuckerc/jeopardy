@@ -37,6 +37,12 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS}
       # OpenAI (for embeddings)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      # Email/SMTP configuration
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      EMAIL_FROM: ${EMAIL_FROM}
     volumes:
       # Mount source code for hot-reloading
       - .:/app
