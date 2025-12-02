@@ -25,7 +25,7 @@ export async function POST(request: Request) {
             if (!VALID_EMOJIS.has(body.icon)) {
                 return jsonResponse(
                     { error: 'Invalid icon. Please select from the available options.' },
-                    { status: 400 }
+                    400
                 )
             }
         }
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
             if (!VALID_BACKGROUNDS.has(body.avatarBackground as AvatarBackgroundKey)) {
                 return jsonResponse(
                     { error: 'Invalid avatar background. Please select from the available options.' },
-                    { status: 400 }
+                    400
                 )
             }
         }

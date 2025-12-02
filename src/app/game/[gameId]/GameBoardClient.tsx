@@ -1173,7 +1173,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                 </div>
 
                                 <button
-                                    onClick={handleGameComplete}
+                                    onClick={async () => {
+                                        await saveGameState('complete', { finalScore: score })
+                                        router.push('/game')
+                                    }}
                                     className="w-full btn-gold py-4 text-lg"
                                 >
                                     Return to Game Hub
