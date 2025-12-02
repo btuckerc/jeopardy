@@ -84,10 +84,10 @@ export default function DailyChallengeCard({ challenge }: DailyChallengeCardProp
                             )}
                         </div>
 
-                        {/* Next Challenge Countdown - compact inside card */}
+                        {/* Next Challenge Countdown */}
                         {hasAnswered && (
-                            <div className="flex justify-center mb-6">
-                                <NextChallengeCallout nextChallengeTime={nextChallengeTime} compact />
+                            <div className="mb-8">
+                                <NextChallengeCallout nextChallengeTime={nextChallengeTime} />
                             </div>
                         )}
 

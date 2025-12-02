@@ -73,7 +73,8 @@ export async function GET(request: Request) {
             if (userChallenge) {
                 userAnswer = {
                     correct: userChallenge.correct,
-                    completedAt: userChallenge.completedAt
+                    completedAt: userChallenge.completedAt,
+                    userAnswerText: userChallenge.userAnswer || null
                 }
             }
         }

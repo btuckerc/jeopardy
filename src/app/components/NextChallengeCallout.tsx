@@ -92,35 +92,26 @@ export default function NextChallengeCallout({ nextChallengeTime, compact = fals
     }
 
     return (
-        <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-blue-900/40 via-indigo-900/40 to-blue-900/40 border border-white/10 p-4 md:p-5">
-            {/* Subtle animated gradient background - only animate after mount */}
-            {mounted && (
-                <div className="absolute inset-0 bg-gradient-to-r from-amber-400/5 via-transparent to-amber-400/5 animate-pulse" style={{ animationDuration: '3s' }} />
-            )}
+        <div className="relative overflow-hidden rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-900/60 via-indigo-900/60 to-blue-900/60 border border-amber-500/30 p-4 sm:p-5 md:p-6 shadow-lg shadow-blue-900/20">
+            {/* Subtle animated gradient background */}
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-400/10 via-transparent to-amber-400/10 animate-pulse" style={{ animationDuration: '3s' }} />
             
-            <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-400/20 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p className="text-white/90 font-medium text-sm sm:text-base">
-                            Next Daily Challenge
-                        </p>
-                        <p className="text-white/50 text-xs sm:text-sm">
-                            A new Final Jeopardy question at midnight UTC
-                        </p>
-                    </div>
+            <div className="relative z-10 flex flex-col items-center gap-4 sm:gap-5 md:gap-6">
+                <div className="text-center">
+                    <p className="text-amber-300 font-bold text-base sm:text-lg md:text-xl mb-0.5 sm:mb-1">
+                        Next Daily Challenge
+                    </p>
+                    <p className="text-blue-100/80 text-xs sm:text-sm md:text-base">
+                        A new Final Jeopardy question at midnight UTC
+                    </p>
                 </div>
                 
                 {/* Countdown Timer */}
-                <div className="flex items-center gap-1 sm:gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3">
                     <TimeUnit value={hours} label="hrs" />
-                    <span className="text-white/30 text-lg font-light">:</span>
+                    <span className="text-amber-400/50 text-lg sm:text-xl md:text-2xl font-light pb-3 sm:pb-4">:</span>
                     <TimeUnit value={minutes} label="min" />
-                    <span className="text-white/30 text-lg font-light">:</span>
+                    <span className="text-amber-400/50 text-lg sm:text-xl md:text-2xl font-light pb-3 sm:pb-4">:</span>
                     <TimeUnit value={seconds} label="sec" />
                 </div>
             </div>
@@ -131,12 +122,15 @@ export default function NextChallengeCallout({ nextChallengeTime, compact = fals
 function TimeUnit({ value, label }: { value: number; label: string }) {
     return (
         <div className="flex flex-col items-center">
-            <div className="w-12 sm:w-14 h-10 sm:h-12 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 flex items-center justify-center">
-                <span className="text-amber-400 font-bold text-lg sm:text-xl tabular-nums">
+            <div className="w-12 sm:w-14 md:w-16 h-10 sm:h-12 md:h-14 bg-black/20 backdrop-blur-sm rounded-md sm:rounded-lg border border-amber-500/20 flex items-center justify-center shadow-inner">
+                <span 
+                    className="text-amber-400 font-bold text-lg sm:text-xl md:text-2xl tabular-nums tracking-tight"
+                    suppressHydrationWarning
+                >
                     {value.toString().padStart(2, '0')}
                 </span>
             </div>
-            <span className="text-white/40 text-[10px] sm:text-xs uppercase tracking-wider mt-1">
+            <span className="text-blue-200/60 text-[9px] sm:text-[10px] md:text-xs uppercase tracking-wider mt-1 sm:mt-1.5 font-medium">
                 {label}
             </span>
         </div>
