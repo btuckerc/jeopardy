@@ -4,15 +4,16 @@ import { useState, useEffect, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 
 // Dynamically import DatePicker to reduce initial bundle size
+// Cast the import function to work around TypeScript type incompatibility with react-datepicker's defaultProps
 const DatePicker = dynamic(
-    () => import('react-datepicker').then(mod => mod.default),
+    () => import('react-datepicker') as Promise<{ default: React.ComponentType<any> }>,
     { 
         ssr: false,
         loading: () => <div className="text-gray-500">Loading date picker...</div>
     }
 )
 
-// Import CSS separately
+// Import CSS separately - this needs to be imported normally for CSS to work
 import "react-datepicker/dist/react-datepicker.css"
 
 interface DateModeSectionProps {

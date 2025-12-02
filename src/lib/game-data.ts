@@ -133,7 +133,7 @@ export async function getGameData(gameId: string): Promise<GameData> {
     return {
         id: game.id,
         seed: game.seed,
-        config: game.config as GameConfig,
+        config: game.config as unknown as GameConfig,
         status: game.status,
         currentRound: game.currentRound,
         currentScore: game.currentScore,
