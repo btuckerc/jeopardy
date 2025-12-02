@@ -461,14 +461,15 @@ export function generateDisplayNameCandidate(): string {
         
         // Log if we're getting close to max retries (edge case handling)
         if (attempt >= MAX_VALIDATION_RETRIES - 3) {
-            console.warn(`Display name validation retry ${attempt + 1}/${MAX_VALIDATION_RETRIES} failed:`, validation.message)
+            const errorMsg = validation.ok ? 'Unknown error' : (validation as { ok: false; message: string }).message
+            console.warn(`Display name validation retry ${attempt + 1}/${MAX_VALIDATION_RETRIES} failed:`, errorMsg)
         }
     }
     
     // Fallback: if all retries failed, use a safe default
     // This should be extremely rare with our curated word lists
     console.error(`Failed to generate valid display name after ${MAX_VALIDATION_RETRIES} attempts, using fallback`)
-    return 'Quick Scholar' // Safe fallback that should always pass validation
+    return 'QuickScholar' // Safe fallback that should always pass validation
 }
 
 /**
@@ -506,6 +507,21 @@ export type GenerateUniqueDisplayNameResult =
     | { success: false; error: string; attempts: number }
 
 /**
+ * Type for Prisma client with user.findFirst method (minimal interface for display name uniqueness check)
+ */
+export type PrismaClientForDisplayName = {
+    user: {
+        findFirst: (args: {
+            where: {
+                id?: { not: string }
+                displayName: { equals: string; mode: 'insensitive' }
+            }
+            select: { id: true }
+        }) => Promise<{ id: string } | null>
+    }
+}
+
+/**
  * Generate a unique display name by checking against existing users in the database
  * 
  * This function:
@@ -519,18 +535,12 @@ export type GenerateUniqueDisplayNameResult =
  * Under extreme race conditions, duplicates could theoretically occur, but this
  * is extremely unlikely with our expanded word lists and retry logic.
  * 
- * @param prisma - Prisma client instance
+ * @param prisma - Prisma client instance (must have user.findFirst method)
  * @param options - Configuration options
  * @returns Result object with success status, display name (if successful), and attempt count
  */
 export async function generateUniqueDisplayName(
-    prisma: { user: { findFirst: (args: {
-        where: {
-            id?: { not: string }
-            displayName: { equals: string; mode: 'insensitive' }
-        }
-        select: { id: true }
-    }) => Promise<{ id: string } | null> } },
+    prisma: PrismaClientForDisplayName,
     options: GenerateUniqueDisplayNameOptions = {}
 ): Promise<GenerateUniqueDisplayNameResult> {
     const { excludeUserId, maxAttempts = 50 } = options
