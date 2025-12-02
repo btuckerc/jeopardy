@@ -207,13 +207,69 @@ export default function DailyChallengePage() {
         }
     }
 
+    // Skeleton loading state - maintains page structure
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 flex items-center justify-center px-4">
-                <div className="text-center max-w-md">
-                    <div className="inline-block h-16 w-16 animate-spin rounded-full border-4 border-solid border-amber-400 border-r-transparent mb-6"></div>
-                    <h2 className="text-2xl font-bold text-white mb-2">Loading Daily Challenge</h2>
-                    <p className="text-blue-200 text-lg">Preparing today&apos;s Final Jeopardy question...</p>
+            <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen -mt-6 min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+                {/* Shadow under navbar */}
+                <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
+                <div className="max-w-7xl mx-auto">
+                    {/* Hero Section Skeleton */}
+                    <div className="text-center mb-6 sm:mb-10">
+                        <div className="flex items-center justify-center mb-4 sm:mb-6">
+                            <div className="px-4 sm:px-6 py-2 bg-amber-400/50 rounded-full h-8 w-32 animate-pulse"></div>
+                        </div>
+                        <div className="mb-4 sm:mb-6">
+                            <div className="h-4 w-32 bg-blue-300/20 rounded mx-auto mb-2 sm:mb-4 animate-pulse"></div>
+                            <div className="inline-block px-4 sm:px-8 md:px-10 py-3 sm:py-4 md:py-5 bg-white/10 rounded-xl border-2 border-white/20">
+                                <div className="h-8 sm:h-10 md:h-12 w-48 sm:w-64 md:w-80 bg-white/20 rounded animate-pulse"></div>
+                            </div>
+                        </div>
+                        <div className="h-4 w-40 bg-blue-200/20 rounded mx-auto animate-pulse"></div>
+                    </div>
+
+                    {/* Main Content Skeleton */}
+                    <div className="flex flex-col items-center gap-5 sm:gap-8 lg:gap-10">
+                        <div className="w-full max-w-4xl">
+                            <div className="bg-blue-800 rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden relative">
+                                <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')] pointer-events-none"></div>
+                                <div className="relative p-5 sm:p-8 md:p-10 lg:p-12">
+                                    {/* Question skeleton */}
+                                    <div className="space-y-3 mb-6 sm:mb-8 md:mb-10">
+                                        <div className="h-6 sm:h-8 bg-white/20 rounded w-full animate-pulse"></div>
+                                        <div className="h-6 sm:h-8 bg-white/20 rounded w-5/6 mx-auto animate-pulse"></div>
+                                        <div className="h-6 sm:h-8 bg-white/20 rounded w-4/6 mx-auto animate-pulse"></div>
+                                    </div>
+                                    
+                                    {/* Input skeleton */}
+                                    <div className="space-y-4 sm:space-y-5 max-w-2xl mx-auto">
+                                        <div className="bg-white/10 rounded-lg sm:rounded-xl p-3 sm:p-5 border border-white/20">
+                                            <div className="h-12 sm:h-14 bg-white/30 rounded-lg animate-pulse"></div>
+                                        </div>
+                                        <div className="h-12 sm:h-14 bg-amber-400/50 rounded-lg sm:rounded-xl animate-pulse"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Leaderboard Skeleton */}
+                        <div className="w-full max-w-4xl">
+                            <div className="bg-blue-800 rounded-xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 md:p-8 relative overflow-hidden">
+                                <div className="absolute inset-0 opacity-5 bg-[url('/grid.svg')] pointer-events-none"></div>
+                                <div className="relative">
+                                    <div className="flex items-center justify-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+                                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-400/20 rounded-full animate-pulse"></div>
+                                        <div className="h-6 sm:h-8 w-48 bg-white/20 rounded animate-pulse"></div>
+                                    </div>
+                                    <div className="space-y-2 sm:space-y-3">
+                                        {[1, 2, 3].map((i) => (
+                                            <div key={i} className="h-14 sm:h-16 bg-white/10 rounded-lg sm:rounded-xl animate-pulse"></div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         )
@@ -221,7 +277,9 @@ export default function DailyChallengePage() {
 
     if (!challenge) {
         return (
-            <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 flex items-center justify-center px-4">
+            <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen -mt-6 min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+                {/* Shadow under navbar */}
+                <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
                 <div className="bg-blue-800 rounded-2xl shadow-2xl p-8 max-w-md text-center">
                     <h1 className="text-2xl font-bold text-white mb-4">No Challenge Available</h1>
                     <p className="text-blue-200 mb-6">Today&apos;s daily challenge is not available yet.</p>
@@ -234,7 +292,9 @@ export default function DailyChallengePage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-6 sm:py-10 px-4 sm:px-6">
+        <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen -mt-6 min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+            {/* Shadow under navbar */}
+            <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
             <div className="max-w-7xl mx-auto">
                 {/* Hero Section with Category */}
                 <div className="text-center mb-6 sm:mb-10">
