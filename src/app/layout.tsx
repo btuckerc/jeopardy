@@ -7,6 +7,7 @@ import { Navigation } from '@/components/Navigation'
 import { ClerkProvider } from '@clerk/nextjs'
 import { syncAdminRoles } from '@/lib/sync-admin-roles'
 import { getAppUser } from '@/lib/clerk-auth'
+import { JsonLd } from '@/components/JsonLd'
 
 const inter = Inter({ subsets: ['latin'] })
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
@@ -24,8 +25,8 @@ export const metadata = {
             ? 'https://www.trivrdy.com'
             : 'http://localhost:3000'
     ),
-    title: 'trivrdy - Study Jeopardy Online | Practice Trivia Game',
-    description: 'Master trivia with trivrdy\'s Jeopardy study platform. Play authentic questions, track progress, and compete on leaderboards. Features practice mode and full game simulations. Created by Tucker Craig.',
+    title: 'trivrdy - Free Jeopardy Practice & Study Tool | 12,000+ Questions',
+    description: 'Practice Jeopardy with 12,000+ authentic questions. Free study tool with flashcards, game mode, leaderboards, and progress tracking. Master trivia and compete globally.',
     keywords: 'jeopardy, trivia game, study jeopardy, practice trivia, trivrdy, jeopardy simulator, jeopardy practice, trivia practice, quiz game, knowledge quiz, online trivia, jeopardy questions, trivia study, tucker craig, game show practice',
     authors: [{ name: 'Tucker Craig', url: 'https://tuckercraig.com' }],
     creator: 'Tucker Craig',
@@ -35,8 +36,8 @@ export const metadata = {
         locale: 'en_US',
         url: 'https://trivrdy.com',
         siteName: 'trivrdy',
-        title: 'trivrdy - Study Jeopardy Online | Practice Trivia Game',
-        description: 'Master trivia with trivrdy\'s Jeopardy study platform. Play authentic questions, track progress, and compete on leaderboards. Features practice mode and full game simulations.',
+        title: 'trivrdy - Free Jeopardy Practice & Study Tool | 12,000+ Questions',
+        description: 'Practice Jeopardy with 12,000+ authentic questions. Free study tool with flashcards, game mode, leaderboards, and progress tracking. Master trivia and compete globally.',
         images: [
             {
                 url: '/og-image.png',
@@ -48,8 +49,8 @@ export const metadata = {
     },
     twitter: {
         card: 'summary_large_image',
-        title: 'trivrdy - Study Jeopardy Online',
-        description: 'Master trivia with trivrdy. Practice authentic Jeopardy questions, track progress, and compete globally.',
+        title: 'trivrdy - Free Jeopardy Practice & Study Tool',
+        description: 'Practice Jeopardy with 12,000+ authentic questions. Free study tool with flashcards, game mode, and leaderboards.',
         images: ['/og-image.png'],
         creator: '@btuckerc',
         site: '@btuckerc',
@@ -108,6 +109,56 @@ export default async function RootLayout({
     // This replaces the old NextAuth session fetch
     const appUser = await getAppUser()
     
+    const baseUrl = process.env.NODE_ENV === 'production'
+        ? 'https://www.trivrdy.com'
+        : 'http://localhost:3000'
+
+    const websiteSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: 'trivrdy',
+        url: baseUrl,
+        description: 'Master trivia with trivrdy\'s Jeopardy study platform. Play authentic questions, track progress, and compete on leaderboards.',
+        author: {
+            '@type': 'Person',
+            name: 'Tucker Craig',
+            url: 'https://tuckercraig.com',
+        },
+        potentialAction: {
+            '@type': 'SearchAction',
+            target: {
+                '@type': 'EntryPoint',
+                urlTemplate: `${baseUrl}/practice/category?q={search_term_string}`,
+            },
+            'query-input': 'required name=search_term_string',
+        },
+    }
+
+    const softwareApplicationSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'SoftwareApplication',
+        name: 'trivrdy',
+        applicationCategory: 'EducationalApplication',
+        operatingSystem: 'Web Browser',
+        offers: {
+            '@type': 'Offer',
+            price: '0',
+            priceCurrency: 'USD',
+        },
+        aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: '4.8',
+            ratingCount: '1',
+        },
+        description: 'Master trivia with trivrdy\'s Jeopardy study platform. Play authentic questions, track progress, and compete on leaderboards.',
+        url: baseUrl,
+        author: {
+            '@type': 'Person',
+            name: 'Tucker Craig',
+            url: 'https://tuckercraig.com',
+        },
+    }
+
     return (
         <ClerkProvider>
             <html lang="en" suppressHydrationWarning>
@@ -115,15 +166,39 @@ export default async function RootLayout({
                     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
                     <link rel="canonical" href="https://trivrdy.com" />
                     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+                    <JsonLd data={websiteSchema} />
+                    <JsonLd data={softwareApplicationSchema} />
                 </head>
                 <body className={inter.className}>
                     <Providers>
                         <PageTitle />
-                        <div className="min-h-screen bg-gray-100">
+                        <div className="min-h-screen bg-gray-100 flex flex-col">
                             <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
-                            <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+                            <main className="flex-1 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
                                 {children}
                             </main>
+
+                            {/* Global footer */}
+                            <footer className="border-t border-gray-200 bg-gray-50">
+                                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                                    <div className="text-center space-y-2">
+                                        <p className="text-gray-600 text-sm">
+                                            Trivrdy is a Jeopardy study tool created by{' '}
+                                            <a
+                                                href="https://tuckercraig.com"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                            >
+                                                Tucker Craig
+                                            </a>
+                                        </p>
+                                        <p className="text-gray-500 text-xs">
+                                            Practice with real questions, compete with others, and improve your trivia knowledge.
+                                        </p>
+                                    </div>
+                                </div>
+                            </footer>
                         </div>
                         <Toaster position="bottom-right" />
                     </Providers>

@@ -7,28 +7,36 @@ export function PageTitle() {
     const pathname = usePathname()
 
     useEffect(() => {
-        const baseTitle = 'trivrdy - study jeopardy questions online'
+        // Only update title if we're on a page without its own metadata
+        // Next.js metadata should handle titles, but this provides fallback for dynamic routes
+        const baseTitle = 'trivrdy - Free Jeopardy Practice & Study Tool | 12,000+ Questions'
         let pageTitle = baseTitle
 
         switch (pathname) {
             case '/game':
-                pageTitle = `${baseTitle} - game mode`
+                pageTitle = 'Play Jeopardy Online | Game Mode | trivrdy'
                 break
             case '/practice':
-                pageTitle = `${baseTitle} - practice mode`
+                pageTitle = 'Jeopardy Flashcards & Study Mode | Practice Trivia | trivrdy'
                 break
             case '/stats':
-                pageTitle = `${baseTitle} - statistics`
+                pageTitle = 'Track Trivia Progress | Your Jeopardy Stats | trivrdy'
                 break
             case '/settings':
-                pageTitle = `${baseTitle} - settings`
+                pageTitle = `${baseTitle} - Settings`
                 break
             case '/leaderboard':
-                pageTitle = `${baseTitle} - leaderboard`
+                pageTitle = 'Trivia Rankings & Leaderboard | Jeopardy Stats | trivrdy'
                 break
+            default:
+                // Use the base title for home page - matches metadata
+                pageTitle = baseTitle
         }
 
-        document.title = pageTitle
+        // Only update if different to avoid unnecessary DOM manipulation
+        if (document.title !== pageTitle) {
+            document.title = pageTitle
+        }
     }, [pathname])
 
     return null

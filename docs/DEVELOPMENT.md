@@ -1,139 +1,137 @@
 # Trivrdy Development Guide
 
+This guide covers advanced development topics. For quick start, see the [main README](../README.md).
+
 ## Prerequisites
 
 - Node.js 18+
 - PostgreSQL 14+ (with pgvector extension)
-- OpenAI API key (for semantic category inference)
+- Docker (optional, for containerized development)
+- OpenAI API key (for semantic category inference - optional but recommended)
 
-## Quick Start
+## Development Setup
 
-### 1. Install Dependencies
+### Local Development (Recommended)
 
 ```bash
+# 1. Install dependencies
 npm install
-```
 
-### 2. Database Setup
+# 2. Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your configuration
 
-#### Option A: Local PostgreSQL with Docker (Recommended)
+# 3. Start database
+docker compose up -d db
 
-```bash
-# Start PostgreSQL with pgvector
-docker run -d \
-  --name trivrdy-postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=trivrdy \
-  -p 5432:5432 \
-  pgvector/pgvector:pg16
+# 4. Initialize database
+npm run db:setup
 
-# Set environment variables
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/trivrdy"
-export DIRECT_URL="postgresql://postgres:postgres@localhost:5432/trivrdy"
-```
-
-#### Option B: Supabase Local Development
-
-```bash
-# Install Supabase CLI
-npm install -g supabase
-
-# Start local Supabase
-supabase start
-
-# Use the connection strings from the output
-```
-
-### 3. Initialize Database
-
-```bash
-# Generate Prisma client
-npm run db:generate
-
-# Run migrations
-npm run db:migrate
-
-# Seed knowledge category embeddings (requires OPENAI_API_KEY)
-npm run db:seed:embeddings
-
-# Seed questions from JSON
-npm run db:seed
-```
-
-### 4. Start Development Server
-
-```bash
+# 5. Start dev server
 npm run dev
 ```
 
+### Docker Development (with hot-reloading)
+
+```bash
+# Start everything in Docker
+npm run dev:docker
+
+# Rebuild if needed
+npm run dev:docker:build
+
+# Stop when done
+npm run dev:docker:down
+```
+
+**Note:** Docker development mounts your source code, so changes are reflected immediately. Only database migrations require a rebuild.
+
 ## Environment Variables
 
-Create a `.env.local` file with the following:
+Create `.env.local` for local development:
 
 ```env
-# Database
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/trivrdy"
-DIRECT_URL="postgresql://postgres:postgres@localhost:5432/trivrdy"
+# Database (use 'localhost' for local, 'db' for Docker)
+DATABASE_URL="postgresql://user:password@localhost:5432/trivrdy?schema=public"
+DIRECT_URL="postgresql://user:password@localhost:5432/trivrdy?schema=public"
 
-# Supabase (for auth)
-NEXT_PUBLIC_SUPABASE_URL="https://[project-ref].supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
+# Clerk Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
+CLERK_SECRET_KEY="sk_test_..."
 
-# OpenAI (for semantic category inference)
+# Admin Configuration
+ADMIN_EMAILS="admin@example.com"
+
+# OpenAI (for embeddings)
 OPENAI_API_KEY="sk-..."
-
-# App
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 
-## Data Management
+## Database Management
 
-### Fetching New Questions from J-Archive
+### Initial Setup
 
 ```bash
-# Fetch questions for a date range
-npm run db:backfill -- --start-date 2024-01-01 --end-date 2024-12-31
-
-# Append to existing data
-npm run db:backfill -- --start-date 2024-01-01 --end-date 2024-12-31 --append
-
-# Resume interrupted fetch
-npm run db:backfill -- --start-date 2024-01-01 --end-date 2024-12-31 --resume
+npm run db:setup
 ```
 
-### Seeding the Database
+This runs:
+1. `db:generate` - Generate Prisma client
+2. `db:migrate` - Run migrations
+3. `db:create-indexes` - Create vector indexes
+4. `db:seed:embeddings` - Seed knowledge category embeddings
+
+### Making Schema Changes
 
 ```bash
-# Seed from default file (data/jeopardy_questions.json)
+# 1. Edit prisma/schema.prisma
+# 2. Create and apply migration
+npm run db:migrate:dev
+
+# 3. Prisma client auto-regenerates
+```
+
+### Seeding Data
+
+```bash
+# Seed questions from JSON files
 npm run db:seed
 
-# Seed from specific file
-npm run db:seed -- --file data/big_questions.json
+# Seed knowledge category embeddings (requires OpenAI key)
+npm run db:seed:embeddings
 
-# Dry run (show what would happen)
-npm run db:seed -- --dry-run
+# Fetch recent questions from J-Archive
+npm run db:fetch
 
-# Skip embedding-based category inference (faster)
-npm run db:seed -- --skip-embeddings
-
-# Clear and reseed (DANGER!)
-npm run db:seed -- --clear
+# Backfill historical questions
+npm run db:backfill -- --start-date 2024-01-01 --end-date 2024-12-31
 ```
+
+### Database Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `db:setup` | Complete initial setup |
+| `db:generate` | Generate Prisma client |
+| `db:migrate` | Run migrations (production) |
+| `db:migrate:dev` | Create and run migrations (development) |
+| `db:reset` | Reset database (⚠️ deletes all data) |
+| `db:push` | Push schema without migrations (dev only) |
+| `db:seed` | Seed question data |
+| `db:seed:embeddings` | Seed category embeddings |
+| `db:create-indexes` | Create vector indexes |
+| `db:fetch` | Fetch recent questions |
+| `db:backfill` | Backfill historical questions |
 
 ## Vector Embeddings
 
-Trivrdy uses OpenAI's `text-embedding-3-small` model with pgvector for:
-
-1. **Semantic Category Inference**: Questions are classified into knowledge categories based on semantic similarity, not just keyword matching.
-
-2. **Similar Question Discovery**: Find related questions for practice recommendations.
+Trivrdy uses OpenAI's `text-embedding-3-small` model with pgvector for semantic search.
 
 ### How It Works
 
-1. Reference embeddings are created for each knowledge category description
-2. When questions are imported, their content is embedded
-3. Cosine similarity determines the best matching category
-4. Confidence threshold (0.3) prevents misclassification
+1. **Reference Embeddings**: Created for each knowledge category description
+2. **Question Embeddings**: Generated when questions are imported
+3. **Category Inference**: Cosine similarity determines the best matching category
+4. **Confidence Threshold**: 0.3 prevents misclassification
 
 ### Knowledge Categories
 
@@ -143,6 +141,31 @@ Trivrdy uses OpenAI's `text-embedding-3-small` model with pgvector for:
 - `SCIENCE_AND_NATURE` - Science, biology, nature, technology
 - `SPORTS_AND_LEISURE` - Sports, games, hobbies
 - `GENERAL_KNOWLEDGE` - Miscellaneous trivia
+
+## Answer Checking
+
+The answer checker (`src/lib/answer-checker.ts`) uses intelligent matching to accept reasonable variations.
+
+### Normalization Rules
+
+- **Case insensitive**: "PARIS" = "paris" = "Paris"
+- **Accents normalized**: "café" = "cafe"
+- **Hyphens/spaces equivalent**: "cray-cray" = "cray cray"
+- **Punctuation ignored**: "paris!" = "paris"
+- **Leading articles stripped**: "the Eiffel Tower" = "Eiffel Tower"
+- **Optional question phrasing**: "What is Paris" = "Paris"
+
+### Fuzzy Matching
+
+Uses phonetic algorithms (Double Metaphone) and Jaro-Winkler similarity with length-based thresholds:
+
+- **Very short (≤3 chars)**: Strict matching required
+- **Short (4-5 chars)**: Phonetic match or ≥0.92 similarity
+- **Medium (6-8 chars)**: Phonetic match or ≥0.88 similarity
+- **Long (9+ chars)**: Phonetic match or ≥0.85 similarity
+- **Multi-word**: 80% of words must match
+
+See `src/lib/answer-checker.test.ts` for examples.
 
 ## Project Structure
 
@@ -162,95 +185,27 @@ trivrdy/
 │   │   └── ...
 │   ├── components/          # Shared components
 │   ├── lib/                 # Shared utilities
-│   │   ├── embeddings.ts    # OpenAI embeddings service
-│   │   ├── prisma.ts        # Prisma client
+│   │   ├── answer-checker.ts
+│   │   ├── embeddings.ts
+│   │   ├── prisma.ts
 │   │   └── ...
 │   └── scripts/             # CLI scripts
 │       ├── seed-database.ts
 │       ├── seed-knowledge-embeddings.ts
 │       └── backfill-jarchive.ts
-└── ...
+├── docker-compose.yml       # Production Docker setup
+├── docker-compose.dev.yml   # Development Docker setup
+└── Dockerfile.dev           # Development Dockerfile
 ```
 
-## Answer Checking Rules
-
-The answer checker (`src/app/lib/answer-checker.ts`) uses a lenient matching system designed to accept reasonable user input without requiring exact formatting.
-
-### Normalization Rules
-
-1. **Case insensitive**: "PARIS" = "paris" = "Paris"
-2. **Accents normalized**: "café" = "cafe", "Bébé" = "bebe"
-3. **Hyphens/spaces are equivalent**: "cray-cray" = "cray cray" = "craycray"
-4. **Punctuation ignored**: "paris!" = "paris?" = "paris"
-5. **Apostrophes ignored**: "don't" = "dont"
-6. **Leading articles stripped**: "the Eiffel Tower" = "Eiffel Tower"
-7. **Possessive pronouns stripped**: "my dog" = "dog"
-
-### Optional Question Phrasing
-
-Users don't need to type "What is..." - the following are all accepted:
-- "Paris"
-- "What is Paris"
-- "Who is Einstein"
-- "Where is France"
-
-### Equivalent Terms
-
-Common abbreviations and alternate names are recognized:
-- USA / US / United States / United States of America
-- UK / United Kingdom / Great Britain / Britain
-- WWI / WW1 / World War 1 / First World War
-- WWII / WW2 / World War 2 / Second World War
-
-### Parenthetical Alternatives
-
-Answers like "Abraham Lincoln (or Honest Abe)" accept both:
-- "Abraham Lincoln"
-- "Honest Abe"
-
-### List Answers
-
-For list-type answers, items can be in any order:
-- "salt and pepper" = "pepper and salt"
-- "salt & pepper" = "salt and pepper"
-
-### Fuzzy Matching
-
-The answer checker uses a **phonetic-primary** approach with multiple safeguards:
-
-1. **Double Metaphone**: Industry-standard phonetic algorithm that handles words with multiple pronunciations
-2. **Jaro-Winkler similarity**: Better than Levenshtein for short strings, gives bonus for matching prefixes
-3. **Phonetic normalization**: Pre-processes common respellings (ph→f, ght→t, ay→e for accented é)
-4. **Anagram detection**: Rejects answers with same letters rearranged (but allows transposition typos)
-5. **First-character matching**: Phonetic first-char for longer words, literal for short words
-
-**Matching rules by word length:**
-- **Very short words (≤3 chars)**: Strict - require literal first char match + phonetic match + high similarity
-- **Short words (4-5 chars)**: Phonetic match with phonetic first-char match, or very high Jaro-Winkler (≥0.92)
-- **Medium words (6-8 chars)**: Phonetic match with first-char match, or Jaro-Winkler ≥0.88
-- **Long words (9+ chars)**: Phonetic match with first-char match, or Jaro-Winkler ≥0.85
-- **Multi-word answers (3+ words)**: 80% of words must match
-
-**Examples that MATCH:**
-- "fone" = "phone" (phonetic respelling)
-- "kolor" = "color" (k/c are phonetically equivalent)
-- "abby" = "abbey" (high Jaro-Winkler: 0.95)
-- "baybay" = "Bébé" (phonetic normalization: ay→e)
-- "recieve" = "receive" (transposition typo allowed)
-- "Westminster Abby" = "Westminster Abbey"
-
-**Examples that DON'T match:**
-- "iko iko" ≠ "oki oki" (anagram - same letters rearranged)
-- "dog" ≠ "dig" (same phonetic code but low similarity)
-- "god" ≠ "dog" (anagram)
-- "cat" ≠ "car" (different words)
-- "eb" ≠ "er" (too short, different sounds)
-
-### Running Tests
+## Testing
 
 ```bash
-npm run test        # Watch mode
-npm run test:run    # Single run
+# Watch mode
+npm run test
+
+# Single run
+npm run test:run
 ```
 
 ## Troubleshooting
@@ -269,19 +224,73 @@ The app will fall back to pattern-based category inference, but results will be 
 
 ### Database connection issues
 
-Check that your DATABASE_URL is correct and the database is running:
+**Local development:**
+- Check that DATABASE_URL uses `localhost:5432`
+- Ensure database is running: `docker compose up -d db`
 
-```bash
-# Test connection
-npx prisma db pull
-```
+**Docker development:**
+- Check that DATABASE_URL uses `db:5432`
+- Ensure both containers are running: `docker compose ps`
 
 ### Migration issues
 
-Reset and re-run migrations:
-
 ```bash
+# Reset and re-run migrations
 npm run db:reset
 npm run db:setup
 ```
 
+### Prisma client out of sync
+
+```bash
+npm run db:generate
+```
+
+### Docker command not found
+
+On macOS, Docker might not be in your PATH. Use the full path:
+
+```bash
+/Applications/Docker.app/Contents/Resources/bin/docker compose up -d db
+```
+
+Or add Docker to your PATH (see shell configuration).
+
+## Code Quality
+
+```bash
+# Run all checks
+npm run validate
+
+# Individual checks
+npm run lint
+npm run typecheck
+```
+
+## Common Workflows
+
+### Adding a new feature
+
+1. Create feature branch
+2. Make code changes
+3. Update schema if needed: `npm run db:migrate:dev`
+4. Test locally: `npm run dev`
+5. Run checks: `npm run validate`
+6. Commit and push
+
+### Updating question data
+
+```bash
+# Fetch recent questions
+npm run db:fetch
+
+# Or backfill specific date range
+npm run db:backfill -- --start-date 2024-01-01 --end-date 2024-12-31
+```
+
+### Deploying to production
+
+1. Run migrations: `npm run db:migrate`
+2. Build: `npm run build`
+3. Test build: `npm run start`
+4. Deploy (Vercel/Railway/etc.)

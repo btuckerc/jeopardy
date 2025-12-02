@@ -3,6 +3,27 @@ import { getAppUser } from '@/lib/clerk-auth';
 import { prisma } from '@/lib/prisma';
 import { FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring';
 import LeaderboardClient from './LeaderboardClient';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+    title: 'Trivia Rankings & Leaderboard | Jeopardy Stats | trivrdy',
+    description: 'See how you rank against other trivia champions. View the global leaderboard, track your Jeopardy stats, and compete for the top spot.',
+    keywords: 'trivia leaderboard, jeopardy rankings, trivia stats, jeopardy leaderboard, trivia competition, jeopardy scores',
+    openGraph: {
+        title: 'Trivia Rankings & Leaderboard | Jeopardy Stats | trivrdy',
+        description: 'See how you rank against other trivia champions. View the global leaderboard, track your Jeopardy stats, and compete for the top spot.',
+        url: 'https://trivrdy.com/leaderboard',
+        type: 'website',
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: 'Trivia Rankings & Leaderboard | trivrdy',
+        description: 'See how you rank against other trivia champions. View the global leaderboard and compete for the top spot.',
+    },
+    alternates: {
+        canonical: 'https://trivrdy.com/leaderboard',
+    },
+};
 
 interface LeaderboardEntry {
     id: string;

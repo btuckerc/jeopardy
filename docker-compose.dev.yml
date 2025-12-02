@@ -1,0 +1,52 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+      args:
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DIRECT_URL: ${DIRECT_URL}
+      NODE_ENV: development
+      PORT: 3000
+      # Enable file watching in Docker (required for hot-reload)
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      # Clerk authentication
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      # Admin configuration
+      ADMIN_EMAILS: ${ADMIN_EMAILS}
+      # OpenAI (for embeddings)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    volumes:
+      # Mount source code for hot-reloading
+      - .:/app
+      # Exclude node_modules to use container's installed dependencies
+      - /app/node_modules
+      # Exclude .next to use container's build cache
+      - /app/.next
+      # Exclude Prisma generated client (will be regenerated in container)
+      - /app/node_modules/.prisma
+
+volumes:
+  db-data:
+

@@ -1,5 +1,24 @@
 import { SignUp } from '@clerk/nextjs'
 import Link from 'next/link'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+    title: 'Sign Up | trivrdy',
+    description: 'Create your trivrdy account to start tracking your progress, compete on the leaderboard, and save your Jeopardy game statistics.',
+    robots: {
+        index: false,
+        follow: true,
+    },
+    openGraph: {
+        title: 'Sign Up | trivrdy',
+        description: 'Create your trivrdy account to start tracking your progress and compete on the leaderboard.',
+        url: 'https://trivrdy.com/sign-up',
+        type: 'website',
+    },
+    alternates: {
+        canonical: 'https://trivrdy.com/sign-up',
+    },
+}
 
 export default function SignUpPage() {
     return (
