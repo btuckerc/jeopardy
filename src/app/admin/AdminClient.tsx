@@ -2977,7 +2977,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         </p>
                         <div className="mb-4">
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Type the user's email to confirm deletion:
+                                Type the user&apos;s email to confirm deletion:
                             </label>
                             <input
                                 type="text"
