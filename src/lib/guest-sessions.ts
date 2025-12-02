@@ -458,12 +458,10 @@ export async function getGuestSessionStats() {
     const now = new Date()
     
     const [active, unclaimed, claimed, expired] = await Promise.all([
-        // Active sessions (not expired, not claimed)
+        // Active sessions (all non-expired sessions, regardless of claimed status)
         prisma.guestSession.count({
             where: {
-                expiresAt: { gt: now },
-                claimedAt: null,
-                claimedByUserId: null
+                expiresAt: { gt: now }
             }
         }),
         
@@ -476,18 +474,19 @@ export async function getGuestSessionStats() {
             }
         }),
         
-        // Claimed sessions
+        // Claimed sessions (all-time)
         prisma.guestSession.count({
             where: {
                 claimedAt: { not: null }
             }
         }),
         
-        // Expired sessions
+        // Expired unclaimed sessions
         prisma.guestSession.count({
             where: {
                 expiresAt: { lte: now },
-                claimedAt: null
+                claimedAt: null,
+                claimedByUserId: null
             }
         })
     ])

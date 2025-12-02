@@ -25,10 +25,11 @@ export async function POST(request: Request) {
         
         const { guestSessionId, questionId, correct, points, rawAnswer } = body
         
-        // If we have an existing session, check if it's valid and if limit is reached
+        // If we have an existing session, check if it's valid and count questions
         let sessionId: string | undefined = guestSessionId
         let expiresAt: Date
         let currentQuestionCount = 0
+        let categorySet = new Set<string>()
         
         if (sessionId) {
             // Check existing session
@@ -40,19 +41,29 @@ export async function POST(request: Request) {
                 // Session expired or claimed, treat as new session
                 sessionId = undefined
                 currentQuestionCount = 0
+                categorySet = new Set()
             } else {
-                // Session exists and is valid - this means they've already answered 1 question
-                currentQuestionCount = 1
+                // Session exists and is valid - extract question count and categories from session data
+                const sessionData = session.data as {
+                    questionId?: string
+                    questionCount?: number
+                    categories?: string[]
+                    [key: string]: unknown
+                } | null
+                
+                if (sessionData) {
+                    // If questionCount is stored, use it; otherwise assume 1 (backward compatibility)
+                    currentQuestionCount = sessionData.questionCount ?? 1
+                    if (sessionData.categories && Array.isArray(sessionData.categories)) {
+                        categorySet = new Set(sessionData.categories)
+                    } else if (sessionData.categoryName) {
+                        categorySet.add(sessionData.categoryName as string)
+                    }
+                } else {
+                    // No data means this is a new question
+                    currentQuestionCount = 0
+                }
             }
-        }
-        
-        // Check guest limits based on current count
-        const limitCheck = await checkGuestLimit('RANDOM_QUESTION', currentQuestionCount)
-        if (!limitCheck.allowed) {
-            return jsonResponse({
-                error: limitCheck.reason || 'Guest limit reached',
-                requiresAuth: true
-            }, 403)
         }
         
         // Get question details for category information (needed for redirect after claim)
@@ -61,9 +72,30 @@ export async function POST(request: Request) {
             include: { category: true }
         })
         
+        // Add current question's category to the set
+        if (questionDetails?.category.name) {
+            categorySet.add(questionDetails.category.name)
+        }
+        
+        // Check guest limits based on current count
+        const limitCheck = await checkGuestLimit(
+            'RANDOM_QUESTION',
+            currentQuestionCount,
+            categorySet.size
+        )
+        if (!limitCheck.allowed) {
+            return jsonResponse({
+                error: limitCheck.reason || 'Guest limit reached',
+                requiresAuth: true
+            }, 403)
+        }
+        
+        // Increment question count for this submission
+        const newQuestionCount = currentQuestionCount + 1
+        
         // Create or update session
         if (sessionId) {
-            // Update existing session with category info
+            // Update existing session with latest question info and updated counts
             await prisma.guestSession.update({
                 where: { id: sessionId },
                 data: {
@@ -74,7 +106,9 @@ export async function POST(request: Request) {
                         userAnswer: rawAnswer,
                         timestamp: new Date().toISOString(),
                         categoryName: questionDetails?.category.name,
-                        knowledgeCategory: questionDetails?.knowledgeCategory
+                        knowledgeCategory: questionDetails?.knowledgeCategory,
+                        questionCount: newQuestionCount,
+                        categories: Array.from(categorySet)
                     }
                 }
             })
@@ -91,14 +125,20 @@ export async function POST(request: Request) {
                 userAnswer: rawAnswer,
                 timestamp: new Date().toISOString(),
                 categoryName: questionDetails?.category.name,
-                knowledgeCategory: questionDetails?.knowledgeCategory
+                knowledgeCategory: questionDetails?.knowledgeCategory,
+                questionCount: newQuestionCount,
+                categories: Array.from(categorySet)
             })
             sessionId = newSession.id
             expiresAt = newSession.expiresAt
         }
         
-        // Check if limit is reached after this submission (they've now answered 1 question)
-        const postSubmissionLimitCheck = await checkGuestLimit('RANDOM_QUESTION', 1)
+        // Check if limit is reached after this submission
+        const postSubmissionLimitCheck = await checkGuestLimit(
+            'RANDOM_QUESTION',
+            newQuestionCount,
+            categorySet.size
+        )
         const limitReached = !postSubmissionLimitCheck.allowed
         
         return jsonResponse({

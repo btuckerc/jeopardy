@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import type { AppUser } from '@/lib/clerk-auth'
+import { SimpleLineChart } from './SimpleLineChart'
 
 // Helper to format date string without timezone conversion
 // Takes YYYY-MM-DD and returns formatted string like "November 5, 2025"
@@ -71,7 +72,11 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [pushing, setPushing] = useState(false)
     
     // Tab state
-    const [activeTab, setActiveTab] = useState<'manage' | 'fetch' | 'player-games' | 'disputes' | 'daily-challenges' | 'guest-config' | 'cron' | 'users'>('manage')
+    const [activeTab, setActiveTab] = useState<'metrics' | 'manage' | 'fetch' | 'player-games' | 'disputes' | 'daily-challenges' | 'guest-config' | 'cron' | 'users'>('metrics')
+    
+    // Metrics tab state
+    const [metricsWindow, setMetricsWindow] = useState<'24h' | '7d' | '14d' | '30d'>('7d')
+    const [metricsLoading, setMetricsLoading] = useState(false)
     
     // Cron jobs state
     const [cronExecutions, setCronExecutions] = useState<any[]>([])
@@ -88,6 +93,11 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [guestStats, setGuestStats] = useState<any>(null)
     const [loadingGuestConfig, setLoadingGuestConfig] = useState(false)
     const [savingGuestConfig, setSavingGuestConfig] = useState(false)
+    
+    // Overview metrics state
+    const [usageMetrics, setUsageMetrics] = useState<any>(null)
+    const [opsMetrics, setOpsMetrics] = useState<any>(null)
+    const [loadingOverview, setLoadingOverview] = useState(true)
     
     // Daily challenges state
     const [dailyChallenges, setDailyChallenges] = useState<any[]>([])
@@ -141,6 +151,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [loadingUsers, setLoadingUsers] = useState(false)
     const [usersError, setUsersError] = useState<string | null>(null)
     const [userSearch, setUserSearch] = useState('')
+    const [userSortBy, setUserSortBy] = useState<'lastOnlineAt' | 'createdAt'>('lastOnlineAt')
+    const [userSortOrder, setUserSortOrder] = useState<'asc' | 'desc'>('desc')
     const [selectedUser, setSelectedUser] = useState<any>(null)
     const [userGamesExpanded, setUserGamesExpanded] = useState<Set<string>>(new Set())
     const [userAllGames, setUserAllGames] = useState<Record<string, any[]>>({})
@@ -376,6 +388,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 params.append('search', userSearch)
             }
             params.append('limit', '100')
+            params.append('sortBy', userSortBy)
+            params.append('sortOrder', userSortOrder)
             
             const response = await fetch(`/api/admin/users?${params}`)
             if (response.ok) {
@@ -391,14 +405,14 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         } finally {
             setLoadingUsers(false)
         }
-    }, [userSearch])
+    }, [userSearch, userSortBy, userSortOrder])
 
-    // Load users when tab is active
+    // Load users when tab is active or sort changes
     useEffect(() => {
         if (activeTab === 'users') {
             fetchUsers()
         }
-    }, [activeTab, fetchUsers])
+    }, [activeTab, userSortBy, userSortOrder, fetchUsers])
 
     // Fetch all games for a specific user
     const fetchUserAllGames = useCallback(async (userId: string) => {
@@ -446,7 +460,32 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         }
     }, [users.length, fetchUsers])
 
-    // Fetch guest config and stats
+    // Navigation helpers for metrics integration
+    const navigateToDisputes = useCallback(() => {
+        setActiveTab('disputes')
+        setDisputeFilterStatus('PENDING')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, [])
+
+    const navigateToCronJobs = useCallback(() => {
+        setActiveTab('cron')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, [])
+
+    const navigateToUsers = useCallback(() => {
+        setActiveTab('users')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        if (users.length === 0) {
+            fetchUsers()
+        }
+    }, [users.length, fetchUsers])
+
+    const navigateToGames = useCallback(() => {
+        setActiveTab('player-games')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }, [])
+
+    // Fetch guest config and stats (defined before navigateToGuestConfig to avoid initialization error)
     const fetchGuestConfig = useCallback(async () => {
         setLoadingGuestConfig(true)
         try {
@@ -468,6 +507,74 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             setLoadingGuestConfig(false)
         }
     }, [])
+
+    const navigateToGuestConfig = useCallback(() => {
+        setActiveTab('guest-config')
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        if (!guestConfig) {
+            fetchGuestConfig()
+        }
+    }, [guestConfig, fetchGuestConfig])
+
+    // Fetch overview metrics (usage and ops)
+    const fetchOverviewMetrics = useCallback(async (window: '24h' | '7d' | '14d' | '30d' = '7d') => {
+        setLoadingOverview(true)
+        setMetricsLoading(true)
+        try {
+            const bucket = window === '24h' ? 'hour' : 'day'
+            const [usageRes, opsRes, guestStatsRes, disputesRes] = await Promise.all([
+                fetch(`/api/admin/usage-metrics?window=${window}&bucket=${bucket}`),
+                fetch(`/api/admin/ops-metrics?window=${window}`),
+                fetch('/api/admin/guest-stats'),
+                fetch('/api/admin/disputes/stats')
+            ])
+            
+            if (usageRes.ok) {
+                const usage = await usageRes.json()
+                setUsageMetrics(usage)
+            }
+            if (opsRes.ok) {
+                const ops = await opsRes.json()
+                setOpsMetrics(ops)
+            }
+            if (guestStatsRes.ok) {
+                const stats = await guestStatsRes.json()
+                setGuestStats(stats)
+            }
+            if (disputesRes.ok) {
+                const disputes = await disputesRes.json()
+                setPendingDisputesCount(disputes.pendingCount || 0)
+            }
+        } catch (error) {
+            console.error('Error fetching overview metrics:', error)
+        } finally {
+            setLoadingOverview(false)
+            setMetricsLoading(false)
+        }
+    }, [])
+    
+    // Fetch metrics when window changes
+    useEffect(() => {
+        if (activeTab === 'metrics') {
+            fetchOverviewMetrics(metricsWindow)
+        }
+    }, [metricsWindow, activeTab, fetchOverviewMetrics])
+    
+    // Load overview metrics on mount (for metrics tab)
+    useEffect(() => {
+        if (activeTab === 'metrics') {
+            fetchOverviewMetrics(metricsWindow)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []) // Only run on mount
+    
+    // Load metrics when switching to metrics tab
+    useEffect(() => {
+        if (activeTab === 'metrics' && !usageMetrics) {
+            fetchOverviewMetrics(metricsWindow)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]) // Only depend on activeTab to avoid unnecessary refetches
 
     // Load guest config when tab is active
     useEffect(() => {
@@ -1389,6 +1496,16 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 <div className="pb-2 overflow-x-auto scrollbar-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
                     <div className="flex flex-wrap gap-2 px-4 py-2">
                         <button
+                            onClick={() => setActiveTab('metrics')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'metrics'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Metrics
+                        </button>
+                        <button
                             onClick={() => setActiveTab('manage')}
                             className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
                                 activeTab === 'manage'
@@ -1496,6 +1613,345 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             : 'bg-blue-100 border border-blue-400 text-blue-700'
                 }`}>
                     {message}
+                </div>
+            )}
+
+            {/* METRICS TAB */}
+            {activeTab === 'metrics' && (
+                <div className="container mx-auto px-4 pb-8">
+                    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
+                            <h2 className="text-xl font-semibold text-black">Usage & Operational Metrics</h2>
+                            <div className="flex flex-wrap gap-2">
+                                {(['24h', '7d', '14d', '30d'] as const).map((window) => (
+                                    <button
+                                        key={window}
+                                        onClick={() => setMetricsWindow(window)}
+                                        disabled={metricsLoading}
+                                        className={`px-4 py-2 rounded-lg font-medium text-sm transition-all border-2 ${
+                                            metricsWindow === window
+                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                        {window}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => fetchOverviewMetrics(metricsWindow)}
+                                    disabled={metricsLoading}
+                                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                                >
+                                    {metricsLoading ? 'Loading...' : 'Refresh'}
+                                </button>
+                            </div>
+                        </div>
+
+                        {metricsLoading ? (
+                            <div className="text-center py-12">
+                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                <p className="mt-2 text-gray-600">Loading metrics...</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Key Metrics Cards */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                                    {/* Total Users */}
+                                    {usageMetrics?.userbase && (
+                                        <button
+                                            onClick={navigateToUsers}
+                                            className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 text-left hover:bg-indigo-100 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group relative"
+                                            title="Click to view all users"
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="text-sm text-indigo-600 font-medium">Total Users</div>
+                                                <svg className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </div>
+                                            <div className="text-2xl font-bold text-indigo-900">
+                                                {usageMetrics.userbase.totalUsers?.toLocaleString() || '0'}
+                                            </div>
+                                            <div className="text-xs text-gray-600 mt-1">
+                                                Active (30d): {usageMetrics.userbase.activeUsers30d?.toLocaleString() || '0'}
+                                            </div>
+                                            <div className="absolute bottom-2 right-2 text-xs text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                View →
+                                            </div>
+                                        </button>
+                                    )}
+                                    
+                                    {/* Questions Answered */}
+                                    {usageMetrics && (
+                                        <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
+                                            <div className="text-sm text-green-600 font-medium mb-1">Questions ({metricsWindow})</div>
+                                            <div className="text-2xl font-bold text-green-900">
+                                                {((usageMetrics.totals?.guestQuestionsAnswered || 0) + (usageMetrics.totals?.gamesStarted || 0) * 10).toLocaleString()}
+                                            </div>
+                                            <div className="text-xs text-gray-600 mt-1">
+                                                Guest: {usageMetrics.totals?.guestQuestionsAnswered || 0} | Games: {(usageMetrics.totals?.gamesStarted || 0) * 10}
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Games Started vs Completed */}
+                                    {usageMetrics && (
+                                        <button
+                                            onClick={navigateToGames}
+                                            className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 text-left hover:bg-purple-100 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer group relative"
+                                            title="Click to view all games"
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="text-sm text-purple-600 font-medium">Games ({metricsWindow})</div>
+                                                <svg className="w-4 h-4 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </div>
+                                            <div className="text-2xl font-bold text-purple-900">
+                                                {(usageMetrics.totals?.gamesStarted || 0) + (usageMetrics.totals?.guestGamesStarted || 0)}
+                                            </div>
+                                            <div className="text-xs text-gray-600 mt-1">
+                                                Completed: {usageMetrics.totals?.gamesCompleted || 0} | Guest: {usageMetrics.totals?.guestGamesStarted || 0}
+                                            </div>
+                                            <div className="absolute bottom-2 right-2 text-xs text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                View →
+                                            </div>
+                                        </button>
+                                    )}
+                                    
+                                    {/* API Errors */}
+                                    {opsMetrics?.apiErrors && (
+                                        <div className={`border-2 rounded-lg p-4 ${
+                                            (opsMetrics.apiErrors.totals?.status500 || 0) > 0 
+                                                ? 'bg-red-50 border-red-200' 
+                                                : (opsMetrics.apiErrors.totals?.status404 || 0) > 10
+                                                ? 'bg-yellow-50 border-yellow-200'
+                                                : 'bg-gray-50 border-gray-200'
+                                        }`}>
+                                            <div className={`text-sm font-medium mb-1 ${
+                                                (opsMetrics.apiErrors.totals?.status500 || 0) > 0 
+                                                    ? 'text-red-600' 
+                                                    : (opsMetrics.apiErrors.totals?.status404 || 0) > 10
+                                                    ? 'text-yellow-600'
+                                                    : 'text-gray-600'
+                                            }`}>
+                                                API Errors ({metricsWindow})
+                                            </div>
+                                            <div className={`text-2xl font-bold ${
+                                                (opsMetrics.apiErrors.totals?.status500 || 0) > 0 
+                                                    ? 'text-red-900' 
+                                                    : (opsMetrics.apiErrors.totals?.status404 || 0) > 10
+                                                    ? 'text-yellow-900'
+                                                    : 'text-gray-900'
+                                            }`}>
+                                                {opsMetrics.apiErrors.totals?.total || 0}
+                                            </div>
+                                            <div className="text-xs text-gray-600 mt-1">
+                                                404: {opsMetrics.apiErrors.totals?.status404 || 0} | 500: {opsMetrics.apiErrors.totals?.status500 || 0}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Guest Conversion & Pending Disputes */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                                    {/* Guest Conversion Rate */}
+                                    {usageMetrics && (
+                                        <button
+                                            onClick={navigateToGuestConfig}
+                                            className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 text-left hover:bg-blue-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group relative"
+                                            title="Click to manage guest settings"
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <div className="text-sm text-blue-600 font-medium">Guest Conversion ({metricsWindow})</div>
+                                                <svg className="w-4 h-4 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </div>
+                                            <div className="text-2xl font-bold text-blue-900">
+                                                {usageMetrics.conversionRate?.toFixed(1) || '0.0'}%
+                                            </div>
+                                            <div className="text-xs text-gray-600 mt-1">
+                                                {usageMetrics.totals?.guestSessionsClaimed || 0} / {usageMetrics.totals?.guestSessionsCreated || 0} claimed
+                                            </div>
+                                            <div className="absolute bottom-2 right-2 text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Manage →
+                                            </div>
+                                        </button>
+                                    )}
+                                    
+                                    {/* Pending Disputes */}
+                                    <button
+                                        onClick={navigateToDisputes}
+                                        className={`border-2 rounded-lg p-4 text-left transition-all cursor-pointer group relative hover:shadow-md ${
+                                            (pendingDisputesCount || 0) > 0 
+                                                ? 'bg-amber-50 border-amber-200 hover:bg-amber-100 hover:border-amber-300' 
+                                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
+                                        }`}
+                                        title="Click to review pending disputes"
+                                    >
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className={`text-sm font-medium ${
+                                                (pendingDisputesCount || 0) > 0 ? 'text-amber-600' : 'text-gray-600'
+                                            }`}>
+                                                Pending Disputes
+                                            </div>
+                                            <svg className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ${
+                                                (pendingDisputesCount || 0) > 0 ? 'text-amber-400' : 'text-gray-400'
+                                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                        </div>
+                                        <div className={`text-2xl font-bold ${
+                                            (pendingDisputesCount || 0) > 0 ? 'text-amber-900' : 'text-gray-900'
+                                        }`}>
+                                            {pendingDisputesCount ?? '...'}
+                                        </div>
+                                        {(pendingDisputesCount || 0) > 0 && (
+                                            <div className="absolute bottom-2 right-2 text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                Review →
+                                            </div>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {/* Time-Series Charts */}
+                                <div className="space-y-6">
+                                    {/* User Growth Chart */}
+                                    {usageMetrics?.timeSeries && (
+                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                                            <SimpleLineChart
+                                                data={usageMetrics.timeSeries.map((d: any) => ({
+                                                    timestamp: d.timestamp,
+                                                    value: d.newUsers || 0
+                                                }))}
+                                                title="New Users Over Time"
+                                                color="#6366f1"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Active Users Chart */}
+                                    {usageMetrics?.timeSeries && (
+                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                                            <SimpleLineChart
+                                                data={usageMetrics.timeSeries.map((d: any) => ({
+                                                    timestamp: d.timestamp,
+                                                    value: d.activeUsers || 0
+                                                }))}
+                                                title="Active Users Over Time"
+                                                color="#10b981"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Questions Answered Chart */}
+                                    {usageMetrics?.timeSeries && (
+                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                                            <SimpleLineChart
+                                                data={usageMetrics.timeSeries.map((d: any) => ({
+                                                    timestamp: d.timestamp,
+                                                    value: (d.guestQuestionsAnswered || 0) + (d.gamesStarted || 0) * 10
+                                                }))}
+                                                title="Questions Answered Over Time"
+                                                color="#22c55e"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Games Started Chart */}
+                                    {usageMetrics?.timeSeries && (
+                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                                            <SimpleLineChart
+                                                data={usageMetrics.timeSeries.map((d: any) => ({
+                                                    timestamp: d.timestamp,
+                                                    value: (d.gamesStarted || 0) + (d.guestGamesStarted || 0)
+                                                }))}
+                                                title="Games Started Over Time"
+                                                color="#a855f7"
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* API Errors Chart */}
+                                    {opsMetrics?.apiErrors?.timeSeries && opsMetrics.apiErrors.timeSeries.length > 0 && (
+                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
+                                            <SimpleLineChart
+                                                data={opsMetrics.apiErrors.timeSeries.map((d: any) => ({
+                                                    timestamp: d.timestamp,
+                                                    value: (d.status404 || 0) + (d.status500 || 0) + (d.other4xx || 0) + (d.other5xx || 0)
+                                                }))}
+                                                title="API Errors Over Time"
+                                                color="#ef4444"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Cron Job Health */}
+                                {opsMetrics && (
+                                    <div className="mt-6 pt-6 border-t border-gray-200">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="text-lg font-semibold text-black">Cron Job Health</h3>
+                                            <button
+                                                onClick={navigateToCronJobs}
+                                                className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
+                                            >
+                                                View Details
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                            {opsMetrics.cronJobs?.map((job: any) => (
+                                                <button
+                                                    key={job.jobName}
+                                                    onClick={navigateToCronJobs}
+                                                    className={`border-2 rounded-lg p-3 text-left transition-all cursor-pointer group hover:shadow-md ${
+                                                        job.health === 'unhealthy' 
+                                                            ? 'bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300' 
+                                                            : job.health === 'running'
+                                                            ? 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 hover:border-yellow-300'
+                                                            : 'bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300'
+                                                    }`}
+                                                    title={`Click to view ${job.displayName} details`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <div className="text-sm font-medium text-gray-900">{job.displayName}</div>
+                                                        <svg className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ${
+                                                            job.health === 'unhealthy' 
+                                                                ? 'text-red-400' 
+                                                                : job.health === 'running'
+                                                                ? 'text-yellow-400'
+                                                                : 'text-green-400'
+                                                        }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    </div>
+                                                    <div className={`text-xs font-semibold ${
+                                                        job.health === 'unhealthy' 
+                                                            ? 'text-red-700' 
+                                                            : job.health === 'running'
+                                                            ? 'text-yellow-700'
+                                                            : 'text-green-700'
+                                                    }`}>
+                                                        {job.health === 'unhealthy' ? '⚠️ Unhealthy' :
+                                                         job.health === 'running' ? '⏳ Running' : '✓ Healthy'}
+                                                    </div>
+                                                    {job.lastExecution && (
+                                                        <div className="text-xs text-gray-600 mt-1">
+                                                            Last: {new Date(job.lastExecution.startedAt).toLocaleDateString()}
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -2800,22 +3256,70 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             </button>
                         </div>
 
-                        {/* Search */}
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                placeholder="Search by email, name, or display name..."
-                                value={userSearch}
-                                onChange={(e) => {
-                                    setUserSearch(e.target.value)
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        fetchUsers()
-                                    }
-                                }}
-                                className="w-full p-2 border rounded text-gray-900"
-                            />
+                        {/* Search and Sort Controls */}
+                        <div className="mb-4 space-y-3">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <div className="flex-1">
+                                    <input
+                                        type="text"
+                                        placeholder="Search by email, name, or display name..."
+                                        value={userSearch}
+                                        onChange={(e) => {
+                                            setUserSearch(e.target.value)
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                fetchUsers()
+                                            }
+                                        }}
+                                        className="w-full p-2 border rounded text-gray-900"
+                                    />
+                                </div>
+                                <div className="flex gap-2 flex-shrink-0">
+                                    <div className="relative">
+                                        <select
+                                            value={userSortBy}
+                                            onChange={(e) => {
+                                                setUserSortBy(e.target.value as 'lastOnlineAt' | 'createdAt')
+                                            }}
+                                            className="px-3 py-2 pr-8 border rounded text-gray-900 bg-white text-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
+                                        >
+                                            <option value="lastOnlineAt">Sort by: Last Online</option>
+                                            <option value="createdAt">Sort by: Created Date</option>
+                                        </select>
+                                        <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setUserSortOrder(userSortOrder === 'asc' ? 'desc' : 'asc')
+                                        }}
+                                        className={`px-3 py-2 border rounded text-sm font-medium flex items-center gap-1 transition-colors ${
+                                            userSortOrder === 'desc'
+                                                ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
+                                                : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
+                                        }`}
+                                        title={`Sort ${userSortOrder === 'asc' ? 'Ascending' : 'Descending'} - Click to toggle`}
+                                    >
+                                        {userSortOrder === 'asc' ? (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                                </svg>
+                                                Asc
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                                Desc
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Error Display */}

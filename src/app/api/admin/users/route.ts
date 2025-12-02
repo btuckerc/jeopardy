@@ -15,6 +15,12 @@ export async function GET(request: Request) {
         const search = searchParams.get('search')
         const limit = parseInt(searchParams.get('limit') || '100', 10)
         const offset = parseInt(searchParams.get('offset') || '0', 10)
+        const sortBy = searchParams.get('sortBy') || 'lastOnlineAt'
+        const sortOrder = searchParams.get('sortOrder') || 'desc'
+
+        // Validate sortBy and sortOrder
+        const validSortBy = ['lastOnlineAt', 'createdAt'].includes(sortBy) ? sortBy : 'lastOnlineAt'
+        const validSortOrder = ['asc', 'desc'].includes(sortOrder) ? sortOrder : 'desc'
 
         // Build where clause
         const where: any = {}
@@ -27,13 +33,17 @@ export async function GET(request: Request) {
             ]
         }
 
+        // Build orderBy clause
+        const orderBy: any = {}
+        orderBy[validSortBy] = validSortOrder
+
         // Fetch users with their in-progress games
         const [users, totalCount] = await Promise.all([
             prisma.user.findMany({
                 where,
                 take: limit,
                 skip: offset,
-                orderBy: { lastOnlineAt: 'desc' }, // Most recently active first
+                orderBy,
                 select: {
                     id: true,
                     email: true,

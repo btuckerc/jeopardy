@@ -74,8 +74,46 @@ export async function POST(request: Request, { params }: RouteParams) {
         }
 
         // Check guest limits before allowing answer
-        const answeredCount = guestGame.questions.filter(q => q.answered).length
-        const limitCheck = await checkGuestLimit('RANDOM_GAME', answeredCount + 1)
+        const answeredQuestions = guestGame.questions.filter(q => q.answered)
+        const answeredCount = answeredQuestions.length
+        
+        // Count unique categories and rounds from answered questions
+        const categorySet = new Set<string>()
+        const roundSet = new Set<string>()
+        
+        for (const answeredQ of answeredQuestions) {
+            if (answeredQ.question) {
+                // Get category name
+                const category = await prisma.category.findUnique({
+                    where: { id: answeredQ.question.categoryId }
+                })
+                if (category) {
+                    categorySet.add(category.name)
+                }
+                // Track round
+                if (answeredQ.question.round) {
+                    roundSet.add(answeredQ.question.round)
+                }
+            }
+        }
+        
+        // Add current question's category and round
+        const currentCategory = await prisma.category.findUnique({
+            where: { id: question.categoryId }
+        })
+        if (currentCategory) {
+            categorySet.add(currentCategory.name)
+        }
+        if (question.round) {
+            roundSet.add(question.round)
+        }
+        
+        const limitCheck = await checkGuestLimit(
+            'RANDOM_GAME',
+            answeredCount + 1,
+            categorySet.size,
+            roundSet.size
+        )
         
         if (!limitCheck.allowed) {
             return jsonResponse({
