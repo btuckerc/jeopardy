@@ -26,17 +26,36 @@ function calculateTimeRemaining(targetTime: string): { hours: number; minutes: n
     return { hours, minutes, seconds, isReady: false }
 }
 
+// Format the UTC refresh time in user's local timezone
+function formatLocalRefreshTime(utcTimeString: string): string {
+    try {
+        const utcDate = new Date(utcTimeString)
+        const localHours = utcDate.getHours()
+        const localMinutes = utcDate.getMinutes()
+        
+        const hour12 = localHours === 0 ? 12 : localHours > 12 ? localHours - 12 : localHours
+        const ampm = localHours >= 12 ? 'PM' : 'AM'
+        const minutesStr = localMinutes.toString().padStart(2, '0')
+        
+        return `${hour12}:${minutesStr} ${ampm}`
+    } catch {
+        return ''
+    }
+}
+
 export default function NextChallengeCallout({ nextChallengeTime, compact = false }: NextChallengeCalloutProps) {
     // Calculate initial value synchronously to avoid hydration mismatch flicker
     // We use a stable initial value based on the server time prop
     const [timeRemaining, setTimeRemaining] = useState(() => calculateTimeRemaining(nextChallengeTime))
     const [mounted, setMounted] = useState(false)
+    const [localRefreshTime, setLocalRefreshTime] = useState(() => formatLocalRefreshTime(nextChallengeTime))
 
     useEffect(() => {
         setMounted(true)
         
         // Update immediately on mount to sync with actual client time
         setTimeRemaining(calculateTimeRemaining(nextChallengeTime))
+        setLocalRefreshTime(formatLocalRefreshTime(nextChallengeTime))
         
         // Update every second for live countdown
         const interval = setInterval(() => {
@@ -102,7 +121,11 @@ export default function NextChallengeCallout({ nextChallengeTime, compact = fals
                         Next Daily Challenge
                     </p>
                     <p className="text-blue-100/80 text-xs sm:text-sm md:text-base">
-                        A new Final Jeopardy question at midnight UTC
+                        {mounted ? (
+                            <>A new Final Jeopardy question at <span className="font-semibold text-amber-300">{localRefreshTime}</span> (midnight UTC)</>
+                        ) : (
+                            'A new Final Jeopardy question at midnight UTC'
+                        )}
                     </p>
                 </div>
                 

@@ -20,17 +20,17 @@ function formatAirDate(dateStr: string | null): string {
     return `${months[parseInt(month, 10) - 1]} ${parseInt(day, 10)}, ${year}`
 }
 
-// Helper to format time string consistently (UTC time from ISO string)
+// Helper to format time string in user's local timezone
 // Takes ISO datetime string and returns formatted string like "8:32 AM"
-// Uses UTC time to ensure server/client consistency
+// Uses local time to show when the user actually submitted
 function formatTime(dateTimeStr: string): string {
     if (!dateTimeStr) return ''
     try {
-        // Parse as UTC and format consistently
+        // Parse the ISO string and format in user's local timezone
         const date = new Date(dateTimeStr)
-        // Use UTC methods to avoid timezone differences
-        const hours = date.getUTCHours()
-        const minutes = date.getUTCMinutes()
+        // Use local time methods to show user's local time
+        const hours = date.getHours()
+        const minutes = date.getMinutes()
         
         const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
         const ampm = hours >= 12 ? 'PM' : 'AM'
@@ -113,6 +113,12 @@ export default function DailyChallengeClient({
     const [storedUserAnswer, setStoredUserAnswer] = useState<string | null>(null)
     const [showBackToTop, setShowBackToTop] = useState(false)
     const [showQuestion, setShowQuestion] = useState(false)
+    const [mounted, setMounted] = useState(false)
+
+    // Track mounted state to avoid hydration mismatches with time formatting
+    useEffect(() => {
+        setMounted(true)
+    }, [])
 
     // Initialize showQuestion based on initial challenge data
     useEffect(() => {
@@ -662,8 +668,11 @@ export default function DailyChallengeClient({
                                                             <span className="hidden sm:inline">✗ </span>Wrong
                                                         </span>
                                                     )}
-                                                    <span className="text-xs sm:text-sm text-blue-200 whitespace-nowrap font-medium hidden sm:inline">
-                                                        {formatTime(entry.completedAt)}
+                                                    <span 
+                                                        className="text-xs sm:text-sm text-blue-200 whitespace-nowrap font-medium hidden sm:inline"
+                                                        suppressHydrationWarning
+                                                    >
+                                                        {mounted ? formatTime(entry.completedAt) : ''}
                                                     </span>
                                                 </div>
                                             </div>

@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { format, subWeeks } from 'date-fns';
 import { useRouter } from 'next/navigation';
-import UserAvatar, { PROFILE_ICONS, AVATAR_BACKGROUNDS, AvatarBackgroundKey } from './UserAvatar'
+import UserAvatar, { AVATAR_BACKGROUNDS, AvatarBackgroundKey } from './UserAvatar'
+import { CATEGORIZED_EMOJIS, getEmojisByCategory, type EmojiCategory } from '@/lib/avatar'
 
 interface SpoilerSettings {
     spoilerBlockDate: Date | null;
@@ -46,6 +47,7 @@ export default function UserSettings({
     const [localAvatarBackground, setLocalAvatarBackground] = useState<string | null>(avatarBackground || null);
     const [displayNameError, setDisplayNameError] = useState<string | null>(null);
     const [isUpdatingDisplayName, setIsUpdatingDisplayName] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState<EmojiCategory | 'all'>('all');
     const modalRef = useRef<HTMLDivElement>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const router = useRouter();
@@ -364,8 +366,42 @@ export default function UserSettings({
                                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">
                                         Icon
                                     </label>
-                                    <div className="bg-white rounded-lg border border-gray-200 p-2 max-h-36 overflow-y-auto">
+                                    
+                                    {/* Category Filters */}
+                                    <div className="flex flex-wrap gap-1.5 mb-2">
+                                        {(['all', 'on_theme', 'animals', 'knowledge', 'science', 'misc'] as const).map((category) => {
+                                            const categoryLabels: Record<typeof category, string> = {
+                                                all: 'All',
+                                                on_theme: 'On-theme',
+                                                animals: 'Animals',
+                                                knowledge: 'Knowledge',
+                                                science: 'Science',
+                                                misc: 'Misc',
+                                            };
+                                            return (
+                                                <button
+                                                    key={category}
+                                                    onClick={() => setSelectedCategory(category)}
+                                                    className={`
+                                                        px-2.5 py-1 text-xs font-medium rounded-full transition-all duration-150
+                                                        ${selectedCategory === category
+                                                            ? 'bg-blue-600 text-white shadow-sm'
+                                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                        }
+                                                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1
+                                                    `}
+                                                    aria-label={`Filter by ${categoryLabels[category]}`}
+                                                    aria-pressed={selectedCategory === category}
+                                                >
+                                                    {categoryLabels[category]}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    
+                                    <div className="bg-white rounded-lg border border-gray-200 p-2 max-h-48 overflow-y-auto">
                                         <div className="grid grid-cols-7 sm:grid-cols-9 gap-1">
+                                            {/* Default Icon */}
                                             <button
                                                 onClick={() => handleUpdateIcon(null)}
                                                 className={`
@@ -381,13 +417,15 @@ export default function UserSettings({
                                             >
                                                 👤
                                             </button>
-                                            {Object.entries(PROFILE_ICONS).map(([icon, name]) => (
+                                            
+                                            {/* Filtered Emojis */}
+                                            {getEmojisByCategory(selectedCategory).map(({ emoji, name }) => (
                                                 <button
-                                                    key={icon}
-                                                    onClick={() => handleUpdateIcon(icon)}
+                                                    key={emoji}
+                                                    onClick={() => handleUpdateIcon(emoji)}
                                                     className={`
                                                         aspect-square flex items-center justify-center text-lg rounded-lg transition-all duration-150
-                                                        ${localSelectedIcon === icon 
+                                                        ${localSelectedIcon === emoji 
                                                             ? 'bg-blue-100 ring-2 ring-blue-500 ring-offset-1' 
                                                             : 'hover:bg-gray-100'
                                                         }
@@ -396,7 +434,7 @@ export default function UserSettings({
                                                     title={name}
                                                     aria-label={`Select ${name} icon`}
                                                 >
-                                                    {icon}
+                                                    {emoji}
                                                 </button>
                                             ))}
                                         </div>
