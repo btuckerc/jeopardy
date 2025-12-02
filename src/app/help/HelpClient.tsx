@@ -220,11 +220,27 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
                 <div className="space-y-6 divide-y divide-gray-200">
                     <div className="pt-6 first:pt-0">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Who made this?</h3>
+                        <p className="text-gray-600">
+                            My name is Tucker. I&apos;m a senior software engineer. This is a personal project. I really like Jeopardy, 
+                            wanted a place to study, thought I might make something out of it. I made this mostly for myself but can see 
+                            the utility in sharing this with other people. If you want to reach out, hit that &quot;Email Support&quot; button - 
+                            the email goes directly to me.
+                        </p>
+                    </div>
+                    <div className="pt-6">
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">What is trivrdy?</h3>
                         <p className="text-gray-600">
-                            trivrdy is a free Jeopardy study tool that helps you practice with authentic Jeopardy questions. 
+                            trivrdy is a free Jeopardy study tool that helps you study with authentic Jeopardy questions. 
                             With over 12,000 questions from real Jeopardy episodes, you can improve your trivia knowledge, 
                             track your progress, and compete on leaderboards.
+                        </p>
+                    </div>
+                    <div className="pt-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">What is study mode?</h3>
+                        <p className="text-gray-600">
+                            Study mode is a focused way to practice specific topics. You can study by category, round, or challenge yourself with triple stumpers. 
+                            Study mode games still count toward your stats and streaks, so you can track your progress while focusing on areas you want to improve.
                         </p>
                     </div>
                     <div className="pt-6">
@@ -237,7 +253,7 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                     <div className="pt-6">
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">Do I need an account?</h3>
                         <p className="text-gray-600">
-                            You can use trivrdy as a guest to practice questions and play games, but signing in unlocks additional features 
+                            You can use trivrdy as a guest to study questions and play games, but signing in unlocks additional features 
                             including progress tracking, leaderboards, daily challenge history, achievements, and personalized stats. 
                             Creating an account is free and only takes a moment.
                         </p>
@@ -253,7 +269,7 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                     <div className="pt-6">
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">How do I report a bad ruling or wrong question?</h3>
                         <p className="text-gray-600">
-                            If you believe an answer was incorrectly marked during gameplay or practice, you can dispute it directly from 
+                            If you believe an answer was incorrectly marked during gameplay or study mode, you can dispute it directly from 
                             the question result screen. For general content issues or questions about answer accuracy, you can use the 
                             &quot;Report an Issue&quot; form above and select &quot;Content Issue&quot; as the category.
                         </p>
@@ -274,15 +290,6 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                             impressive streaks, high scores, and mastery of different knowledge categories. Some achievements are 
                             visible from the start, while others remain hidden until you unlock them. Check your achievements page 
                             to see your progress and discover new goals to work toward.
-                        </p>
-                    </div>
-                    <div className="pt-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Who made this?</h3>
-                        <p className="text-gray-600">
-                            My name is Tucker. I&apos;m a senior software engineer. This is a personal project. I really like Jeopardy, 
-                            wanted a place to study, thought I might make something out of it. I made this mostly for myself but can see 
-                            the utility in sharing this with other people. If you want to reach out, hit that &quot;Email Support&quot; button - 
-                            the email goes directly to me.
                         </p>
                     </div>
                 </div>

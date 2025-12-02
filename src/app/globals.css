@@ -235,7 +235,7 @@
     }
 
     /* ==========================================================================
-       Category Cards (Practice Mode)
+       Category Cards (Study Mode)
        ========================================================================== */
     .category-card {
         @apply bg-white rounded-xl p-6 shadow-sm border border-gray-200

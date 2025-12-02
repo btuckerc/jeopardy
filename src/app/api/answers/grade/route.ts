@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
                 // In game mode, use the provided pointsEarned (display value)
                 storedPoints = pointsEarned
             } else {
-                // In practice mode or if pointsEarned not provided, use question value
+                // In study mode or if pointsEarned not provided, use question value
                 storedPoints = question.value || 200
             }
         }
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Create GameHistory entry
-            // Check if this question has been answered correctly before (for practice mode)
+            // Check if this question has been answered correctly before (for study mode)
             const existingCorrectHistory = mode === 'PRACTICE' 
                 ? await tx.gameHistory.findFirst({
                     where: {
@@ -154,7 +154,7 @@ export async function POST(request: NextRequest) {
                 }
             })
 
-            // Update UserProgress (for practice mode or if category tracking needed)
+            // Update UserProgress (for study mode or if category tracking needed)
             if (mode === 'PRACTICE' || !gameId) {
                 await tx.userProgress.upsert({
                     where: {
@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
         } : null
 
         // Check for achievements asynchronously (don't block the response)
-        // This allows real-time achievement tracking for both game and practice mode
+        // This allows real-time achievement tracking for both game and study mode
         checkAndUnlockAchievements(appUser.id, {
             type: 'question_answered',
             data: {

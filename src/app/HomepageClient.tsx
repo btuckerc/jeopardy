@@ -59,7 +59,7 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
             const response = await fetch('/api/practice/shuffle')
             
             if (!response.ok) {
-                throw new Error('Failed to load practice question')
+                throw new Error('Failed to load study question')
             }
 
             const question = await response.json()
@@ -151,7 +151,7 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
         )
     }
 
-    // Practice Mode
+    // Study Mode
     return (
         <button
             onClick={handlePracticeMode}
@@ -179,9 +179,12 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                     </div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Random Practice Question</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">Random Study Question</h2>
                     <p className="text-emerald-100 text-base md:text-lg">
                         Jump into a random question from any category and test your knowledge
+                    </p>
+                    <p className="text-emerald-200 text-sm mt-2">
+                        Study mode games still count toward your stats and streaks
                     </p>
                 </div>
 
@@ -195,7 +198,7 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
                             </>
                         ) : (
                             <>
-                                <span className="text-white font-semibold text-lg">Start Practicing</span>
+                                <span className="text-white font-semibold text-lg">Start Studying</span>
                                 <svg className="w-6 h-6 text-white transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                 </svg>

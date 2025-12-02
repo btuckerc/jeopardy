@@ -898,7 +898,7 @@ function RoundHistoryModal({
                                         'bg-amber-600 hover:bg-amber-700'
                                     }`}
                                 >
-                                    Start Practicing
+                                    Start Studying
                                 </Link>
                             </div>
                         ) : (

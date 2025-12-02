@@ -167,6 +167,20 @@ Uses phonetic algorithms (Double Metaphone) and Jaro-Winkler similarity with len
 
 See `src/lib/answer-checker.test.ts` for examples.
 
+## Naming Conventions
+
+### Study Mode vs Practice Mode
+
+The user-facing feature is called **"Study Mode"**, but internally the codebase uses **"practice"** as a legacy term in:
+- URL routes (`/practice/*`)
+- API route segments (`/api/practice/*`)
+- Database fields and schema (if any)
+- Internal variable names and function names
+
+This is intentional to avoid breaking changes. When adding new features or writing new code:
+- Use **"study mode"** in user-facing copy, comments, and documentation
+- Keep **"practice"** in technical contracts (routes, API paths, database fields) to maintain backwards compatibility
+
 ## Project Structure
 
 ```
@@ -181,7 +195,7 @@ trivrdy/
 │   ├── app/                 # Next.js App Router
 │   │   ├── api/             # API routes
 │   │   ├── game/            # Game mode pages
-│   │   ├── practice/        # Practice mode pages
+│   │   ├── practice/        # Study mode pages (legacy internal name: "practice")
 │   │   └── ...
 │   ├── components/          # Shared components
 │   ├── lib/                 # Shared utilities

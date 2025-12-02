@@ -1057,7 +1057,7 @@ function FreePracticeContent() {
             <div className="min-h-screen bg-gray-100 flex items-center justify-center">
                 <div className="text-center">
                     <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em] mb-4"></div>
-                    <div className="text-gray-600 font-medium">Loading practice mode...</div>
+                    <div className="text-gray-600 font-medium">Loading study mode...</div>
                 </div>
             </div>
         )
@@ -1527,7 +1527,7 @@ function PracticeLoadingFallback() {
         <div className="min-h-screen bg-gray-100 flex items-center justify-center">
             <div className="text-center">
                 <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em] mb-4"></div>
-                <div className="text-gray-600 font-medium">Loading practice mode...</div>
+                <div className="text-gray-600 font-medium">Loading study mode...</div>
             </div>
         </div>
     )

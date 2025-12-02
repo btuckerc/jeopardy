@@ -83,7 +83,7 @@ export default async function Image() {
                                 fontSize: '32px',
                             }}
                         >
-                            Practice Mode
+                            Study Mode
                         </div>
                     </div>
                     <p

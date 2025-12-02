@@ -332,7 +332,7 @@ function FinalPracticeContent() {
             <div className="min-h-screen bg-gray-100 flex items-center justify-center">
                 <div className="text-center">
                     <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em] mb-4"></div>
-                    <div className="text-gray-600 font-medium">Loading Final Jeopardy practice...</div>
+                    <div className="text-gray-600 font-medium">Loading Final Jeopardy study...</div>
                 </div>
             </div>
         )
@@ -353,7 +353,7 @@ function FinalPracticeContent() {
             </div>
 
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold text-gray-900">Final Jeopardy Practice</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Final Jeopardy Study</h1>
                 <button
                     onClick={handleShuffle}
                     disabled={loadingQuestion}

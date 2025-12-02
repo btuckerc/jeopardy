@@ -157,7 +157,7 @@ export default function GuestQuestionPage() {
                         {checkingAuth || authLoading ? 'Signing you in...' : 'Loading Question'}
                     </h2>
                     <p className="text-gray-600 text-lg">
-                        {checkingAuth || authLoading ? 'Saving your progress...' : 'Preparing your practice question...'}
+                        {checkingAuth || authLoading ? 'Saving your progress...' : 'Preparing your study question...'}
                     </p>
                 </div>
             </div>
@@ -183,7 +183,7 @@ export default function GuestQuestionPage() {
             <div className="max-w-4xl mx-auto">
                 {/* Header */}
                 <div className="text-center mb-8">
-                    <h1 className="text-4xl font-bold text-gray-900 mb-2">Practice Question</h1>
+                    <h1 className="text-4xl font-bold text-gray-900 mb-2">Study Question</h1>
                     <p className="text-gray-600">
                         Try a random Jeopardy question
                     </p>

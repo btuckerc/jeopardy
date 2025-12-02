@@ -81,7 +81,7 @@ function RoundCard({ round, stats, href }: { round: 'SINGLE' | 'DOUBLE' | 'FINAL
             )}
             
             <div className="mt-6 flex items-center text-white/80 group-hover:text-white transition-colors">
-                <span className="font-medium">Start Practicing</span>
+                <span className="font-medium">Start Studying</span>
                 <svg className="w-5 h-5 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
@@ -145,11 +145,11 @@ export default function RoundSelection() {
                     <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                     </svg>
-                    Back to Practice Modes
+                    Back to Study Modes
                 </Link>
             </div>
             
-            <h1 className="text-3xl font-bold text-gray-900 mb-8">Practice by Round</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-8">Study by Round</h1>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl">
                 <RoundCard 

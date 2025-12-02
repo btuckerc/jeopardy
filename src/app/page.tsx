@@ -139,7 +139,7 @@ export default async function Home() {
                         {/* Game Mode */}
                         <HomepageClient user={user} mode="game" />
                         
-                        {/* Practice Mode */}
+                        {/* Study Mode */}
                         <HomepageClient user={user} mode="practice" />
                     </div>
 

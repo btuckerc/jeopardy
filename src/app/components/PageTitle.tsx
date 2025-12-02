@@ -17,7 +17,7 @@ export function PageTitle() {
                 pageTitle = 'Play Jeopardy Online | Game Mode | trivrdy'
                 break
             case '/practice':
-                pageTitle = 'Jeopardy Flashcards & Study Mode | Practice Trivia | trivrdy'
+                pageTitle = 'Jeopardy Flashcards & Study Mode | Study Trivia | trivrdy'
                 break
             case '/stats':
                 pageTitle = 'Track Trivia Progress | Your Jeopardy Stats | trivrdy'

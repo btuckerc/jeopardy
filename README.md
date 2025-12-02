@@ -6,7 +6,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748)](https://www.prisma.io/)
 [![pgvector](https://img.shields.io/badge/pgvector-Embeddings-orange)](https://github.com/pgvector/pgvector)
 
-trivrdy is a modern, interactive Jeopardy study platform that helps you improve your trivia knowledge through authentic Jeopardy questions. Practice at your own pace or challenge yourself with full game simulations.
+trivrdy is a modern, interactive Jeopardy study platform that helps you improve your trivia knowledge through authentic Jeopardy questions. Study at your own pace or challenge yourself with full game simulations.
 
 ## 🚀 Quick Start
 
@@ -139,12 +139,13 @@ npm run test:run         # Run tests once
 - Authentic scoring system
 - Real questions from past Jeopardy episodes
 
-### Practice Mode
+### Study Mode
 - Focus on specific knowledge categories
 - Track your progress and statistics
 - Personalized question recommendations
 - Spaced repetition learning
 - Custom difficulty settings
+- Study mode games still count toward your stats and streaks
 
 ## 📊 Features
 

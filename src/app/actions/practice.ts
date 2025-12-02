@@ -447,7 +447,7 @@ export async function saveAnswer(
         })
 
         // Check for achievements asynchronously (don't block the response)
-        // This allows real-time achievement tracking for practice mode
+        // This allows real-time achievement tracking for study mode
         checkAndUnlockAchievements(userId, {
             type: 'question_answered',
             data: {

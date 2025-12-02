@@ -5,10 +5,13 @@ import Link from 'next/link'
 export default function PracticeLanding() {
     return (
         <div className="container mx-auto px-4 py-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-8">Practice Mode</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Study Mode</h1>
+            <p className="text-gray-600 mb-8 text-lg">
+                Study mode games still count toward your stats and streaks.
+            </p>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl">
-                {/* Practice by Category Card */}
+                {/* Study by Category Card */}
                 <Link
                     href="/practice/category"
                     className="group p-8 bg-blue-600 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 text-white"
@@ -19,10 +22,10 @@ export default function PracticeLanding() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                             </svg>
                         </div>
-                        <h2 className="text-2xl font-bold">Practice by Category</h2>
+                        <h2 className="text-2xl font-bold">Study by Category</h2>
                     </div>
                     <p className="text-white/90 text-lg">
-                        Practice questions organized by knowledge categories like Geography, Entertainment, Arts & Literature, and more.
+                        Study questions organized by knowledge categories like Geography, Entertainment, Arts & Literature, and more.
                     </p>
                     <div className="mt-6 flex items-center text-white/80 group-hover:text-white transition-colors">
                         <span className="font-medium">Get Started</span>
@@ -32,7 +35,7 @@ export default function PracticeLanding() {
                     </div>
                 </Link>
 
-                {/* Practice by Round Card */}
+                {/* Study by Round Card */}
                 <Link
                     href="/practice/round"
                     className="group p-8 bg-purple-600 rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:-translate-y-1 text-white"
@@ -43,10 +46,10 @@ export default function PracticeLanding() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                             </svg>
                         </div>
-                        <h2 className="text-2xl font-bold">Practice by Round</h2>
+                        <h2 className="text-2xl font-bold">Study by Round</h2>
                     </div>
                     <p className="text-white/90 text-lg">
-                        Practice questions from specific Jeopardy rounds: Single Jeopardy, Double Jeopardy, or Final Jeopardy.
+                        Study questions from specific Jeopardy rounds: Single Jeopardy, Double Jeopardy, or Final Jeopardy.
                     </p>
                     <div className="mt-6 flex items-center text-white/80 group-hover:text-white transition-colors">
                         <span className="font-medium">Get Started</span>

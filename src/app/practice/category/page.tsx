@@ -1360,7 +1360,7 @@ function FreePracticeContent() {
             <div className="min-h-screen bg-gray-100 flex items-center justify-center">
                 <div className="text-center">
                     <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em] mb-4"></div>
-                    <div className="text-gray-600 font-medium">Loading practice mode...</div>
+                    <div className="text-gray-600 font-medium">Loading study mode...</div>
                 </div>
             </div>
         )
@@ -1387,11 +1387,11 @@ function FreePracticeContent() {
                                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                                 </svg>
-                                Back to Practice Modes
+                                Back to Study Modes
                             </Link>
                         </div>
                         <div className="flex justify-between items-center mb-8">
-                            <h1 className="text-2xl font-bold text-gray-900">Practice by Category</h1>
+                            <h1 className="text-2xl font-bold text-gray-900">Study by Category</h1>
                             <button
                                 onClick={handleShuffle}
                                 disabled={loadingQuestions || isTransitioning || !!urlError}
@@ -1869,7 +1869,7 @@ function PracticeLoadingFallback() {
         <div className="min-h-screen bg-gray-100 flex items-center justify-center">
             <div className="text-center">
                 <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em] mb-4"></div>
-                <div className="text-gray-600 font-medium">Loading practice mode...</div>
+                <div className="text-gray-600 font-medium">Loading study mode...</div>
             </div>
         </div>
     )
