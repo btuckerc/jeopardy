@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { isAdmin } from '@/lib/clerk-auth'
+import { getAppUser } from '@/lib/clerk-auth'
 import { CRON_JOBS, CronJobName } from '@/lib/cron-jobs'
 import { withCronLogging } from '@/lib/cron-logger'
 
@@ -21,8 +21,8 @@ export async function POST(
 ) {
     try {
         // Verify admin access
-        const user = await isAdmin()
-        if (!user) {
+        const user = await getAppUser()
+        if (!user || user.role !== 'ADMIN') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
