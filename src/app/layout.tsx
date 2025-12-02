@@ -1,5 +1,6 @@
 import './globals.css'
 import { Inter, Fredoka } from 'next/font/google'
+import Link from 'next/link'
 import { Providers } from './providers'
 import { Toaster } from 'react-hot-toast'
 import { PageTitle } from './components/PageTitle'
@@ -182,6 +183,21 @@ export default async function RootLayout({
                             <footer className="border-t border-gray-200 bg-gray-50">
                                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                                     <div className="text-center space-y-2">
+                                        <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-600 mb-2">
+                                            <Link
+                                                href="/help"
+                                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                            >
+                                                Help & Feedback
+                                            </Link>
+                                            <span className="text-gray-400">•</span>
+                                            <Link
+                                                href="/help"
+                                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                            >
+                                                Report an Issue
+                                            </Link>
+                                        </div>
                                         <p className="text-gray-600 text-sm">
                                             Made by{' '}
                                             <a

@@ -18,6 +18,7 @@ export function AuthButton({ appUser }: AuthButtonProps) {
     const [showSettings, setShowSettings] = useState(false)
     const [showAchievements, setShowAchievements] = useState(false)
     const [pendingDisputesCount, setPendingDisputesCount] = useState<number | null>(null)
+    const [openIssuesCount, setOpenIssuesCount] = useState<number | null>(null)
     const menuRef = useRef<HTMLDivElement>(null)
     const buttonRef = useRef<HTMLButtonElement>(null)
     const { signOut } = useClerk()
@@ -44,9 +45,10 @@ export function AuthButton({ appUser }: AuthButtonProps) {
         }
     }, [appUser])
 
-    // Fetch pending dispute count for admins
+    // Fetch pending dispute and open issues counts for admins
     useEffect(() => {
         if (appUser?.role === 'ADMIN') {
+            // Fetch disputes count
             fetch('/api/admin/disputes/stats')
                 .then(res => {
                     if (res.ok) {
@@ -61,12 +63,30 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                 })
                 .catch(error => {
                     console.error('Error fetching dispute stats:', error)
-                    // Keep badge hidden on error
                     setPendingDisputesCount(null)
                 })
+            
+            // Fetch issues count
+            fetch('/api/admin/issues/stats')
+                .then(res => {
+                    if (res.ok) {
+                        return res.json()
+                    }
+                    return null
+                })
+                .then(data => {
+                    if (data?.openCount !== undefined) {
+                        setOpenIssuesCount(data.openCount)
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching issue stats:', error)
+                    setOpenIssuesCount(null)
+                })
         } else {
-            // Reset count for non-admins
+            // Reset counts for non-admins
             setPendingDisputesCount(null)
+            setOpenIssuesCount(null)
         }
     }, [appUser])
 
@@ -178,8 +198,8 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                     aria-expanded={showUserMenu}
                     aria-haspopup="true"
                     aria-label={
-                        appUser.role === 'ADMIN' && pendingDisputesCount !== null && pendingDisputesCount > 0
-                            ? `User menu – ${pendingDisputesCount} pending dispute${pendingDisputesCount !== 1 ? 's' : ''}`
+                        appUser.role === 'ADMIN' && ((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)) > 0
+                            ? `User menu – ${(pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)} pending item${((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)) !== 1 ? 's' : ''}`
                             : 'User menu'
                     }
                 >
@@ -192,9 +212,9 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                             size="sm"
                             interactive={true}
                         />
-                        {appUser.role === 'ADMIN' && pendingDisputesCount !== null && pendingDisputesCount > 0 && (
+                        {appUser.role === 'ADMIN' && ((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)) > 0 && (
                             <span className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full bg-red-600 text-[0.7rem] font-bold flex items-center justify-center text-white shadow-md border-2 border-blue-700 z-10">
-                                {pendingDisputesCount > 9 ? '9+' : pendingDisputesCount}
+                                {((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)) > 9 ? '9+' : ((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0))}
                             </span>
                         )}
                     </div>
@@ -290,9 +310,9 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                                         </svg>
                                         <span>Admin</span>
-                                        {pendingDisputesCount !== null && pendingDisputesCount > 0 && (
+                                        {((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)) > 0 && (
                                             <span className="absolute right-3 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-red-500 text-[0.65rem] font-bold flex items-center justify-center text-white">
-                                                {pendingDisputesCount > 9 ? '9+' : pendingDisputesCount}
+                                                {((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)) > 9 ? '9+' : ((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0))}
                                             </span>
                                         )}
                                     </Link>

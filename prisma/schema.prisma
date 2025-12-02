@@ -47,67 +47,72 @@ model VerificationToken {
 }
 
 model User {
-  id                  String         @id @default(cuid())
-  clerkUserId         String?        @unique // Clerk user ID for new auth system
-  name                String?
-  email               String?        @unique
-  emailVerified       DateTime?
-  image               String?
-  displayName         String?
-  selectedIcon        String?
-  avatarBackground    String?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
-  role                UserRole       @default(USER)
-  lastSpoilerPrompt   DateTime?
-  spoilerBlockDate    DateTime?
-  spoilerBlockEnabled Boolean        @default(false)
-  currentStreak       Int            @default(0)
-  longestStreak       Int            @default(0)
-  lastGameDate        DateTime?
-  lastOnlineAt        DateTime?
-  lastSeenPath        String?
-  accounts            Account[]
-  sessions            Session[]
-  games               Game[]
-  gameHistory         GameHistory[]
-  userProgress        UserProgress[]
-  disputes            AnswerDispute[] @relation("DisputeUser")
-  resolvedDisputes    AnswerDispute[] @relation("DisputeAdmin")
-  answerOverrides     AnswerOverride[]
-  dailyChallenges     UserDailyChallenge[]
-  achievements        UserAchievement[]
-  claimedGuestSessions GuestSession[] @relation("ClaimedGuestSessions")
+  id                   String               @id @default(cuid())
+  clerkUserId          String?              @unique // Clerk user ID for new auth system
+  name                 String?
+  email                String?              @unique
+  emailVerified        DateTime?
+  image                String?
+  displayName          String?
+  selectedIcon         String?
+  avatarBackground     String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  role                 UserRole             @default(USER)
+  lastSpoilerPrompt    DateTime?
+  spoilerBlockDate     DateTime?
+  spoilerBlockEnabled  Boolean              @default(false)
+  currentStreak        Int                  @default(0)
+  longestStreak        Int                  @default(0)
+  lastGameDate         DateTime?
+  lastOnlineAt         DateTime?
+  lastSeenPath         String?
+  accounts             Account[]
+  sessions             Session[]
+  games                Game[]
+  gameHistory          GameHistory[]
+  userProgress         UserProgress[]
+  disputes             AnswerDispute[]      @relation("DisputeUser")
+  resolvedDisputes     AnswerDispute[]      @relation("DisputeAdmin")
+  answerOverrides      AnswerOverride[]
+  dailyChallenges      UserDailyChallenge[]
+  achievements         UserAchievement[]
+  claimedGuestSessions GuestSession[]       @relation("ClaimedGuestSessions")
+  issues               Issue[]              @relation("IssueUser")
+  resolvedIssues       Issue[]              @relation("IssueAdmin")
+  issueReports         IssueReport[]        @relation("IssueReportUser")
+  resolvedIssueReports IssueReport[]        @relation("IssueReportAdmin")
 
   @@index([lastOnlineAt])
 }
 
 model Question {
-  id                String                         @id @default(uuid())
-  question          String
-  answer            String
-  value             Int
-  difficulty        Difficulty
-  categoryId        String
-  knowledgeCategory KnowledgeCategory
-  airDate           DateTime?
-  season            Int?
-  episodeId         String?
-  createdAt         DateTime                       @default(now())
-  updatedAt         DateTime                       @updatedAt
-  wasTripleStumper  Boolean                        @default(false)
-  isDoubleJeopardy  Boolean                        @default(false) // @deprecated - use 'round' instead
-  round             JeopardyRound                  @default(SINGLE)
-  embedding         Unsupported("vector(1536)")?
-  gameHistory       GameHistory[]
-  games             GameQuestion[]
-  category          Category                       @relation(fields: [categoryId], references: [id])
-  userProgress      UserProgress[]
-  tags              Tag[]                          @relation("QuestionTags")
-  answerOverrides   AnswerOverride[]
-  disputes          AnswerDispute[]
-  dailyChallenges   DailyChallenge[]
+  id                 String                       @id @default(uuid())
+  question           String
+  answer             String
+  value              Int
+  difficulty         Difficulty
+  categoryId         String
+  knowledgeCategory  KnowledgeCategory
+  airDate            DateTime?
+  season             Int?
+  episodeId          String?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  wasTripleStumper   Boolean                      @default(false)
+  isDoubleJeopardy   Boolean                      @default(false) // @deprecated - use 'round' instead
+  round              JeopardyRound                @default(SINGLE)
+  embedding          Unsupported("vector(1536)")?
+  gameHistory        GameHistory[]
+  games              GameQuestion[]
+  category           Category                     @relation(fields: [categoryId], references: [id])
+  userProgress       UserProgress[]
+  tags               Tag[]                        @relation("QuestionTags")
+  answerOverrides    AnswerOverride[]
+  disputes           AnswerDispute[]
+  dailyChallenges    DailyChallenge[]
   guestGameQuestions GuestGameQuestion[]
+  issueReports       IssueReport[]
 
   @@index([categoryId])
   @@index([knowledgeCategory])
@@ -117,12 +122,12 @@ model Question {
 }
 
 model Category {
-  id                String                         @id @default(uuid())
-  name              String                         @unique
+  id                String                       @id @default(uuid())
+  name              String                       @unique
   knowledgeCategory KnowledgeCategory?
   embedding         Unsupported("vector(1536)")?
-  createdAt         DateTime                       @default(now())
-  updatedAt         DateTime                       @updatedAt
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
   questions         Question[]
   userProgress      UserProgress[]
 
@@ -136,12 +141,12 @@ model Tag {
 }
 
 model KnowledgeCategoryEmbedding {
-  id                String                       @id @default(uuid())
-  knowledgeCategory KnowledgeCategory            @unique
+  id                String                      @id @default(uuid())
+  knowledgeCategory KnowledgeCategory           @unique
   description       String
   embedding         Unsupported("vector(1536)")
-  createdAt         DateTime                     @default(now())
-  updatedAt         DateTime                     @updatedAt
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
 }
 
 model GameHistory {
@@ -154,7 +159,7 @@ model GameHistory {
   timestamp  DateTime @default(now())
   question   Question @relation(fields: [questionId], references: [id])
   user       User     @relation(fields: [userId], references: [id])
-  
+
   @@index([userId, questionId])
 }
 
@@ -174,27 +179,27 @@ model UserProgress {
 }
 
 model Game {
-  id                     String         @id @default(uuid())
+  id                     String   @id @default(uuid())
   userId                 String
-  useKnowledgeCategories Boolean        @default(false)
-  score                  Int            @default(0)
-  completed              Boolean        @default(false)
-  createdAt              DateTime       @default(now())
-  updatedAt              DateTime       @updatedAt
-  
+  useKnowledgeCategories Boolean  @default(false)
+  score                  Int      @default(0)
+  completed              Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
   // New fields for resumable games and multiplayer support
-  seed                   String?        @unique // Short opaque identifier for sharing/recreating games
-  config                 Json?          // Full game configuration (mode, categories, rounds, etc.)
-  status                 GameStatus     @default(IN_PROGRESS)
-  currentRound           JeopardyRound  @default(SINGLE)
-  currentScore           Int            @default(0) // Tracks score during gameplay (separate from final score)
-  visibility             GameVisibility @default(PRIVATE)
-  
+  seed         String?        @unique // Short opaque identifier for sharing/recreating games
+  config       Json? // Full game configuration (mode, categories, rounds, etc.)
+  status       GameStatus     @default(IN_PROGRESS)
+  currentRound JeopardyRound  @default(SINGLE)
+  currentScore Int            @default(0) // Tracks score during gameplay (separate from final score)
+  visibility   GameVisibility @default(PRIVATE)
+
   // Multiplayer-ready fields (nullable for now)
-  opponentUserId         String?        // For future 2-player games
-  
-  user                   User           @relation(fields: [userId], references: [id])
-  questions              GameQuestion[]
+  opponentUserId String? // For future 2-player games
+
+  user      User           @relation(fields: [userId], references: [id])
+  questions GameQuestion[]
 
   @@index([userId, status])
   @@index([seed])
@@ -276,17 +281,17 @@ enum GuestSessionType {
 }
 
 model AnswerOverride {
-  id            String         @id @default(uuid())
-  questionId   String
-  text          String         @db.Text // Normalized acceptable answer string
+  id              String          @id @default(uuid())
+  questionId      String
+  text            String          @db.Text // Normalized acceptable answer string
   createdByUserId String
-  source        OverrideSource
-  notes         String?        @db.Text
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  question      Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  createdBy     User           @relation(fields: [createdByUserId], references: [id])
-  disputes      AnswerDispute[]
+  source          OverrideSource
+  notes           String?         @db.Text
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  question        Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  createdBy       User            @relation(fields: [createdByUserId], references: [id])
+  disputes        AnswerDispute[]
 
   @@unique([questionId, text])
   @@index([questionId])
@@ -294,25 +299,25 @@ model AnswerOverride {
 }
 
 model AnswerDispute {
-  id              String         @id @default(uuid())
-  userId          String
-  questionId      String
-  gameId          String?        // Nullable for practice-only disputes
-  mode            DisputeMode
-  round           JeopardyRound
-  userAnswer      String         @db.Text // Raw user answer string
-  systemWasCorrect Boolean       // What the system judged
-  status          DisputeStatus  @default(PENDING)
-  adminId         String?        // Admin who resolved the dispute
-  adminComment    String?        @db.Text
-  overrideId      String?        // Link to AnswerOverride if approved
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  resolvedAt      DateTime?
-  user            User           @relation("DisputeUser", fields: [userId], references: [id], onDelete: Cascade)
-  admin           User?          @relation("DisputeAdmin", fields: [adminId], references: [id])
-  question        Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  override        AnswerOverride? @relation(fields: [overrideId], references: [id])
+  id               String          @id @default(uuid())
+  userId           String
+  questionId       String
+  gameId           String? // Nullable for practice-only disputes
+  mode             DisputeMode
+  round            JeopardyRound
+  userAnswer       String          @db.Text // Raw user answer string
+  systemWasCorrect Boolean // What the system judged
+  status           DisputeStatus   @default(PENDING)
+  adminId          String? // Admin who resolved the dispute
+  adminComment     String?         @db.Text
+  overrideId       String? // Link to AnswerOverride if approved
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  resolvedAt       DateTime?
+  user             User            @relation("DisputeUser", fields: [userId], references: [id], onDelete: Cascade)
+  admin            User?           @relation("DisputeAdmin", fields: [adminId], references: [id])
+  question         Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  override         AnswerOverride? @relation(fields: [overrideId], references: [id])
 
   @@index([userId])
   @@index([questionId])
@@ -322,14 +327,14 @@ model AnswerDispute {
 }
 
 model DailyChallenge {
-  id        String   @id @default(uuid())
-  date      DateTime @unique @db.Date
-  questionId String  @unique // Ensure each question can only be used once as a daily challenge
-  airDate   DateTime?
+  id            String               @id @default(uuid())
+  date          DateTime             @unique @db.Date
+  questionId    String               @unique // Ensure each question can only be used once as a daily challenge
+  airDate       DateTime?
   episodeGameId String? // Track which game/episode was used (from J-Archive)
-  createdAt DateTime @default(now())
-  question  Question @relation(fields: [questionId], references: [id])
-  completions UserDailyChallenge[]
+  createdAt     DateTime             @default(now())
+  question      Question             @relation(fields: [questionId], references: [id])
+  completions   UserDailyChallenge[]
 
   @@index([date])
   @@index([questionId])
@@ -338,38 +343,38 @@ model DailyChallenge {
 }
 
 model UserDailyChallenge {
-  id          String   @id @default(uuid())
+  id          String         @id @default(uuid())
   userId      String
   challengeId String
   correct     Boolean
-  userAnswer  String?  @db.Text // Optional: raw user answer for showing incorrect responses
-  completedAt DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
+  userAnswer  String?        @db.Text // Optional: raw user answer for showing incorrect responses
+  completedAt DateTime       @default(now())
+  user        User           @relation(fields: [userId], references: [id])
   challenge   DailyChallenge @relation(fields: [challengeId], references: [id])
-  
+
   @@unique([userId, challengeId])
   @@index([challengeId, correct])
 }
 
 model Achievement {
-  id          String   @id @default(uuid())
-  code        String   @unique
-  name        String
-  description String
-  icon        String?
+  id               String            @id @default(uuid())
+  code             String            @unique
+  name             String
+  description      String
+  icon             String?
   userAchievements UserAchievement[]
 
   @@index([code])
 }
 
 model UserAchievement {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   userId        String
   achievementId String
-  unlockedAt    DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id])
+  unlockedAt    DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id])
   achievement   Achievement @relation(fields: [achievementId], references: [id])
-  
+
   @@unique([userId, achievementId])
   @@index([userId])
   @@index([achievementId])
@@ -378,84 +383,84 @@ model UserAchievement {
 model GuestSession {
   id              String           @id @default(uuid())
   type            GuestSessionType
-  data            Json?            // Flexible storage for session-specific data
+  data            Json? // Flexible storage for session-specific data
   createdAt       DateTime         @default(now())
-  expiresAt       DateTime         // When the session expires and can no longer be claimed
+  expiresAt       DateTime // When the session expires and can no longer be claimed
   claimedAt       DateTime?
   claimedByUserId String?
   claimedBy       User?            @relation("ClaimedGuestSessions", fields: [claimedByUserId], references: [id])
   guestGame       GuestGame?
-  
+
   @@index([expiresAt])
   @@index([claimedByUserId])
   @@index([type, expiresAt])
 }
 
 model GuestGame {
-  id              String           @id @default(uuid())
-  guestSessionId String           @unique
-  seed            String?          @unique
-  config          Json?            // Game configuration (mode, rounds, etc.)
-  status          GameStatus       @default(IN_PROGRESS)
-  currentRound    JeopardyRound    @default(SINGLE)
-  currentScore    Int              @default(0)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  guestSession    GuestSession     @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
-  questions       GuestGameQuestion[]
-  
+  id             String              @id @default(uuid())
+  guestSessionId String              @unique
+  seed           String?             @unique
+  config         Json? // Game configuration (mode, rounds, etc.)
+  status         GameStatus          @default(IN_PROGRESS)
+  currentRound   JeopardyRound       @default(SINGLE)
+  currentScore   Int                 @default(0)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  guestSession   GuestSession        @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)
+  questions      GuestGameQuestion[]
+
   @@index([guestSessionId])
 }
 
 model GuestGameQuestion {
-  id         String   @id @default(uuid())
+  id          String    @id @default(uuid())
   guestGameId String
-  questionId String
-  answered   Boolean  @default(false)
-  correct    Boolean?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  guestGame  GuestGame @relation(fields: [guestGameId], references: [id], onDelete: Cascade)
-  question   Question @relation(fields: [questionId], references: [id])
-  
+  questionId  String
+  answered    Boolean   @default(false)
+  correct     Boolean?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  guestGame   GuestGame @relation(fields: [guestGameId], references: [id], onDelete: Cascade)
+  question    Question  @relation(fields: [questionId], references: [id])
+
   @@unique([guestGameId, questionId])
 }
 
 model GuestConfig {
-  id                              String  @id @default(uuid())
+  id                                      String   @id @default(uuid())
   // Random game limits
-  randomGameMaxQuestionsBeforeAuth Int     @default(1)
-  randomGameMaxCategoriesBeforeAuth Int?   // Null means not enforced
-  randomGameMaxRoundsBeforeAuth    Int?    // Null means not enforced
-  randomGameMaxGamesBeforeAuth     Int     @default(0) // 0 means not enforced
+  randomGameMaxQuestionsBeforeAuth        Int      @default(1)
+  randomGameMaxCategoriesBeforeAuth       Int? // Null means not enforced
+  randomGameMaxRoundsBeforeAuth           Int? // Null means not enforced
+  randomGameMaxGamesBeforeAuth            Int      @default(0) // 0 means not enforced
   // Random question limits
-  randomQuestionMaxQuestionsBeforeAuth Int @default(1)
-  randomQuestionMaxCategoriesBeforeAuth Int? // Null means not enforced
+  randomQuestionMaxQuestionsBeforeAuth    Int      @default(1)
+  randomQuestionMaxCategoriesBeforeAuth   Int? // Null means not enforced
   // Daily challenge settings
-  dailyChallengeGuestEnabled      Boolean @default(false) // Default: auth required
-  dailyChallengeGuestAppearsOnLeaderboard Boolean @default(false)
-  dailyChallengeMinLookbackDays   Int     @default(365) // Minimum days to look back (default 1 year)
-  dailyChallengeSeasons          Json?   // Array of season numbers to choose episodes from (e.g., [38, 39, 40])
+  dailyChallengeGuestEnabled              Boolean  @default(false) // Default: auth required
+  dailyChallengeGuestAppearsOnLeaderboard Boolean  @default(false)
+  dailyChallengeMinLookbackDays           Int      @default(365) // Minimum days to look back (default 1 year)
+  dailyChallengeSeasons                   Json? // Array of season numbers to choose episodes from (e.g., [38, 39, 40])
   // Global TTL
-  timeToAuthenticateMinutes       Int     @default(1440) // Default 24 hours
-  createdAt                       DateTime @default(now())
-  updatedAt                       DateTime @updatedAt
-  
+  timeToAuthenticateMinutes               Int      @default(1440) // Default 24 hours
+  createdAt                               DateTime @default(now())
+  updatedAt                               DateTime @updatedAt
+
   @@unique([id]) // Single row configuration
 }
 
 model CronJobExecution {
-  id            String   @id @default(uuid())
-  jobName       String   // e.g., 'daily-challenge', 'fetch-questions'
-  status        CronJobStatus
-  startedAt     DateTime @default(now())
-  completedAt   DateTime?
-  durationMs    Int?     // Duration in milliseconds
-  result        Json?    // Store job result/output
-  error         String?  @db.Text // Error message if failed
-  triggeredBy   String?  // 'scheduled' or 'manual' or user ID if manually triggered
-  createdAt     DateTime @default(now())
-  
+  id          String        @id @default(uuid())
+  jobName     String // e.g., 'daily-challenge', 'fetch-questions'
+  status      CronJobStatus
+  startedAt   DateTime      @default(now())
+  completedAt DateTime?
+  durationMs  Int? // Duration in milliseconds
+  result      Json? // Store job result/output
+  error       String?       @db.Text // Error message if failed
+  triggeredBy String? // 'scheduled' or 'manual' or user ID if manually triggered
+  createdAt   DateTime      @default(now())
+
   @@index([jobName, startedAt])
   @@index([status])
   @@index([startedAt])
@@ -465,4 +470,86 @@ enum CronJobStatus {
   RUNNING
   SUCCESS
   FAILED
+}
+
+enum IssueType {
+  BUG
+  FEATURE_REQUEST
+  QUESTION
+  FEEDBACK
+  OTHER
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum IssueCategory {
+  BUG
+  CONTENT
+  FEATURE_REQUEST
+  ACCOUNT
+  QUESTION
+  OTHER
+}
+
+enum IssueReportStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  DISMISSED
+}
+
+model Issue {
+  id           String      @id @default(uuid())
+  userId       String
+  type         IssueType
+  title        String      @db.Text
+  description  String      @db.Text
+  status       IssueStatus @default(OPEN)
+  adminId      String? // Admin who resolved the issue
+  adminComment String?     @db.Text
+  metadata     Json? // Store additional context (page, browser, etc.)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  resolvedAt   DateTime?
+  user         User        @relation("IssueUser", fields: [userId], references: [id], onDelete: Cascade)
+  admin        User?       @relation("IssueAdmin", fields: [adminId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model IssueReport {
+  id         String            @id @default(uuid())
+  userId     String? // Nullable for unauthenticated submissions
+  email      String? // Optional email for unauthenticated users
+  subject    String            @db.Text
+  message    String            @db.Text
+  category   IssueCategory
+  status     IssueReportStatus @default(OPEN)
+  adminId    String? // Admin who resolved the issue
+  adminNote  String?           @db.Text // Internal admin notes
+  pageUrl    String? // URL where issue was reported from
+  questionId String? // Optional: related question ID
+  gameId     String? // Optional: related game ID
+  userAgent  String?           @db.Text // Browser/user agent info
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  resolvedAt DateTime?
+  user       User?             @relation("IssueReportUser", fields: [userId], references: [id], onDelete: Cascade)
+  admin      User?             @relation("IssueReportAdmin", fields: [adminId], references: [id])
+  question   Question?         @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+  @@index([questionId])
+  @@index([gameId])
 }

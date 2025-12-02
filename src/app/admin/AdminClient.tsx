@@ -72,7 +72,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [pushing, setPushing] = useState(false)
     
     // Tab state
-    const [activeTab, setActiveTab] = useState<'metrics' | 'manage' | 'fetch' | 'player-games' | 'disputes' | 'daily-challenges' | 'guest-config' | 'cron' | 'users'>('metrics')
+    const [activeTab, setActiveTab] = useState<'metrics' | 'manage' | 'fetch' | 'player-games' | 'disputes' | 'issues' | 'daily-challenges' | 'guest-config' | 'cron' | 'users'>('metrics')
     
     // Metrics tab state
     const [metricsWindow, setMetricsWindow] = useState<'24h' | '7d' | '14d' | '30d'>('7d')
@@ -85,7 +85,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [cronJobs, setCronJobs] = useState<any>(null)
     const [loadingCronJobs, setLoadingCronJobs] = useState(false)
     const [triggeringJob, setTriggeringJob] = useState<string | null>(null)
-    const [cronFilter, setCronFilter] = useState<'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games' | 'dispute-summary'>('all')
+    const [cronFilter, setCronFilter] = useState<'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games' | 'dispute-summary' | 'issues-summary'>('all')
     const [cronStatusFilter, setCronStatusFilter] = useState<'all' | 'RUNNING' | 'SUCCESS' | 'FAILED'>('all')
     
     // Guest config state
@@ -145,6 +145,24 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [disputeOverrideText, setDisputeOverrideText] = useState<Record<string, string>>({})
     const [disputesLoaded, setDisputesLoaded] = useState(false)
     const [pendingDisputesCount, setPendingDisputesCount] = useState<number | null>(null)
+    const [openIssuesCount, setOpenIssuesCount] = useState<number | null>(null)
+
+    // Issues state
+    const [issues, setIssues] = useState<any[]>([])
+    const [loadingIssues, setLoadingIssues] = useState(false)
+    const [issuesError, setIssuesError] = useState<string | null>(null)
+    const [issueFilterStatus, setIssueFilterStatus] = useState<'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED' | ''>('OPEN')
+    const [issueFilterCategory, setIssueFilterCategory] = useState<'BUG' | 'CONTENT' | 'FEATURE_REQUEST' | 'ACCOUNT' | 'QUESTION' | 'OTHER' | ''>('')
+    const [issuePage, setIssuePage] = useState(1)
+    const [issueTotalPages, setIssueTotalPages] = useState(1)
+    const [processingIssueId, setProcessingIssueId] = useState<string | null>(null)
+    const [issueAdminNote, setIssueAdminNote] = useState<Record<string, string>>({})
+    const [issuesLoaded, setIssuesLoaded] = useState(false)
+    const [selectedIssue, setSelectedIssue] = useState<any>(null)
+    const [showSendIssueEmailModal, setShowSendIssueEmailModal] = useState(false)
+    const [issueEmailSubject, setIssueEmailSubject] = useState('')
+    const [issueEmailBody, setIssueEmailBody] = useState('')
+    const [sendingIssueEmail, setSendingIssueEmail] = useState(false)
 
     // User management state
     const [users, setUsers] = useState<any[]>([])
@@ -306,6 +324,134 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                     {data.message && (
                         <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
                             <div className="text-sm text-blue-900">{data.message}</div>
+                        </div>
+                    )}
+
+                    {/* Raw JSON fallback */}
+                    <details className="text-xs">
+                        <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-medium">
+                            View Raw JSON
+                        </summary>
+                        <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto break-words whitespace-pre-wrap text-gray-900">
+                            {JSON.stringify(result, null, 2)}
+                        </pre>
+                    </details>
+                </div>
+            )
+        }
+
+        // Special rendering for issues-summary job
+        if (jobName === 'issues-summary' && result) {
+            const data = result.data || result
+            
+            return (
+                <div className="space-y-4">
+                    {/* Summary Section */}
+                    <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200">
+                        <h4 className="font-semibold text-gray-900 mb-3">Summary</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div>
+                                <div className="text-xs text-gray-600 uppercase">Total Issues</div>
+                                <div className="text-2xl font-bold text-gray-900">{data.openCount || data.summary?.totalIssues || 0}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-600 uppercase">Recipients</div>
+                                <div className="text-2xl font-bold text-gray-900">{data.recipientCount || 0}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-600 uppercase">Emails Sent</div>
+                                <div className="text-2xl font-bold text-green-600">{data.successfulEmails || data.emailStatus?.sent || 0}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-600 uppercase">Failed</div>
+                                <div className="text-2xl font-bold text-red-600">{data.failedEmails || data.emailStatus?.failed || 0}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* By Category Breakdown */}
+                    {data.summary?.byCategory && Object.keys(data.summary.byCategory).length > 0 && (
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-3">Issues by Category</h4>
+                            <div className="flex flex-wrap gap-3">
+                                {Object.entries(data.summary.byCategory).map(([category, count]: [string, any]) => (
+                                    <div key={category} className="bg-gray-50 px-4 py-2 rounded-lg">
+                                        <div className="text-xs text-gray-600 uppercase">{category.replace('_', ' ')}</div>
+                                        <div className="text-xl font-bold text-gray-900">{count}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* By Status Breakdown */}
+                    {data.summary?.byStatus && Object.keys(data.summary.byStatus).length > 0 && (
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-3">Issues by Status</h4>
+                            <div className="flex flex-wrap gap-3">
+                                {Object.entries(data.summary.byStatus).map(([status, count]: [string, any]) => (
+                                    <div key={status} className="bg-gray-50 px-4 py-2 rounded-lg">
+                                        <div className="text-xs text-gray-600 uppercase">{status.replace('_', ' ')}</div>
+                                        <div className="text-xl font-bold text-gray-900">{count}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Email Status */}
+                    {data.emailStatus && (
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-3">Email Recipients</h4>
+                            <div className="space-y-2">
+                                {data.emailStatus.recipients?.map((recipient: any, idx: number) => {
+                                    const emailResult = data.emailStatus.results?.[idx]
+                                    return (
+                                        <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                            <div>
+                                                <div className="font-medium text-sm">{recipient.name}</div>
+                                                <div className="text-xs text-gray-600">{recipient.email}</div>
+                                            </div>
+                                            {emailResult?.success ? (
+                                                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Sent</span>
+                                            ) : (
+                                                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
+                                                    Failed {emailResult?.error ? `: ${emailResult.error}` : ''}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Issues List */}
+                    {data.issues && data.issues.length > 0 && (
+                        <div className="bg-white p-4 rounded-lg border border-gray-200">
+                            <h4 className="font-semibold text-gray-900 mb-3">Issues ({data.issues.length} shown)</h4>
+                            <div className="space-y-3 max-h-96 overflow-y-auto">
+                                {data.issues.map((issue: any, idx: number) => (
+                                    <div key={idx} className="border-l-4 border-amber-500 pl-3 py-2 bg-gray-50 rounded-r">
+                                        <div className="flex items-start justify-between mb-1">
+                                            <div className="font-medium text-sm text-gray-900">#{idx + 1} - {issue.subject}</div>
+                                            <div className="text-xs text-gray-500">{issue.createdAt}</div>
+                                        </div>
+                                        <div className="text-xs text-gray-600 space-y-1">
+                                            <div><span className="font-medium">Category:</span> {issue.category} | <span className="font-medium">Status:</span> {issue.status}</div>
+                                            <div><span className="font-medium">User:</span> {issue.userName} ({issue.userEmail})</div>
+                                            {issue.pageUrl && <div><span className="font-medium">Page:</span> {issue.pageUrl}</div>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Message */}
+                    {data.message && (
+                        <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
+                            <div className="text-sm text-amber-900">{data.message}</div>
                         </div>
                     )}
 
@@ -630,8 +776,52 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         }
     }, [activeTab, disputesLoaded, fetchDisputes])
 
-    // Fetch pending dispute count on mount
+    // Fetch issues
+    const fetchIssues = useCallback(async () => {
+        setLoadingIssues(true)
+        setIssuesError(null)
+        try {
+            const params = new URLSearchParams()
+            if (issueFilterStatus) params.append('status', issueFilterStatus)
+            if (issueFilterCategory) params.append('category', issueFilterCategory)
+            params.append('page', issuePage.toString())
+            params.append('pageSize', '20')
+
+            const response = await fetch(`/api/admin/issues?${params}`)
+            if (response.ok) {
+                const data = await response.json()
+                setIssues(data.issues || [])
+                setIssueTotalPages(data.pagination?.totalPages || 1)
+                setIssuesLoaded(true)
+            } else {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to load issues' }))
+                setIssuesError(errorData.error || 'Failed to load issues')
+            }
+        } catch (error) {
+            console.error('Error fetching issues:', error)
+            setIssuesError('Failed to load issues. The issues table may not exist yet - run migrations.')
+        } finally {
+            setLoadingIssues(false)
+        }
+    }, [issueFilterStatus, issueFilterCategory, issuePage])
+
+    // Load issues when tab is active (only once per filter change)
     useEffect(() => {
+        if (activeTab === 'issues' && !issuesLoaded) {
+            fetchIssues()
+        }
+    }, [activeTab, issuesLoaded, fetchIssues])
+
+    // Reset issues loaded when filters change
+    useEffect(() => {
+        if (activeTab === 'issues') {
+            setIssuesLoaded(false)
+        }
+    }, [activeTab, issueFilterStatus, issueFilterCategory, issuePage])
+
+    // Fetch pending dispute and open issues counts on mount
+    useEffect(() => {
+        // Fetch disputes count
         fetch('/api/admin/disputes/stats')
             .then(res => {
                 if (res.ok) {
@@ -647,6 +837,24 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             .catch(error => {
                 console.error('Error fetching dispute stats:', error)
                 setPendingDisputesCount(null)
+            })
+        
+        // Fetch issues count
+        fetch('/api/admin/issues/stats')
+            .then(res => {
+                if (res.ok) {
+                    return res.json()
+                }
+                return null
+            })
+            .then(data => {
+                if (data?.openCount !== undefined) {
+                    setOpenIssuesCount(data.openCount)
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching issue stats:', error)
+                setOpenIssuesCount(null)
             })
     }, [])
 
@@ -793,6 +1001,34 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     }
 
     // Handle reject dispute
+    // Update issue status
+    const handleUpdateIssueStatus = async (issueId: string, status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED') => {
+        setProcessingIssueId(issueId)
+        try {
+            const adminNote = issueAdminNote[issueId] || undefined
+            const response = await fetch(`/api/admin/issues/${issueId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status, adminNote })
+            })
+
+            if (!response.ok) {
+                const error = await response.json()
+                alert(`Failed to update issue: ${error.error || 'Unknown error'}`)
+                return
+            }
+
+            // Refresh issues list
+            setIssuesLoaded(false)
+            fetchIssues()
+        } catch (error) {
+            console.error('Error updating issue:', error)
+            alert('Failed to update issue. Please try again.')
+        } finally {
+            setProcessingIssueId(null)
+        }
+    }
+
     const handleRejectDispute = async (disputeId: string) => {
         if (processingDisputeId) return
         
@@ -1561,6 +1797,25 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                         : 'bg-red-600 border-white'
                                 }`}>
                                     {pendingDisputesCount > 9 ? '9+' : pendingDisputesCount}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('issues')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap relative ${
+                                activeTab === 'issues'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Issues
+                            {openIssuesCount !== null && openIssuesCount > 0 && (
+                                <span className={`absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full text-[0.7rem] font-bold flex items-center justify-center text-white shadow-md border-2 ${
+                                    activeTab === 'issues'
+                                        ? 'bg-red-500 border-blue-600'
+                                        : 'bg-red-600 border-white'
+                                }`}>
+                                    {openIssuesCount > 9 ? '9+' : openIssuesCount}
                                 </span>
                             )}
                         </button>
@@ -2557,6 +2812,304 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 </div>
             )}
 
+            {/* ISSUES TAB */}
+            {activeTab === 'issues' && (
+                <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+                    <h2 className="text-xl font-semibold text-black mb-4">Issue Reports</h2>
+                    <p className="text-gray-600 text-sm mb-4">
+                        Review and manage user-reported issues, bugs, feature requests, and feedback.
+                    </p>
+
+                    {/* Filters */}
+                    <div className="flex flex-col sm:flex-row flex-wrap gap-4 mb-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select
+                                value={issueFilterStatus}
+                                onChange={(e) => {
+                                    setIssueFilterStatus(e.target.value as any)
+                                    setIssuePage(1)
+                                }}
+                                className="border rounded-lg px-3 py-2 text-gray-900"
+                            >
+                                <option value="">All</option>
+                                <option value="OPEN">Open</option>
+                                <option value="IN_PROGRESS">In Progress</option>
+                                <option value="RESOLVED">Resolved</option>
+                                <option value="DISMISSED">Dismissed</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                            <select
+                                value={issueFilterCategory}
+                                onChange={(e) => {
+                                    setIssueFilterCategory(e.target.value as any)
+                                    setIssuePage(1)
+                                }}
+                                className="border rounded-lg px-3 py-2 text-gray-900"
+                            >
+                                <option value="">All</option>
+                                <option value="BUG">Bug</option>
+                                <option value="CONTENT">Content Issue</option>
+                                <option value="FEATURE_REQUEST">Feature Request</option>
+                                <option value="ACCOUNT">Account Issue</option>
+                                <option value="QUESTION">Question</option>
+                                <option value="OTHER">Other</option>
+                            </select>
+                        </div>
+                        <div className="flex items-end">
+                            <button
+                                onClick={() => {
+                                    setIssuesLoaded(false)
+                                }}
+                                disabled={loadingIssues}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {loadingIssues ? 'Loading...' : 'Refresh'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Error State */}
+                    {issuesError && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                            {issuesError}
+                        </div>
+                    )}
+
+                    {/* Loading State */}
+                    {loadingIssues && issues.length === 0 && (
+                        <div className="text-center py-8">
+                            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <p className="mt-2 text-gray-600">Loading issues...</p>
+                        </div>
+                    )}
+
+                    {/* Empty State */}
+                    {!loadingIssues && !issuesError && issues.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                            No issues found matching the current filters.
+                        </div>
+                    )}
+
+                    {/* Issues List */}
+                    {issues.length > 0 && (
+                        <div className="space-y-4">
+                            {issues.map((issue: any) => (
+                                <div key={issue.id} className="border rounded-lg p-4 bg-gray-50">
+                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                    issue.status === 'OPEN' ? 'bg-yellow-100 text-yellow-800' :
+                                                    issue.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                                                    issue.status === 'RESOLVED' ? 'bg-green-100 text-green-800' :
+                                                    'bg-gray-100 text-gray-800'
+                                                }`}>
+                                                    {issue.status}
+                                                </span>
+                                                <span className="px-2 py-1 rounded text-xs bg-purple-100 text-purple-800">
+                                                    {issue.category}
+                                                </span>
+                                            </div>
+                                            <h3 className="font-semibold text-gray-900 mb-1">{issue.subject}</h3>
+                                            <p className="text-sm text-gray-600">
+                                                {issue.user ? (
+                                                    <>User: {issue.user?.displayName || issue.user?.email || 'Unknown'}</>
+                                                ) : (
+                                                    <>Email: {issue.email || 'No email provided'}</>
+                                                )}
+                                            </p>
+                                            <p className="text-sm text-gray-600">
+                                                Submitted: {new Date(issue.createdAt).toLocaleString()}
+                                            </p>
+                                            {issue.pageUrl && (
+                                                <p className="text-sm text-gray-600">
+                                                    Page: <a href={issue.pageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{issue.pageUrl}</a>
+                                                </p>
+                                            )}
+                                        </div>
+                                        {issue.status === 'OPEN' && (
+                                            <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedIssue(issue)
+                                                        setShowSendIssueEmailModal(true)
+                                                        setIssueEmailSubject('')
+                                                        setIssueEmailBody('')
+                                                    }}
+                                                    disabled={!issue.user?.email && !issue.email}
+                                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
+                                                    title={!issue.user?.email && !issue.email ? 'No email address available' : 'Send email to reporter'}
+                                                >
+                                                    Email
+                                                </button>
+                                                <button
+                                                    onClick={() => handleUpdateIssueStatus(issue.id, 'IN_PROGRESS')}
+                                                    disabled={processingIssueId === issue.id}
+                                                    className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                                                >
+                                                    {processingIssueId === issue.id ? 'Processing...' : 'Start'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleUpdateIssueStatus(issue.id, 'RESOLVED')}
+                                                    disabled={processingIssueId === issue.id}
+                                                    className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                                                >
+                                                    {processingIssueId === issue.id ? 'Processing...' : 'Resolve'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleUpdateIssueStatus(issue.id, 'DISMISSED')}
+                                                    disabled={processingIssueId === issue.id}
+                                                    className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                                                >
+                                                    {processingIssueId === issue.id ? 'Processing...' : 'Dismiss'}
+                                                </button>
+                                            </div>
+                                        )}
+                                        {issue.status === 'IN_PROGRESS' && (
+                                            <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedIssue(issue)
+                                                        setShowSendIssueEmailModal(true)
+                                                        setIssueEmailSubject('')
+                                                        setIssueEmailBody('')
+                                                    }}
+                                                    disabled={!issue.user?.email && !issue.email}
+                                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
+                                                    title={!issue.user?.email && !issue.email ? 'No email address available' : 'Send email to reporter'}
+                                                >
+                                                    Email
+                                                </button>
+                                                <button
+                                                    onClick={() => handleUpdateIssueStatus(issue.id, 'RESOLVED')}
+                                                    disabled={processingIssueId === issue.id}
+                                                    className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                                                >
+                                                    {processingIssueId === issue.id ? 'Processing...' : 'Resolve'}
+                                                </button>
+                                                <button
+                                                    onClick={() => handleUpdateIssueStatus(issue.id, 'DISMISSED')}
+                                                    disabled={processingIssueId === issue.id}
+                                                    className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50 text-sm whitespace-nowrap"
+                                                >
+                                                    {processingIssueId === issue.id ? 'Processing...' : 'Dismiss'}
+                                                </button>
+                                            </div>
+                                        )}
+                                        {(issue.status === 'RESOLVED' || issue.status === 'DISMISSED') && (
+                                            <div className="flex gap-2 flex-shrink-0">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedIssue(issue)
+                                                        setShowSendIssueEmailModal(true)
+                                                        setIssueEmailSubject('')
+                                                        setIssueEmailBody('')
+                                                    }}
+                                                    disabled={!issue.user?.email && !issue.email}
+                                                    className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm whitespace-nowrap"
+                                                    title={!issue.user?.email && !issue.email ? 'No email address available' : 'Send email to reporter'}
+                                                >
+                                                    Email
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="border-t pt-3 space-y-2 text-sm">
+                                        <div className="break-words">
+                                            <span className="font-medium text-gray-700">Message: </span>
+                                            <span className="text-gray-900 whitespace-pre-wrap">{issue.message}</span>
+                                        </div>
+
+                                        {issue.questionId && (
+                                            <div>
+                                                <span className="font-medium text-gray-700">Related Question: </span>
+                                                {issue.question ? (
+                                                    <span className="text-gray-900">{issue.question.question}</span>
+                                                ) : (
+                                                    <span className="text-gray-600">Question ID: {issue.questionId}</span>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {issue.gameId && (
+                                            <div>
+                                                <span className="font-medium text-gray-700">Related Game: </span>
+                                                <span className="text-gray-600">Game ID: {issue.gameId}</span>
+                                            </div>
+                                        )}
+
+                                        {issue.status === 'OPEN' || issue.status === 'IN_PROGRESS' ? (
+                                            <div className="space-y-2 pt-2 border-t mt-2">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                        Admin Note (optional)
+                                                    </label>
+                                                    <textarea
+                                                        value={issueAdminNote[issue.id] || ''}
+                                                        onChange={(e) => setIssueAdminNote(prev => ({
+                                                            ...prev,
+                                                            [issue.id]: e.target.value
+                                                        }))}
+                                                        className="w-full border rounded px-3 py-2 text-gray-900"
+                                                        rows={2}
+                                                        placeholder="Add an internal note..."
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {issue.adminNote && (
+                                                    <div>
+                                                        <span className="font-medium text-gray-700">Admin Note: </span>
+                                                        <span className="text-gray-900 whitespace-pre-wrap">{issue.adminNote}</span>
+                                                    </div>
+                                                )}
+                                                {issue.resolvedAt && (
+                                                    <div>
+                                                        <span className="font-medium text-gray-700">Resolved: </span>
+                                                        <span className="text-gray-900">{new Date(issue.resolvedAt).toLocaleString()}</span>
+                                                        {issue.admin && (
+                                                            <span className="text-gray-600"> by {issue.admin.displayName || issue.admin.name || 'Admin'}</span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Pagination */}
+                    {issueTotalPages > 1 && (
+                        <div className="mt-6 flex justify-center gap-2">
+                            <button
+                                onClick={() => setIssuePage(p => Math.max(1, p - 1))}
+                                disabled={issuePage === 1}
+                                className="px-4 py-2 bg-white border rounded-lg disabled:opacity-50 text-gray-900"
+                            >
+                                Previous
+                            </button>
+                            <span className="px-4 py-2 text-gray-900">
+                                Page {issuePage} of {issueTotalPages}
+                            </span>
+                            <button
+                                onClick={() => setIssuePage(p => Math.min(issueTotalPages, p + 1))}
+                                disabled={issuePage === issueTotalPages}
+                                className="px-4 py-2 bg-white border rounded-lg disabled:opacity-50 text-gray-900"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
             {/* DAILY CHALLENGES TAB */}
             {activeTab === 'daily-challenges' && (
                 <div className="bg-white rounded-lg shadow-md p-6 mb-8">
@@ -3053,6 +3606,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     <option value="fetch-questions">Fetch Questions</option>
                                     <option value="fetch-games">Fetch Games</option>
                                     <option value="dispute-summary">Dispute Summary</option>
+                                    <option value="issues-summary">Issues Summary</option>
                                 </select>
                             </div>
                             <div>
@@ -4142,6 +4696,108 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 )}
             </div>
                 </>
+            )}
+
+            {/* Send Issue Email Modal */}
+            {showSendIssueEmailModal && selectedIssue && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl my-auto">
+                        <h3 className="text-xl font-bold text-gray-900 mb-4">Send Email</h3>
+                        <div className="mb-4">
+                            <p className="text-sm text-gray-600 mb-2">
+                                <strong>To:</strong> {selectedIssue.user?.displayName || selectedIssue.user?.name || selectedIssue.email || 'No name'} ({selectedIssue.user?.email || selectedIssue.email || 'No email'})
+                            </p>
+                            <p className="text-sm text-gray-600 mb-2">
+                                <strong>Issue:</strong> {selectedIssue.subject}
+                            </p>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Subject
+                                </label>
+                                <input
+                                    type="text"
+                                    value={issueEmailSubject}
+                                    onChange={(e) => setIssueEmailSubject(e.target.value)}
+                                    placeholder="Email subject"
+                                    className="w-full p-2 border rounded text-gray-900"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Message
+                                </label>
+                                <textarea
+                                    value={issueEmailBody}
+                                    onChange={(e) => setIssueEmailBody(e.target.value)}
+                                    placeholder="Email message"
+                                    rows={6}
+                                    className="w-full p-2 border rounded text-gray-900"
+                                />
+                            </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
+                            <button
+                                onClick={() => {
+                                    setShowSendIssueEmailModal(false)
+                                    setSelectedIssue(null)
+                                    setIssueEmailSubject('')
+                                    setIssueEmailBody('')
+                                }}
+                                className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (!issueEmailSubject.trim() || !issueEmailBody.trim()) {
+                                        alert('Subject and message are required')
+                                        return
+                                    }
+
+                                    if (!confirm('Are you sure you want to send this email?')) {
+                                        return
+                                    }
+
+                                    setSendingIssueEmail(true)
+                                    try {
+                                        const response = await fetch('/api/admin/issues/send-email', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                issueId: selectedIssue.id,
+                                                subject: issueEmailSubject,
+                                                body: issueEmailBody,
+                                            }),
+                                        })
+
+                                        if (response.ok) {
+                                            const data = await response.json()
+                                            setMessage(data.message || 'Email sent successfully')
+                                            setShowSendIssueEmailModal(false)
+                                            setSelectedIssue(null)
+                                            setIssueEmailSubject('')
+                                            setIssueEmailBody('')
+                                        } else {
+                                            const error = await response.json()
+                                            alert(error.error || 'Failed to send email')
+                                        }
+                                    } catch (error) {
+                                        console.error('Error sending email:', error)
+                                        alert('Failed to send email. Please check your SMTP configuration.')
+                                    } finally {
+                                        setSendingIssueEmail(false)
+                                    }
+                                }}
+                                disabled={sendingIssueEmail || !issueEmailSubject.trim() || !issueEmailBody.trim()}
+                                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                            >
+                                {sendingIssueEmail ? 'Sending...' : 'Send Email'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Calendar Fetch Modal */}
