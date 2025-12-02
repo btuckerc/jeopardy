@@ -149,7 +149,8 @@ export async function GET(request: Request) {
             categoryName: uc.challenge.question.category.name,
             question: uc.challenge.question.question,
             answer: uc.challenge.question.answer,
-            airDate: uc.challenge.question.airDate?.toISOString() || null
+            airDate: uc.challenge.question.airDate?.toISOString() || null,
+            userAnswer: uc.userAnswer || null
         }))
 
         return jsonResponse({

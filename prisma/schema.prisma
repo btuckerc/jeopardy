@@ -338,6 +338,7 @@ model UserDailyChallenge {
   userId      String
   challengeId String
   correct     Boolean
+  userAnswer  String?  @db.Text // Optional: raw user answer for showing incorrect responses
   completedAt DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id])
   challenge   DailyChallenge @relation(fields: [challengeId], references: [id])

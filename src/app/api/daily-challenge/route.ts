@@ -212,7 +212,8 @@ export async function POST(request: Request) {
             data: {
                 userId: user!.id,
                 challengeId: challenge.id,
-                correct
+                correct,
+                userAnswer: body.answer
             }
         })
 

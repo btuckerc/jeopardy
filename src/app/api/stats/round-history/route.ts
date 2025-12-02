@@ -41,6 +41,16 @@ export async function GET(request: Request) {
                 FROM "GameHistory"
                 WHERE "userId" = ${userId}
                 ORDER BY "questionId", timestamp DESC
+            ),
+            LastIncorrectAnswers AS (
+                SELECT DISTINCT ON ("questionId")
+                    "questionId",
+                    "userAnswer"
+                FROM "GameHistory"
+                WHERE "userId" = ${userId}
+                    AND correct = false
+                    AND "userAnswer" IS NOT NULL
+                ORDER BY "questionId", timestamp DESC
             )
             SELECT 
                 la."questionId" as id,
@@ -54,10 +64,12 @@ export async function GET(request: Request) {
                 q."wasTripleStumper",
                 q.round::text as round,
                 q."categoryId",
-                c.name as "categoryName"
+                c.name as "categoryName",
+                lia."userAnswer" as "lastIncorrectUserAnswer"
             FROM LatestAnswers la
             JOIN "Question" q ON q.id = la."questionId"
             JOIN "Category" c ON c.id = q."categoryId"
+            LEFT JOIN LastIncorrectAnswers lia ON lia."questionId" = la."questionId"
             WHERE q.round::text = ${round}
             ORDER BY la.timestamp DESC
         ` as Array<{
@@ -73,6 +85,7 @@ export async function GET(request: Request) {
             round: string
             categoryId: string
             categoryName: string
+            lastIncorrectUserAnswer: string | null
         }>
 
         // Compute normalized points for each question

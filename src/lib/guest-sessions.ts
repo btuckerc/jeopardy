@@ -243,7 +243,8 @@ export async function claimGuestSession(
                             data: {
                                 userId,
                                 challengeId: data.challengeId,
-                                correct: data.correct
+                                correct: data.correct,
+                                userAnswer: data.userAnswer || null
                             }
                         })
                     }

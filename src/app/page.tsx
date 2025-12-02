@@ -2,10 +2,8 @@ import Link from 'next/link'
 import { Fredoka } from 'next/font/google'
 import { getAppUser } from '@/lib/clerk-auth'
 import { prisma } from '@/lib/prisma'
-import { FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
 import HomepageClient from './HomepageClient'
 import DailyChallengeCard from './components/DailyChallengeCard'
-import RecentActivityFeed from './components/RecentActivityFeed'
 
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
 
@@ -78,72 +76,6 @@ export default async function Home() {
     
     // Fetch daily challenge on the server
     const dailyChallenge = await getDailyChallenge(user?.id || null)
-    
-    // Fetch user activity stats if authenticated
-    let activityStats = null
-    if (user) {
-        try {
-            const weekAgo = new Date()
-            weekAgo.setDate(weekAgo.getDate() - 7)
-            weekAgo.setHours(0, 0, 0, 0)
-
-            const gamesThisWeek = await prisma.game.count({
-                where: {
-                    userId: user.id,
-                    createdAt: { gte: weekAgo },
-                    status: 'COMPLETED'
-                }
-            })
-
-            const bestGame = await prisma.game.findFirst({
-                where: {
-                    userId: user.id,
-                    status: 'COMPLETED'
-                },
-                orderBy: { score: 'desc' },
-                select: { score: true }
-            })
-
-            const userStats = await prisma.$queryRaw<Array<{
-                id: string
-                total_points: number
-            }>>`
-                SELECT 
-                    u.id,
-                    COALESCE(SUM(
-                        CASE 
-                            WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
-                            WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
-                            ELSE 0 
-                        END
-                    ), 0)::integer as total_points
-                FROM "User" u
-                LEFT JOIN "GameHistory" gh ON u.id = gh."userId"
-                LEFT JOIN "Question" q ON q.id = gh."questionId"
-                GROUP BY u.id
-                HAVING COALESCE(SUM(
-                    CASE 
-                        WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
-                        WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
-                        ELSE 0 
-                    END
-                ), 0) > 0
-                ORDER BY total_points DESC
-            `
-
-            const userRank = userStats.findIndex(u => u.id === user.id) + 1
-            const totalPlayers = userStats.length
-
-            activityStats = {
-                gamesThisWeek,
-                bestScore: bestGame?.score || 0,
-                leaderboardRank: userRank > 0 ? userRank : null,
-                totalPlayers
-            }
-        } catch (error) {
-            console.error('Error fetching activity stats:', error)
-        }
-    }
 
     return (
         <>
@@ -196,13 +128,6 @@ export default async function Home() {
                             </div>
                         </div>
                     </div>
-
-                    {/* Activity Stats (for authenticated users) */}
-                    {user && activityStats && (
-                        <div className="mt-8 flex flex-col items-center gap-6">
-                            <RecentActivityFeed stats={activityStats} />
-                        </div>
-                    )}
 
                     {/* Daily Challenge Card */}
                     <div className="mt-8 max-w-4xl mx-auto">
