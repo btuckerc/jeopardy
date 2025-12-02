@@ -204,7 +204,7 @@ export default function GuestGamePage() {
                     <div className="card p-8 text-center">
                         <h1 className="text-3xl font-bold text-gray-900 mb-4">Guest Limit Reached</h1>
                         <p className="text-gray-600 mb-6 text-lg">
-                            You've reached the guest limit. Sign in to continue playing and save your progress!
+                            You&apos;ve reached the guest limit. Sign in to continue playing and save your progress!
                         </p>
                         <div className="flex gap-3 justify-center">
                             <button onClick={handleSignUp} className="btn-primary">

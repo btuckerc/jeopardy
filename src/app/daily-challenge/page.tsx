@@ -191,7 +191,7 @@ export default function DailyChallengePage() {
                 <div className="text-center max-w-md">
                     <div className="inline-block h-16 w-16 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-6"></div>
                     <h2 className="text-2xl font-bold text-gray-900 mb-2">Loading Daily Challenge</h2>
-                    <p className="text-gray-600 text-lg">Preparing today's Final Jeopardy question...</p>
+                    <p className="text-gray-600 text-lg">Preparing today&apos;s Final Jeopardy question...</p>
                 </div>
             </div>
         )
@@ -202,7 +202,7 @@ export default function DailyChallengePage() {
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="card p-8 max-w-md text-center">
                     <h1 className="text-2xl font-bold text-gray-900 mb-4">No Challenge Available</h1>
-                    <p className="text-gray-600 mb-6">Today's daily challenge is not available yet.</p>
+                    <p className="text-gray-600 mb-6">Today&apos;s daily challenge is not available yet.</p>
                     <Link href="/" className="btn-primary">
                         Back to Home
                     </Link>
@@ -384,7 +384,7 @@ export default function DailyChallengePage() {
                                         <div className="flex-1">
                                             <h3 className="text-lg font-bold text-amber-900 mb-2">Sign In to Appear on Leaderboard</h3>
                                             <p className="text-amber-800 mb-4">
-                                                Your answer has been graded, but you won't appear on the leaderboard until you sign in. Sign in now to save your result and see how you rank!
+                                                Your answer has been graded, but you won&apos;t appear on the leaderboard until you sign in. Sign in now to save your result and see how you rank!
                                             </p>
                                             <div className="flex gap-3">
                                                 <Link href="/sign-up" className="btn-primary flex-1">
@@ -409,13 +409,13 @@ export default function DailyChallengePage() {
 
                 {/* Leaderboard */}
                 <div className="card p-6">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Today's Leaderboard</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Today&apos;s Leaderboard</h2>
                     {leaderboardLoading ? (
                         <div className="text-center py-8">
                             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
                         </div>
                     ) : leaderboard.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No one has completed today's challenge yet. Be the first!</p>
+                        <p className="text-gray-500 text-center py-8">No one has completed today&apos;s challenge yet. Be the first!</p>
                     ) : (
                         <div className="space-y-2">
                             {leaderboard.map((entry) => (

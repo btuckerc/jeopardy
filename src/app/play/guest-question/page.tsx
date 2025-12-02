@@ -209,7 +209,7 @@ export default function GuestQuestionPage() {
                             {limitReached ? (
                                 <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-4 mb-4">
                                     <p className="text-amber-800 mb-3 font-medium">
-                                        You've reached the guest limit. Sign in to continue practicing!
+                                        You&apos;ve reached the guest limit. Sign in to continue practicing!
                                     </p>
                                     <div className="flex gap-3">
                                         <button onClick={handleSignUp} className="btn-primary flex-1">
