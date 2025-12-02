@@ -4,10 +4,16 @@
     "description": "Study Jeopardy Online | Practice Trivia Game",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#ffffff",
-    "theme_color": "#2563eb",
+    "background_color": "#1D4ED8",
+    "theme_color": "#2563EB",
     "orientation": "portrait",
     "icons": [
+        {
+            "src": "/icons/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any"
+        },
         {
             "src": "/icons/icon-192.png",
             "sizes": "192x192",
