@@ -15,8 +15,13 @@ export default async function Home() {
                 {/* Background gradient */}
                 <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-amber-50 -z-10" />
                 <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100/40 via-transparent to-transparent -z-10" />
-                
-                <div className="container mx-auto px-4 pt-8 pb-12 sm:pt-8 sm:pb-16">
+
+                {/* 
+                    Use the shared `container` padding only (no extra px-4) so that
+                    hero content, cards, and buttons line up symmetrically with the
+                    navigation and footer on mobile.
+                */}
+                <div className="container mx-auto pt-8 pb-12 sm:pt-8 sm:pb-16">
                     {/* Header */}
                     <div className="text-center max-w-4xl mx-auto">
                         <h1>
@@ -33,7 +38,7 @@ export default async function Home() {
                         </p>
                         
                         {/* Quick stats */}
-                        <div className="mt-8 flex justify-center gap-8 text-base text-gray-500">
+                        <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm sm:text-base text-gray-500 max-w-md mx-auto">
                             <div className="flex items-center gap-2">
                                 <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -62,7 +67,7 @@ export default async function Home() {
                             <div className="relative h-full rounded-2xl overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:-translate-y-2">
                                 <div className="absolute inset-0 bg-gradient-to-br from-blue-600 to-blue-800" />
                                 <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-                                <div className="relative p-8 h-full flex flex-col">
+                                <div className="relative p-6 sm:p-8 h-full flex flex-col">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="p-2 bg-white/20 rounded-lg">
                                             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -91,7 +96,7 @@ export default async function Home() {
                             <div className="relative h-full rounded-2xl overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-2xl group-hover:-translate-y-2">
                                 <div className="absolute inset-0 bg-gradient-to-br from-green-600 to-green-800" />
                                 <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
-                                <div className="relative p-8 h-full flex flex-col">
+                                <div className="relative p-6 sm:p-8 h-full flex flex-col">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="p-2 bg-white/20 rounded-lg">
                                             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

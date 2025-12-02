@@ -51,7 +51,7 @@
     }
     
     body {
-        @apply min-h-screen m-0 p-0 font-sans antialiased;
+        @apply min-h-screen m-0 p-0 font-sans antialiased overflow-x-hidden;
         background: var(--background);
         color: var(--foreground);
     }
