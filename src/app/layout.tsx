@@ -10,7 +10,7 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { JsonLd } from '@/components/JsonLd'
 
 const inter = Inter({ subsets: ['latin'] })
-const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
+const fredoka = Fredoka({ weight: '500', subsets: ['latin'] })
 
 export const viewport = {
     width: 'device-width',
@@ -183,7 +183,7 @@ export default async function RootLayout({
                                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                                     <div className="text-center space-y-2">
                                         <p className="text-gray-600 text-sm">
-                                            Trivrdy is a Jeopardy study tool created by{' '}
+                                            Made by{' '}
                                             <a
                                                 href="https://tuckercraig.com"
                                                 target="_blank"
@@ -194,7 +194,7 @@ export default async function RootLayout({
                                             </a>
                                         </p>
                                         <p className="text-gray-500 text-xs">
-                                            Practice with real questions, compete with others, and improve your trivia knowledge.
+                                            Real Jeopardy questions, real practice, real improvement.
                                         </p>
                                     </div>
                                 </div>

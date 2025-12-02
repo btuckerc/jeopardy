@@ -20,34 +20,34 @@ export default async function Home() {
                     {/* Header */}
                     <div className="text-center max-w-4xl mx-auto">
                         <h1>
-                            <span className="text-4xl font-extrabold text-gray-900 sm:text-5xl lg:text-6xl block tracking-tight">
-                                Master Trivia with
+                            <span className="text-3xl font-bold text-gray-900 sm:text-4xl lg:text-5xl block tracking-tight mb-4">
+                                Study Jeopardy with
                             </span>
-                            <span className={`${fredoka.className} text-5xl sm:text-6xl lg:text-7xl bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent block mt-3`}>
+                            <span className={`${fredoka.className} text-5xl sm:text-6xl lg:text-7xl bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent block mt-8 pb-2`}>
                                 trivrdy
                             </span>
                         </h1>
-                        <p className="mt-6 max-w-2xl mx-auto text-xl text-gray-600 leading-relaxed">
-                            Train with authentic Jeopardy questions. Track your progress. 
-                            Compete on the leaderboard. Become a trivia champion.
+                        <p className="mt-8 max-w-2xl mx-auto text-xl text-gray-600 leading-relaxed">
+                            Practice with real Jeopardy questions, <br className="hidden sm:block" />
+                            see how you stack up, and get better over time.
                         </p>
                         
                         {/* Quick stats */}
-                        <div className="mt-8 flex justify-center gap-8 text-sm text-gray-500">
+                        <div className="mt-8 flex justify-center gap-8 text-base text-gray-500">
                             <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <span>12,000+ Questions</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                                 </svg>
-                                <span>6 Knowledge Categories</span>
+                                <span>6 Categories</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                                 </svg>
                                 <span>Track Progress</span>
@@ -65,8 +65,9 @@ export default async function Home() {
                                 <div className="relative p-8 h-full flex flex-col">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="p-2 bg-white/20 rounded-lg">
-                                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                             </svg>
                                         </div>
                                         <h2 className="text-2xl font-bold text-white">Game Mode</h2>
