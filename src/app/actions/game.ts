@@ -1,9 +1,9 @@
 'use server'
 
-import { prisma } from '../lib/prisma'
+import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import crypto from 'crypto'
-import { checkAndUnlockAchievements } from '../lib/achievements'
+import { checkAndUnlockAchievements } from '@/lib/achievements'
 
 type GameCategory = {
     id: string
