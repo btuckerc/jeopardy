@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '../../lib/auth'
 import { getTripleStumperCategories, getTripleStumperCategoryQuestions, getRandomTripleStumper, saveAnswer } from '../../actions/practice'
 import { checkAnswer } from '../../lib/answer-checker'
+import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 
@@ -214,6 +215,7 @@ function TripleStumpersContent() {
     }, [router])
 
     const [userAnswer, setUserAnswer] = useState('')
+    const answerInputRef = useRef<HTMLInputElement>(null)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [showAnswer, setShowAnswer] = useState(false)
     const [disputeContext, setDisputeContext] = useState<{
@@ -1027,14 +1029,21 @@ function TripleStumpersContent() {
                                     ) : (
                                         <>
                                             <input
+                                                ref={answerInputRef}
                                                 type="text"
                                                 value={userAnswer}
                                                 onChange={(e) => setUserAnswer(e.target.value)}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') handleAnswerSubmit()
                                                 }}
-                                                className="w-full p-3 border rounded-lg text-black"
+                                                onFocus={() => scrollInputIntoView(answerInputRef.current)}
+                                                className="w-full p-3 border rounded-lg text-black text-base"
                                                 placeholder="What is..."
+                                                autoComplete="off"
+                                                autoCapitalize="off"
+                                                autoCorrect="off"
+                                                spellCheck="false"
+                                                enterKeyHint="send"
                                             />
                                             <div className="flex justify-between items-center">
                                                 <div className="flex space-x-4">

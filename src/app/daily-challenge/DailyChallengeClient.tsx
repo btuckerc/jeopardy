@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/lib/auth'
+import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
 import NextChallengeCallout from '@/app/components/NextChallengeCallout'
@@ -91,6 +92,7 @@ export default function DailyChallengeClient({
     const { user, loading: authLoading } = useAuth()
     const [challenge, setChallenge] = useState<DailyChallenge | null>(initialChallenge)
     const [userAnswer, setUserAnswer] = useState('')
+    const answerInputRef = useRef<HTMLInputElement>(null)
     const [showAnswer, setShowAnswer] = useState(false)
     const [revealAnswer, setRevealAnswer] = useState(false)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
@@ -409,6 +411,7 @@ export default function DailyChallengeClient({
                                         <div className="space-y-4 sm:space-y-5 max-w-2xl mx-auto">
                                             <div className="bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-5 border border-white/20">
                                                 <input
+                                                    ref={answerInputRef}
                                                     type="text"
                                                     value={userAnswer}
                                                     onChange={(e) => setUserAnswer(e.target.value)}
@@ -417,8 +420,15 @@ export default function DailyChallengeClient({
                                                             handleSubmit()
                                                         }
                                                     }}
+                                                    onFocus={() => scrollInputIntoView(answerInputRef.current)}
                                                     className="w-full px-4 sm:px-5 py-3 sm:py-4 bg-white rounded-lg text-base sm:text-lg text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-amber-400 focus:border-amber-400 border-2 border-transparent"
+                                                    style={{ fontSize: '16px' }}
                                                     placeholder="What is..."
+                                                    autoComplete="off"
+                                                    autoCapitalize="off"
+                                                    autoCorrect="off"
+                                                    spellCheck="false"
+                                                    enterKeyHint="send"
                                                     autoFocus
                                                 />
                                             </div>

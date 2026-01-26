@@ -6,6 +6,7 @@ import Link from 'next/link'
 import toast from 'react-hot-toast'
 import { useAuth } from '../../lib/auth'
 import { checkAnswer } from '../../lib/answer-checker'
+import { useMobileKeyboard } from '@/app/hooks/useMobileKeyboard'
 import type { Player } from '@/components/Scoreboard'
 import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
 import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt'
@@ -176,6 +177,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         correct: boolean | null
         disputeStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' | null
     }>>({})
+
+    // Mobile keyboard handling
+    const answerInputRef = useRef<HTMLInputElement>(null)
+    const { scrollIntoView } = useMobileKeyboard()
     const [revealMyAnswer, setRevealMyAnswer] = useState(false)
     
     // Completed game state - for review mode
@@ -1904,64 +1909,81 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
             {/* Question Modal */}
             {selectedQuestion && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in">
-                    <div className="question-card animate-fade-in-slide-down max-h-[90vh] overflow-y-auto">
+                <div className="question-modal-overlay">
+                    <div className="question-modal-card relative">
+                        {/* Close Button */}
                         <button
-                            onClick={() => setSelectedQuestion(null)}
-                            className="absolute top-4 right-4 text-white/60 hover:text-white text-3xl transition-colors"
+                            onClick={() => {
+                                setSelectedQuestion(null)
+                                setRevealMyAnswer(false)
+                            }}
+                            className="question-modal-close"
                             aria-label="Close"
                         >
                             ×
                         </button>
 
-                        {/* Category name for context */}
-                        <div className="question-category">
-                            {categories.find(c => c.id === selectedQuestion.categoryId)?.name}
+                        {/* Scrollable Content Area - Question Display */}
+                        <div className="question-modal-scroll-area">
+                            {/* Category name */}
+                            <div className="question-category">
+                                {categories.find(c => c.id === selectedQuestion.categoryId)?.name}
+                            </div>
+
+                            {/* Point value */}
+                            <div className="question-value">
+                                ${normalizeQuestionValue(selectedQuestion.value, isDoubleJeopardy)}
+                            </div>
+
+                            {/* Question text */}
+                            <p className="question-text">
+                                {selectedQuestion.question}
+                            </p>
                         </div>
 
-                        <div className="question-value">
-                            ${normalizeQuestionValue(selectedQuestion.value, isDoubleJeopardy)}
-                        </div>
-
-                        <p className="question-text mb-8">{selectedQuestion.question}</p>
-
-                        {!showAnswer && !answeredQuestions.has(selectedQuestion.id) ? (
-                            <div className="space-y-4">
+                        {/* Fixed Input Area - Always Visible */}
+                        <div className="question-modal-input-area">
+                            {!showAnswer && !answeredQuestions.has(selectedQuestion.id) ? (
                                 <form
                                     onSubmit={(e) => {
                                         e.preventDefault()
                                         handleSubmitAnswer()
                                     }}
-                                    className="space-y-4"
+                                    className="space-y-3"
                                 >
                                     <input
+                                        ref={answerInputRef}
                                         type="text"
                                         value={userAnswer}
                                         onChange={(e) => setUserAnswer(e.target.value)}
-                                        className="answer-input"
+                                        onFocus={() => scrollIntoView(answerInputRef)}
+                                        className="mobile-answer-input"
                                         placeholder="What is..."
                                         autoComplete="off"
                                         autoCapitalize="off"
+                                        autoCorrect="off"
+                                        spellCheck="false"
+                                        enterKeyHint="send"
                                         autoFocus
                                     />
-                                    <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                                         <button
                                             type="submit"
-                                            className="flex-1 btn-gold py-3 text-lg"
+                                            disabled={!userAnswer.trim()}
+                                            className="flex-1 btn-gold py-3 text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             Submit
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleDontKnow}
-                                            className="flex-1 btn-secondary py-3"
+                                            className="flex-1 btn-secondary py-3 text-base sm:text-lg"
                                         >
                                             I don&apos;t know
                                         </button>
                                     </div>
                                 </form>
-                            </div>
-                        ) : (
+                            ) : (
                             <div className="space-y-4">
                                 {(() => {
                                     const details = questionDetails[selectedQuestion.id]
@@ -2140,12 +2162,13 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                         setRevealMyAnswer(false)
                                         // Note: Don't reset revealedAnswers - let user's revealed state persist for easier navigation
                                     }}
-                                    className="w-full btn-secondary py-3"
+                                    className="w-full btn-secondary py-3 text-base sm:text-lg"
                                 >
                                     {isCompletedGame ? 'Close' : 'Continue'}
                                 </button>
                             </div>
                         )}
+                        </div>
                     </div>
                 </div>
             )}

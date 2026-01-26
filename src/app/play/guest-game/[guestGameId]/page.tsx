@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/app/lib/auth'
+import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import Link from 'next/link'
 
 interface GuestGameState {
@@ -28,6 +29,7 @@ export default function GuestGamePage() {
     const [loading, setLoading] = useState(true)
     const [question, setQuestion] = useState<{ id: string; question: string; answer: string; value: number; categoryId: string; category: { id: string; name: string } } | null>(null)
     const [userAnswer, setUserAnswer] = useState('')
+    const answerInputRef = useRef<HTMLInputElement>(null)
     const [showResult, setShowResult] = useState(false)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [submitting, setSubmitting] = useState(false)
@@ -251,6 +253,7 @@ export default function GuestGamePage() {
                         {!showResult ? (
                             <div className="space-y-4">
                                 <input
+                                    ref={answerInputRef}
                                     type="text"
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
@@ -259,8 +262,15 @@ export default function GuestGamePage() {
                                             handleSubmit()
                                         }
                                     }}
+                                    onFocus={() => scrollInputIntoView(answerInputRef.current)}
                                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-lg text-gray-900 bg-white focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                                    style={{ fontSize: '16px' }}
                                     placeholder="What is..."
+                                    autoComplete="off"
+                                    autoCapitalize="off"
+                                    autoCorrect="off"
+                                    spellCheck="false"
+                                    enterKeyHint="send"
                                     autoFocus
                                 />
                                 <button

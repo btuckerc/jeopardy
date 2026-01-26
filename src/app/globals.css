@@ -199,6 +199,121 @@
     }
 
     /* ==========================================================================
+       Mobile Keyboard Handling
+       ========================================================================== */
+    
+    /* 
+     * Question modal overlay - positions content at bottom on mobile for 
+     * better keyboard accessibility, centered on larger screens.
+     */
+    .question-modal-overlay {
+        @apply fixed inset-0 bg-black/80 z-50 animate-fade-in;
+        @apply flex items-end justify-center;  /* Bottom on mobile */
+        @apply sm:items-center;                 /* Centered on tablet+ */
+        @apply p-0 sm:p-4;
+    }
+    
+    /*
+     * Question modal card - slides up from bottom on mobile, 
+     * appears centered on desktop. Uses dvh for keyboard-aware height.
+     */
+    .question-modal-card {
+        @apply w-full sm:max-w-3xl;
+        @apply rounded-t-2xl sm:rounded-xl;
+        @apply bg-blue-800 text-white shadow-2xl;
+        @apply animate-fade-in-slide-down;
+        @apply flex flex-col;
+        background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+        
+        /* Height constraints */
+        max-height: 92vh;
+        max-height: 92dvh; /* Dynamic viewport height - shrinks when keyboard opens */
+    }
+    
+    @media (min-width: 640px) {
+        .question-modal-card {
+            max-height: 90vh;
+        }
+    }
+    
+    /*
+     * Scrollable content area within modal - contains question text.
+     * Allows scrolling if question is very long.
+     */
+    .question-modal-scroll-area {
+        @apply flex-1 overflow-y-auto overscroll-contain;
+        @apply px-5 pt-5 pb-3;
+        @apply sm:px-8 sm:pt-8 sm:pb-4;
+        
+        /* Smooth scrolling and momentum on iOS */
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /*
+     * Fixed input area at bottom of modal - never scrolls away.
+     * Contains answer input and action buttons.
+     */
+    .question-modal-input-area {
+        @apply flex-shrink-0;
+        @apply px-5 pb-5 pt-3;
+        @apply sm:px-8 sm:pb-8 sm:pt-4;
+        @apply border-t border-white/10;
+        
+        /* Extra bottom padding on mobile to account for home indicator */
+        padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    }
+    
+    @media (min-width: 640px) {
+        .question-modal-input-area {
+            padding-bottom: 2rem;
+        }
+    }
+    
+    /*
+     * Close button positioning - top right corner of modal
+     */
+    .question-modal-close {
+        @apply absolute top-3 right-3 sm:top-4 sm:right-4;
+        @apply text-white/60 hover:text-white;
+        @apply text-2xl sm:text-3xl;
+        @apply transition-colors;
+        @apply w-10 h-10 flex items-center justify-center;
+        @apply rounded-full hover:bg-white/10;
+    }
+    
+    /*
+     * Mobile input optimizations - larger tap targets, better focus states
+     */
+    .mobile-answer-input {
+        @apply w-full rounded-lg border-2 transition-all duration-200;
+        @apply px-4 py-3 sm:py-3;
+        @apply text-base sm:text-lg;
+        @apply text-gray-900 bg-white;
+        @apply border-gray-300;
+        @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-200;
+        @apply placeholder:text-gray-400 placeholder:italic;
+        
+        /* Prevent iOS zoom on focus (font-size >= 16px) */
+        font-size: 16px;
+    }
+    
+    @media (min-width: 640px) {
+        .mobile-answer-input {
+            font-size: 1.125rem; /* text-lg */
+        }
+    }
+    
+    /*
+     * For practice mode cards - ensures cards don't exceed viewport
+     */
+    .question-card-mobile {
+        @apply max-h-[85vh];
+        max-height: 85dvh;
+        @apply overflow-y-auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* ==========================================================================
        Answer Input
        ========================================================================== */
     .answer-input {

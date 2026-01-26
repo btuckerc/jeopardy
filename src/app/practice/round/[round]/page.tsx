@@ -6,6 +6,7 @@ import { useSearchParams, useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '../../../lib/auth'
 import { getRoundCategories, getRandomQuestion, getCategoryQuestions } from '../../../actions/practice'
+import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import type { RawCategory, RawQuestion } from '@/types/practice'
@@ -336,6 +337,7 @@ function FreePracticeContent() {
         router.replace(url.pathname + url.search, { scroll: false })
     }, [router])
     const [userAnswer, setUserAnswer] = useState('')
+    const answerInputRef = useRef<HTMLInputElement>(null)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [showAnswer, setShowAnswer] = useState(false)
     const [disputeContext, setDisputeContext] = useState<{
@@ -1448,6 +1450,7 @@ function FreePracticeContent() {
                                                 <>
                                                         <div className="relative">
                                                             <input
+                                                                ref={answerInputRef}
                                                                 type="text"
                                                                 value={userAnswer}
                                                                 onChange={(e) => setUserAnswer(e.target.value)}
@@ -1456,8 +1459,14 @@ function FreePracticeContent() {
                                                                         handleAnswerSubmit()
                                                                     }
                                                                 }}
-                                                                className="w-full p-3 border rounded-lg text-black"
+                                                                onFocus={() => scrollInputIntoView(answerInputRef.current)}
+                                                                className="w-full p-3 border rounded-lg text-black text-base"
                                                                 placeholder="What is..."
+                                                                autoComplete="off"
+                                                                autoCapitalize="off"
+                                                                autoCorrect="off"
+                                                                spellCheck="false"
+                                                                enterKeyHint="send"
                                                             />
                                                         </div>
                                                         <div className="flex justify-between items-center">

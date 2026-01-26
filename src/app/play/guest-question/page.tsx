@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/lib/auth'
 import { checkAnswer } from '@/app/lib/answer-checker'
+import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import Link from 'next/link'
 
 interface Question {
@@ -22,6 +23,7 @@ export default function GuestQuestionPage() {
     const [question, setQuestion] = useState<Question | null>(null)
     const [loading, setLoading] = useState(true)
     const [userAnswer, setUserAnswer] = useState('')
+    const answerInputRef = useRef<HTMLInputElement>(null)
     const [showResult, setShowResult] = useState(false)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [submitting, setSubmitting] = useState(false)
@@ -223,6 +225,7 @@ export default function GuestQuestionPage() {
                             ) : (
                                 <>
                                     <input
+                                        ref={answerInputRef}
                                         type="text"
                                         value={userAnswer}
                                         onChange={(e) => setUserAnswer(e.target.value)}
@@ -231,8 +234,15 @@ export default function GuestQuestionPage() {
                                                 handleSubmit()
                                             }
                                         }}
+                                        onFocus={() => scrollInputIntoView(answerInputRef.current)}
                                         className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg text-lg text-gray-900 bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                                        style={{ fontSize: '16px' }}
                                         placeholder="What is..."
+                                        autoComplete="off"
+                                        autoCapitalize="off"
+                                        autoCorrect="off"
+                                        spellCheck="false"
+                                        enterKeyHint="send"
                                         autoFocus
                                     />
                                     <button

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../lib/auth'
 import { checkAnswer } from '../../lib/answer-checker'
+import { useMobileKeyboard } from '@/app/hooks/useMobileKeyboard'
 import type { Player } from '@/components/Scoreboard'
 import type { GameConfig } from '@/types/game'
 
@@ -113,6 +114,10 @@ export default function GameBoard() {
     const [finalJeopardyAnswer, setFinalJeopardyAnswer] = useState('')
     const [finalJeopardyShowAnswer, setFinalJeopardyShowAnswer] = useState(false)
     const [finalJeopardyIsCorrect, setFinalJeopardyIsCorrect] = useState<boolean | null>(null)
+
+    // Mobile keyboard handling
+    const answerInputRef = useRef<HTMLInputElement>(null)
+    const { scrollIntoView } = useMobileKeyboard()
 
     // Build players array for scoreboard (reserved for future use)
     const _players: Player[] = [
@@ -869,92 +874,107 @@ export default function GameBoard() {
 
             {/* Question Modal */}
             {selectedQuestion && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in">
-                    <div className="question-card animate-fade-in-slide-down max-h-[90vh] overflow-y-auto">
+                <div className="question-modal-overlay">
+                    <div className="question-modal-card relative">
+                        {/* Close Button */}
                         <button
                             onClick={() => setSelectedQuestion(null)}
-                            className="absolute top-4 right-4 text-white/60 hover:text-white text-3xl transition-colors"
+                            className="question-modal-close"
                             aria-label="Close"
                         >
                             ×
                         </button>
 
-                        {/* Category name for context */}
-                        <div className="question-category">
-                            {categories.find(c => c.id === selectedQuestion.categoryId)?.name}
+                        {/* Scrollable Content Area - Question Display */}
+                        <div className="question-modal-scroll-area">
+                            {/* Category name */}
+                            <div className="question-category">
+                                {categories.find(c => c.id === selectedQuestion.categoryId)?.name}
+                            </div>
+
+                            {/* Point value */}
+                            <div className="question-value">
+                                ${normalizeQuestionValue(selectedQuestion.value, isDoubleJeopardy)}
+                            </div>
+
+                            {/* Question text */}
+                            <p className="question-text">
+                                {selectedQuestion.question}
+                            </p>
                         </div>
 
-                        <div className="question-value">
-                            ${normalizeQuestionValue(selectedQuestion.value, isDoubleJeopardy)}
-                        </div>
-
-                        <p className="question-text mb-8">{selectedQuestion.question}</p>
-
-                        {!showAnswer && !answeredQuestions.has(selectedQuestion.id) ? (
-                            <div className="space-y-4">
+                        {/* Fixed Input Area - Always Visible */}
+                        <div className="question-modal-input-area">
+                            {!showAnswer && !answeredQuestions.has(selectedQuestion.id) ? (
                                 <form
                                     onSubmit={(e) => {
-                                        e.preventDefault();
-                                        handleSubmitAnswer();
+                                        e.preventDefault()
+                                        handleSubmitAnswer()
                                     }}
-                                    className="space-y-4"
+                                    className="space-y-3"
                                 >
                                     <input
+                                        ref={answerInputRef}
                                         type="text"
                                         value={userAnswer}
                                         onChange={(e) => setUserAnswer(e.target.value)}
-                                        className="answer-input"
+                                        onFocus={() => scrollIntoView(answerInputRef)}
+                                        className="mobile-answer-input"
                                         placeholder="What is..."
                                         autoComplete="off"
                                         autoCapitalize="off"
+                                        autoCorrect="off"
+                                        spellCheck="false"
+                                        enterKeyHint="send"
                                         autoFocus
                                     />
-                                    <div className="flex flex-col sm:flex-row gap-3">
+                                    <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                                         <button
                                             type="submit"
-                                            className="flex-1 btn-gold py-3 text-lg"
+                                            disabled={!userAnswer.trim()}
+                                            className="flex-1 btn-gold py-3 text-base sm:text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             Submit
                                         </button>
                                         <button
                                             type="button"
                                             onClick={handleDontKnow}
-                                            className="flex-1 btn-secondary py-3"
+                                            className="flex-1 btn-secondary py-3 text-base sm:text-lg"
                                         >
                                             I don&apos;t know
                                         </button>
                                     </div>
                                 </form>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                <div className={`p-6 rounded-xl ${isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
-                                    <div className="flex items-center justify-center gap-3 mb-2">
-                                        {isCorrect ? (
-                                            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        )}
-                                        <span className={`text-lg font-bold ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                                            {isCorrect ? 'Correct!' : 'Incorrect'}
-                                        </span>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className={`p-4 sm:p-6 rounded-xl ${isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
+                                        <div className="flex items-center justify-center gap-2 sm:gap-3 mb-2">
+                                            {isCorrect ? (
+                                                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            )}
+                                            <span className={`text-base sm:text-lg font-bold ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                                                {isCorrect ? 'Correct!' : 'Incorrect'}
+                                            </span>
+                                        </div>
+                                        <p className="font-medium text-center text-sm sm:text-base">
+                                            {selectedQuestion.answer}
+                                        </p>
                                     </div>
-                                    <p className="font-medium text-center">
-                                        {selectedQuestion.answer}
-                                    </p>
+                                    <button
+                                        onClick={() => setSelectedQuestion(null)}
+                                        className="w-full btn-secondary py-3 text-base sm:text-lg"
+                                    >
+                                        Continue
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => setSelectedQuestion(null)}
-                                    className="w-full btn-secondary py-3"
-                                >
-                                    Continue
-                                </button>
-                            </div>
-                        )}
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
