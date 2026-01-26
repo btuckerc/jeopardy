@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { getNextChallengeTimeISO } from '@/lib/daily-challenge-utils'
 import NextChallengeCallout from './NextChallengeCallout'
@@ -39,8 +40,50 @@ interface DailyChallengeCardClientProps {
     stats: DailyChallengeStats | null
 }
 
-export default function DailyChallengeCardClient({ challenge, stats }: DailyChallengeCardClientProps) {
+export default function DailyChallengeCardClient({ challenge: initialChallenge, stats: initialStats }: DailyChallengeCardClientProps) {
     const nextChallengeTime = getNextChallengeTimeISO()
+    
+    // Use state to allow refreshing data
+    const [challenge, setChallenge] = useState<DailyChallenge | null>(initialChallenge)
+    const [stats, setStats] = useState<DailyChallengeStats | null>(initialStats)
+    
+    // Refresh data from server
+    const refreshData = useCallback(async () => {
+        // Fetch challenge and stats in parallel for better performance
+        const [challengeResult, statsResult] = await Promise.allSettled([
+            fetch('/api/daily-challenge').then(r => r.ok ? r.json() : null),
+            fetch('/api/daily-challenge/stats').then(r => r.ok ? r.json() : null)
+        ])
+        
+        // Update challenge if fetch succeeded
+        if (challengeResult.status === 'fulfilled' && challengeResult.value) {
+            setChallenge(challengeResult.value)
+        }
+        
+        // Update stats if fetch succeeded (will be null for unauthenticated users)
+        if (statsResult.status === 'fulfilled' && statsResult.value) {
+            setStats(statsResult.value)
+        }
+    }, [])
+    
+    // Refresh data on mount and when tab becomes visible
+    useEffect(() => {
+        // Refresh immediately on mount to sync with any changes made on the daily challenge page
+        refreshData()
+        
+        // Also refresh when tab becomes visible (user navigating back)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                refreshData()
+            }
+        }
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange)
+        
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
+        }
+    }, [refreshData])
 
     // If no challenge data, show a fallback CTA
     if (!challenge) {
@@ -137,7 +180,10 @@ export default function DailyChallengeCardClient({ challenge, stats }: DailyChal
                             <div className="mb-6 flex items-center justify-center gap-4 text-sm">
                                 {stats.participationStreak.current > 0 && (
                                     <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 backdrop-blur-sm rounded-full">
-                                        <span className="text-lg">🔥</span>
+                                        <svg className="w-4 h-4 text-amber-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
+                                        </svg>
                                         <span className="text-white font-semibold">{stats.participationStreak.current} day streak</span>
                                     </div>
                                 )}

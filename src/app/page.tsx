@@ -4,7 +4,6 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { prisma } from '@/lib/prisma'
 import HomepageClient from './HomepageClient'
 import DailyChallengeCardClient from './components/DailyChallengeCardClient'
-import StreakWidget from './components/StreakWidget'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
@@ -68,32 +67,6 @@ async function getDailyChallenge(userId: string | null) {
         }
     } catch (error) {
         console.error('Error fetching daily challenge:', error)
-        return null
-    }
-}
-
-async function getStreakData(userId: string | null) {
-    if (!userId) return null
-    
-    try {
-        const userData = await prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                currentStreak: true,
-                longestStreak: true,
-                lastGameDate: true
-            }
-        })
-
-        if (!userData) return null
-
-        return {
-            currentStreak: userData.currentStreak || 0,
-            longestStreak: userData.longestStreak || 0,
-            lastGameDate: userData.lastGameDate?.toISOString() || null
-        }
-    } catch (error) {
-        console.error('Error fetching streak data:', error)
         return null
     }
 }
@@ -192,9 +165,8 @@ export default async function Home() {
     const user = await getAppUser()
     
     // Fetch all data server-side to avoid client-side waterfall
-    const [dailyChallenge, streakData, dailyChallengeStats] = await Promise.all([
+    const [dailyChallenge, dailyChallengeStats] = await Promise.all([
         getDailyChallenge(user?.id || null),
-        getStreakData(user?.id || null),
         getDailyChallengeStats(user?.id || null)
     ])
 
@@ -249,9 +221,6 @@ export default async function Home() {
                             </div>
                         </div>
                     </div>
-
-                    {/* Streak Widget - Only show for authenticated users */}
-                    {user && streakData && <StreakWidget streakData={streakData} />}
 
                     {/* Daily Challenge Card */}
                     <div className="mt-8 max-w-4xl mx-auto">

@@ -176,3 +176,41 @@ export function isChallengeUnlocked(challengeDate: Date, now: Date = new Date())
     const activeDate = getActiveChallengeDate(now)
     return activeDate.getTime() >= challengeDate.getTime()
 }
+
+/**
+ * Get a human-readable description of when the daily challenge refreshes.
+ * Returns a string like "9:00 AM Eastern" (automatically handles DST).
+ * This is dynamic and will automatically adjust if the refresh time changes.
+ */
+export function getRefreshTimeDescription(): string {
+    // Get the next challenge time (9AM ET)
+    const nextTime = getNextChallengeTime()
+    
+    // Format it in Eastern timezone with timezone name
+    // Use Intl.DateTimeFormat to get both time and timezone abbreviation
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: TIMEZONE,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+        timeZoneName: 'short'
+    })
+    
+    // Format the time
+    const timeFormatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: TIMEZONE,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+    })
+    
+    const formattedTime = timeFormatter.format(nextTime)
+    
+    // Get timezone abbreviation (EST or EDT)
+    const parts = formatter.formatToParts(nextTime)
+    const tzPart = parts.find(p => p.type === 'timeZoneName')
+    const tzAbbr = tzPart?.value || 'ET'
+    
+    // Use full timezone name for clarity
+    return `${formattedTime} Eastern`
+}

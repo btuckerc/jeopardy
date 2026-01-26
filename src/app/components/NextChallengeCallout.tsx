@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { getRefreshTimeDescription } from '@/lib/daily-challenge-utils'
 
 interface NextChallengeCalloutProps {
-    /** Server-computed timestamp for next challenge (midnight UTC) */
+    /** Server-computed timestamp for next challenge (9AM ET) */
     nextChallengeTime: string
     /** Whether to show in compact mode */
     compact?: boolean
@@ -49,6 +50,7 @@ export default function NextChallengeCallout({ nextChallengeTime, compact = fals
     const [timeRemaining, setTimeRemaining] = useState(() => calculateTimeRemaining(nextChallengeTime))
     const [mounted, setMounted] = useState(false)
     const [localRefreshTime, setLocalRefreshTime] = useState(() => formatLocalRefreshTime(nextChallengeTime))
+    const [refreshTimeDescription, setRefreshTimeDescription] = useState(() => getRefreshTimeDescription())
 
     useEffect(() => {
         setMounted(true)
@@ -56,6 +58,7 @@ export default function NextChallengeCallout({ nextChallengeTime, compact = fals
         // Update immediately on mount to sync with actual client time
         setTimeRemaining(calculateTimeRemaining(nextChallengeTime))
         setLocalRefreshTime(formatLocalRefreshTime(nextChallengeTime))
+        setRefreshTimeDescription(getRefreshTimeDescription())
         
         // Update every second for live countdown
         const interval = setInterval(() => {
@@ -122,9 +125,9 @@ export default function NextChallengeCallout({ nextChallengeTime, compact = fals
                     </p>
                     <p className="text-blue-100/80 text-xs sm:text-sm md:text-base">
                         {mounted ? (
-                            <>A new Final Jeopardy question at <span className="font-semibold text-amber-300">{localRefreshTime}</span> (midnight UTC)</>
+                            <>A new Final Jeopardy question at <span className="font-semibold text-amber-300">{refreshTimeDescription}</span></>
                         ) : (
-                            'A new Final Jeopardy question at midnight UTC'
+                            <>A new Final Jeopardy question at {refreshTimeDescription}</>
                         )}
                     </p>
                 </div>

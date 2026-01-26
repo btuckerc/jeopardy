@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import toast from 'react-hot-toast'
 import { useAuth } from '../../lib/auth'
 import { checkAnswer } from '../../lib/answer-checker'
 import type { Player } from '@/components/Scoreboard'
@@ -567,6 +568,72 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
         initGame()
     }, [gameId, initialGameData, loadCategories, loadFinalJeopardy])
+
+    // Poll for approved disputes to sync score mid-game
+    const [processedDisputes, setProcessedDisputes] = useState<Set<string>>(new Set())
+    
+    useEffect(() => {
+        if (!gameId || loading || showFinalJeopardy) {
+            return // Don't poll if game isn't loaded or we're in Final Jeopardy
+        }
+
+        const checkApprovedDisputes = async () => {
+            try {
+                const response = await fetch(`/api/games/${gameId}/approved-disputes`)
+                if (!response.ok) {
+                    return // Silently fail - don't spam errors
+                }
+
+                const data = await response.json()
+                const approvedDisputes = data.approvedDisputes || []
+
+                // Process new disputes that haven't been processed yet
+                for (const dispute of approvedDisputes) {
+                    const disputeKey = `${dispute.questionId}-${dispute.resolvedAt}`
+                    
+                    if (!processedDisputes.has(disputeKey)) {
+                        // Mark as processed
+                        setProcessedDisputes(prev => new Set([...prev, disputeKey]))
+                        
+                        // Update score
+                        setScore(prev => prev + dispute.points)
+                        
+                        // Mark question as answered correctly
+                        setAnsweredQuestions(prev => new Set([...prev, dispute.questionId]))
+                        
+                        // Update game stats
+                        setGameStats(prev => ({ ...prev, correct: prev.correct + 1 }))
+                        
+                        // Show toast notification
+                        toast.success(
+                            (t) => (
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span>Dispute approved! +${dispute.points.toLocaleString()} points</span>
+                                </div>
+                            ),
+                            {
+                                duration: 5000,
+                                position: 'bottom-right',
+                                icon: null,
+                            }
+                        )
+                    }
+                }
+            } catch (error) {
+                // Silently fail - don't spam console with errors
+                console.debug('Error checking approved disputes:', error)
+            }
+        }
+
+        // Check immediately, then every 30 seconds
+        checkApprovedDisputes()
+        const interval = setInterval(checkApprovedDisputes, 30000)
+
+        return () => clearInterval(interval)
+    }, [gameId, loading, showFinalJeopardy, processedDisputes])
 
     // Handle round completion
     const handleRoundComplete = useCallback(async () => {
