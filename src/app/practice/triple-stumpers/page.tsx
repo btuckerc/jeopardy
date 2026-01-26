@@ -976,7 +976,7 @@ function TripleStumpersContent() {
 
                 {/* Question View */}
                 {selectedQuestion && (
-                    <div className="max-w-3xl mx-auto">
+                    <div className="max-w-3xl mx-auto practice-question-area">
                         <div className="bg-white shadow-lg rounded-lg p-6 relative border-4 border-yellow-400">
                             <div className="absolute -top-3 left-4 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-bold">
                                 Triple Stumper

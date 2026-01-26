@@ -221,7 +221,7 @@
         @apply w-full sm:max-w-3xl;
         @apply rounded-t-2xl sm:rounded-xl;
         @apply bg-blue-800 text-white shadow-2xl;
-        @apply animate-fade-in-slide-down;
+        @apply animate-slide-up sm:animate-fade-in-slide-down;
         @apply flex flex-col;
         background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
         
@@ -274,6 +274,7 @@
      */
     .question-modal-close {
         @apply absolute top-3 right-3 sm:top-4 sm:right-4;
+        @apply z-10;
         @apply text-white/60 hover:text-white;
         @apply text-2xl sm:text-3xl;
         @apply transition-colors;
@@ -311,6 +312,21 @@
         max-height: 85dvh;
         @apply overflow-y-auto;
         -webkit-overflow-scrolling: touch;
+    }
+    
+    /*
+     * Practice question area - adds bottom padding to allow scrolling
+     * input to center of screen when keyboard opens
+     */
+    .practice-question-area {
+        padding-bottom: 50vh;
+        padding-bottom: 50dvh; /* Dynamic viewport height for keyboard-aware padding */
+    }
+    
+    @media (min-width: 640px) {
+        .practice-question-area {
+            padding-bottom: 30vh;
+        }
     }
 
     /* ==========================================================================
@@ -515,6 +531,21 @@
         animation: fadeInSlideDown 0.2s ease-out forwards;
     }
 
+    @keyframes slideUpFromBottom {
+        0% {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .animate-slide-up {
+        animation: slideUpFromBottom 0.25s ease-out forwards;
+    }
+
     @keyframes fadeIn {
         0% {
             opacity: 0;
@@ -530,6 +561,7 @@
 
     @media (prefers-reduced-motion: reduce) {
         .animate-fade-in-slide-down,
+        .animate-slide-up,
         .animate-fade-in {
             animation: none;
             opacity: 1;

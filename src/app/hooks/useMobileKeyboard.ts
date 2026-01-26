@@ -1,17 +1,18 @@
 'use client'
 
-import { useEffect, useCallback, RefObject } from 'react'
+import { useEffect, useCallback, RefObject, useState } from 'react'
 
 /**
  * Hook to handle mobile keyboard appearance and scroll inputs into view.
  * 
  * This hook provides a utility function that scrolls an input element into
  * the visible viewport area when focused, accounting for the mobile keyboard.
+ * Uses VisualViewport API when available for reliable keyboard detection.
  * 
  * Usage:
  * ```tsx
  * const inputRef = useRef<HTMLInputElement>(null)
- * const { scrollIntoView } = useMobileKeyboard()
+ * const { scrollIntoView, isKeyboardVisible } = useMobileKeyboard()
  * 
  * <input 
  *   ref={inputRef} 
@@ -20,16 +21,34 @@ import { useEffect, useCallback, RefObject } from 'react'
  * ```
  */
 export function useMobileKeyboard() {
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
+    
+    // Track keyboard visibility using VisualViewport API
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.visualViewport) return
+        
+        const viewport = window.visualViewport
+        const handleResize = () => {
+            // Keyboard is visible when visual viewport height is significantly less than window height
+            const keyboardVisible = viewport.height < window.innerHeight * 0.75
+            setIsKeyboardVisible(keyboardVisible)
+        }
+        
+        viewport.addEventListener('resize', handleResize)
+        return () => viewport.removeEventListener('resize', handleResize)
+    }, [])
+    
     /**
      * Scrolls the referenced input element into view after a delay.
+     * Uses VisualViewport API when available to account for keyboard.
      * The delay accounts for the keyboard animation completing.
      * 
      * @param ref - React ref to the input element
-     * @param delay - Milliseconds to wait before scrolling (default: 300)
+     * @param delay - Milliseconds to wait before scrolling (default: 350)
      */
     const scrollIntoView = useCallback((
         ref: RefObject<HTMLInputElement | HTMLTextAreaElement | null>,
-        delay: number = 300
+        delay: number = 350
     ) => {
         if (!ref?.current) return
         
@@ -40,12 +59,27 @@ export function useMobileKeyboard() {
             // Check if element is still mounted and focused
             if (!element || document.activeElement !== element) return
             
-            // Use scrollIntoView with 'center' to position input in middle of visible area
-            element.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'center',
-                inline: 'nearest'
-            })
+            // Get the visual viewport (accounts for keyboard)
+            const visualViewport = window.visualViewport
+            if (visualViewport) {
+                const inputRect = element.getBoundingClientRect()
+                const viewportHeight = visualViewport.height
+                const inputBottom = inputRect.bottom
+                
+                // If input is below visible area, scroll it into view
+                // Leave some padding (100px) above the input
+                if (inputBottom > viewportHeight - 20) {
+                    const scrollAmount = inputBottom - viewportHeight + 100
+                    window.scrollBy({ top: scrollAmount, behavior: 'smooth' })
+                }
+            } else {
+                // Fallback for browsers without VisualViewport
+                element.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center',
+                    inline: 'nearest'
+                })
+            }
         }, delay)
     }, [])
 
@@ -86,26 +120,44 @@ export function useMobileKeyboard() {
 
     return { 
         scrollIntoView,
-        scrollModalToInput
+        scrollModalToInput,
+        isKeyboardVisible
     }
 }
 
 /**
  * Standalone utility function for cases where the hook pattern isn't needed.
  * Can be imported and used directly in event handlers.
+ * Uses VisualViewport API when available for better keyboard handling.
  */
 export function scrollInputIntoView(
     element: HTMLInputElement | HTMLTextAreaElement | null,
-    delay: number = 300
+    delay: number = 350
 ) {
     if (!element) return
     
     setTimeout(() => {
         if (!element || document.activeElement !== element) return
-        element.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center',
-            inline: 'nearest'
-        })
+        
+        // Get the visual viewport (accounts for keyboard)
+        const visualViewport = window.visualViewport
+        if (visualViewport) {
+            const inputRect = element.getBoundingClientRect()
+            const viewportHeight = visualViewport.height
+            const inputBottom = inputRect.bottom
+            
+            // If input is below visible area, scroll it into view
+            if (inputBottom > viewportHeight - 20) {
+                const scrollAmount = inputBottom - viewportHeight + 100
+                window.scrollBy({ top: scrollAmount, behavior: 'smooth' })
+            }
+        } else {
+            // Fallback for browsers without VisualViewport
+            element.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center',
+                inline: 'nearest'
+            })
+        }
     }, delay)
 }

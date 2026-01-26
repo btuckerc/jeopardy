@@ -1399,7 +1399,7 @@ function FreePracticeContent() {
 
                         {/* Selected Question */}
                         {!urlError && selectedQuestion && (
-                            <div className="max-w-3xl mx-auto">
+                            <div className="max-w-3xl mx-auto practice-question-area">
                                 <div className="bg-white shadow-lg rounded-lg p-6 relative">
                                     <div className="flex justify-between items-center mb-4">
                                         <div>
