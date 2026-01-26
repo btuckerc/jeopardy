@@ -105,9 +105,9 @@ export default async function DailyChallengePage() {
                         }
                     })
                 }
-            } catch (error: any) {
+            } catch (error: unknown) {
                 // If it's a unique constraint error, challenge was created by another request
-                if (error.code === 'P2002') {
+                if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                     challengeData = await prisma.dailyChallenge.findUnique({
                         where: { date: challengeDate },
                         include: {

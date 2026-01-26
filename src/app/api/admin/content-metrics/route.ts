@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
  * GET /api/admin/content-metrics
  * Get content quality metrics: question coverage, category distribution, issues, etc.
  */
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
     try {
         const { error: authError } = await requireAdmin()
         if (authError) return authError

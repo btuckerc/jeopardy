@@ -1,13 +1,25 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse, parseBody, badRequestResponse } from '@/lib/api-utils'
+import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
+import type { Prisma } from '@prisma/client'
 
-interface RouteParams {
-    params: Promise<{ gameId: string }>
+interface GameConfig {
+    finalJeopardyQuestionId?: string
+    rounds?: {
+        single?: boolean
+        double?: boolean
+        final?: boolean
+    }
+    mode?: string
+    spoilerProtection?: {
+        enabled?: boolean
+        cutoffDate?: string | null
+    }
+    [key: string]: unknown
 }
 
 // Schema for answering a question
@@ -39,14 +51,17 @@ const completeGameSchema = z.object({
  * Update game state after answering a question, advancing rounds, or completing the game.
  * Supports multiple action types via the 'action' field.
  */
-async function patchHandler(request: NextRequest, { params }: RouteParams) {
+async function patchHandler(request: NextRequest, context?: { params?: Record<string, string | string[]> }) {
     try {
         const appUser = await getAppUser()
         if (!appUser) {
             return unauthorizedResponse()
         }
 
-        const { gameId } = await params
+        const gameId = context?.params?.gameId as string
+        if (!gameId) {
+            return badRequestResponse('Missing gameId parameter')
+        }
 
         // Verify ownership and get current game state
         const game = await prisma.game.findUnique({
@@ -69,7 +84,7 @@ async function patchHandler(request: NextRequest, { params }: RouteParams) {
         }
 
         // Parse the request body to determine the action
-        let body: any
+        let body: Record<string, unknown>
         try {
             body = await request.json()
         } catch {
@@ -89,7 +104,7 @@ async function patchHandler(request: NextRequest, { params }: RouteParams) {
                 const { questionId, correct, pointsEarned } = parsed.data
 
                 // Find or create the GameQuestion record
-                let gameQuestion = game.questions.find(gq => gq.questionId === questionId)
+                const gameQuestion = game.questions.find(gq => gq.questionId === questionId)
 
                 if (gameQuestion) {
                     // Update existing record
@@ -146,11 +161,11 @@ async function patchHandler(request: NextRequest, { params }: RouteParams) {
                 const { newRound, finalJeopardyQuestionId } = parsed.data
 
                 // If advancing to FINAL round and we have a question ID, store it in config
-                const updateData: any = { currentRound: newRound }
+                const updateData: Prisma.GameUpdateInput = { currentRound: newRound }
                 
                 if (newRound === 'FINAL' && finalJeopardyQuestionId) {
                     // Merge the FJ question ID into the existing config
-                    const existingConfig = game.config as any || {}
+                    const existingConfig = (game.config as GameConfig) || {}
                     updateData.config = {
                         ...existingConfig,
                         finalJeopardyQuestionId
@@ -236,7 +251,7 @@ async function patchHandler(request: NextRequest, { params }: RouteParams) {
                     })
 
                     // Check streak-based achievements
-                    const streakAchievements = await checkAndUnlockAchievements(appUser.id, {
+                    const _streakAchievements = await checkAndUnlockAchievements(appUser.id, {
                         type: 'streak_updated',
                         data: { 
                             userId: appUser.id,
@@ -252,6 +267,7 @@ async function patchHandler(request: NextRequest, { params }: RouteParams) {
                 })
 
                 return jsonResponse({
+                    unlockedAchievements: newlyUnlocked.length > 0 ? newlyUnlocked : undefined,
                     success: true,
                     status: 'COMPLETED',
                     finalScore,
@@ -267,7 +283,7 @@ async function patchHandler(request: NextRequest, { params }: RouteParams) {
                 }
 
                 const { stage, wager } = parsed.data
-                const existingConfig = game.config as any || {}
+                const existingConfig = (game.config as GameConfig) || {}
                 
                 const updatedConfig = {
                     ...existingConfig,
@@ -295,4 +311,4 @@ async function patchHandler(request: NextRequest, { params }: RouteParams) {
     }
 }
 
-export const PATCH = withInstrumentation(patchHandler as any)
+export const PATCH = withInstrumentation(patchHandler)

@@ -3,12 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, forbiddenResponse, serverErrorResponse, parseSearchParams } from '@/lib/api-utils'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 const issuesQuerySchema = z.object({
     status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'DISMISSED']).optional(),
     category: z.enum(['BUG', 'CONTENT', 'FEATURE_REQUEST', 'ACCOUNT', 'QUESTION', 'OTHER']).optional(),
-    page: z.string().optional().transform(val => val ? parseInt(val, 10) : 1),
-    pageSize: z.string().optional().transform(val => val ? parseInt(val, 10) : 20)
+    page: z.coerce.number().optional().default(1),
+    pageSize: z.coerce.number().optional().default(20)
 })
 
 export const dynamic = 'force-dynamic'
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
         const { status, category, page = 1, pageSize = 20 } = params
 
         // Build where clause
-        const where: any = {}
+        const where: Prisma.IssueReportWhereInput = {}
         if (status) where.status = status
         if (category) where.category = category
 

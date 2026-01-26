@@ -10,8 +10,6 @@
  *   npx tsx src/scripts/clear-daily-challenges.ts --confirm
  */
 
-import { PrismaClient } from '@prisma/client'
-
 // Use the shared prisma instance from lib/prisma.ts which handles connection properly
 import { prisma } from '../lib/prisma'
 

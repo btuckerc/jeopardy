@@ -6,7 +6,7 @@ import { jsonResponse, serverErrorResponse, requireAdmin } from '@/lib/api-utils
  * Setup tomorrow's daily challenge (manual use only)
  * Admin only - automated generation is handled by node-cron in production
  */
-export async function POST(request: Request) {
+export async function POST(_request: Request) {
     try {
         // For cron jobs, you might want to use a secret token instead of admin check
         // For now, require admin
@@ -33,9 +33,9 @@ export async function POST(request: Request) {
         let challenge
         try {
             challenge = await setupDailyChallengeForDate(tomorrow)
-        } catch (error: any) {
+        } catch (error) {
             // If it's a unique constraint error, challenge was created by another request
-            if (error.code === 'P2002') {
+            if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                 challenge = await prisma.dailyChallenge.findUnique({
                     where: { date: tomorrow }
                 })
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 }
 
 // Import the shared setup function
-async function setupDailyChallengeForDate(date: Date): Promise<any> {
+async function setupDailyChallengeForDate(date: Date): Promise<{ id: string; date: Date; questionId: string; question?: { id: string; question: string; answer: string; value: number; category: { id: string; name: string } } } | null> {
     // Import the setup function from the main route
     const { setupDailyChallenge } = await import('../route')
     return setupDailyChallenge(date)

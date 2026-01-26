@@ -59,7 +59,7 @@ export default function Scoreboard({
                 )}
                 
                 <div className="flex items-center gap-3">
-                    {players.map((player, index) => (
+                    {players.map((player, _index) => (
                         <div
                             key={player.id}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all ${

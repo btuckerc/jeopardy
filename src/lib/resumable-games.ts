@@ -203,7 +203,7 @@ export async function getResumableGames(): Promise<ResumableGame[]> {
     `
 
     // Build lookup maps for efficient access
-    const statsMap = new Map(questionStats.map(s => [s.gameId, s._count.id]))
+    const _statsMap = new Map(questionStats.map(s => [s.gameId, s._count.id]))
     const correctMap = new Map(correctCounts.map(s => [s.gameId, s._count.id]))
     const answeredMap = new Map(answeredCounts.map(s => [s.gameId, s._count.id]))
     

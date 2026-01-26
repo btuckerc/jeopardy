@@ -5,10 +5,11 @@ import { KnowledgeCategory } from '@prisma/client'
  * Event types that can trigger achievement checks
  */
 export type AchievementEventType = 
-    | 'game_completed' 
-    | 'question_answered' 
+    | 'game_completed'
+    | 'question_answered'
     | 'daily_challenge_completed'
     | 'streak_updated'
+    | 'profile_updated'
 
 /**
  * Achievement event data structure
@@ -99,16 +100,41 @@ const EVENT_TO_ACHIEVEMENTS: Record<AchievementEventType, string[]> = {
         'STREAK_69',
         'RETURNING_PLAYER',
     ],
+    profile_updated: [
+        // Onboarding
+        'PROFILE_CUSTOMIZED',
+    ],
+}
+
+export interface UnlockedAchievement {
+    code: string
+    name: string
+    icon: string | null
+    description: string
+}
+
+/**
+ * Stats used for checking achievement unlock conditions
+ */
+interface AchievementStats {
+    totalQuestions: number
+    totalTripleStumpers: number
+    totalGames: number
+    dailyChallengeStreak: number
+    categoryStats: Record<KnowledgeCategory, number>
+    finalJeopardyCorrect: number
+    accuracyStats: { accuracy80: number; accuracy90: number; accuracy95: number }
 }
 
 /**
  * Check and unlock achievements for a user based on a specific event
  * Only checks achievements relevant to the event type for scalability
+ * Returns array of unlocked achievement details (not just codes)
  */
 export async function checkAndUnlockAchievements(
     userId: string, 
     event: AchievementEvent
-): Promise<string[]> {
+): Promise<UnlockedAchievement[]> {
     try {
         // Get user with minimal data needed
         const user = await prisma.user.findUnique({
@@ -148,10 +174,10 @@ export async function checkAndUnlockAchievements(
 
         if (relevantAchievements.length === 0) return []
 
-        const newlyUnlocked: string[] = []
+        const newlyUnlocked: Array<{ code: string; name: string; icon: string | null; description: string }> = []
 
         // Batch fetch stats only if needed (lazy loading)
-        let stats: any = null
+        let stats: AchievementStats | null = null
         const needsStats = relevantAchievements.some(a => 
             a.code.startsWith('QUESTIONS_') || 
             a.code.startsWith('TRIPLE_STUMPER_') ||
@@ -187,10 +213,15 @@ export async function checkAndUnlockAchievements(
                             achievementId: achievement.id
                         }
                     })
-                    newlyUnlocked.push(achievement.code)
-                } catch (error: any) {
+                    newlyUnlocked.push({
+                        code: achievement.code,
+                        name: achievement.name,
+                        icon: achievement.icon,
+                        description: achievement.description
+                    })
+                } catch (error: unknown) {
                     // Handle race condition - achievement might have been unlocked by another request
-                    if (error.code !== 'P2002') {
+                    if (!(error && typeof error === 'object' && 'code' in error && error.code === 'P2002')) {
                         console.error(`Error unlocking achievement ${achievement.code}:`, error)
                     }
                 }
@@ -208,7 +239,7 @@ export async function checkAndUnlockAchievements(
  * Efficiently fetch only the stats needed for achievement checks
  * Uses batched queries to minimize database round trips
  */
-async function getAchievementStats(userId: string, event: AchievementEvent) {
+async function getAchievementStats(userId: string, _event: AchievementEvent) {
     // Batch all queries in parallel
     const [
         totalQuestions,
@@ -261,7 +292,7 @@ async function checkAchievementUnlock(
     code: string,
     userId: string,
     user: { currentStreak: number; longestStreak: number; lastGameDate: Date | null },
-    stats: any,
+    stats: AchievementStats | null,
     event: AchievementEvent
 ): Promise<boolean> {
     switch (code) {
@@ -269,21 +300,37 @@ async function checkAchievementUnlock(
         // ONBOARDING & EARLY WINS
         // ============================================
         case 'FIRST_GAME':
-            return stats?.totalGames >= 1
+            return (stats?.totalGames || 0) >= 1
 
         case 'FIRST_CORRECT':
-            return stats?.totalQuestions > 0 && await hasCorrectAnswer(userId)
+            return (stats?.totalQuestions || 0) > 0 && await hasCorrectAnswer(userId)
 
         case 'FIRST_DAILY_CHALLENGE':
             const dailyCount = await prisma.userDailyChallenge.count({ where: { userId } })
             return dailyCount >= 1
 
         case 'FIRST_TRIPLE_STUMPER':
-            return stats?.totalTripleStumpers >= 1
+            return (stats?.totalTripleStumpers || 0) >= 1
 
         case 'FIRST_PERFECT_ROUND':
             if (event.type === 'game_completed' && event.data?.gameId) {
                 return await checkPerfectRound(event.data.gameId)
+            }
+            return false
+
+        case 'PROFILE_CUSTOMIZED':
+            if (event.type === 'profile_updated') {
+                // Check if user has both custom displayName and selectedIcon
+                const userProfile = await prisma.user.findUnique({
+                    where: { id: userId },
+                    select: {
+                        displayName: true,
+                        selectedIcon: true
+                    }
+                })
+                if (!userProfile) return false
+                // Consider customized if displayName exists and is not empty, and selectedIcon is set
+                return !!(userProfile.displayName && userProfile.displayName.trim() && userProfile.selectedIcon)
             }
             return false
 
@@ -311,13 +358,13 @@ async function checkAchievementUnlock(
             return user.currentStreak >= 69
 
         case 'DAILY_CHALLENGE_STREAK_3':
-            return stats?.dailyChallengeStreak >= 3
+            return (stats?.dailyChallengeStreak || 0) >= 3
 
         case 'DAILY_CHALLENGE_STREAK_7':
-            return stats?.dailyChallengeStreak >= 7
+            return (stats?.dailyChallengeStreak || 0) >= 7
 
         case 'DAILY_CHALLENGE_STREAK_30':
-            return stats?.dailyChallengeStreak >= 30
+            return (stats?.dailyChallengeStreak || 0) >= 30
 
         case 'RETURNING_PLAYER':
             if (!user.lastGameDate) return false
@@ -447,7 +494,7 @@ async function checkAchievementUnlock(
 
         case 'ALL_CATEGORIES_MASTER':
             if (!stats?.categoryStats) return false
-            return Object.values(stats.categoryStats).every((count: any) => count >= 50)
+            return Object.values(stats.categoryStats).every((count: number) => count >= 50)
 
         // ============================================
         // HIDDEN & PLAYFUL ACHIEVEMENTS

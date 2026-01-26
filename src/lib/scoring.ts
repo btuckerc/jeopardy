@@ -38,7 +38,7 @@ export function getStatsPoints({
     round,
     faceValue,
     correct,
-    storedPoints
+    storedPoints: _storedPoints
 }: StatsPointsParams): number {
     // Only award points for correct answers
     if (!correct) {

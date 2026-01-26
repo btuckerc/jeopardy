@@ -8,6 +8,7 @@ import { getKnowledgeCategoryDetails, getRandomQuestion, saveAnswer, getCategory
 import { checkAnswer } from '../../lib/answer-checker'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
+import type { RawCategory, RawQuestion } from '@/types/practice'
 
 type Question = {
     id: string;
@@ -49,19 +50,10 @@ type Category = {
     }>;
 };
 
-type KnowledgeCategory = string;
-
 type QuestionState = {
     incorrectAttempts: Date[]
     correct: boolean
     lastAttemptDate?: Date
-}
-
-type CategoryResponse = {
-    categories: Category[]
-    totalPages: number
-    currentPage: number
-    hasMore: boolean
 }
 
 function LoadingSpinner() {
@@ -228,49 +220,54 @@ function QuestionCard({ question, onClick, spoilerDate }: {
 }
 
 // Helper function to ensure timestamps are Date objects
-const ensureDate = (timestamp: string | Date | null): Date | null => {
+const ensureDate = (timestamp: string | Date | null | undefined): Date | null => {
     if (!timestamp) return null;
     return timestamp instanceof Date ? timestamp : new Date(timestamp);
 };
 
 // Helper function to transform API response to match our types
-const transformApiResponse = (categories: any[]): Category[] => {
-    return categories.map(category => ({
-        ...category,
-        questions: category.questions?.map((q: any) => ({
+const transformApiResponse = (categories: RawCategory[]): Category[] => {
+    return categories.map(category => {
+        const questions = category.questions?.map((q: RawQuestion) => ({
             id: q.id,
-            question: q.question || '',
-            answer: q.answer || '',
-            value: q.value || 0,
-            categoryId: q.categoryId || category.id,
-            categoryName: q.categoryName || category.name,
-            originalCategory: q.originalCategory || category.name,
             airDate: ensureDate(q.airDate),
-            gameHistory: (q.gameHistory || []).map((h: any) => ({
+            gameHistory: (q.gameHistory || []).map((h: { timestamp: string; correct: boolean }) => ({
                 timestamp: ensureDate(h.timestamp)!,
                 correct: h.correct
             })),
             incorrectAttempts: (q.incorrectAttempts || []).map((t: string | Date) => ensureDate(t)!),
-            answered: q.answered || false,
             correct: q.correct || false,
             isLocked: q.isLocked || false,
             hasIncorrectAttempts: q.hasIncorrectAttempts || false
-        }))
-    }));
+        })) || [];
+        
+        return {
+            id: category.id,
+            name: category.name,
+            totalQuestions: questions.length,
+            correctQuestions: questions.filter(q => q.correct).length,
+            mostRecentAirDate: questions.reduce((latest, q) => {
+                if (!q.airDate) return latest;
+                if (!latest) return q.airDate;
+                return q.airDate > latest ? q.airDate : latest;
+            }, null as Date | null),
+            questions
+        };
+    });
 };
 
 // Helper function to transform questions
-const transformQuestions = (questions: any[]): Question[] => {
+const transformQuestions = (questions: RawQuestion[]): Question[] => {
     return questions.map(q => ({
         id: q.id,
         question: q.question,
         answer: q.answer,
         value: q.value || 0,
-        categoryId: q.categoryId,
-        categoryName: q.categoryName,
-        originalCategory: q.originalCategory || q.category?.name,
+        categoryId: q.categoryId || '',
+        categoryName: q.categoryName || '',
+        originalCategory: q.originalCategory || (q as RawQuestion & { category?: { name: string } }).category?.name || '',
         airDate: ensureDate(q.airDate),
-        gameHistory: (q.gameHistory || []).map((h: any) => ({
+        gameHistory: (q.gameHistory || []).map((h: { timestamp: string; correct: boolean }) => ({
             timestamp: ensureDate(h.timestamp)!,
             correct: h.correct
         })),
@@ -458,7 +455,7 @@ function FreePracticeContent() {
                     sortBy,
                     sortDirection
                 )
-                const transformedCategories = transformApiResponse(result.categories)
+                const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
                 
                 // Small delay to allow fade-out animation
                 await new Promise(resolve => setTimeout(resolve, 150))
@@ -520,7 +517,7 @@ function FreePracticeContent() {
                 setServerResults([])
                 try {
                     const result = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user?.id, 1, 20, undefined, 'FINAL', sortBy, sortDirection)
-                    const transformedCategories = transformApiResponse(result.categories)
+                    const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
                     setCategories(transformedCategories)
                     setHasMore(result.hasMore)
                     // Mark initial mount as complete so sort changes can trigger refetch
@@ -531,7 +528,7 @@ function FreePracticeContent() {
             }
             reloadCategories()
         }
-    }, [searchQuery, selectedKnowledgeCategory, user?.id, sortBy])
+    }, [searchQuery, selectedKnowledgeCategory, user?.id, sortBy, sortDirection])
 
     // Server-side search effect
     useEffect(() => {
@@ -559,7 +556,7 @@ function FreePracticeContent() {
                     sortBy,
                     sortDirection
                 )
-                const transformedCategories = transformApiResponse(result.categories)
+                const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
                 setServerResults(transformedCategories)
             } catch (error) {
                 console.error('Error searching categories:', error)
@@ -585,7 +582,7 @@ function FreePracticeContent() {
                 const data = await response.json()
 
                 // Map the knowledge category stats to the expected format
-                const knowledgeCategoriesData = data.knowledgeCategoryStats.map((stat: any) => ({
+                const knowledgeCategoriesData = data.knowledgeCategoryStats.map((stat: { categoryName: string; total: number; correct: number }) => ({
                     id: stat.categoryName.replace(/ /g, '_'),
                     name: stat.categoryName,
                     totalQuestions: stat.total,
@@ -684,7 +681,7 @@ function FreePracticeContent() {
                     
                     // Load categories FIRST before updating view state (exclude FINAL round)
                     const result = await getKnowledgeCategoryDetails(knowledgeCategoryParam, user?.id, 1, 20, undefined, 'FINAL', sortByRef.current, sortDirectionRef.current)
-                    const transformedCategories = transformApiResponse(result.categories)
+                    const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
                     
                     // Check if knowledge category returned any results
                     if (transformedCategories.length === 0 && knowledgeCategories.length > 0) {
@@ -752,7 +749,7 @@ function FreePracticeContent() {
                     
                     // Load questions FIRST before updating view state (exclude FINAL round)
                     const questionsData = await getCategoryQuestions(categoryParam, knowledgeCategoryParam, user?.id, 'FINAL')
-                    const transformedQuestions = transformQuestions(questionsData)
+                    const transformedQuestions = transformQuestions(questionsData as unknown as RawQuestion[])
                     
                     // Check if category exists (has questions)
                     if (transformedQuestions.length === 0) {
@@ -889,7 +886,7 @@ function FreePracticeContent() {
     }, [searchParams, loading, authLoading, user?.id, selectedKnowledgeCategory, selectedCategory, selectedQuestion?.id, questions, knowledgeCategories])
 
     // Intersection Observer for infinite scrolling
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     useEffect(() => {
         if (!loadMoreRef.current || !hasMore || loadingMore) return
 
@@ -914,7 +911,7 @@ function FreePracticeContent() {
         try {
             const nextPage = currentPage + 1
             const result = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user?.id, nextPage, 20, undefined, 'FINAL', sortBy, sortDirection)
-            const transformedCategories = transformApiResponse(result.categories)
+            const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
             setCategories(prev => [...prev, ...transformedCategories])
             setCurrentPage(nextPage)
             setHasMore(result.hasMore)
@@ -939,7 +936,7 @@ function FreePracticeContent() {
         try {
             // Load data FIRST before updating view state - keeps current view visible (exclude FINAL round)
             const questionsData = await getCategoryQuestions(categoryId, knowledgeCat!, user?.id, 'FINAL');
-            const transformedQuestions = transformQuestions(questionsData);
+            const transformedQuestions = transformQuestions(questionsData as unknown as RawQuestion[]);
             
             // Atomically update ALL state together in one batch - React batches these
             // This prevents the flash because the view switches only when data is ready
@@ -967,7 +964,7 @@ function FreePracticeContent() {
         try {
             // Load data FIRST before updating view state - this keeps current view visible (exclude FINAL round)
             const result = await getKnowledgeCategoryDetails(categoryId, user?.id, 1, 20, undefined, 'FINAL', sortBy, sortDirection);
-            const transformedCategories = transformApiResponse(result.categories);
+            const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[]);
             
             // Atomically update ALL state together in one batch - React batches these
             // This prevents the flash because the view switches only when data is ready
@@ -1020,14 +1017,14 @@ function FreePracticeContent() {
         if (selectedKnowledgeCategory && user?.id) {
             try {
                 const result = await getKnowledgeCategoryDetails(selectedKnowledgeCategory, user.id, currentPage, 20, undefined, 'FINAL', sortBy, sortDirection)
-                const transformedCategories = transformApiResponse(result.categories)
+                const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
                 setCategories(transformedCategories)
                 setHasMore(result.hasMore)
             } catch (error) {
                 console.error('Error refreshing categories:', error)
             }
         }
-    }, [selectedKnowledgeCategory, user?.id, currentPage, updateUrlParams, sortBy])
+    }, [selectedKnowledgeCategory, user?.id, currentPage, updateUrlParams, sortBy, sortDirection])
 
     const handleQuestionSelect = useCallback((question: Question) => {
         if (!question) return;
@@ -1068,6 +1065,13 @@ function FreePracticeContent() {
                     const data = await response.json();
                     isAnswerCorrect = data.correct;
                     setDisputeContext(data.disputeContext);
+                    // Show achievement unlock notifications
+                    if (data.unlockedAchievements && Array.isArray(data.unlockedAchievements)) {
+                        const { showAchievementUnlock } = await import('@/app/components/AchievementUnlockToast')
+                        data.unlockedAchievements.forEach((achievement: { code: string; name: string; icon: string | null; description: string }) => {
+                            showAchievementUnlock(achievement)
+                        })
+                    }
                 } else {
                     // Fallback to local check if API fails
                     isAnswerCorrect = checkAnswer(userAnswer, selectedQuestion.answer);
@@ -1118,7 +1122,7 @@ function FreePracticeContent() {
 
             // Update questions state with new game history
             setQuestions(prevQuestions =>
-                transformQuestions(prevQuestions.map(q =>
+                transformQuestions((prevQuestions.map(q =>
                     q.id === selectedQuestion.id
                         ? {
                             ...q,
@@ -1135,7 +1139,7 @@ function FreePracticeContent() {
                             hasIncorrectAttempts: !isAnswerCorrect || q.hasIncorrectAttempts
                         }
                         : q
-                ))
+                )) as unknown as RawQuestion[])
             );
         }
     };
@@ -1165,7 +1169,7 @@ function FreePracticeContent() {
 
         // Update questions state
         setQuestions(prevQuestions =>
-            transformQuestions(prevQuestions.map(q =>
+            transformQuestions((prevQuestions.map(q =>
                 q.id === selectedQuestion.id
                     ? {
                         ...q,
@@ -1181,7 +1185,7 @@ function FreePracticeContent() {
                         hasIncorrectAttempts: true
                     }
                     : q
-            ))
+            )) as unknown as RawQuestion[])
         );
 
         setShowAnswer(true);
@@ -1240,7 +1244,7 @@ function FreePracticeContent() {
                     user?.id,
                     'FINAL'
                 );
-                setQuestions(transformQuestions(questions));
+                setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
                 
                 // Update URL with the question (category stays the same)
                 updateUrlParams({ question: randomQuestion.id });
@@ -1256,7 +1260,7 @@ function FreePracticeContent() {
                     user?.id,
                     'FINAL'
                 );
-                setQuestions(transformQuestions(questions));
+                setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
                 
                 // Update URL with category and question
                 updateUrlParams({ category: randomQuestion.categoryId, question: randomQuestion.id });
@@ -1270,7 +1274,7 @@ function FreePracticeContent() {
                 
                 // Load the categories for this knowledge category
                 const result = await getKnowledgeCategoryDetails(knowledgeCategoryId, user?.id, 1, 20, undefined, 'FINAL', sortBy, sortDirection);
-                const transformedCategories = transformApiResponse(result.categories);
+                const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[]);
                 setCategories(transformedCategories);
                 
                 // Load questions for the specific category (exclude FINAL round)
@@ -1280,7 +1284,7 @@ function FreePracticeContent() {
                     user?.id,
                     'FINAL'
                 );
-                setQuestions(transformQuestions(questions));
+                setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
                 
                 // Update URL with all levels
                 updateUrlParams({ 
@@ -1331,7 +1335,7 @@ function FreePracticeContent() {
         return 'Shuffle Questions'
     }
 
-    const isQuestionDisabled = (questionId: string) => {
+    const _isQuestionDisabled = (questionId: string) => {
         const state = questionStates[questionId]
         if (!state?.incorrectAttempts?.length) return false
 
@@ -1361,7 +1365,7 @@ function FreePracticeContent() {
     // Categories are sorted server-side via the sortBy and sortDirection parameters.
     // For lazy-loaded pages, we trust the server's ordering.
     // When sorting by completion, we split into in-progress and not-started groups for display.
-    const { inProgressCategories, notStartedCategories, sortedCategories } = useMemo(() => {
+    const { inProgressCategories: _inProgressCategories, notStartedCategories: _notStartedCategories, sortedCategories } = useMemo(() => {
         if (sortBy === 'completion') {
             // Split into in-progress and not-started (server already sorted each group)
             const inProgress = combinedResults.filter(c => Number(c.correctQuestions) > 0);

@@ -116,9 +116,9 @@ async function fetchLast7DaysGames(): Promise<{
 
             // Small delay to avoid overwhelming J-Archive
             await new Promise(resolve => setTimeout(resolve, 1000))
-        } catch (error: any) {
+        } catch (error: unknown) {
             totalErrors++
-            const errorMsg = error.message || 'Unknown error'
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error'
             console.error(`[Fetch Games Cron] Error fetching game for ${dateStr}:`, errorMsg)
             details.push({ date: dateStr, status: 'error', error: errorMsg })
         }
@@ -201,15 +201,15 @@ async function generateDailyChallenges(): Promise<{
                 results.push({ date: dateStr, status: 'error', error: 'Failed to create challenge' })
                 console.error(`[Daily Challenge Cron] Failed to create challenge for ${dateStr}`)
             }
-        } catch (error: any) {
-            if (error.code === 'P2002') {
+        } catch (error: unknown) {
+            if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                 // Unique constraint - challenge was created by another process (race condition)
                 skipped++
                 results.push({ date: dateStr, status: 'skipped', error: 'Race condition' })
                 console.log(`[Daily Challenge Cron] Race condition detected for ${dateStr}`)
             } else {
                 errors++
-                const errorMsg = error.message || 'Unknown error'
+                const errorMsg = error instanceof Error ? error.message : 'Unknown error'
                 results.push({ date: dateStr, status: 'error', error: errorMsg })
                 console.error(`[Daily Challenge Cron] Error creating challenge for ${dateStr}:`, errorMsg)
             }
@@ -254,8 +254,9 @@ export function startDailyChallengeCron() {
                     ...result
                 }
             })
-        } catch (error: any) {
-            console.error('[Daily Challenge Cron] Fatal error:', error.message)
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            console.error('[Daily Challenge Cron] Fatal error:', message)
         }
     }, {
         timezone: 'UTC'
@@ -276,8 +277,9 @@ export function startDailyChallengeCron() {
                     ...result
                 }
             })
-        } catch (error: any) {
-            console.error('[Fetch Games Cron] Fatal error:', error.message)
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            console.error('[Fetch Games Cron] Fatal error:', message)
         }
     }, {
         timezone: 'UTC'

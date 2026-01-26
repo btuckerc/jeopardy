@@ -6,7 +6,7 @@ import {
     badRequestResponse,
     serverErrorResponse
 } from '@/lib/api-utils'
-import { generateRandomDisplayName, validateDisplayName, normalizeDisplayName } from '@/lib/display-name'
+import { generateRandomDisplayName, validateDisplayName } from '@/lib/display-name'
 
 export async function GET() {
     const appUser = await getAppUser()

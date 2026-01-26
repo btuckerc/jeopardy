@@ -7,7 +7,9 @@ import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
 import NextChallengeCallout from '@/app/components/NextChallengeCallout'
 import type { AppUser } from '@/lib/clerk-auth'
+import type { UnlockedAchievement } from '@/types/admin'
 import { getNextChallengeTimeISO } from '@/lib/daily-challenge-utils'
+import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
 
 // Helper to format date string without timezone conversion
 // Takes ISO date string and returns formatted string like "November 7, 2022"
@@ -217,6 +219,13 @@ export default function DailyChallengeClient({
             // Auto-reveal answer if correct, otherwise require button click
             if (data.correct) {
                 setRevealAnswer(true)
+            }
+            
+            // Show achievement unlock notifications
+            if (data.unlockedAchievements && Array.isArray(data.unlockedAchievements)) {
+                data.unlockedAchievements.forEach((achievement: UnlockedAchievement) => {
+                    showAchievementUnlock(achievement)
+                })
             }
             
             // If guest submission, store session ID for claim

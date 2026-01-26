@@ -1,21 +1,14 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { MetricCard, MetricGrid } from '../MetricCard'
 import { DataTable, StatusBadge, getStatusVariant } from '../DataTable'
 import { useAdminUsers, useUserDebug } from '../../hooks/useAdminQueries'
 import { useQueryClient } from '@tanstack/react-query'
 
-function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
-    let timeoutId: NodeJS.Timeout
-    return ((...args: Parameters<T>) => {
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => fn(...args), delay)
-    }) as T
-}
 
 export function UserDebugTab() {
-    const queryClient = useQueryClient()
+    const _queryClient = useQueryClient()
     
     // Search and list state
     const [search, setSearch] = useState('')
@@ -44,14 +37,17 @@ export function UserDebugTab() {
     // Message state
     const [message, setMessage] = useState<string | null>(null)
 
-    // Debounced search
-    const debouncedSetSearch = useCallback(
-        debounce((value: string) => {
+    // Debounced search - use ref to store timeout
+    const searchTimeoutRef = useRef<NodeJS.Timeout>()
+    const debouncedSetSearch = useCallback((value: string) => {
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current)
+        }
+        searchTimeoutRef.current = setTimeout(() => {
             setDebouncedSearch(value)
             setPage(1)
-        }, 300),
-        []
-    )
+        }, 300)
+    }, [])
 
     const handleSearchChange = (value: string) => {
         setSearch(value)
@@ -363,8 +359,8 @@ export function UserDebugTab() {
                                         header: 'Status',
                                         render: (row) => (
                                             <StatusBadge
-                                                status={row.status}
-                                                variant={getStatusVariant(row.status)}
+                                                status={row.status ?? 'UNKNOWN'}
+                                                variant={getStatusVariant(row.status ?? 'UNKNOWN')}
                                             />
                                         ),
                                     },
@@ -372,7 +368,7 @@ export function UserDebugTab() {
                                         key: 'currentScore',
                                         header: 'Score',
                                         align: 'right',
-                                        render: (row) => `$${row.currentScore.toLocaleString()}`,
+                                        render: (row) => `$${(row.currentScore ?? 0).toLocaleString()}`,
                                     },
                                     {
                                         key: 'currentRound',
@@ -386,12 +382,12 @@ export function UserDebugTab() {
                                     {
                                         key: 'updatedAt',
                                         header: 'Last Activity',
-                                        render: (row) => new Date(row.updatedAt).toLocaleString('en-US', {
+                                        render: (row) => row.updatedAt ? new Date(row.updatedAt).toLocaleString('en-US', {
                                             month: 'short',
                                             day: 'numeric',
                                             hour: 'numeric',
                                             minute: '2-digit'
-                                        }),
+                                        }) : '-',
                                     },
                                     {
                                         key: 'actions',
@@ -438,7 +434,7 @@ export function UserDebugTab() {
                                         header: 'Answer Given',
                                         render: (row) => (
                                             <span className="text-xs truncate max-w-[150px] block text-gray-900">
-                                                {row.userAnswer || '-'}
+                                                {String(row.userAnswer ?? '-')}
                                             </span>
                                         ),
                                     },

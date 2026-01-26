@@ -1,14 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, serverErrorResponse, parseBody, badRequestResponse } from '@/lib/api-utils'
+import { jsonResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { parseGameByDate, parseGameById, getSeasonGames, type SeasonGame } from '@/lib/jarchive-scraper'
-import { checkAnswer } from '@/app/lib/answer-checker'
+import { parseGameById, getSeasonGames, type SeasonGame, type ParsedGame } from '@/lib/jarchive-scraper'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import { getGuestConfig, createGuestSession } from '@/lib/guest-sessions'
-import { isWeekday } from '@/lib/game-utils'
 import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
@@ -16,7 +14,7 @@ import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
  * GET /api/daily-challenge
  * Get today's daily challenge (Final Jeopardy question from historical games)
  */
-export const GET = withInstrumentation(async (request: NextRequest) => {
+export const GET = withInstrumentation(async (_request: NextRequest) => {
     try {
         // Get the active challenge date (based on 9AM ET boundary)
         const challengeDate = getActiveChallengeDate()
@@ -37,9 +35,9 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         if (!challenge) {
             try {
                 challenge = await setupDailyChallenge(challengeDate)
-            } catch (error: any) {
+            } catch (error) {
                 // If it's a unique constraint error, challenge was created by another request
-                if (error.code === 'P2002') {
+                if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                     // Retry fetching the challenge
                     challenge = await prisma.dailyChallenge.findUnique({
                         where: { date: challengeDate },
@@ -145,9 +143,9 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         if (!challenge) {
             try {
                 challenge = await setupDailyChallenge(challengeDate)
-            } catch (error: any) {
+            } catch (error) {
                 // If it's a unique constraint error, challenge was created by another request
-                if (error.code === 'P2002') {
+                if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                     challenge = await prisma.dailyChallenge.findUnique({
                         where: { date: challengeDate },
                         include: {
@@ -230,7 +228,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         return jsonResponse({
             correct,
             answer: challenge.question.answer,
-            newlyUnlockedAchievements: newlyUnlocked
+            unlockedAchievements: newlyUnlocked.length > 0 ? newlyUnlocked : undefined
         })
     } catch (error) {
         return serverErrorResponse('Error submitting daily challenge answer', error)
@@ -250,7 +248,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
  * @param maxRetries Maximum number of retries if unique constraint conflicts occur
  * @returns The created DailyChallenge or null if creation failed
  */
-export async function setupDailyChallenge(date: Date, maxRetries: number = 5): Promise<any> {
+export async function setupDailyChallenge(date: Date, maxRetries: number = 5) {
     const dateString = date.toISOString().split('T')[0]
     
     // Get configuration
@@ -335,8 +333,8 @@ export async function setupDailyChallenge(date: Date, maxRetries: number = 5): P
                     const episodes = await getSeasonGames(season)
                     allEpisodes.push(...episodes)
                     console.log(`[Daily Challenge ${dateString}] Found ${episodes.length} episodes in season ${season}`)
-                } catch (error: any) {
-                    console.warn(`[Daily Challenge ${dateString}] Error fetching season ${season}:`, error.message)
+                } catch (error) {
+                    console.warn(`[Daily Challenge ${dateString}] Error fetching season ${season}:`, error instanceof Error ? error.message : String(error))
                 }
             }
 
@@ -476,11 +474,12 @@ export async function setupDailyChallenge(date: Date, maxRetries: number = 5): P
             console.log(`[Daily Challenge ${dateString}] ✓ Created challenge: questionId=${finalQuestion.id}, episodeGameId=${selectedEpisode.gameId}, airDate=${selectedEpisode.airDate}`)
             return challenge
 
-        } catch (error: any) {
+        } catch (error) {
             // Handle unique constraint violations (race conditions or duplicate questionId/episodeGameId)
-            if (error.code === 'P2002') {
-                const constraint = error.meta?.target
-                const conflictingField = error.meta?.target?.[0]
+            if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+                const prismaError = error as { code: string; meta?: { target?: string[] } }
+                const constraint = prismaError.meta?.target
+                const conflictingField = prismaError.meta?.target?.[0]
                 
                 if (constraint?.includes('questionId') || conflictingField === 'questionId') {
                     // Question already used - try different episode
@@ -522,7 +521,7 @@ export async function setupDailyChallenge(date: Date, maxRetries: number = 5): P
  * Save a game to the database (all questions)
  * Returns count of created and skipped questions
  */
-async function saveGameToDatabase(game: any, airDate: string): Promise<{ created: number; skipped: number }> {
+async function saveGameToDatabase(game: ParsedGame, airDate: string): Promise<{ created: number; skipped: number }> {
     let created = 0
     let skipped = 0
 
@@ -552,15 +551,8 @@ async function saveGameToDatabase(game: any, airDate: string): Promise<{ created
                 update: {}
             })
 
-            // Determine round
-            let round: 'SINGLE' | 'DOUBLE' | 'FINAL' = 'SINGLE'
-            if (question.round) {
-                round = question.round as 'SINGLE' | 'DOUBLE' | 'FINAL'
-            } else if (question.isFinalJeopardy) {
-                round = 'FINAL'
-            } else if (question.isDoubleJeopardy) {
-                round = 'DOUBLE'
-            }
+            // Determine round (ParsedQuestion always has round property)
+            const round: 'SINGLE' | 'DOUBLE' | 'FINAL' = question.round || 'SINGLE'
 
             // Create question
             await tx.question.create({
@@ -586,97 +578,3 @@ async function saveGameToDatabase(game: any, airDate: string): Promise<{ created
 
     return { created, skipped }
 }
-
-/**
- * Helper function to backfill a game from J-Archive for a given date
- * Downloads the full game (all rounds) and saves all questions to database
- * Returns the number of Final Jeopardy questions added
- * Uses the same logic as the admin page fetch game feature
- */
-async function backfillGameForDate(targetDate: Date): Promise<{ success: boolean; finalJeopardyAdded: number; error?: string }> {
-    try {
-        const dateStr = targetDate.toISOString().split('T')[0]
-        console.log(`[Backfill] Fetching game for ${dateStr} from J-Archive...`)
-
-        // Parse game from J-Archive (same as admin page)
-        const game = await parseGameByDate(dateStr)
-
-        if (!game || !game.questions || game.questions.length === 0) {
-            return { success: false, finalJeopardyAdded: 0, error: `No game found for ${dateStr} in J-Archive` }
-        }
-
-        // Save game to database
-        const result = await saveGameToDatabase(game, dateStr)
-        const finalJeopardyCount = game.questions.filter((q: any) => q.round === 'FINAL' || q.isFinalJeopardy).length
-
-        console.log(`[Backfill] Added ${result.created} questions (${finalJeopardyCount} Final Jeopardy) for ${dateStr} (skipped ${result.skipped} duplicates)`)
-        return { success: true, finalJeopardyAdded: finalJeopardyCount }
-    } catch (error: any) {
-        console.error(`[Backfill] Error fetching game for ${targetDate.toISOString().split('T')[0]}:`, error.message)
-        return { success: false, finalJeopardyAdded: 0, error: error.message }
-    }
-}
-
-/**
- * Push game data to database (similar to admin API)
- */
-async function pushGameToDatabase(game: any) {
-    let created = 0
-    let skipped = 0
-
-    await prisma.$transaction(async (tx) => {
-        for (const question of game.questions) {
-            // Check if question already exists
-            const existing = await tx.question.findFirst({
-                where: {
-                    question: question.question,
-                    airDate: game.airDate ? new Date(game.airDate) : null
-                }
-            })
-
-            if (existing) {
-                skipped++
-                continue
-            }
-
-            // Create or update category
-            const category = await tx.category.upsert({
-                where: { name: question.category },
-                update: {},
-                create: { name: question.category }
-            })
-
-            // Determine round
-            let round: 'SINGLE' | 'DOUBLE' | 'FINAL' = 'SINGLE'
-            if (question.round) {
-                round = question.round as 'SINGLE' | 'DOUBLE' | 'FINAL'
-            } else if (question.isFinalJeopardy) {
-                round = 'FINAL'
-            } else if (question.isDoubleJeopardy) {
-                round = 'DOUBLE'
-            }
-
-            // Create question
-            await tx.question.create({
-                data: {
-                    question: question.question,
-                    answer: question.answer,
-                    value: question.value,
-                    categoryId: category.id,
-                    difficulty: question.difficulty || 'MEDIUM',
-                    airDate: game.airDate ? new Date(game.airDate) : null,
-                    season: game.season,
-                    episodeId: game.episodeId || game.gameId,
-                    knowledgeCategory: question.knowledgeCategory || 'GENERAL_KNOWLEDGE',
-                    round,
-                    isDoubleJeopardy: round === 'DOUBLE',
-                    wasTripleStumper: question.wasTripleStumper ?? false
-                }
-            })
-            created++
-        }
-    })
-
-    return { created, skipped }
-}
-

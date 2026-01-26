@@ -6,8 +6,10 @@ import Link from 'next/link'
 import UserSettings from '@/components/UserSettings'
 import AchievementsModal from '@/components/AchievementsModal'
 import UserAvatar from '@/components/UserAvatar'
+import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt'
 import { useClerk, SignInButton } from '@clerk/nextjs'
 import type { AppUser } from '@/lib/clerk-auth'
+import { useDisputesStats, useIssuesStats } from '@/app/admin/hooks/useAdminQueries'
 
 interface AuthButtonProps {
     appUser: AppUser | null
@@ -17,12 +19,18 @@ export function AuthButton({ appUser }: AuthButtonProps) {
     const [showUserMenu, setShowUserMenu] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
     const [showAchievements, setShowAchievements] = useState(false)
-    const [pendingDisputesCount, setPendingDisputesCount] = useState<number | null>(null)
-    const [openIssuesCount, setOpenIssuesCount] = useState<number | null>(null)
     const menuRef = useRef<HTMLDivElement>(null)
     const buttonRef = useRef<HTMLButtonElement>(null)
     const { signOut } = useClerk()
     const router = useRouter()
+    
+    // Fetch pending dispute and open issues counts for admins using React Query
+    const isAdmin = appUser?.role === 'ADMIN'
+    const disputesStats = useDisputesStats(isAdmin)
+    const issuesStats = useIssuesStats(isAdmin)
+    
+    const pendingDisputesCount = isAdmin ? disputesStats.data?.pendingCount ?? null : null
+    const openIssuesCount = isAdmin ? issuesStats.data?.openCount ?? null : null
     
     // Initialize from appUser - trust the server-rendered data
     // This prevents flash on refresh since we render immediately with server data
@@ -42,51 +50,6 @@ export function AuthButton({ appUser }: AuthButtonProps) {
             setDisplayName(appUser.displayName ?? null)
             setSelectedIcon(appUser.selectedIcon ?? null)
             setAvatarBackground(appUser.avatarBackground ?? null)
-        }
-    }, [appUser])
-
-    // Fetch pending dispute and open issues counts for admins
-    useEffect(() => {
-        if (appUser?.role === 'ADMIN') {
-            // Fetch disputes count
-            fetch('/api/admin/disputes/stats')
-                .then(res => {
-                    if (res.ok) {
-                        return res.json()
-                    }
-                    return null
-                })
-                .then(data => {
-                    if (data?.pendingCount !== undefined) {
-                        setPendingDisputesCount(data.pendingCount)
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching dispute stats:', error)
-                    setPendingDisputesCount(null)
-                })
-            
-            // Fetch issues count
-            fetch('/api/admin/issues/stats')
-                .then(res => {
-                    if (res.ok) {
-                        return res.json()
-                    }
-                    return null
-                })
-                .then(data => {
-                    if (data?.openCount !== undefined) {
-                        setOpenIssuesCount(data.openCount)
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching issue stats:', error)
-                    setOpenIssuesCount(null)
-                })
-        } else {
-            // Reset counts for non-admins
-            setPendingDisputesCount(null)
-            setOpenIssuesCount(null)
         }
     }, [appUser])
 
@@ -194,7 +157,7 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                 <button
                     ref={buttonRef}
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="flex items-center gap-2 bg-blue-700 hover:bg-blue-600 text-white px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md border border-white/20 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+                    className="flex items-center gap-2 bg-blue-500/20 hover:bg-blue-400/30 text-white px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md border border-white/15 focus:outline-none focus:ring-2 focus:ring-white/40 focus:ring-offset-2 focus:ring-offset-blue-800"
                     aria-expanded={showUserMenu}
                     aria-haspopup="true"
                     aria-label={
@@ -213,7 +176,7 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                             interactive={true}
                         />
                         {appUser.role === 'ADMIN' && ((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)) > 0 && (
-                            <span className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full bg-red-600 text-[0.7rem] font-bold flex items-center justify-center text-white shadow-md border-2 border-blue-700 z-10">
+                            <span className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full bg-red-600 text-[0.7rem] font-bold flex items-center justify-center text-white shadow-md border-2 border-white/30 z-10">
                                 {((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0)) > 9 ? '9+' : ((pendingDisputesCount ?? 0) + (openIssuesCount ?? 0))}
                             </span>
                         )}
@@ -268,6 +231,19 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Profile Customization Prompt - Show if user hasn't customized */}
+                            {(!displayName || !selectedIcon) && (
+                                <div className="px-4 py-3 border-b border-gray-200">
+                                    <ProfileCustomizationPrompt 
+                                        trigger="menu" 
+                                        onOpenSettings={() => {
+                                            setShowSettings(true)
+                                            setShowUserMenu(false)
+                                        }}
+                                    />
+                                </div>
+                            )}
 
                             {/* Menu Actions */}
                             <div className="py-1 max-h-[min(80vh,24rem)] overflow-y-auto">

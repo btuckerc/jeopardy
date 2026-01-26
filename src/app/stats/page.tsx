@@ -750,15 +750,6 @@ function RoundHistoryModal({
         }
     }
 
-    const formatDate = (dateString: string | null) => {
-        if (!dateString) return 'No air date'
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        })
-    }
-
     const formatTimestamp = (timestamp: string) => {
         return new Date(timestamp).toLocaleDateString('en-US', {
             month: 'short',

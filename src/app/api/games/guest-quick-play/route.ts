@@ -3,15 +3,14 @@ import type { Prisma } from '@prisma/client'
 import { jsonResponse, serverErrorResponse } from '@/lib/api-utils'
 import { nanoid } from 'nanoid'
 import { createGuestSession, getGuestConfig } from '@/lib/guest-sessions'
-import { toStoredPolicy } from '@/lib/spoiler-utils'
 
 /**
  * POST /api/games/guest-quick-play
  * Create a random guest game immediately with default settings (no auth required)
  */
-export async function POST(request: Request) {
+export async function POST(_request: Request) {
     try {
-        const guestConfig = await getGuestConfig()
+        const _guestConfig = await getGuestConfig()
         
         // Check if guest games are allowed (for now, always allow if we have config)
         // In the future, we could add a flag like dailyChallengeGuestEnabled

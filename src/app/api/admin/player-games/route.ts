@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse, forbiddenResponse, badRequestResponse, notFoundResponse } from '@/lib/api-utils'
+import { Prisma, GameStatus, JeopardyRound } from '@prisma/client'
 
 /**
  * GET /api/admin/player-games
@@ -26,9 +27,11 @@ export async function GET(request: Request) {
         const limit = parseInt(searchParams.get('limit') || '50')
 
         // Build where clause
-        const where: any = {}
+        const where: Prisma.GameWhereInput = {}
         if (userId) where.userId = userId
-        if (status) where.status = status
+        if (status && Object.values(GameStatus).includes(status as GameStatus)) {
+            where.status = status as GameStatus
+        }
 
         const games = await prisma.game.findMany({
             where,
@@ -56,7 +59,7 @@ export async function GET(request: Request) {
 
         // Transform games to include useful info
         const gamesWithDetails = games.map(game => {
-            const config = game.config as any
+            const config = game.config as Record<string, unknown> | null
             const answeredQuestions = game.questions.filter(q => q.answered).length
             const correctQuestions = game.questions.filter(q => q.correct === true).length
 
@@ -132,24 +135,24 @@ export async function PATCH(request: Request) {
         }
 
         // Build update data - only allow specific fields
-        const updateData: any = {}
+        const updateData: Prisma.GameUpdateInput = {}
         
         if (updates.currentScore !== undefined) {
             updateData.currentScore = parseInt(updates.currentScore)
         }
         
         if (updates.currentRound !== undefined) {
-            if (!['SINGLE', 'DOUBLE', 'FINAL'].includes(updates.currentRound)) {
+            if (!Object.values(JeopardyRound).includes(updates.currentRound as JeopardyRound)) {
                 return badRequestResponse('Invalid round value')
             }
-            updateData.currentRound = updates.currentRound
+            updateData.currentRound = updates.currentRound as JeopardyRound
         }
         
         if (updates.status !== undefined) {
-            if (!['IN_PROGRESS', 'COMPLETED', 'ABANDONED'].includes(updates.status)) {
+            if (!Object.values(GameStatus).includes(updates.status as GameStatus)) {
                 return badRequestResponse('Invalid status value')
             }
-            updateData.status = updates.status
+            updateData.status = updates.status as GameStatus
         }
 
         const updatedGame = await prisma.game.update({
@@ -205,7 +208,7 @@ export async function POST(request: Request) {
             }
 
             // Update the GameQuestion
-            const updateData: any = {}
+            const updateData: Partial<{ answered: boolean; correct: boolean | null }> = {}
             if (updates.answered !== undefined) updateData.answered = updates.answered
             if (updates.correct !== undefined) updateData.correct = updates.correct
 

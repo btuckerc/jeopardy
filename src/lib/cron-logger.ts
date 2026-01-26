@@ -11,7 +11,7 @@ import { cleanupTimedOutJobs } from './cron-jobs'
 export interface CronJobResult {
     success: boolean
     message?: string
-    data?: any
+    data?: unknown
     error?: string
 }
 
@@ -88,8 +88,9 @@ export async function withCronLogging<T>(
             data: result,
         })
         return result
-    } catch (error: any) {
-        await updateCronExecution(executionId, CronJobStatus.FAILED, undefined, error.message)
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error'
+        await updateCronExecution(executionId, CronJobStatus.FAILED, undefined, message)
         throw error
     }
 }

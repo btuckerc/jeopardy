@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import toast from 'react-hot-toast'
 import type { AppUser } from '@/lib/clerk-auth'
 
@@ -14,7 +13,7 @@ interface HelpClientProps {
 type IssueCategory = 'BUG' | 'CONTENT' | 'FEATURE_REQUEST' | 'ACCOUNT' | 'QUESTION' | 'OTHER'
 
 export default function HelpClient({ user, supportEmail }: HelpClientProps) {
-    const router = useRouter()
+    const _router = useRouter()
     const [submitting, setSubmitting] = useState(false)
     const [formData, setFormData] = useState({
         subject: '',
@@ -44,7 +43,7 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
 
         setSubmitting(true)
         try {
-            const payload: any = {
+            const payload: { subject: string; message: string; category: string; pageUrl?: string; email?: string } = {
                 subject: formData.subject.trim(),
                 message: formData.message.trim(),
                 category: formData.category
@@ -116,7 +115,7 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                 )}
 
                 {/* Report an Issue Card */}
-                <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8">
+                <div id="report" className="bg-white rounded-2xl shadow-xl border border-gray-200 p-6 sm:p-8">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
                             <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -312,6 +311,49 @@ export default function HelpClient({ user, supportEmail }: HelpClientProps) {
                             detects common workarounds including character substitutions, leetspeak, missing vowels, and spacing tricks. 
                             Existing display names that don&apos;t meet these rules are grandfathered in, but any future changes must 
                             comply with all rules.
+                        </p>
+                    </div>
+                    <div className="pt-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">Keyboard Shortcuts</h3>
+                        <p className="text-gray-600 mb-3">
+                            trivrdy supports keyboard shortcuts for quick navigation. Press <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono">?</kbd> at any time to view all available shortcuts.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-gray-600">
+                            <div className="flex items-center gap-2">
+                                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono min-w-[2rem] text-center">G</kbd>
+                                <span>Go to Game</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono min-w-[2rem] text-center">D</kbd>
+                                <span>Go to Daily Challenge</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono min-w-[2rem] text-center">S</kbd>
+                                <span>Go to Stats</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono min-w-[2rem] text-center">L</kbd>
+                                <span>Go to Leaderboard</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono min-w-[2rem] text-center">P</kbd>
+                                <span>Go to Practice</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono min-w-[2rem] text-center">H</kbd>
+                                <span>Go to Home</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono min-w-[2rem] text-center">?</kbd>
+                                <span>Show keyboard shortcuts</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <kbd className="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-sm font-mono min-w-[2rem] text-center">Esc</kbd>
+                                <span>Close modals/shortcuts</span>
+                            </div>
+                        </div>
+                        <p className="text-gray-600 mt-3 text-sm">
+                            Note: Shortcuts only work when you&apos;re not typing in an input field or textarea.
                         </p>
                     </div>
                 </div>

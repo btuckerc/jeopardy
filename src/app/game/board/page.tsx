@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '../../lib/auth'
 import { checkAnswer } from '../../lib/answer-checker'
-import Scoreboard, { Player } from '@/components/Scoreboard'
+import type { Player } from '@/components/Scoreboard'
+import type { GameConfig } from '@/types/game'
 
 interface Question {
     id: string
@@ -88,7 +89,7 @@ export default function GameBoard() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [categories, setCategories] = useState<Category[]>([])
-    const [gameConfig, setGameConfig] = useState<any>(null)
+    const [gameConfig, setGameConfig] = useState<GameConfig | null>(null)
     const [currentRound, setCurrentRound] = useState<'SINGLE' | 'DOUBLE'>('SINGLE')
     const [isDoubleJeopardy, setIsDoubleJeopardy] = useState(false) // Legacy support for display
     const [showRoundComplete, setShowRoundComplete] = useState(false)
@@ -113,8 +114,8 @@ export default function GameBoard() {
     const [finalJeopardyShowAnswer, setFinalJeopardyShowAnswer] = useState(false)
     const [finalJeopardyIsCorrect, setFinalJeopardyIsCorrect] = useState<boolean | null>(null)
 
-    // Build players array for scoreboard (single player for now, multiplayer-ready)
-    const players: Player[] = [
+    // Build players array for scoreboard (reserved for future use)
+    const _players: Player[] = [
         {
             id: user?.id || 'guest',
             displayName: user?.displayName || 'Player',
@@ -127,7 +128,7 @@ export default function GameBoard() {
     ]
 
     // Load categories - stable function
-    const loadCategories = useCallback(async (round: 'SINGLE' | 'DOUBLE', config: any) => {
+    const loadCategories = useCallback(async (round: 'SINGLE' | 'DOUBLE', config: GameConfig) => {
         if (!config) return
 
         try {
@@ -187,7 +188,7 @@ export default function GameBoard() {
     }, [])
 
     // Load Final Jeopardy question
-    const loadFinalJeopardy = useCallback(async (config: any) => {
+    const loadFinalJeopardy = useCallback(async (config: GameConfig) => {
         if (!config) return
 
         try {
@@ -377,7 +378,7 @@ export default function GameBoard() {
             .find(c => c.id === question.categoryId)
             ?.questions || []
 
-        const hasValueConflict = questionsInCategory.some((q, i) =>
+        const hasValueConflict = questionsInCategory.some((q, _i) =>
             q && q.id !== question.id && normalizeQuestionValue(q.value, isDoubleJeopardy) === normalValue
         )
 
@@ -388,8 +389,8 @@ export default function GameBoard() {
         return normalValue
     }
 
-    // Function to get the actual score value for a question
-    const getScoreValue = (question: Question) => {
+    // Function to get the actual score value for a question (reserved for future use)
+    const _getScoreValue = (question: Question) => {
         return question.value
     }
 
@@ -566,7 +567,7 @@ export default function GameBoard() {
     if (showFinalJeopardy && finalJeopardyQuestion) {
         const canWager = score >= 0
         const maxWager = Math.max(0, score)
-        const effectiveWager = canWager ? Math.max(0, Math.min(finalJeopardyWager, maxWager)) : 0
+        const _effectiveWager = canWager ? Math.max(0, Math.min(finalJeopardyWager, maxWager)) : 0
 
         return (
             <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-4 sm:py-8 px-4">

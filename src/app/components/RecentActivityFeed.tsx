@@ -1,7 +1,5 @@
 'use client'
 
-import Link from 'next/link'
-
 interface ActivityStats {
     gamesThisWeek: number
     bestScore: number

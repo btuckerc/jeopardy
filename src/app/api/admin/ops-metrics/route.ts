@@ -33,10 +33,6 @@ export async function GET(request: Request) {
         let bucketMs: number
         
         switch (window) {
-            case '24h':
-                startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-                bucketMs = 60 * 60 * 1000 // 1 hour buckets
-                break
             case '7d':
                 startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
                 bucketMs = 24 * 60 * 60 * 1000 // 1 day buckets
@@ -49,12 +45,17 @@ export async function GET(request: Request) {
                 startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
                 bucketMs = 24 * 60 * 60 * 1000 // 1 day buckets
                 break
+            case '24h':
+            default:
+                startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+                bucketMs = 60 * 60 * 1000 // 1 hour buckets
+                break
         }
         
         const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
         // Get cron job executions
-        const cronExecutions = await prisma.cronJobExecution.findMany({
+        const _cronExecutions = await prisma.cronJobExecution.findMany({
             where: {
                 startedAt: { gte: dayAgo }
             },

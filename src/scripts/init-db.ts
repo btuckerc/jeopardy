@@ -57,7 +57,7 @@ async function main() {
 
         // Process each category in batches
         const batchSize = 100
-        let processedCategories = 0
+        const _processedCategories = 0
 
         for (const [categoryName, categoryQuestions] of categoriesMap) {
             // Create or update category
@@ -95,7 +95,7 @@ async function main() {
                 )
             }
 
-            processedCategories++
+            // Category processed
         }
     } catch (error) {
         console.error('Error initializing database:', error)

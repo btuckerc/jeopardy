@@ -340,12 +340,13 @@ export async function GET(request: Request) {
                         html: htmlBody
                     })
                     emailResults.push({ email: admin.email!, success: true })
-                } catch (error: any) {
+                } catch (error: unknown) {
+                    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
                     console.error(`Failed to send dispute summary email to ${admin.email}:`, error)
                     emailResults.push({ 
                         email: admin.email!, 
                         success: false, 
-                        error: error.message || 'Unknown error' 
+                        error: errorMsg
                     })
                 }
             }
@@ -407,12 +408,13 @@ export async function GET(request: Request) {
             const result = await withCronLogging('dispute-summary', triggeredBy, executeJob)
             return NextResponse.json(result)
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error'
         console.error('Cron job error:', error)
         return NextResponse.json(
             {
                 success: false,
-                error: error.message || 'Unknown error'
+                error: message
             },
             { status: 500 }
         )

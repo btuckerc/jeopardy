@@ -17,8 +17,10 @@ const TITLE_PREFIXES = [
 // AI SEMANTIC MATCHING - Primary mechanism
 // =============================================================================
 
+import type { FeatureExtractionPipeline } from '@xenova/transformers';
+
 const embeddingCache = new Map<string, Float32Array>();
-let semanticModel: any = null;
+let semanticModel: FeatureExtractionPipeline | null = null;
 let semanticModelLoading: Promise<boolean> | null = null;
 let semanticModelAvailable = false;
 let modelLoadAttempted = false;
@@ -52,7 +54,6 @@ async function loadSemanticModel(): Promise<boolean> {
         modelLoadAttempted = true;
         try {
             // Dynamic import - only happens on server
-            // @ts-ignore - Module may not be available
             const transformers = await import('@xenova/transformers');
             semanticModel = await transformers.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
                 quantized: true,
@@ -324,7 +325,7 @@ export async function checkAnswerAsync(
         const correctWords = stripArticles(correct).split(/\s+/).filter(w => w.length > 2);
         
         if (userWords.length > 0 && correctWords.length > userWords.length) {
-            const userSet = new Set(userWords);
+            const _userSet = new Set(userWords);
             const allUserWordsInCorrect = userWords.every(w => correctWords.includes(w));
             
             if (allUserWordsInCorrect) {

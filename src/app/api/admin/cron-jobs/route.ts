@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isAdmin } from '@/lib/clerk-auth'
 import { CRON_JOBS, cleanupTimedOutJobs } from '@/lib/cron-jobs'
+import { Prisma, CronJobStatus, CronJobExecution } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,12 +32,12 @@ export async function GET(request: Request) {
         const limit = parseInt(searchParams.get('limit') || '50')
         const status = searchParams.get('status')
 
-        const where: any = {}
+        const where: Prisma.CronJobExecutionWhereInput = {}
         if (jobName) {
             where.jobName = jobName
         }
-        if (status) {
-            where.status = status
+        if (status && Object.values(CronJobStatus).includes(status as CronJobStatus)) {
+            where.status = status as CronJobStatus
         }
 
         const executions = await prisma.cronJobExecution.findMany({
@@ -72,14 +73,15 @@ export async function GET(request: Request) {
             latestExecutions: latestExecutions.reduce((acc, { jobName, latest }) => {
                 acc[jobName] = latest
                 return acc
-            }, {} as Record<string, any>),
+            }, {} as Record<string, CronJobExecution | null>),
             jobs: CRON_JOBS,
             timedOutCount, // Include count of jobs that were just cleaned up
         })
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch cron jobs'
         console.error('Error fetching cron jobs:', error)
         return NextResponse.json(
-            { error: error.message || 'Failed to fetch cron jobs' },
+            { error: message },
             { status: 500 }
         )
     }

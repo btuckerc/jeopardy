@@ -7,7 +7,7 @@ import { jsonResponse, serverErrorResponse, requireAdmin } from '@/lib/api-utils
  * Includes pool size, duplicate detection, and usage statistics
  * Admin only
  */
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
     try {
         const { error: authError } = await requireAdmin()
         if (authError) return authError

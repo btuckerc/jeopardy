@@ -84,12 +84,13 @@ export async function POST(
             message: `Cron job ${jobName} triggered successfully`,
             result,
         })
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to trigger cron job'
         console.error(`Error triggering cron job ${params.jobName}:`, error)
         return NextResponse.json(
             {
                 success: false,
-                error: error.message || 'Failed to trigger cron job',
+                error: message,
             },
             { status: 500 }
         )

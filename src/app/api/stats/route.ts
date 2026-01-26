@@ -3,7 +3,6 @@ import { prisma } from '@/lib/prisma'
 import {
     jsonResponse,
     serverErrorResponse,
-    errorResponse,
     parseSearchParams,
     getAuthenticatedUser
 } from '@/lib/api-utils'

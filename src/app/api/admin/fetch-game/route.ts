@@ -12,8 +12,7 @@ import {
     parseGameByDate, 
     isValidDateFormat, 
     isFutureDate,
-    getCurrentSeason,
-    discoverSeasons
+    getCurrentSeason
 } from '@/lib/jarchive-scraper'
 
 const searchParamsSchema = z.object({

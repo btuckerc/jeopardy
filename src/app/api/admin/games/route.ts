@@ -7,6 +7,7 @@ import {
     parseBody
 } from '@/lib/api-utils'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 const searchParamsSchema = z.object({
     season: z.string().optional(),
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     const { season, startDate, endDate } = params
 
     // Build query filters
-    const where: any = {}
+    const where: Prisma.QuestionWhereInput = {}
     if (season) where.season = parseInt(season)
     
     // Handle date filtering - allow startDate only, endDate only, or both

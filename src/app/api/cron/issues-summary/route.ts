@@ -306,12 +306,13 @@ export async function GET(request: Request) {
                         html: htmlBody
                     })
                     emailResults.push({ email: admin.email!, success: true })
-                } catch (error: any) {
-                    console.error(`Failed to send issues summary email to ${admin.email}:`, error)
+                } catch (error) {
+                    const errorMessage = error instanceof Error ? error.message : String(error)
+                    console.error(`Failed to send issues summary email to ${admin.email}:`, errorMessage)
                     emailResults.push({ 
                         email: admin.email!, 
                         success: false, 
-                        error: error.message || 'Unknown error' 
+                        error: errorMessage || 'Unknown error' 
                     })
                 }
             }
@@ -361,12 +362,13 @@ export async function GET(request: Request) {
             const result = await withCronLogging('issues-summary', triggeredBy, executeJob)
             return NextResponse.json(result)
         }
-    } catch (error: any) {
-        console.error('Error in issues summary cron job:', error)
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error('Error in issues summary cron job:', errorMessage)
         return NextResponse.json(
             { 
                 success: false, 
-                error: error.message || 'Unknown error',
+                error: errorMessage || 'Unknown error',
                 timestamp: new Date().toISOString()
             },
             { status: 500 }

@@ -78,6 +78,14 @@ export const ACHIEVEMENT_DEFINITIONS: AchievementDefinition[] = [
         category: 'onboarding',
         tier: 2
     },
+    {
+        code: 'PROFILE_CUSTOMIZED',
+        name: 'Make It Yours',
+        description: 'Customize your display name and icon',
+        icon: '🎨',
+        category: 'onboarding',
+        tier: 1
+    },
 
     // ============================================
     // STREAK & HABIT ACHIEVEMENTS

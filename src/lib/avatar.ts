@@ -88,35 +88,36 @@ export function getEmojisByCategory(category: EmojiCategory | 'all'): EmojiDefin
 }
 
 // Curated palette of avatar background themes
+// Note: First gradient stop uses higher opacity to prevent background bleed-through
 export const AVATAR_BACKGROUNDS = {
     blue: {
         name: 'Ocean',
-        gradient: 'radial-gradient(circle at 30% 30%, rgba(59, 130, 246, 0.3), rgba(37, 99, 235, 0.8), rgba(30, 64, 175, 1))',
+        gradient: 'radial-gradient(circle at 30% 30%, rgba(96, 165, 250, 0.9), rgba(37, 99, 235, 0.95), rgba(30, 64, 175, 1))',
         shadow: '0 4px 12px rgba(37, 99, 235, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
     },
     purple: {
         name: 'Violet',
-        gradient: 'radial-gradient(circle at 30% 30%, rgba(168, 85, 247, 0.3), rgba(139, 92, 246, 0.8), rgba(109, 40, 217, 1))',
+        gradient: 'radial-gradient(circle at 30% 30%, rgba(192, 132, 252, 0.9), rgba(139, 92, 246, 0.95), rgba(109, 40, 217, 1))',
         shadow: '0 4px 12px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
     },
     teal: {
         name: 'Lagoon',
-        gradient: 'radial-gradient(circle at 30% 30%, rgba(45, 212, 191, 0.3), rgba(20, 184, 166, 0.8), rgba(13, 148, 136, 1))',
+        gradient: 'radial-gradient(circle at 30% 30%, rgba(94, 234, 212, 0.9), rgba(20, 184, 166, 0.95), rgba(13, 148, 136, 1))',
         shadow: '0 4px 12px rgba(20, 184, 166, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
     },
     rose: {
         name: 'Sunset',
-        gradient: 'radial-gradient(circle at 30% 30%, rgba(251, 113, 133, 0.3), rgba(244, 63, 94, 0.8), rgba(225, 29, 72, 1))',
+        gradient: 'radial-gradient(circle at 30% 30%, rgba(253, 164, 175, 0.9), rgba(244, 63, 94, 0.95), rgba(225, 29, 72, 1))',
         shadow: '0 4px 12px rgba(244, 63, 94, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
     },
     amber: {
         name: 'Gold',
-        gradient: 'radial-gradient(circle at 30% 30%, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.8), rgba(217, 119, 6, 1))',
+        gradient: 'radial-gradient(circle at 30% 30%, rgba(252, 211, 77, 0.9), rgba(245, 158, 11, 0.95), rgba(217, 119, 6, 1))',
         shadow: '0 4px 12px rgba(245, 158, 11, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
     },
     slate: {
         name: 'Graphite',
-        gradient: 'radial-gradient(circle at 30% 30%, rgba(100, 116, 139, 0.3), rgba(71, 85, 105, 0.8), rgba(51, 65, 85, 1))',
+        gradient: 'radial-gradient(circle at 30% 30%, rgba(148, 163, 184, 0.9), rgba(71, 85, 105, 0.95), rgba(51, 65, 85, 1))',
         shadow: '0 4px 12px rgba(71, 85, 105, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2)',
     },
 } as const

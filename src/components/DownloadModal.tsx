@@ -5,13 +5,56 @@ interface DownloadModalProps {
     onClose: () => void;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 export default function DownloadModal({ isOpen, onClose }: DownloadModalProps) {
     const [isIOS, setIsIOS] = useState(false);
+    const [isAndroid, setIsAndroid] = useState(false);
+    const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+    const [isInstalling, setIsInstalling] = useState(false);
 
     useEffect(() => {
         // Detect iOS
-        setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream);
+        setIsIOS(/iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as Window & { MSStream?: unknown }).MSStream);
+        
+        // Detect Android
+        setIsAndroid(/Android/.test(navigator.userAgent));
+        
+        // Listen for beforeinstallprompt event (Android/Chrome)
+        const handleBeforeInstallPrompt = (e: Event) => {
+            e.preventDefault();
+            setDeferredPrompt(e as BeforeInstallPromptEvent);
+        };
+        
+        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        
+        return () => {
+            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        };
     }, []);
+
+    const handleInstallClick = async () => {
+        if (!deferredPrompt) return;
+        
+        setIsInstalling(true);
+        try {
+            await deferredPrompt.prompt();
+            const choiceResult = await deferredPrompt.userChoice;
+            
+            if (choiceResult.outcome === 'accepted') {
+                // User accepted the install prompt
+                setDeferredPrompt(null);
+                onClose();
+            }
+        } catch (error) {
+            console.error('Error during PWA install:', error);
+        } finally {
+            setIsInstalling(false);
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -58,22 +101,53 @@ export default function DownloadModal({ isOpen, onClose }: DownloadModalProps) {
                                             <li>Tap &quot;Add&quot; in the top right</li>
                                         </ol>
                                     </div>
+                                ) : deferredPrompt ? (
+                                    <div className="space-y-4 text-sm text-gray-500">
+                                        <p>Install trivrdy as an app for a better experience!</p>
+                                        <p>Click the button below to add trivrdy to your home screen.</p>
+                                    </div>
+                                ) : isAndroid ? (
+                                    <div className="text-sm text-gray-500">
+                                        <p>To add trivrdy to your home screen:</p>
+                                        <ol className="list-decimal text-left pl-5 space-y-2 mt-2">
+                                            <li>Open the browser menu (three dots)</li>
+                                            <li>Tap &quot;Add to Home screen&quot; or &quot;Install app&quot;</li>
+                                            <li>Confirm the installation</li>
+                                        </ol>
+                                    </div>
                                 ) : (
                                     <div className="text-sm text-gray-500">
-                                        <p>Home screen installation is currently only supported on iOS devices.</p>
-                                        <p className="mt-2">Support for other platforms is coming soon!</p>
+                                        <p>PWA installation is supported on iOS and Android devices.</p>
+                                        <p className="mt-2">On desktop, you can use your browser&apos;s install option from the address bar.</p>
                                     </div>
                                 )}
                             </div>
                         </div>
                     </div>
-                    <div className="mt-5 sm:mt-6">
+                    <div className="mt-5 sm:mt-6 space-y-3">
+                        {deferredPrompt && (
+                            <button
+                                type="button"
+                                disabled={isInstalling}
+                                className="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={handleInstallClick}
+                            >
+                                {isInstalling ? (
+                                    <>
+                                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-white border-r-transparent mr-2"></span>
+                                        Installing...
+                                    </>
+                                ) : (
+                                    'Install App'
+                                )}
+                            </button>
+                        )}
                         <button
                             type="button"
-                            className="inline-flex w-full justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                            className="inline-flex w-full justify-center rounded-md bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500"
                             onClick={onClose}
                         >
-                            Got it
+                            {deferredPrompt ? 'Maybe Later' : 'Got it'}
                         </button>
                     </div>
                 </div>

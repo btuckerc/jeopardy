@@ -9,8 +9,8 @@
  */
 
 import { NextResponse } from 'next/server'
-import { z, ZodError, ZodSchema } from 'zod'
-import { getAppUser, type AppUser } from './clerk-auth'
+import { z, ZodError, ZodType, ZodTypeDef } from 'zod'
+import { getAppUser } from './clerk-auth'
 import { UserRole } from '@prisma/client'
 
 // =============================================================================
@@ -102,9 +102,9 @@ export function serverErrorResponse(
 /**
  * Parse and validate request body with Zod schema
  */
-export async function parseBody<T>(
+export async function parseBody<T, Input = unknown>(
     request: Request,
-    schema: ZodSchema<T>
+    schema: ZodType<T, ZodTypeDef, Input>
 ): Promise<{ data: T; error: null } | { data: null; error: NextResponse<ApiError> }> {
     try {
         const body = await request.json()
@@ -138,9 +138,9 @@ export async function parseBody<T>(
 /**
  * Parse and validate URL search params with Zod schema
  */
-export function parseSearchParams<T>(
+export function parseSearchParams<T, Input = unknown>(
     searchParams: URLSearchParams,
-    schema: ZodSchema<T, any, any>
+    schema: ZodType<T, ZodTypeDef, Input>
 ): { data: T; error: null } | { data: null; error: NextResponse<ApiError> } {
     try {
         const params: Record<string, string | string[]> = {}

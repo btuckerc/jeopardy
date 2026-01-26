@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
 
 const updateIssueSchema = z.object({
     status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'DISMISSED']).optional(),
@@ -111,7 +112,7 @@ export async function PATCH(
         }
 
         // Build update data
-        const updateData: any = {}
+        const updateData: Prisma.IssueReportUpdateInput = {}
         if (status !== undefined) {
             updateData.status = status
             // Set resolvedAt if status is RESOLVED or DISMISSED
@@ -127,7 +128,7 @@ export async function PATCH(
         if (adminNote !== undefined) {
             updateData.adminNote = adminNote || null
         }
-        updateData.adminId = appUser.id
+        updateData.admin = { connect: { id: appUser.id } }
 
         const updatedIssue = await prisma.issueReport.update({
             where: { id: params.id },

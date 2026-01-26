@@ -6,7 +6,7 @@ import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/a
  * GET /api/user/streak
  * Get current user's streak information
  */
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
     try {
         const user = await getAppUser()
         if (!user) {

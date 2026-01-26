@@ -27,7 +27,7 @@
 
 import axios, { AxiosError } from 'axios'
 import * as cheerio from 'cheerio'
-import { writeFileSync, readFileSync, existsSync } from 'fs'
+import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 
@@ -78,7 +78,7 @@ const RETRY_DELAY = 5000
 
 // Knowledge category classifier (same as existing)
 function analyzeContent(text: string): KnowledgeCategory {
-    const lowercaseText = text.toLowerCase()
+    // Patterns use /i flag for case-insensitive matching
     const scores = {
         GEOGRAPHY_AND_HISTORY: 0,
         ENTERTAINMENT: 0,
@@ -528,8 +528,7 @@ async function backfill(options: FetchOptions): Promise<void> {
 
     // Clear progress file on completion
     if (existsSync(PROGRESS_FILE)) {
-        const fs = require('fs')
-        fs.unlinkSync(PROGRESS_FILE)
+        unlinkSync(PROGRESS_FILE)
     }
 
     // Summary

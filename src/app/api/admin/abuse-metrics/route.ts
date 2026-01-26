@@ -26,17 +26,18 @@ export async function GET(request: Request) {
         
         // Calculate time range
         let startTime: Date
-        let bucketMs = 24 * 60 * 60 * 1000 // Daily buckets
+        const bucketMs = 24 * 60 * 60 * 1000 // Daily buckets
         
         switch (window) {
             case '7d':
                 startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
                 break
-            case '30d':
-                startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-                break
             case '90d':
                 startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+                break
+            case '30d':
+            default:
+                startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
                 break
         }
 

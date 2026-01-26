@@ -230,8 +230,10 @@ export async function getRandomQuestion(
         const spoilerSettings = await getUserSpoilerSettings(userId)
         
         // Build the where clause based on provided filters
-        const where: any = {}
-        if (knowledgeCategoryId) where.knowledgeCategory = knowledgeCategoryId
+        const where: Prisma.QuestionWhereInput = {}
+        if (knowledgeCategoryId && Object.values(KnowledgeCategory).includes(knowledgeCategoryId as KnowledgeCategory)) {
+            where.knowledgeCategory = knowledgeCategoryId as KnowledgeCategory
+        }
         if (categoryId) where.categoryId = categoryId
         if (round) where.round = round
         if (excludeQuestionId) where.NOT = { id: excludeQuestionId }
@@ -264,8 +266,10 @@ export async function getRandomQuestion(
         if (eligibleQuestions.length === 0) {
             // If no unanswered questions, get all questions except the excluded one
             // Still respecting spoiler settings
-            const baseWhere: any = {}
-            if (knowledgeCategoryId) baseWhere.knowledgeCategory = knowledgeCategoryId
+            const baseWhere: Prisma.QuestionWhereInput = {}
+            if (knowledgeCategoryId && Object.values(KnowledgeCategory).includes(knowledgeCategoryId as KnowledgeCategory)) {
+                baseWhere.knowledgeCategory = knowledgeCategoryId as KnowledgeCategory
+            }
             if (categoryId) baseWhere.categoryId = categoryId
             if (round) baseWhere.round = round
             if (spoilerSettings.enabled && spoilerSettings.date) {
@@ -475,12 +479,12 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
         const spoilerSettings = await getUserSpoilerSettings(userId)
         
         // Build the where clause based on whether we have a knowledge category or regular category
-        const where: any = {
+        const where: Prisma.QuestionWhereInput = {
             categoryId
         };
 
         // Only add knowledge category filter if it's a valid knowledge category
-        if (knowledgeCategoryId && Object.values(KnowledgeCategory).includes(knowledgeCategoryId as any)) {
+        if (knowledgeCategoryId && Object.values(KnowledgeCategory).includes(knowledgeCategoryId as KnowledgeCategory)) {
             where.knowledgeCategory = knowledgeCategoryId as KnowledgeCategory;
         }
         
@@ -667,7 +671,7 @@ export async function getTripleStumperQuestions(
         const spoilerSettings = await getUserSpoilerSettings(userId)
         
         // Build the where clause - if spoiler is enabled, combine with AND
-        let whereClause: any
+        let whereClause: Prisma.QuestionWhereInput
         
         if (spoilerSettings.enabled && spoilerSettings.date) {
             whereClause = {
@@ -915,7 +919,7 @@ export async function getRandomTripleStumper(
         const spoilerSettings = await getUserSpoilerSettings(userId)
         
         // Build the where clause
-        const where: any = {
+        const where: Prisma.QuestionWhereInput = {
             wasTripleStumper: true
         }
         

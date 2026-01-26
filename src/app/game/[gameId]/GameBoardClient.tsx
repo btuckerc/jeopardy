@@ -5,7 +5,10 @@ import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '../../lib/auth'
 import { checkAnswer } from '../../lib/answer-checker'
-import Scoreboard, { Player } from '@/components/Scoreboard'
+import type { Player } from '@/components/Scoreboard'
+import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
+import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt'
+import type { UnlockedAchievement } from '@/types/admin'
 
 interface Question {
     id: string
@@ -145,6 +148,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const [score, setScore] = useState(initialGameData?.currentScore || 0)
     const [gameStats, setGameStats] = useState({ correct: 0, incorrect: 0 })
     const [showCelebrationModal, setShowCelebrationModal] = useState(false)
+    const [showProfilePrompt, setShowProfilePrompt] = useState(false)
+    const [isFirstGame, setIsFirstGame] = useState(false)
+    const [gameCompletionAchievements, setGameCompletionAchievements] = useState<UnlockedAchievement[]>([])
+    const [roundScores, setRoundScores] = useState<{ SINGLE: number; DOUBLE: number; FINAL: number }>({ SINGLE: 0, DOUBLE: 0, FINAL: 0 })
     const [disputeContext, setDisputeContext] = useState<{
         questionId: string
         gameId: string | null
@@ -177,8 +184,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const [finalJeopardyAnswer, setFinalJeopardyAnswer] = useState('')
     const [finalJeopardyIsCorrect, setFinalJeopardyIsCorrect] = useState<boolean | null>(null)
 
-    // Build players array for scoreboard
-    const players: Player[] = [
+    // Build players array for scoreboard (reserved for future use)
+    const _players: Player[] = [
         {
             id: user?.id || 'guest',
             displayName: user?.displayName || 'Player',
@@ -191,16 +198,21 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     ]
 
     // Save game state to server
-    const saveGameState = useCallback(async (action: string, data: any) => {
-        if (!gameId) return
+    const saveGameState = useCallback(async (action: string, data: Record<string, unknown>) => {
+        if (!gameId) return null
         try {
-            await fetch(`/api/games/${gameId}/state`, {
+            const response = await fetch(`/api/games/${gameId}/state`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action, ...data })
             })
+            if (response.ok) {
+                return await response.json()
+            }
+            return null
         } catch (error) {
             console.error('Error saving game state:', error)
+            return null
         }
     }, [gameId])
 
@@ -484,9 +496,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
                 const answered = new Set<string>()
                 if (gameData.questions) {
-                    Object.values(gameData.questions).forEach((q: any) => {
+                    const questions = gameData.questions as Record<string, { questionId?: string; answered?: boolean }>
+                    Object.values(questions).forEach((q) => {
                         if (q.answered) {
-                            answered.add(q.questionId)
+                            answered.add(q.questionId || '')
                         }
                     })
                 }
@@ -633,7 +646,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             .find(c => c.id === question.categoryId)
             ?.questions || []
 
-        const hasValueConflict = questionsInCategory.some((q, i) =>
+        const hasValueConflict = questionsInCategory.some((q, _i) =>
             q && q.id !== question.id && normalizeQuestionValue(q.value, isDoubleJeopardy) === normalValue
         )
 
@@ -692,11 +705,23 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             setDisputeContext(data.disputeContext)
             setDisputeSubmitted(false)
 
+            // Show achievement unlock notifications
+            if (data.unlockedAchievements && Array.isArray(data.unlockedAchievements)) {
+                data.unlockedAchievements.forEach((achievement: UnlockedAchievement) => {
+                    showAchievementUnlock(achievement)
+                })
+            }
+
             setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
 
             if (result) {
                 setScore(prev => prev + pointsEarned)
                 setGameStats(prev => ({ ...prev, correct: prev.correct + 1 }))
+                // Track round scores
+                setRoundScores(prev => ({
+                    ...prev,
+                    [currentRound]: prev[currentRound as keyof typeof prev] + pointsEarned
+                }))
             } else {
                 setGameStats(prev => ({ ...prev, incorrect: prev.incorrect + 1 }))
             }
@@ -881,26 +906,48 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         setFinalJeopardyStage('result')
         setFinalJeopardyIsCorrect(false)
 
-        const effectiveWager = finalJeopardyActualWager
-        
-        setScore(prev => prev - effectiveWager)
-        setGameStats(prev => ({ ...prev, incorrect: prev.incorrect + 1 }))
+            const effectiveWager = finalJeopardyActualWager
+            
+            setScore(prev => prev - effectiveWager)
+            setGameStats(prev => ({ ...prev, incorrect: prev.incorrect + 1 }))
+            
+            // Track Final Jeopardy score
+            setRoundScores(prev => ({
+                ...prev,
+                FINAL: prev.FINAL - effectiveWager
+            }))
 
-        await saveGameState('answer', {
-            questionId: finalJeopardyQuestion.id,
-            correct: false,
-            pointsEarned: 0
-        })
+            await saveGameState('answer', {
+                questionId: finalJeopardyQuestion.id,
+                correct: false,
+                pointsEarned: 0
+            })
     }
 
-    const handleGameComplete = async () => {
-        await saveGameState('complete', { finalScore: score })
+    const _handleGameComplete = async () => {
+        const result = await saveGameState('complete', { finalScore: score })
+        // Show achievement unlock notifications and store for celebration modal
+        if (result?.unlockedAchievements && Array.isArray(result.unlockedAchievements)) {
+            setGameCompletionAchievements(result.unlockedAchievements)
+            result.unlockedAchievements.forEach((achievement: UnlockedAchievement) => {
+                showAchievementUnlock(achievement)
+                // Check if this is FIRST_GAME achievement
+                if (achievement.code === 'FIRST_GAME') {
+                    setIsFirstGame(true)
+                }
+            })
+        }
         setShowCelebrationModal(true)
     }
 
     const handleCelebrationClose = () => {
         setShowCelebrationModal(false)
-        router.push('/game')
+        // Show profile customization prompt if this was first game
+        if (isFirstGame) {
+            setShowProfilePrompt(true)
+        } else {
+            router.push('/game')
+        }
     }
 
     const handlePlayAgain = async () => {
@@ -917,7 +964,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             } else {
                 router.push('/game')
             }
-        } catch (error) {
+        } catch {
             router.push('/game')
         }
     }
@@ -1550,7 +1597,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         {/* Performance Breakdown */}
                         <div className="bg-gray-50 rounded-xl p-6 mb-6">
                             <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance</h3>
-                            <div className="grid grid-cols-3 gap-4">
+                            <div className="grid grid-cols-3 gap-4 mb-4">
                                 <div>
                                     <p className="text-2xl font-bold text-green-600">{gameStats.correct}</p>
                                     <p className="text-sm text-gray-600">Correct</p>
@@ -1568,7 +1615,57 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                     <p className="text-sm text-gray-600">Accuracy</p>
                                 </div>
                             </div>
+                            
+                            {/* Round Score Breakdown */}
+                            {(roundScores.SINGLE > 0 || roundScores.DOUBLE > 0 || roundScores.FINAL !== 0) && (
+                                <div className="border-t border-gray-200 pt-4 mt-4">
+                                    <h4 className="text-sm font-semibold text-gray-700 mb-3">Score by Round</h4>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {roundScores.SINGLE > 0 && (
+                                            <div>
+                                                <p className="text-lg font-bold text-gray-900">${roundScores.SINGLE.toLocaleString()}</p>
+                                                <p className="text-xs text-gray-600">Single</p>
+                                            </div>
+                                        )}
+                                        {roundScores.DOUBLE > 0 && (
+                                            <div>
+                                                <p className="text-lg font-bold text-gray-900">${roundScores.DOUBLE.toLocaleString()}</p>
+                                                <p className="text-xs text-gray-600">Double</p>
+                                            </div>
+                                        )}
+                                        {roundScores.FINAL !== 0 && (
+                                            <div>
+                                                <p className={`text-lg font-bold ${roundScores.FINAL >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                                                    {roundScores.FINAL < 0 ? '-' : ''}${Math.abs(roundScores.FINAL).toLocaleString()}
+                                                </p>
+                                                <p className="text-xs text-gray-600">Final</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
+
+                        {/* Achievement Highlights */}
+                        {gameCompletionAchievements.length > 0 && (
+                            <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-amber-200 rounded-xl p-6 mb-6">
+                                <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                                    <span>🏆</span>
+                                    <span>Achievements Unlocked!</span>
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {gameCompletionAchievements.map((achievement: UnlockedAchievement) => (
+                                        <div key={achievement.code} className="flex items-center gap-3 bg-white rounded-lg p-3 border border-amber-200">
+                                            <span className="text-2xl">{achievement.icon || '🏆'}</span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-semibold text-gray-900 text-sm">{achievement.name}</p>
+                                                <p className="text-xs text-gray-600 truncate">{achievement.description}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Share Seed */}
                         {gameSeed && (
@@ -1614,6 +1711,17 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Profile Customization Prompt - Shows after first game */}
+            {showProfilePrompt && (
+                <ProfileCustomizationPrompt
+                    trigger="first_game"
+                    onComplete={() => {
+                        setShowProfilePrompt(false)
+                        router.push('/game')
+                    }}
+                />
             )}
         </div>
     )

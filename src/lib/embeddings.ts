@@ -19,7 +19,7 @@ const openai = new OpenAI({
 
 // Embedding model configuration
 const EMBEDDING_MODEL = 'text-embedding-3-small'
-const EMBEDDING_DIMENSIONS = 1536
+const _EMBEDDING_DIMENSIONS = 1536 // Reserved for future use
 
 // Rate limiting
 const BATCH_SIZE = 100 // OpenAI allows up to 2048 inputs per request

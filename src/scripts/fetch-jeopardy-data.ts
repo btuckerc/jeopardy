@@ -28,8 +28,8 @@ interface JeopardyGame {
 
 // Content analysis patterns for knowledge categories
 function analyzeContent(text: string): KnowledgeCategory {
-    const lowercaseText = text.toLowerCase()
-    let scores = {
+    // Patterns use /i flag for case-insensitive matching
+    const scores = {
         GEOGRAPHY_AND_HISTORY: 0,
         ENTERTAINMENT: 0,
         ARTS_AND_LITERATURE: 0,
@@ -336,7 +336,7 @@ interface FetchOptions {
     searchDirection?: 'forward' | 'backward';
 }
 
-interface GameMatch {
+interface _GameMatch {
     id: string;
     date: Date;
 }

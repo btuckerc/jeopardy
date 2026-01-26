@@ -46,13 +46,13 @@ async function preGenerateChallenges(daysAhead: number = 90) {
 
             // Small delay to avoid overwhelming the database
             await new Promise(resolve => setTimeout(resolve, 100))
-        } catch (error: any) {
-            if (error.code === 'P2002') {
+        } catch (error) {
+            if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                 // Unique constraint - challenge was created by another process
                 console.log(`  ✓ Challenge already exists for ${targetDate.toISOString().split('T')[0]} (race condition)`)
                 skipped++
             } else {
-                console.error(`  ✗ Error creating challenge for ${targetDate.toISOString().split('T')[0]}:`, error.message)
+                console.error(`  ✗ Error creating challenge for ${targetDate.toISOString().split('T')[0]}:`, error instanceof Error ? error.message : 'Unknown error')
                 errors++
             }
         }

@@ -145,7 +145,7 @@ async function loadCategoryEmbeddings(prisma: PrismaClient): Promise<Map<Knowled
         }
         
         return map
-    } catch (error) {
+    } catch {
         console.log('   Note: Could not load category embeddings, will use pattern matching')
         return null
     }
@@ -331,7 +331,7 @@ async function seedDatabase(options: {
                 })
                 
                 // Infer knowledge categories using embeddings if available
-                let inferredCategories: Map<number, KnowledgeCategory> = new Map()
+                const inferredCategories: Map<number, KnowledgeCategory> = new Map()
                 
                 if (categoryEmbeddings && embeddingsModule) {
                     // Find questions that need inference (no knowledgeCategory or GENERAL_KNOWLEDGE)

@@ -93,7 +93,8 @@ async function main() {
         // Process each category
         const batchSize = 100
         let processedCategories = 0
-        let totalQuestionsAdded = 0
+        // Track processed categories
+        void 0 // totalQuestionsAdded tracking removed
 
         for (const [categoryName, categoryQuestions] of categoriesMap) {
             try {

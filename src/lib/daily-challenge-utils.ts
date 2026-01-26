@@ -68,7 +68,7 @@ function etToUTC(year: number, month: number, day: number, hour: number = 0, min
     const etParts = getETComponents(roughDate)
     
     // Calculate the difference in hours between what we want and what we got
-    let hourDiff = hour - etParts.hour
+    const hourDiff = hour - etParts.hour
     let dayDiff = day - etParts.day
     
     // Handle day wraparound

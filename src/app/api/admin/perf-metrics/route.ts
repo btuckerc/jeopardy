@@ -1,5 +1,6 @@
 import { jsonResponse, serverErrorResponse, requireAdmin } from '@/lib/api-utils'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,7 +42,7 @@ export async function GET(request: Request) {
         }
 
         // Build where clause
-        const where: any = {
+        const where: Prisma.ApiRequestEventWhereInput = {
             timestamp: { gte: startTime },
         }
         if (routeFilter) {

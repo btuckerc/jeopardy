@@ -116,8 +116,8 @@ async function generateChallenges(days: number): Promise<ChallengeResult[]> {
             if (i < days - 1) {
                 await new Promise(resolve => setTimeout(resolve, 100))
             }
-        } catch (error: any) {
-            if (error.code === 'P2002') {
+        } catch (error) {
+            if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                 // Race condition - challenge was created by another process
                 const existing = await prisma.dailyChallenge.findUnique({
                     where: { date: targetDate },
@@ -140,15 +140,16 @@ async function generateChallenges(days: number): Promise<ChallengeResult[]> {
                 })
                 console.log(`  [${i + 1}/${days}] ✓ Race condition: ${dateStr} (questionId: ${existing?.questionId})`)
             } else {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error'
                 results.push({
                     date: dateStr,
                     questionId: '',
                     airDate: null,
                     episodeGameId: null,
                     status: 'error',
-                    error: error.message || 'Unknown error'
+                    error: errorMessage
                 })
-                console.error(`  [${i + 1}/${days}] ✗ Error: ${dateStr} - ${error.message}`)
+                console.error(`  [${i + 1}/${days}] ✗ Error: ${dateStr} - ${errorMessage}`)
             }
         }
     }

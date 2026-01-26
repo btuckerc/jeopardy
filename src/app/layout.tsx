@@ -9,6 +9,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { syncAdminRoles } from '@/lib/sync-admin-roles'
 import { getAppUser } from '@/lib/clerk-auth'
 import { JsonLd } from '@/components/JsonLd'
+import KeyboardShortcutsProvider from './components/KeyboardShortcutsProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 const fredoka = Fredoka({ weight: '500', subsets: ['latin'] })
@@ -16,8 +17,7 @@ const fredoka = Fredoka({ weight: '500', subsets: ['latin'] })
 export const viewport = {
     width: 'device-width',
     initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
+    maximumScale: 5,
 }
 
 export const metadata = {
@@ -172,12 +172,13 @@ export default async function RootLayout({
                 </head>
                 <body className={inter.className}>
                     <Providers>
-                        <PageTitle />
-                        <div className="min-h-screen bg-gray-100 flex flex-col">
-                            <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
-                            <main className="flex-1 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
-                                {children}
-                            </main>
+                        <KeyboardShortcutsProvider>
+                            <PageTitle />
+                            <div className="min-h-screen bg-gray-100 flex flex-col">
+                                <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
+                                <main className="flex-1 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
+                                    {children}
+                                </main>
 
                             {/* Global footer */}
                             <footer className="border-t border-gray-200 bg-gray-50">
@@ -192,7 +193,7 @@ export default async function RootLayout({
                                             </Link>
                                             <span className="text-gray-400">•</span>
                                             <Link
-                                                href="/help"
+                                                href="/help#report"
                                                 className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
                                             >
                                                 Report an Issue
@@ -217,6 +218,7 @@ export default async function RootLayout({
                             </footer>
                         </div>
                         <Toaster position="bottom-right" />
+                        </KeyboardShortcutsProvider>
                     </Providers>
                 </body>
             </html>

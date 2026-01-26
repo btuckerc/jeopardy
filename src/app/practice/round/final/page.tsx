@@ -37,13 +37,6 @@ type Category = {
     mostRecentAirDate: Date | null
 }
 
-function LoadingSpinner() {
-    return (
-        <div className="flex justify-center items-center p-4">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em]" />
-        </div>
-    )
-}
 
 function CategoryCard({ category, onClick }: { category: Category; onClick: () => void }) {
     const progressPercentage = Math.round((category.correctQuestions / category.totalQuestions) * 100) || 0
@@ -77,8 +70,8 @@ function CategoryCard({ category, onClick }: { category: Category; onClick: () =
 
 function FinalPracticeContent() {
     const { user } = useAuth()
-    const searchParams = useSearchParams()
-    const router = useRouter()
+    const _searchParams = useSearchParams()
+    const _router = useRouter()
     
     const [categories, setCategories] = useState<Category[]>([])
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -96,7 +89,7 @@ function FinalPracticeContent() {
     const [disputeSubmitted, setDisputeSubmitted] = useState(false)
     const [loading, setLoading] = useState(true)
     const [loadingQuestion, setLoadingQuestion] = useState(false)
-    const [spoilerDate, setSpoilerDate] = useState<Date | null>(null)
+    const [_spoilerDate, _setSpoilerDate] = useState<Date | null>(null)
     
     // Initialize sortBy from localStorage synchronously to avoid flash
     const [sortBy, setSortBy] = useState<'airDate' | 'completion'>(() => {
@@ -118,7 +111,7 @@ function FinalPracticeContent() {
         }
         return 'desc'
     })
-    const [isSortTransitioning, setIsSortTransitioning] = useState(false)
+    const [_isSortTransitioning, _setIsSortTransitioning] = useState(false)
     
     // Persist sort preference to localStorage when user changes it
     const handleSortChange = useCallback((newSort: 'airDate' | 'completion') => {
@@ -149,7 +142,7 @@ function FinalPracticeContent() {
     
     // Sort categories client-side (Final Jeopardy loads all categories at once)
     // When sorting by completion, separate categories with progress from those without
-    const { inProgressCategories, notStartedCategories, sortedCategories } = useMemo(() => {
+    const { inProgressCategories: _inProgressCategories, notStartedCategories: _notStartedCategories, sortedCategories } = useMemo(() => {
         if (sortBy === 'completion') {
             // Split into in-progress and not-started
             const inProgress = categories.filter(c => Number(c.correctQuestions) > 0);
@@ -399,9 +392,9 @@ function FinalPracticeContent() {
                 .then(res => res.json())
                 .then(data => {
                     if (data.spoilerBlockEnabled && data.spoilerBlockDate) {
-                        setSpoilerDate(new Date(data.spoilerBlockDate))
+                        _setSpoilerDate(new Date(data.spoilerBlockDate))
                     } else {
-                        setSpoilerDate(null)
+                        _setSpoilerDate(null)
                     }
                 })
                 .catch(console.error)

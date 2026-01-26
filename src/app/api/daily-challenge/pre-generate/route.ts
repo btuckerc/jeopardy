@@ -2,7 +2,6 @@ import { prisma } from '@/lib/prisma'
 import { jsonResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { setupDailyChallenge } from '../route'
 import { z } from 'zod'
-import { NextResponse } from 'next/server'
 
 const preGenerateSchema = z.object({
     days: z.number().int().min(1).max(365).optional().default(90)
@@ -61,13 +60,14 @@ export async function POST(request: Request) {
                 } else {
                     errors++
                 }
-            } catch (error: any) {
-                if (error.code === 'P2002') {
+            } catch (error: unknown) {
+                if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                     // Unique constraint - challenge was created by another process
                     skipped++
                 } else {
                     errors++
-                    console.error(`Error creating challenge for ${targetDate.toISOString().split('T')[0]}:`, error)
+                    const errorMsg = error instanceof Error ? error.message : 'Unknown error'
+                    console.error(`Error creating challenge for ${targetDate.toISOString().split('T')[0]}:`, errorMsg)
                 }
             }
         }

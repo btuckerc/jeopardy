@@ -14,7 +14,7 @@ interface QuestionStats {
     blockedQuestions: number;
 }
 
-export default function SpoilerSettings({ userId }: Props) {
+export default function SpoilerSettings({ userId: _userId }: Props) {
     const [isEnabled, setIsEnabled] = useState(false);
     const [blockDate, setBlockDate] = useState('');
     const [loading, setLoading] = useState(true);

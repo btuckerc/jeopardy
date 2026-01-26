@@ -2,13 +2,14 @@ import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
+import type { GameConfig } from '@/types/game'
 
 /**
  * Calculate expected total questions based on game config and rounds
  * Standard Jeopardy: 6 categories × 5 questions = 30 per round
  * Final Jeopardy: 1 question
  */
-function calculateExpectedQuestions(config: any): number {
+function calculateExpectedQuestions(config: GameConfig): number {
     const rounds = config?.rounds || { single: true, double: true, final: false }
     let total = 0
     
@@ -60,7 +61,7 @@ export const GET = withInstrumentation(async () => {
 
         // Transform games to include useful summary info
         const resumableGames = games.map(game => {
-            const config = game.config as any
+            const config = game.config as GameConfig
             
             // Extract unique categories from answered game questions
             const categoryMap = new Map<string, { id: string; name: string; answeredCount: number }>()

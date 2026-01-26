@@ -101,8 +101,8 @@ export async function GET(request: Request) {
                         results.push({ date: dateStr, status: 'error', error: 'Failed to create challenge' })
                         console.error(`[Cron] ✗ Failed to create challenge for ${dateStr}`)
                     }
-                } catch (error: any) {
-                    if (error.code === 'P2002') {
+                } catch (error: unknown) {
+                    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
                         // Unique constraint - challenge was created by another process (race condition)
                         // Try to fetch the existing challenge to log its details
                         try {
@@ -132,7 +132,7 @@ export async function GET(request: Request) {
                         }
                     } else {
                         errors++
-                        const errorMsg = error.message || 'Unknown error'
+                        const errorMsg = error instanceof Error ? error.message : 'Unknown error'
                         results.push({ date: dateStr, status: 'error', error: errorMsg })
                         console.error(`[Cron] Error creating challenge for ${dateStr}:`, error)
                     }
@@ -157,12 +157,13 @@ export async function GET(request: Request) {
             const result = await withCronLogging('daily-challenge', triggeredBy, executeJob)
             return NextResponse.json(result)
         }
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error'
         console.error('Cron job error:', error)
         return NextResponse.json(
             {
                 success: false,
-                error: error.message || 'Unknown error'
+                error: message
             },
             { status: 500 }
         )

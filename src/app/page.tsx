@@ -3,7 +3,8 @@ import { Fredoka } from 'next/font/google'
 import { getAppUser } from '@/lib/clerk-auth'
 import { prisma } from '@/lib/prisma'
 import HomepageClient from './HomepageClient'
-import DailyChallengeCard from './components/DailyChallengeCard'
+import DailyChallengeCardClient from './components/DailyChallengeCardClient'
+import StreakWidget from './components/StreakWidget'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
@@ -14,7 +15,7 @@ async function getDailyChallenge(userId: string | null) {
         const challengeDate = getActiveChallengeDate()
         
         // Check if challenge exists for today
-        let challenge = await prisma.dailyChallenge.findUnique({
+        const challenge = await prisma.dailyChallenge.findUnique({
             where: { date: challengeDate },
             include: {
                 question: {
@@ -71,12 +72,131 @@ async function getDailyChallenge(userId: string | null) {
     }
 }
 
+async function getStreakData(userId: string | null) {
+    if (!userId) return null
+    
+    try {
+        const userData = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                currentStreak: true,
+                longestStreak: true,
+                lastGameDate: true
+            }
+        })
+
+        if (!userData) return null
+
+        return {
+            currentStreak: userData.currentStreak || 0,
+            longestStreak: userData.longestStreak || 0,
+            lastGameDate: userData.lastGameDate?.toISOString() || null
+        }
+    } catch (error) {
+        console.error('Error fetching streak data:', error)
+        return null
+    }
+}
+
+async function getDailyChallengeStats(userId: string | null) {
+    if (!userId) return null
+    
+    try {
+        const userChallenges = await prisma.userDailyChallenge.findMany({
+            where: { userId },
+            include: {
+                challenge: {
+                    include: {
+                        question: {
+                            include: {
+                                category: true
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: {
+                challenge: {
+                    date: 'desc'
+                }
+            }
+        })
+
+        const totalCompleted = userChallenges.length
+        const totalCorrect = userChallenges.filter(uc => uc.correct).length
+        const accuracy = totalCompleted > 0 ? Math.round((totalCorrect / totalCompleted) * 100) : 0
+
+        // Compute participation streaks
+        let currentParticipationStreak = 0
+        let longestParticipationStreak = 0
+        let tempParticipationStreak = 0
+        let lastParticipationDate: Date | null = null
+
+        const sortedChallenges = [...userChallenges].sort((a, b) => {
+            const dateA = new Date(a.challenge.date)
+            const dateB = new Date(b.challenge.date)
+            return dateA.getTime() - dateB.getTime()
+        })
+
+        for (const userChallenge of sortedChallenges) {
+            const challengeDate = new Date(userChallenge.challenge.date)
+            challengeDate.setHours(0, 0, 0, 0)
+
+            if (lastParticipationDate === null) {
+                tempParticipationStreak = 1
+                currentParticipationStreak = 1
+            } else {
+                const lastDate = new Date(lastParticipationDate)
+                lastDate.setHours(0, 0, 0, 0)
+                const daysDiff = Math.floor((challengeDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+
+                if (daysDiff === 1) {
+                    tempParticipationStreak++
+                } else {
+                    tempParticipationStreak = 1
+                }
+            }
+
+            if (userChallenge === sortedChallenges[sortedChallenges.length - 1]) {
+                currentParticipationStreak = tempParticipationStreak
+            }
+
+            if (tempParticipationStreak > longestParticipationStreak) {
+                longestParticipationStreak = tempParticipationStreak
+            }
+
+            lastParticipationDate = challengeDate
+        }
+
+        return {
+            participationStreak: {
+                current: currentParticipationStreak,
+                longest: longestParticipationStreak
+            },
+            correctnessStreak: {
+                current: 0,
+                longest: 0
+            },
+            totalCompleted,
+            totalCorrect,
+            accuracy
+        }
+    } catch (error) {
+        console.error('Error fetching daily challenge stats:', error)
+        return null
+    }
+}
+
 export default async function Home() {
     // Fetch user on the server - no flash, immediate render
     const user = await getAppUser()
     
-    // Fetch daily challenge on the server
-    const dailyChallenge = await getDailyChallenge(user?.id || null)
+    // Fetch all data server-side to avoid client-side waterfall
+    const [dailyChallenge, streakData, dailyChallengeStats] = await Promise.all([
+        getDailyChallenge(user?.id || null),
+        getStreakData(user?.id || null),
+        getDailyChallengeStats(user?.id || null)
+    ])
 
     return (
         <>
@@ -130,9 +250,12 @@ export default async function Home() {
                         </div>
                     </div>
 
+                    {/* Streak Widget - Only show for authenticated users */}
+                    {user && streakData && <StreakWidget streakData={streakData} />}
+
                     {/* Daily Challenge Card */}
                     <div className="mt-8 max-w-4xl mx-auto">
-                        <DailyChallengeCard challenge={dailyChallenge} />
+                        <DailyChallengeCardClient challenge={dailyChallenge} stats={dailyChallengeStats} />
                     </div>
 
                     {/* Mode Cards */}

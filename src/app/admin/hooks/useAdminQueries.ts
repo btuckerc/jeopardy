@@ -1,6 +1,7 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import type { AdminGame, AdminDispute, AdminIssue, AdminUser, DailyChallengeEntry, UserDailyChallengeEntry, AdminAchievement, CronExecution } from '@/types/admin'
 
 // Query keys for cache management
 export const adminQueryKeys = {
@@ -184,20 +185,22 @@ export function useGuestConfig() {
 }
 
 // Disputes stats hook (for badge counts)
-export function useDisputesStats() {
+export function useDisputesStats(enabled: boolean = true) {
     return useQuery({
         queryKey: ['admin', 'disputes-stats'],
         queryFn: () => fetchAdmin<{ pendingCount: number }>('/api/admin/disputes/stats'),
+        enabled,
         staleTime: 30 * 1000,
         refetchInterval: 60 * 1000,
     })
 }
 
 // Issues stats hook (for badge counts)
-export function useIssuesStats() {
+export function useIssuesStats(enabled: boolean = true) {
     return useQuery({
         queryKey: ['admin', 'issues-stats'],
         queryFn: () => fetchAdmin<{ openCount: number }>('/api/admin/issues/stats'),
+        enabled,
         staleTime: 30 * 1000,
         refetchInterval: 60 * 1000,
     })
@@ -580,34 +583,25 @@ interface UserDebugResponse {
         achievementsUnlocked: number
     }
     recentActivity: {
-        games: any[]
-        gameHistory: any[]
-        dailyChallenges: any[]
-        achievements: any[]
-        disputes: any[]
-        issueReports: any[]
-        claimedGuestSessions: any[]
+        games: AdminGame[]
+        gameHistory: Array<{ id: string; questionId: string; correct: boolean; timestamp: string; points: number }>
+        dailyChallenges: UserDailyChallengeEntry[]
+        achievements: AdminAchievement[]
+        disputes: AdminDispute[]
+        issueReports: AdminIssue[]
+        claimedGuestSessions: Array<{ id: string; [key: string]: unknown }>
     }
 }
 
 interface UsersResponse {
-    users: Array<{
-        id: string
-        email: string | null
-        name: string | null
-        displayName: string | null
-        createdAt: string
-        lastOnlineAt: string | null
-        lastSeenPath: string | null
-        games: any[]
-    }>
+    users: Array<AdminUser & { games: AdminGame[] }>
     totalCount: number
     limit: number
     offset: number
 }
 
 interface DisputesResponse {
-    disputes: any[]
+    disputes: AdminDispute[]
     pagination: {
         page: number
         pageSize: number
@@ -617,7 +611,7 @@ interface DisputesResponse {
 }
 
 interface IssuesResponse {
-    issues: any[]
+    issues: AdminIssue[]
     pagination: {
         page: number
         pageSize: number
@@ -644,10 +638,10 @@ interface GuestConfigResponse {
 }
 
 interface CronJobsResponse {
-    executions: any[]
+    executions: CronExecution[]
     stats: Record<string, number>
-    latestExecutions: Record<string, any>
-    jobs: Record<string, any>
+    latestExecutions: Record<string, CronExecution | null>
+    jobs: Record<string, { name: string; description: string; schedule: string; endpoint?: string }>
 }
 
 interface CalendarStatsResponse {

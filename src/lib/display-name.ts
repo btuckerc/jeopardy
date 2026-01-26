@@ -1,6 +1,12 @@
 // Profanity filter using bad-words library with robust fallback
 let profanityFilter: { isProfane: (text: string) => boolean } | null = null
 let filterInitialized = false
+let badwordsListModule: { array?: string[] } | null = null
+
+// Initialize badwords-list module asynchronously at module load
+const _badwordsListPromise = import('badwords-list')
+    .then(module => { badwordsListModule = module })
+    .catch(() => { /* Module not available, will use pattern-based fallback */ })
 
 /**
  * Pattern-based profanity detection fallback
@@ -58,18 +64,12 @@ function getProfanityFilter(): { isProfane: (text: string) => boolean } {
     
     filterInitialized = true
     
-    // Try to use badwords-list directly (more reliable than bad-words library)
+    // Use badwords-list if it was loaded successfully (loaded at module initialization)
     let wordList: string[] | null = null
     
-    try {
-        const badwordsList = require('badwords-list')
-        // badwords-list exports an object with an 'array' property containing the word list
-        if (badwordsList && badwordsList.array && Array.isArray(badwordsList.array) && badwordsList.array.length > 0) {
-            wordList = badwordsList.array.map((word: string) => word.toLowerCase().trim()).filter((word: string) => word.length > 0)
-        }
-    } catch (e) {
-        // badwords-list not available, will use pattern-based only
-        console.error('badwords-list unavailable:', e)
+    // badwords-list exports an object with an 'array' property containing the word list
+    if (badwordsListModule && badwordsListModule.array && Array.isArray(badwordsListModule.array) && badwordsListModule.array.length > 0) {
+        wordList = badwordsListModule.array.map((word: string) => word.toLowerCase().trim()).filter((word: string) => word.length > 0)
     }
     
     // Create filter that uses word list if available, with pattern-based backup

@@ -200,6 +200,15 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                                 </svg>
                                 Daily Challenge
                             </Link>
+                            <Link
+                                href="/stats"
+                                className="flex items-center px-2 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out whitespace-nowrap"
+                            >
+                                <svg className="h-5 w-5 mr-1.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                </svg>
+                                Stats
+                            </Link>
                         </div>
                     </div>
 
@@ -216,7 +225,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                 <div className="py-3 space-y-0.5">
                     <Link
                         href="/game"
-                        className="text-white hover:bg-blue-700 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
+                        className="text-white hover:bg-blue-700 focus:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-800 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
                         <div className="flex items-center">
@@ -229,7 +238,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                     </Link>
                     <Link
                         href="/practice"
-                        className="text-white hover:bg-blue-700 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
+                        className="text-white hover:bg-blue-700 focus:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-800 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
                         <div className="flex items-center">
@@ -241,7 +250,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                     </Link>
                     <Link
                         href="/daily-challenge"
-                        className="text-white hover:bg-blue-700 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
+                        className="text-white hover:bg-blue-700 focus:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-800 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
                         <div className="flex items-center">
@@ -253,7 +262,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                     </Link>
                     <Link
                         href="/stats"
-                        className="text-white hover:bg-blue-700 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
+                        className="text-white hover:bg-blue-700 focus:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-800 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
                         <div className="flex items-center">
@@ -265,7 +274,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                     </Link>
                     <Link
                         href="/leaderboard"
-                        className="text-white hover:bg-blue-700 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
+                        className="text-white hover:bg-blue-700 focus:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-800 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
                         onClick={() => setIsMobileMenuOpen(false)}
                     >
                         <div className="flex items-center">
@@ -283,7 +292,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                                     setShowDownloadModal(true)
                                     setIsMobileMenuOpen(false)
                                 }}
-                                className="text-white hover:bg-blue-700 block w-full text-left px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
+                                className="text-white hover:bg-blue-700 focus:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-800 block w-full text-left px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
                             >
                                 <div className="flex items-center">
                                     <svg className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">

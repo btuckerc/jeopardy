@@ -4,8 +4,7 @@ import {
     jsonResponse,
     serverErrorResponse,
     requireAuth,
-    parseSearchParams,
-    paginationSchema
+    parseSearchParams
 } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { NextRequest } from 'next/server'
@@ -18,7 +17,7 @@ export const revalidate = 300
 
 // Request validation schema
 const leaderboardParamsSchema = z.object({
-    limit: z.string().optional().transform(v => v ? Math.min(parseInt(v, 10), 100) : 10)
+    limit: z.coerce.number().min(1).max(100).default(10)
 })
 
 interface LeaderboardEntry {

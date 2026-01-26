@@ -1,5 +1,26 @@
 import { getAppUser } from '@/lib/clerk-auth'
 import HelpClient from './HelpClient'
+import { Metadata } from 'next'
+
+export const metadata: Metadata = {
+    title: 'Help & Feedback | trivrdy',
+    description: 'Get help with trivrdy, report bugs, request features, or ask questions. We\'re here to help improve your Jeopardy study experience.',
+    keywords: 'trivrdy help, jeopardy study help, trivia app support, report bug, feature request, trivrdy feedback',
+    openGraph: {
+        title: 'Help & Feedback | trivrdy',
+        description: 'Get help with trivrdy, report bugs, request features, or ask questions.',
+        url: 'https://trivrdy.com/help',
+        type: 'website',
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: 'Help & Feedback | trivrdy',
+        description: 'Get help with trivrdy, report bugs, request features, or ask questions.',
+    },
+    alternates: {
+        canonical: 'https://trivrdy.com/help',
+    },
+}
 
 export const dynamic = 'force-dynamic'
 

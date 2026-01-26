@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import UserAvatar from '@/components/UserAvatar';
+import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt';
 import type { AppUser } from '@/lib/clerk-auth';
 
 interface LeaderboardEntry {
@@ -34,6 +35,8 @@ async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 
 export default function LeaderboardClient({ user, initialLeaderboard }: LeaderboardClientProps) {
     const [showBackToTop, setShowBackToTop] = useState(false);
+    const [achievementBadges, setAchievementBadges] = useState<Record<string, string[]>>({});
+    const [previousRank, setPreviousRank] = useState<number | null>(null);
     const queryClient = useQueryClient();
 
     // Use React Query with stale-while-revalidate pattern
@@ -80,6 +83,55 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
     const currentUserEntry = leaderboard.find(e => e.id === user.id);
     const currentUserRank = currentUserEntry ? leaderboard.findIndex(e => e.id === user.id) + 1 : null;
 
+    // Load previous rank from localStorage
+    useEffect(() => {
+        const stored = localStorage.getItem('trivrdy_previousRank');
+        if (stored && currentUserRank) {
+            const prev = parseInt(stored, 10);
+            if (!isNaN(prev) && prev !== currentUserRank) {
+                setPreviousRank(prev);
+                // Update stored rank
+                localStorage.setItem('trivrdy_previousRank', currentUserRank.toString());
+            } else if (!stored || isNaN(prev)) {
+                // First time or invalid, store current rank
+                localStorage.setItem('trivrdy_previousRank', currentUserRank.toString());
+            }
+        } else if (currentUserRank) {
+            localStorage.setItem('trivrdy_previousRank', currentUserRank.toString());
+        }
+    }, [currentUserRank]);
+
+    // Fetch achievement badges for leaderboard users
+    useEffect(() => {
+        if (leaderboard.length === 0) return;
+        
+        const userIds = leaderboard.slice(0, 50).map(e => e.id).join(',');
+        fetch(`/api/leaderboard/achievements?userIds=${userIds}`)
+            .then(res => res.json())
+            .then(data => {
+                setAchievementBadges(data);
+            })
+            .catch(() => {
+                // Silently fail - achievements are optional
+            });
+    }, [leaderboard]);
+
+    // Calculate distance to next rank for current user
+    const distanceToNextRank = currentUserEntry && currentUserRank && currentUserRank > 1
+        ? (() => {
+            const nextRankEntry = leaderboard[currentUserRank - 2]; // -2 because rank is 1-indexed
+            if (nextRankEntry) {
+                return nextRankEntry.totalPoints - currentUserEntry.totalPoints;
+            }
+            return null;
+        })()
+        : null;
+
+    // Calculate rank change
+    const rankChange = previousRank && currentUserRank
+        ? previousRank - currentUserRank // Positive = moved up, negative = moved down
+        : null;
+
     const scrollToUserRow = () => {
         if (currentUserEntry && currentUserRank) {
             // Choose the correct element based on viewport width (md breakpoint = 768px)
@@ -101,6 +153,11 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
 
     return (
         <div className="container mx-auto px-3 py-5 md:px-4 md:py-8">
+            {/* Profile Customization Prompt - Show if user hasn't customized */}
+            {user && (!user.displayName || !user.selectedIcon) && (
+                <ProfileCustomizationPrompt trigger="leaderboard" />
+            )}
+
             {/* Rich Page Header */}
             <div className="page-header mb-5 md:mb-8">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-6">
@@ -140,6 +197,30 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
                                         ? Math.round((currentUserEntry.correctAnswers / currentUserEntry.totalAnswered) * 100)
                                         : 0}%
                                 </span></div>
+                                {rankChange !== null && rankChange !== 0 && (
+                                    <div className={`flex items-center gap-1 ${rankChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                        {rankChange > 0 ? (
+                                            <>
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7 7v-18" />
+                                                </svg>
+                                                <span>Moved up {rankChange} spot{rankChange !== 1 ? 's' : ''}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                                </svg>
+                                                <span>Moved down {Math.abs(rankChange)} spot{Math.abs(rankChange) !== 1 ? 's' : ''}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                                {distanceToNextRank !== null && distanceToNextRank > 0 && (
+                                    <div className="text-xs text-gray-500">
+                                        ${distanceToNextRank.toLocaleString()} away from #{currentUserRank! - 1}
+                                    </div>
+                                )}
                             </div>
                         </button>
                     ) : (
@@ -217,7 +298,7 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
                                 <span className="text-base font-bold text-gray-900">${entry.totalPoints.toLocaleString()}</span>
                             </div>
 
-                            {/* Middle row: avatar + name */}
+                            {/* Middle row: avatar + name + achievements */}
                             <div className="flex items-center gap-3 mb-2">
                                 <UserAvatar
                                     email=""
@@ -226,10 +307,19 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
                                     avatarBackground={entry.avatarBackground}
                                     size="sm"
                                 />
-                                <div className="flex items-center gap-2 min-w-0">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
                                     <span className={`truncate text-sm font-medium ${isCurrentUser ? 'text-blue-900 font-bold' : 'text-gray-900'}`}>
                                         {entry.displayName}
                                     </span>
+                                    {achievementBadges[entry.id] && achievementBadges[entry.id].length > 0 && (
+                                        <div className="flex items-center gap-1 flex-shrink-0">
+                                            {achievementBadges[entry.id].slice(0, 3).map((icon, idx) => (
+                                                <span key={idx} className="text-sm" title="Achievement badge">
+                                                    {icon}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                     {isCurrentUser && (
                                         <span className="flex-shrink-0 px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-semibold rounded-full">
                                             You
@@ -355,12 +445,21 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
                                                             size="md"
                                                         />
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <div className={`text-sm font-medium ${isCurrentUser ? 'text-blue-900 font-bold' : 'text-gray-900'}`}>
+                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                        <div className={`text-sm font-medium truncate ${isCurrentUser ? 'text-blue-900 font-bold' : 'text-gray-900'}`}>
                                                             {entry.displayName}
                                                         </div>
+                                                        {achievementBadges[entry.id] && achievementBadges[entry.id].length > 0 && (
+                                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                                {achievementBadges[entry.id].slice(0, 3).map((icon, idx) => (
+                                                                    <span key={idx} className="text-sm" title="Achievement badge">
+                                                                        {icon}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                         {isCurrentUser && (
-                                                            <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full">
+                                                            <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full flex-shrink-0">
                                                                 You
                                                             </span>
                                                         )}

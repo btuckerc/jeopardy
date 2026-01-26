@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import { MetricCard, MetricGrid } from '../MetricCard'
-import { TimeSeriesChart, HorizontalBarChart, StackedAreaChart } from '../Charts'
-import { DataTable, StatusBadge, getStatusVariant } from '../DataTable'
+import { TimeSeriesChart } from '../Charts'
+import { DataTable } from '../DataTable'
 import { useApiMetrics, useDbMetrics } from '../../hooks/useAdminQueries'
 
 type TimeWindow = '1h' | '24h' | '7d' | '30d'

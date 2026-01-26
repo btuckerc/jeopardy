@@ -62,7 +62,7 @@ export function ActivityTracker() {
         if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
             timeoutRef.current = setTimeout(() => {
                 requestIdleCallback(trackActivity, { timeout: 2000 })
-            }, 100) as any
+            }, 100) as NodeJS.Timeout
         } else {
             timeoutRef.current = setTimeout(trackActivity, 500)
         }

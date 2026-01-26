@@ -3,6 +3,13 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/app/lib/auth'
 
+interface AchievementProgress {
+    current: number
+    target: number
+    percent: number
+    displayText: string
+}
+
 interface Achievement {
     id: string
     code: string
@@ -14,6 +21,7 @@ interface Achievement {
     isHidden: boolean
     unlocked: boolean
     unlockedAt: string | null
+    progress?: AchievementProgress
 }
 
 interface Props {
@@ -263,9 +271,25 @@ export default function AchievementsModal({ isOpen, onClose }: Props) {
                                                             </div>
                                                         )}
                                                         {!achievement.unlocked && !achievement.isHidden && (
-                                                            <div className="text-xs text-gray-400 mt-1 line-clamp-2">
-                                                                {achievement.description}
-                                                            </div>
+                                                            <>
+                                                                <div className="text-xs text-gray-400 mt-1 line-clamp-2">
+                                                                    {achievement.description}
+                                                                </div>
+                                                                {achievement.progress && (
+                                                                    <div className="mt-2 space-y-1">
+                                                                        <div className="flex justify-between text-xs text-gray-600">
+                                                                            <span>{achievement.progress.displayText}</span>
+                                                                            <span>{Math.round(achievement.progress.percent)}%</span>
+                                                                        </div>
+                                                                        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                                                            <div 
+                                                                                className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                                                                                style={{ width: `${achievement.progress.percent}%` }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </>
                                                         )}
                                                         {!achievement.unlocked && achievement.isHidden && (
                                                             <div className="text-xs text-gray-400 mt-1 italic">

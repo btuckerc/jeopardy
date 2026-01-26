@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/app/lib/auth'
-import { checkAnswer } from '@/app/lib/answer-checker'
 import Link from 'next/link'
 
 interface GuestGameState {
@@ -13,7 +12,7 @@ interface GuestGameState {
     status: string
     currentRound: string
     currentScore: number
-    config: any
+    config: Record<string, unknown>
     answeredCount: number
     limitReached: boolean
     requiresAuth: boolean
@@ -27,7 +26,7 @@ export default function GuestGamePage() {
     const { user, signIn, loading: authLoading } = useAuth()
     const [gameState, setGameState] = useState<GuestGameState | null>(null)
     const [loading, setLoading] = useState(true)
-    const [question, setQuestion] = useState<any>(null)
+    const [question, setQuestion] = useState<{ id: string; question: string; answer: string; value: number; categoryId: string; category: { id: string; name: string } } | null>(null)
     const [userAnswer, setUserAnswer] = useState('')
     const [showResult, setShowResult] = useState(false)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
@@ -238,7 +237,7 @@ export default function GuestGamePage() {
                     <div className="card p-8 mb-8">
                         <div className="mb-6">
                             <span className="inline-block px-4 py-2 bg-purple-100 text-purple-800 rounded-full text-sm font-medium mb-4">
-                                {question.originalCategory}
+                                {question.category.name}
                             </span>
                             <p className="text-sm text-gray-500">
                                 Value: ${question.value.toLocaleString()}

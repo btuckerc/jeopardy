@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     instrumentationHook: true,
   },
   // Enable file watching in Docker for hot-reload
-  webpackDevMiddleware: (config: any) => {
+  webpackDevMiddleware: (config: { watchOptions?: { poll?: number; aggregateTimeout?: number } }) => {
     config.watchOptions = {
       poll: 1000, // Check for changes every second
       aggregateTimeout: 300, // Delay before reloading

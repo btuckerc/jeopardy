@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, serverErrorResponse } from '@/lib/api-utils'
@@ -38,30 +39,32 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             return notFoundResponse('No game found with this seed')
         }
 
-        const config = originalGame.config as any
+        const config = originalGame.config as Record<string, unknown> | null
 
         // Generate a human-readable label for the game
         let label = 'Game'
         if (config?.mode === 'random') {
             label = 'Random Categories'
         } else if (config?.mode === 'knowledge') {
-            const areas = config.categories || []
+            const areas = (config.categories as string[] | undefined) || []
             if (areas.length === 1) {
                 label = areas[0].replace(/_/g, ' ')
             } else if (areas.length > 1) {
                 label = `${areas.length} Knowledge Areas`
             }
         } else if (config?.mode === 'custom') {
-            const catCount = config.categoryIds?.length || 0
+            const catIds = config.categoryIds as string[] | undefined
+            const catCount = catIds?.length || 0
             label = `Custom (${catCount} categories)`
         } else if (config?.mode === 'date' && config.date) {
-            const [year, month, day] = config.date.split('-').map(Number)
+            const dateStr = config.date as string
+            const [year, month, day] = dateStr.split('-').map(Number)
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
             label = `Episode: ${months[month - 1]} ${day}, ${year}`
         }
 
         // Determine rounds info
-        const rounds = config?.rounds || { single: true, double: true, final: false }
+        const rounds = (config?.rounds as { single?: boolean; double?: boolean; final?: boolean } | undefined) || { single: true, double: true, final: false }
         const roundsList: string[] = []
         if (rounds.single) roundsList.push('Single Jeopardy')
         if (rounds.double) roundsList.push('Double Jeopardy')
@@ -107,10 +110,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             return notFoundResponse('No game found with this seed')
         }
 
-        const config = originalGame.config as any
+        const config = originalGame.config as Record<string, unknown> | null
 
         // Determine starting round
-        const rounds = config?.rounds || { single: true, double: true, final: false }
+        const rounds = (config?.rounds as { single?: boolean; double?: boolean; final?: boolean } | undefined) || { single: true, double: true, final: false }
         const startingRound = rounds.single ? 'SINGLE' : rounds.double ? 'DOUBLE' : 'SINGLE'
 
         // Generate a new seed for this player's game
@@ -126,19 +129,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const userPolicy = await computeUserEffectiveCutoff(appUser.id)
         const spoilerProtection = toStoredPolicy(userPolicy)
 
+        // Build JSON-safe game configuration to store
+        const gameConfigToStore = {
+            ...config,
+            // Store reference to original seed for tracking
+            originalSeed: seed,
+            // Use the joining user's spoiler protection policy
+            // This replaces any spoilerProtection from the original game
+            spoilerProtection
+        } as unknown as Prisma.InputJsonValue
+
         // Create a new game with the same config but the new user's spoiler policy
         const newGame = await prisma.game.create({
             data: {
                 userId: appUser.id,
                 seed: newSeed,
-                config: {
-                    ...config,
-                    // Store reference to original seed for tracking
-                    originalSeed: seed,
-                    // Use the joining user's spoiler protection policy
-                    // This replaces any spoilerProtection from the original game
-                    spoilerProtection
-                },
+                config: gameConfigToStore,
                 status: 'IN_PROGRESS',
                 currentRound: startingRound,
                 currentScore: 0,

@@ -133,22 +133,37 @@ function QuestionCard({ question, onClick, spoilerDate }: {
     );
 }
 
-// Helper to transform questions
-const transformQuestions = (questions: any[]): Question[] => {
+// Helper to transform questions - handles both raw API data (strings) and server action data (Dates)
+const transformQuestions = (questions: Array<{ 
+    id: string; 
+    question: string; 
+    answer: string; 
+    value?: number; 
+    categoryId?: string; 
+    categoryName?: string; 
+    originalCategory?: string; 
+    airDate?: string | Date | null; 
+    gameHistory?: Array<{ timestamp: string | Date; correct: boolean }>; 
+    incorrectAttempts?: Array<string | Date>; 
+    answered?: boolean; 
+    correct?: boolean; 
+    isLocked?: boolean; 
+    hasIncorrectAttempts?: boolean 
+}>): Question[] => {
     return questions.map(q => ({
         id: q.id,
         question: q.question,
         answer: q.answer,
         value: q.value || 200,
-        categoryId: q.categoryId,
-        categoryName: q.categoryName,
-        originalCategory: q.originalCategory || q.categoryName,
-        airDate: q.airDate ? new Date(q.airDate) : null,
-        gameHistory: (q.gameHistory || []).map((h: any) => ({
-            timestamp: new Date(h.timestamp),
+        categoryId: q.categoryId || '',
+        categoryName: q.categoryName || '',
+        originalCategory: q.originalCategory || q.categoryName || '',
+        airDate: q.airDate ? (q.airDate instanceof Date ? q.airDate : new Date(q.airDate)) : null,
+        gameHistory: (q.gameHistory || []).map((h) => ({
+            timestamp: h.timestamp instanceof Date ? h.timestamp : new Date(h.timestamp),
             correct: h.correct
         })),
-        incorrectAttempts: (q.incorrectAttempts || []).map((t: any) => new Date(t)),
+        incorrectAttempts: (q.incorrectAttempts || []).map((t) => t instanceof Date ? t : new Date(t)),
         answered: q.answered || false,
         correct: q.correct || false,
         isLocked: q.isLocked || false,
@@ -402,7 +417,7 @@ function TripleStumpersContent() {
         if (!loading) {
             restoreStateFromUrl()
         }
-    }, [searchParams, loading, user?.id, selectedCategory, selectedQuestion?.id, questions])
+    }, [searchParams, loading, user?.id, selectedCategory, selectedQuestion?.id, questions, updateUrlParams])
 
     // Load more categories for infinite scroll
     const loadMoreCategories = useCallback(async () => {
@@ -522,7 +537,7 @@ function TripleStumpersContent() {
                 console.error('Error refreshing categories:', error)
             }
         }
-    }, [updateUrlParams, user?.id, sortBy])
+    }, [updateUrlParams, user?.id, sortBy, sortDirection])
 
     const handleAnswerSubmit = async () => {
         if (!selectedQuestion?.answer || !userAnswer) return

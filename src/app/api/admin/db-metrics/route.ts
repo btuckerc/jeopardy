@@ -1,6 +1,7 @@
 import { jsonResponse, serverErrorResponse, requireAdmin, parseSearchParams } from '@/lib/api-utils'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,10 +36,6 @@ export async function GET(request: Request) {
                 startTime = new Date(now.getTime() - 60 * 60 * 1000)
                 bucketMs = 5 * 60 * 1000 // 5-minute buckets
                 break
-            case '24h':
-                startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-                bucketMs = 60 * 60 * 1000 // 1-hour buckets
-                break
             case '7d':
                 startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
                 bucketMs = 24 * 60 * 60 * 1000 // 1-day buckets
@@ -47,10 +44,15 @@ export async function GET(request: Request) {
                 startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
                 bucketMs = 24 * 60 * 60 * 1000 // 1-day buckets
                 break
+            case '24h':
+            default:
+                startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+                bucketMs = 60 * 60 * 1000 // 1-hour buckets
+                break
         }
 
         // Build where clause
-        const where: any = {
+        const where: Prisma.DbQueryEventWhereInput = {
             timestamp: { gte: startTime, lte: now },
         }
         if (model) {

@@ -115,8 +115,9 @@ async function fixDuplicates(duplicates: DuplicateInfo[], dryRun: boolean = true
                         failed++
                     }
                 }
-            } catch (error: any) {
-                console.error(`    ✗ Error reassigning challenge ${challengeId}:`, error.message)
+            } catch (error) {
+                const errorMessage = error instanceof Error ? error.message : String(error)
+                console.error(`    ✗ Error reassigning challenge ${challengeId}:`, errorMessage)
                 failed++
             }
         }

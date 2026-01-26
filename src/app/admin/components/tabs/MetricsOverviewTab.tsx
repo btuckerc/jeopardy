@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { MetricCard, MetricGrid } from '../MetricCard'
-import { TimeSeriesChart, StackedAreaChart, DonutChart } from '../Charts'
+import { TimeSeriesChart, StackedAreaChart } from '../Charts'
 import { DataTable, StatusBadge, getStatusVariant } from '../DataTable'
 import { useUsageMetrics, useOpsMetrics, useGuestStats } from '../../hooks/useAdminQueries'
 

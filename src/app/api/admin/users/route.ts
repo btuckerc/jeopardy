@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/clerk-auth'
-import { jsonResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
+import { jsonResponse, serverErrorResponse } from '@/lib/api-utils'
+import { Prisma } from '@prisma/client'
 
 /**
  * GET /api/admin/users
@@ -19,11 +20,11 @@ export async function GET(request: Request) {
         const sortOrder = searchParams.get('sortOrder') || 'desc'
 
         // Validate sortBy and sortOrder
-        const validSortBy = ['lastOnlineAt', 'createdAt'].includes(sortBy) ? sortBy : 'lastOnlineAt'
-        const validSortOrder = ['asc', 'desc'].includes(sortOrder) ? sortOrder : 'desc'
+        const validSortBy = ['lastOnlineAt', 'createdAt'].includes(sortBy) ? sortBy as 'lastOnlineAt' | 'createdAt' : 'lastOnlineAt' as const
+        const validSortOrder = ['asc', 'desc'].includes(sortOrder) ? sortOrder as Prisma.SortOrder : 'desc' as const
 
         // Build where clause
-        const where: any = {}
+        const where: Prisma.UserWhereInput = {}
         
         if (search) {
             where.OR = [
@@ -34,8 +35,7 @@ export async function GET(request: Request) {
         }
 
         // Build orderBy clause
-        const orderBy: any = {}
-        orderBy[validSortBy] = validSortOrder
+        const orderBy: Prisma.UserOrderByWithRelationInput = { [validSortBy]: validSortOrder }
 
         // Fetch users with their in-progress games
         const [users, totalCount] = await Promise.all([

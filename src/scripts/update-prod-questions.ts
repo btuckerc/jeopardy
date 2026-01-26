@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import path from 'path'
 import crypto from 'crypto'

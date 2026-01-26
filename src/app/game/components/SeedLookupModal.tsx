@@ -22,7 +22,7 @@ export default function SeedLookupModal({
     isOpen,
     result,
     error,
-    isLoading,
+    isLoading: _isLoading,
     isStarting,
     onClose,
     onStart

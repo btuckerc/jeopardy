@@ -1,6 +1,6 @@
 export default function DailyChallengeLoading() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-amber-900 via-amber-800 to-orange-900 p-4 md:p-8">
+        <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen -mt-6 min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
             <div className="max-w-4xl mx-auto">
                 {/* Header */}
                 <div className="text-center mb-8">

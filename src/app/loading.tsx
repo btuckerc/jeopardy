@@ -1,27 +1,33 @@
 export default function HomeLoading() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-4 md:p-8">
-            <div className="max-w-6xl mx-auto">
+        <div className="relative overflow-hidden">
+            {/* Background gradient - matches page.tsx */}
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-white to-amber-50 -z-10" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100/40 via-transparent to-transparent -z-10" />
+            
+            <div className="container mx-auto pt-8 pb-12 sm:pt-8 sm:pb-16">
                 {/* Header skeleton */}
-                <div className="text-center mb-8 md:mb-12">
-                    <div className="h-12 w-64 mx-auto bg-white/10 rounded animate-pulse mb-4"></div>
-                    <div className="h-6 w-96 max-w-full mx-auto bg-white/10 rounded animate-pulse"></div>
+                <div className="text-center max-w-4xl mx-auto mb-8 md:mb-12">
+                    <div className="h-12 w-64 mx-auto bg-gray-200 rounded animate-pulse mb-4"></div>
+                    <div className="h-6 w-96 max-w-full mx-auto bg-gray-200 rounded animate-pulse"></div>
                 </div>
                 
                 {/* Stats cards skeleton */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                    {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 animate-pulse">
-                            <div className="h-8 w-16 bg-white/20 rounded mb-2"></div>
-                            <div className="h-4 w-24 bg-white/10 rounded"></div>
-                        </div>
+                <div className="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-3 max-w-md mx-auto mb-8">
+                    {[1, 2, 3].map((i) => (
+                        <div key={i} className="h-6 w-32 bg-gray-200 rounded animate-pulse"></div>
                     ))}
                 </div>
                 
+                {/* Daily Challenge Card skeleton */}
+                <div className="mt-8 max-w-4xl mx-auto mb-8">
+                    <div className="h-64 bg-gray-200 rounded-2xl animate-pulse"></div>
+                </div>
+                
                 {/* Main action buttons skeleton */}
-                <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-                    <div className="h-24 bg-white/10 backdrop-blur-sm rounded-xl animate-pulse"></div>
-                    <div className="h-24 bg-white/10 backdrop-blur-sm rounded-xl animate-pulse"></div>
+                <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 max-w-4xl mx-auto">
+                    <div className="h-64 bg-gray-200 rounded-2xl animate-pulse"></div>
+                    <div className="h-64 bg-gray-200 rounded-2xl animate-pulse"></div>
                 </div>
             </div>
         </div>

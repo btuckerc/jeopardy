@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { format, subWeeks } from 'date-fns';
+import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import UserAvatar, { AVATAR_BACKGROUNDS, AvatarBackgroundKey } from './UserAvatar'
-import { CATEGORIZED_EMOJIS, getEmojisByCategory, type EmojiCategory } from '@/lib/avatar'
+import { getEmojisByCategory, type EmojiCategory } from '@/lib/avatar'
 
 interface SpoilerSettings {
     spoilerBlockDate: Date | null;
@@ -17,7 +17,7 @@ interface Props {
     onDisplayNameUpdate: (newDisplayName: string) => void;
     onIconUpdate: (newIcon: string | null) => void;
     onAvatarBackgroundUpdate?: (newBackground: string | null) => void;
-    email?: string;
+    email?: string | null;
     displayName?: string | null;
     selectedIcon?: string | null;
     avatarBackground?: string | null;

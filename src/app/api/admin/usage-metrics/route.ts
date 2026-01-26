@@ -31,10 +31,6 @@ export async function GET(request: Request) {
         let bucketMs: number
         
         switch (window) {
-            case '24h':
-                startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-                bucketMs = bucket === 'hour' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000
-                break
             case '7d':
                 startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
                 bucketMs = bucket === 'hour' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000
@@ -46,6 +42,11 @@ export async function GET(request: Request) {
             case '30d':
                 startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
                 bucketMs = 24 * 60 * 60 * 1000 // Always use day buckets for 30d
+                break
+            case '24h':
+            default:
+                startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+                bucketMs = bucket === 'hour' ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000
                 break
         }
 
@@ -163,7 +164,7 @@ export async function GET(request: Request) {
         })
 
         // Get overall userbase metrics
-        const [totalUsers, activeUsers, newUsers] = await Promise.all([
+        const [totalUsers, activeUsers, _newUsers] = await Promise.all([
             prisma.user.count(),
             prisma.user.count({
                 where: {

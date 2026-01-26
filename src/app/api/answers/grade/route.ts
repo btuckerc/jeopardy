@@ -1,11 +1,10 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, notFoundResponse, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, unauthorizedResponse, notFoundResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
 import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
-import { getStatsPoints } from '@/lib/scoring'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import crypto from 'crypto'
 
@@ -51,7 +50,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
 
         // Get all overrides for this question
         const overrides = await getQuestionOverrides(questionId)
-        const overrideTexts = overrides.map(o => o.text)
+        const _overrideTexts = overrides.map(o => o.text)
 
         // Grade the answer using canonical answer + overrides
         const correct = isAnswerAcceptedWithOverrides(
@@ -196,7 +195,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
 
         // Check for achievements asynchronously (don't block the response)
         // This allows real-time achievement tracking for both game and study mode
-        checkAndUnlockAchievements(appUser.id, {
+        const achievementPromise = checkAndUnlockAchievements(appUser.id, {
             type: 'question_answered',
             data: {
                 questionId,
@@ -205,13 +204,18 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             }
         }).catch(error => {
             console.error('Error checking achievements after grading answer:', error)
+            return []
         })
+
+        // Wait for achievements to check (but don't block response)
+        const unlockedAchievements = await achievementPromise
 
         return jsonResponse({
             correct,
             storedPoints,
             canDispute,
-            disputeContext
+            disputeContext,
+            unlockedAchievements: unlockedAchievements.length > 0 ? unlockedAchievements : undefined
         })
     } catch (error) {
         console.error('Error grading answer:', error)

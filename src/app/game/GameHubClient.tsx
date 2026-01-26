@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import type { ClientResumableGame } from './components/GameResumableList'
+import type { GameConfig } from '@/types/game'
 
 // Dynamically import heavy components to reduce initial bundle size
 const CustomCategoryPicker = dynamic(
@@ -99,12 +100,12 @@ export default function GameHubClient({
     const [customCategories, setCustomCategories] = useState<Category[]>([])
     const [rounds, setRounds] = useState({ single: true, double: true, final: false })
     const [finalCategoryMode, setFinalCategoryMode] = useState<'shuffle' | 'byDate' | 'specificCategory'>('byDate')
-    const [finalCategoryId, setFinalCategoryId] = useState<string | null>(null)
+    const [finalCategoryId, _setFinalCategoryId] = useState<string | null>(null)
     const [isStartingGame, setIsStartingGame] = useState(false)
     
     // Warning modal state
     const [showWarningModal, setShowWarningModal] = useState(false)
-    const [pendingGameConfig, setPendingGameConfig] = useState<any>(null)
+    const [pendingGameConfig, setPendingGameConfig] = useState<GameConfig | null>(null)
     const [availableCategoriesForFill, setAvailableCategoriesForFill] = useState<Category[]>([])
     const [isLoadingFillCategories, setIsLoadingFillCategories] = useState(false)
 
@@ -134,7 +135,7 @@ export default function GameHubClient({
         }
     })
     const [showSpoilerWarningModal, setShowSpoilerWarningModal] = useState(false)
-    const [spoilerWarningConfig, setSpoilerWarningConfig] = useState<any>(null)
+    const [spoilerWarningConfig, setSpoilerWarningConfig] = useState<GameConfig | null>(null)
     const [spoilerWarningDate, setSpoilerWarningDate] = useState<string | null>(null)
     const [updatingSpoilerDate, setUpdatingSpoilerDate] = useState(false)
 
@@ -175,7 +176,7 @@ export default function GameHubClient({
     }, [selectedMode, finalCategoryMode])
 
 
-    const checkIfWarningNeeded = async (config: any, mode: string): Promise<boolean> => {
+    const checkIfWarningNeeded = async (config: GameConfig, mode: string): Promise<boolean> => {
         const selectedRounds = [rounds.single, rounds.double].filter(Boolean).length
         const needsFullBoards = selectedRounds > 0
 
@@ -224,7 +225,7 @@ export default function GameHubClient({
     }
 
     // Check if the game configuration would violate spoiler settings
-    const checkSpoilerConflict = (config: any): { hasConflict: boolean; conflictDate: string | null } => {
+    const checkSpoilerConflict = (config: GameConfig): { hasConflict: boolean; conflictDate: string | null } => {
         // If user doesn't have spoiler protection enabled, no conflict
         if (!spoilerSettings?.enabled || !spoilerSettings.cutoffDate) {
             return { hasConflict: false, conflictDate: null }
@@ -264,7 +265,7 @@ export default function GameHubClient({
             return
         }
 
-        let gameConfig: any
+        let gameConfig: GameConfig
 
         switch (selectedMode) {
             case 'random':
@@ -337,7 +338,7 @@ export default function GameHubClient({
         await createAndStartGame(gameConfig)
     }
 
-    const createAndStartGame = async (gameConfig: any) => {
+    const createAndStartGame = async (gameConfig: GameConfig) => {
         setIsStartingGame(true)
         try {
             // Create game on server
@@ -476,7 +477,7 @@ export default function GameHubClient({
         }
     }
 
-    const handleCopySeed = (seed: string) => {
+    const _handleCopySeed = (seed: string) => {
         navigator.clipboard.writeText(seed)
         // Could add a toast notification here
     }

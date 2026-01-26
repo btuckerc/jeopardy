@@ -1,11 +1,12 @@
 import { PrismaClient } from '@prisma/client'
 import { writeFileSync } from 'fs'
+import { spawn } from 'child_process'
 import path from 'path'
 import axios from 'axios'
 import { subDays, format } from 'date-fns'
 import * as cheerio from 'cheerio'
 
-const prisma = new PrismaClient()
+const _prisma = new PrismaClient() // Reserved for future use
 
 interface JeopardyQuestion {
     id: string
@@ -92,7 +93,6 @@ async function main() {
         console.log(`Saved ${questions.length} questions from yesterday's game`)
 
         // Run the update script
-        const { spawn } = require('child_process')
         const updateProcess = spawn('npx', [
             'ts-node',
             'src/scripts/update-prod-questions.ts'
