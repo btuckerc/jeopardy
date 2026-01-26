@@ -288,7 +288,7 @@ export async function logRequest(
         ? Math.round(performance.now() - options.startTime)
         : 0
 
-    if (!shouldLog(response.status, DEFAULT_CONFIG)) return
+    if (!shouldLog(response.status, durationMs, DEFAULT_CONFIG)) return
 
     await logApiRequestEvent({
         requestId: generateRequestId(),
