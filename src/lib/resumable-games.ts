@@ -100,10 +100,10 @@ function getRoundBadges(config: unknown): string[] {
 }
 
 /**
- * Server-side utility to fetch resumable games
+ * Server-side utility to fetch games by status
  * OPTIMIZED: Uses lighter queries to avoid loading full question/category data
  */
-export async function getResumableGames(): Promise<ResumableGame[]> {
+async function getGamesByStatus(status: 'IN_PROGRESS' | 'COMPLETED', limit?: number): Promise<ResumableGame[]> {
     const appUser = await getAppUser()
 
     if (!appUser) {
@@ -115,11 +115,12 @@ export async function getResumableGames(): Promise<ResumableGame[]> {
     const games = await prisma.game.findMany({
         where: {
             userId: appUser.id,
-            status: 'IN_PROGRESS'
+            status
         },
         orderBy: {
             updatedAt: 'desc'
         },
+        ...(limit ? { take: limit } : {}),
         select: {
             id: true,
             seed: true,
@@ -249,4 +250,19 @@ export async function getResumableGames(): Promise<ResumableGame[]> {
     })
 
     return resumableGames
+}
+
+/**
+ * Get in-progress games that can be resumed
+ */
+export async function getResumableGames(): Promise<ResumableGame[]> {
+    return getGamesByStatus('IN_PROGRESS')
+}
+
+/**
+ * Get completed games for review
+ * @param limit Optional limit on number of games to return (default: 10)
+ */
+export async function getCompletedGames(limit: number = 10): Promise<ResumableGame[]> {
+    return getGamesByStatus('COMPLETED', limit)
 }

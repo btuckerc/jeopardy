@@ -170,6 +170,43 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     } | null>(null)
     const [finalJeopardyDisputeSubmitted, setFinalJeopardyDisputeSubmitted] = useState(false)
     
+    // Question details state for answered questions (userAnswer, correct status, dispute status)
+    const [questionDetails, setQuestionDetails] = useState<Record<string, {
+        userAnswer: string | null
+        correct: boolean | null
+        disputeStatus: 'NONE' | 'PENDING' | 'APPROVED' | 'REJECTED' | null
+    }>>({})
+    const [revealMyAnswer, setRevealMyAnswer] = useState(false)
+    
+    // Completed game state - for review mode
+    const isCompletedGame = initialGameData?.status === 'COMPLETED'
+    // Track which answers have been revealed in review mode (collapsed by default)
+    const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({})
+    const toggleRevealAnswer = (questionId: string) => {
+        setRevealedAnswers(prev => ({ ...prev, [questionId]: !prev[questionId] }))
+    }
+    // Track correct/incorrect status for all questions (for coloring the board)
+    const [questionCorrectness, setQuestionCorrectness] = useState<Record<string, boolean | null>>(() => {
+        const correctness: Record<string, boolean | null> = {}
+        if (initialGameData?.questions) {
+            Object.values(initialGameData.questions).forEach((q) => {
+                if (q.answered) {
+                    correctness[q.questionId] = q.correct
+                }
+            })
+        }
+        return correctness
+    })
+    
+    // Cache for round categories in review mode - prevents reload flash when switching rounds
+    const [roundCategoriesCache, setRoundCategoriesCache] = useState<Record<string, Category[]>>({})
+    const [cachedFinalJeopardy, setCachedFinalJeopardy] = useState<{
+        id: string
+        question: string
+        answer: string
+        category: { id: string; name: string }
+    } | null>(null)
+    
     // Final Jeopardy state
     // Stage: 'category' (show category + wager), 'question' (show question + answer input), 'result' (show result)
     const [showFinalJeopardy, setShowFinalJeopardy] = useState(false)
@@ -332,6 +369,123 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             setLoading(false)
         }
     }, [score, saveGameState, gameId])
+
+    // Round type - represents any round in the game
+    type RoundType = 'SINGLE' | 'DOUBLE' | 'FINAL'
+    
+    // Check if a round is a board-based round (Single/Double) vs Final Jeopardy
+    const isBoardRound = (round: RoundType): round is 'SINGLE' | 'DOUBLE' => {
+        return round === 'SINGLE' || round === 'DOUBLE'
+    }
+    
+    // Get human-readable label for a round
+    const getRoundLabel = (round: RoundType): string => {
+        const labels: Record<RoundType, string> = {
+            'SINGLE': 'Single',
+            'DOUBLE': 'Double', 
+            'FINAL': 'Final'
+        }
+        return labels[round] || round
+    }
+
+    // Get available rounds based on game config - returns rounds in order
+    const getAvailableRounds = useCallback((): RoundType[] => {
+        if (!gameConfig?.rounds) return ['SINGLE']
+        const rounds: RoundType[] = []
+        if (gameConfig.rounds.single) rounds.push('SINGLE')
+        if (gameConfig.rounds.double) rounds.push('DOUBLE')
+        if (gameConfig.rounds.final) rounds.push('FINAL')
+        return rounds.length > 0 ? rounds : ['SINGLE']
+    }, [gameConfig])
+
+    // Determine the currently active round for display purposes
+    const getCurrentActiveRound = useCallback((): RoundType => {
+        if (showFinalJeopardy) return 'FINAL'
+        return currentRound
+    }, [showFinalJeopardy, currentRound])
+
+    // Navigate to a specific round in review mode (completed games only)
+    const navigateToRound = useCallback(async (round: RoundType) => {
+        if (!isCompletedGame || !gameConfig) return
+        
+        // Reset reveal state when navigating rounds (answers start hidden in review mode)
+        setRevealedAnswers({})
+        
+        if (round === 'FINAL') {
+            // Check cache first for Final Jeopardy
+            if (cachedFinalJeopardy) {
+                setFinalJeopardyQuestion(cachedFinalJeopardy)
+                setShowFinalJeopardy(true)
+                setFinalJeopardyStage('result')
+                
+                const fjCorrectness = questionCorrectness[cachedFinalJeopardy.id]
+                setFinalJeopardyIsCorrect(fjCorrectness ?? null)
+                
+                if (gameConfig.finalJeopardyWager !== undefined) {
+                    setFinalJeopardyActualWager(gameConfig.finalJeopardyWager)
+                }
+                return
+            }
+            
+            // Load Final Jeopardy for review (first time)
+            if (gameConfig.finalJeopardyQuestionId) {
+                try {
+                    setLoading(true)
+                    const response = await fetch(`/api/questions/${gameConfig.finalJeopardyQuestionId}`)
+                    if (response.ok) {
+                        const data = await response.json()
+                        // Cache the Final Jeopardy data
+                        setCachedFinalJeopardy(data)
+                        setFinalJeopardyQuestion(data)
+                        setShowFinalJeopardy(true)
+                        setFinalJeopardyStage('result')
+                        
+                        const fjCorrectness = questionCorrectness[gameConfig.finalJeopardyQuestionId]
+                        setFinalJeopardyIsCorrect(fjCorrectness ?? null)
+                        
+                        if (gameConfig.finalJeopardyWager !== undefined) {
+                            setFinalJeopardyActualWager(gameConfig.finalJeopardyWager)
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading Final Jeopardy for review:', error)
+                } finally {
+                    setLoading(false)
+                }
+            }
+        } else if (isBoardRound(round)) {
+            // Check cache first for board rounds
+            if (roundCategoriesCache[round]) {
+                setCategories(roundCategoriesCache[round])
+                setCurrentRound(round)
+                setIsDoubleJeopardy(round === 'DOUBLE')
+                setShowFinalJeopardy(false)
+                return
+            }
+            
+            // Load board-based round categories (first time)
+            setShowFinalJeopardy(false)
+            setLoading(true)
+            try {
+                await loadCategories(round, gameConfig, gameSeed)
+                // Cache will be updated via effect when categories change
+            } catch (error) {
+                console.error('Error loading categories for review:', error)
+            } finally {
+                setLoading(false)
+            }
+        }
+    }, [isCompletedGame, gameConfig, gameSeed, loadCategories, questionCorrectness, cachedFinalJeopardy, roundCategoriesCache])
+
+    // Cache categories when loaded in review mode
+    useEffect(() => {
+        if (isCompletedGame && categories.length > 0 && !roundCategoriesCache[currentRound]) {
+            setRoundCategoriesCache(prev => ({
+                ...prev,
+                [currentRound]: categories
+            }))
+        }
+    }, [isCompletedGame, categories, currentRound, roundCategoriesCache])
 
     // Check for round completion
     useEffect(() => {
@@ -570,7 +724,36 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     }, [gameId, initialGameData, loadCategories, loadFinalJeopardy])
 
     // Poll for approved disputes to sync score mid-game
-    const [processedDisputes, setProcessedDisputes] = useState<Set<string>>(new Set())
+    // Use localStorage to persist seen disputes across page refreshes
+    const getSeenDisputesKey = () => `seen-disputes-${gameId}`
+    
+    const loadSeenDisputes = useCallback((): Set<string> => {
+        if (!gameId || typeof window === 'undefined') {
+            return new Set()
+        }
+        try {
+            const stored = localStorage.getItem(getSeenDisputesKey())
+            if (stored) {
+                return new Set(JSON.parse(stored))
+            }
+        } catch (error) {
+            console.debug('Error loading seen disputes from localStorage:', error)
+        }
+        return new Set()
+    }, [gameId])
+
+    const saveSeenDispute = useCallback((disputeKey: string) => {
+        if (!gameId || typeof window === 'undefined') {
+            return
+        }
+        try {
+            const seen = loadSeenDisputes()
+            seen.add(disputeKey)
+            localStorage.setItem(getSeenDisputesKey(), JSON.stringify(Array.from(seen)))
+        } catch (error) {
+            console.debug('Error saving seen dispute to localStorage:', error)
+        }
+    }, [gameId, loadSeenDisputes])
     
     useEffect(() => {
         if (!gameId || loading || showFinalJeopardy) {
@@ -586,14 +769,15 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
                 const data = await response.json()
                 const approvedDisputes = data.approvedDisputes || []
+                const seenDisputes = loadSeenDisputes()
 
-                // Process new disputes that haven't been processed yet
+                // Process new disputes that haven't been seen yet
                 for (const dispute of approvedDisputes) {
                     const disputeKey = `${dispute.questionId}-${dispute.resolvedAt}`
                     
-                    if (!processedDisputes.has(disputeKey)) {
-                        // Mark as processed
-                        setProcessedDisputes(prev => new Set([...prev, disputeKey]))
+                    if (!seenDisputes.has(disputeKey)) {
+                        // Mark as seen in localStorage
+                        saveSeenDispute(disputeKey)
                         
                         // Update score
                         setScore(prev => prev + dispute.points)
@@ -604,7 +788,26 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         // Update game stats
                         setGameStats(prev => ({ ...prev, correct: prev.correct + 1 }))
                         
-                        // Show toast notification
+                        // Update question details to reflect approved dispute
+                        setQuestionDetails(prev => {
+                            const existing = prev[dispute.questionId]
+                            return {
+                                ...prev,
+                                [dispute.questionId]: {
+                                    userAnswer: existing?.userAnswer ?? null,
+                                    correct: true,
+                                    disputeStatus: 'APPROVED' as const
+                                }
+                            }
+                        })
+                        
+                        // If this question is currently selected, update its display
+                        if (selectedQuestion?.id === dispute.questionId) {
+                            setIsCorrect(true)
+                        }
+                        
+                        // Show toast notification only if user hasn't moved on to next question
+                        // We check if the question is still in answeredQuestions (meaning they haven't navigated away)
                         toast.success(
                             (t) => (
                                 <div className="flex items-center gap-2">
@@ -633,7 +836,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         const interval = setInterval(checkApprovedDisputes, 30000)
 
         return () => clearInterval(interval)
-    }, [gameId, loading, showFinalJeopardy, processedDisputes])
+    }, [gameId, loading, showFinalJeopardy, loadSeenDisputes, saveSeenDispute])
 
     // Handle round completion
     const handleRoundComplete = useCallback(async () => {
@@ -724,16 +927,57 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         return normalValue
     }
 
-    const handleQuestionSelect = (question: Question) => {
-        if (!question || answeredQuestions.has(question.id)) {
+    const handleQuestionSelect = async (question: Question) => {
+        if (!question) return
+        
+        if (answeredQuestions.has(question.id)) {
+            // Question already answered - fetch details
             setSelectedQuestion(question)
             setShowAnswer(true)
+            setRevealMyAnswer(false)
+            setUserAnswer('') // Reset to prevent showing stale answer from previous question
+            
+            // Check if we have cached details first
+            const cachedDetails = questionDetails[question.id]
+            if (cachedDetails) {
+                // Use cached details immediately
+                setIsCorrect(cachedDetails.correct)
+            } else {
+                // Reset isCorrect to null to prevent stale state from previous question
+                // This ensures the UI shows the correct state while loading
+                setIsCorrect(null)
+            }
+            
+            // Fetch question details if not already loaded
+            if (!cachedDetails && gameId) {
+                try {
+                    const response = await fetch(`/api/games/${gameId}/questions/${question.id}/details`)
+                    if (response.ok) {
+                        const details = await response.json()
+                        setQuestionDetails(prev => ({
+                            ...prev,
+                            [question.id]: {
+                                userAnswer: details.userAnswer,
+                                correct: details.correct,
+                                disputeStatus: details.disputeStatus
+                            }
+                        }))
+                        // Update isCorrect based on fetched data (including dispute resolution)
+                        setIsCorrect(details.correct)
+                    }
+                } catch (error) {
+                    console.debug('Error fetching question details:', error)
+                }
+            }
             return
         }
+        
+        // New question - reset state
         setSelectedQuestion(question)
         setUserAnswer('')
         setShowAnswer(false)
         setIsCorrect(null)
+        setRevealMyAnswer(false)
     }
 
     const handleSubmitAnswer = async () => {
@@ -772,6 +1016,16 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             setDisputeContext(data.disputeContext)
             setDisputeSubmitted(false)
 
+            // Save question details for later viewing
+            setQuestionDetails(prev => ({
+                ...prev,
+                [selectedQuestion.id]: {
+                    userAnswer: userAnswer.trim(),
+                    correct: result,
+                    disputeStatus: 'NONE' as const
+                }
+            }))
+
             // Show achievement unlock notifications
             if (data.unlockedAchievements && Array.isArray(data.unlockedAchievements)) {
                 data.unlockedAchievements.forEach((achievement: UnlockedAchievement) => {
@@ -805,6 +1059,17 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             const result = checkAnswer(userAnswer, selectedQuestion.answer)
             setIsCorrect(result)
             setShowAnswer(true)
+            
+            // Save question details for later viewing
+            setQuestionDetails(prev => ({
+                ...prev,
+                [selectedQuestion.id]: {
+                    userAnswer: userAnswer.trim(),
+                    correct: result,
+                    disputeStatus: 'NONE' as const
+                }
+            }))
+            
             setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
 
             const categoryIndex = categories.findIndex(c => c.questions.some(q => q?.id === selectedQuestion.id))
@@ -854,7 +1119,19 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const handleDontKnow = async () => {
         if (!selectedQuestion) return
 
+        setIsCorrect(false)
         setShowAnswer(true)
+        
+        // Save question details for later viewing
+        setQuestionDetails(prev => ({
+            ...prev,
+            [selectedQuestion.id]: {
+                userAnswer: null,
+                correct: false,
+                disputeStatus: 'NONE' as const
+            }
+        }))
+        
         setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
 
         await saveGameState('answer', {
@@ -1062,6 +1339,31 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                             </div>
                         </div>
                     </div>
+                    
+                    {/* Review Mode Round Navigation */}
+                    {isCompletedGame && (
+                        <div className="mt-4 flex items-center justify-center gap-2">
+                            <span className="text-sm text-blue-300">Reviewing:</span>
+                            <div className="flex items-center gap-1 bg-blue-800/50 rounded-lg p-1">
+                                {getAvailableRounds().map((round) => {
+                                    const isActive = getCurrentActiveRound() === round
+                                    return (
+                                        <button
+                                            key={round}
+                                            onClick={() => navigateToRound(round)}
+                                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                                                isActive
+                                                    ? 'bg-blue-600 text-white shadow-sm'
+                                                    : 'text-blue-200 hover:text-white hover:bg-blue-700/50'
+                                            }`}
+                                        >
+                                            {getRoundLabel(round)}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Stage 1: Category Reveal + Wager */}
@@ -1223,20 +1525,49 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                             </p>
 
                             <div className="space-y-6">
+                                {/* In review mode (completed game), show reveal button first */}
+                                {isCompletedGame && !revealedAnswers['final-jeopardy'] ? (
+                                    <div className="text-center py-6">
+                                        <button
+                                            onClick={() => toggleRevealAnswer('final-jeopardy')}
+                                            className="btn-gold px-8 py-3 text-lg flex items-center gap-2 mx-auto"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
+                                            Reveal Answer
+                                        </button>
+                                    </div>
+                                ) : (
                                 <div className={`p-6 rounded-xl ${finalJeopardyIsCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        {finalJeopardyIsCorrect ? (
-                                            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            {finalJeopardyIsCorrect ? (
+                                                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            ) : (
+                                                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            )}
+                                            <span className={`text-lg font-bold ${finalJeopardyIsCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                                                {finalJeopardyIsCorrect ? 'Correct!' : 'Incorrect'}
+                                            </span>
+                                        </div>
+                                        {/* Hide answer button in review mode */}
+                                        {isCompletedGame && (
+                                            <button
+                                                onClick={() => toggleRevealAnswer('final-jeopardy')}
+                                                className={`text-xs font-medium flex items-center gap-1 ${finalJeopardyIsCorrect ? 'text-green-700 hover:text-green-900' : 'text-red-700 hover:text-red-900'}`}
+                                            >
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                </svg>
+                                                Hide
+                                            </button>
                                         )}
-                                        <span className={`text-lg font-bold ${finalJeopardyIsCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                                            {finalJeopardyIsCorrect ? 'Correct!' : 'Incorrect'}
-                                        </span>
                                     </div>
                                     <p className="text-xl font-medium text-center">
                                         Answer: {finalJeopardyQuestion.answer}
@@ -1277,6 +1608,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                         </div>
                                     )}
                                 </div>
+                                )}
                                 
                                 {/* Final Score Display */}
                                 <div className="text-center py-4">
@@ -1363,14 +1695,89 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             {/* Game Board Container */}
             <div className="py-4 sm:py-6 px-2 sm:px-4">
                 <div className="max-w-7xl mx-auto">
-                    {categories.length === 0 ? (
+                    {/* Review Mode Header - Show current round indicator for completed games */}
+                    {isCompletedGame && (
+                        <div className="mb-4 flex items-center justify-center gap-2">
+                            <span className="text-sm text-gray-500">Reviewing:</span>
+                            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+                                {getAvailableRounds().map((round) => {
+                                    const isActive = getCurrentActiveRound() === round
+                                    return (
+                                        <button
+                                            key={round}
+                                            onClick={() => navigateToRound(round)}
+                                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                                                isActive
+                                                    ? 'bg-blue-600 text-white shadow-sm'
+                                                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200'
+                                            }`}
+                                        >
+                                            {getRoundLabel(round)}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {categories.length === 0 && !showFinalJeopardy ? (
                         <div className="text-center py-12">
                             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-4"></div>
                             <p className="text-gray-600">Loading game board...</p>
                         </div>
-                    ) : (
-                        /* Board wrapper with overflow visible for hover effects */
-                        <div className="game-board overflow-visible">
+                    ) : !showFinalJeopardy ? (
+                        /* Board wrapper with navigation buttons */
+                        <div className="relative">
+                            {/* Left Navigation Button - Previous Round */}
+                            {isCompletedGame && (() => {
+                                const rounds = getAvailableRounds()
+                                const activeRound = getCurrentActiveRound()
+                                const currentIndex = rounds.indexOf(activeRound)
+                                const hasPrevRound = currentIndex > 0
+                                if (!hasPrevRound) return null
+                                const prevRound = rounds[currentIndex - 1]
+                                return (
+                                    <button
+                                        onClick={() => navigateToRound(prevRound)}
+                                        className="hidden xl:flex absolute left-0 top-1/2 -translate-y-1/2 -translate-x-full mr-4 items-center justify-center w-12 h-24 bg-blue-600 hover:bg-blue-700 text-white rounded-l-xl shadow-lg transition-all group"
+                                        title={`Go to ${getRoundLabel(prevRound)} Jeopardy`}
+                                    >
+                                        <div className="flex flex-col items-center">
+                                            <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                            </svg>
+                                            <span className="text-xs mt-1 font-medium">{getRoundLabel(prevRound)}</span>
+                                        </div>
+                                    </button>
+                                )
+                            })()}
+                            
+                            {/* Right Navigation Button - Next Round */}
+                            {isCompletedGame && (() => {
+                                const rounds = getAvailableRounds()
+                                const activeRound = getCurrentActiveRound()
+                                const currentIndex = rounds.indexOf(activeRound)
+                                const hasNextRound = currentIndex >= 0 && currentIndex < rounds.length - 1
+                                if (!hasNextRound) return null
+                                const nextRound = rounds[currentIndex + 1]
+                                return (
+                                    <button
+                                        onClick={() => navigateToRound(nextRound)}
+                                        className="hidden xl:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-full ml-4 items-center justify-center w-12 h-24 bg-blue-600 hover:bg-blue-700 text-white rounded-r-xl shadow-lg transition-all group"
+                                        title={`Go to ${getRoundLabel(nextRound)} Jeopardy`}
+                                    >
+                                        <div className="flex flex-col items-center">
+                                            <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                            <span className="text-xs mt-1 font-medium">{getRoundLabel(nextRound)}</span>
+                                        </div>
+                                    </button>
+                                )
+                            })()}
+                            
+                            {/* Game Board */}
+                            <div className="game-board overflow-visible">
                             {/* Mobile: Vertical scroll layout */}
                             <div className="block lg:hidden">
                                 <div className="space-y-4">
@@ -1394,16 +1801,27 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
                                                 const isAnswered = answeredQuestions.has(question.id)
                                                 const displayValue = getDisplayValue(question, index)
+                                                const isCorrect = questionCorrectness[question.id]
+
+                                                // Determine button styling based on game state
+                                                let buttonClass = 'bg-blue-600 text-amber-400 hover:bg-blue-500 active:scale-95'
+                                                if (isAnswered) {
+                                                    if (isCompletedGame && isCorrect !== null) {
+                                                        // Completed game: color based on correctness
+                                                        buttonClass = isCorrect
+                                                            ? 'bg-green-600/70 text-green-100 hover:bg-green-600/80'
+                                                            : 'bg-red-600/70 text-red-100 hover:bg-red-600/80'
+                                                    } else {
+                                                        // In-progress game: standard grey
+                                                        buttonClass = 'bg-blue-900/50 text-blue-700'
+                                                    }
+                                                }
 
                                                 return (
                                                     <button
                                                         key={question.id}
                                                         onClick={() => handleQuestionSelect(question)}
-                                                        className={`aspect-square flex items-center justify-center rounded font-bold text-xs sm:text-sm transition-all ${
-                                                            isAnswered
-                                                                ? 'bg-blue-900/50 text-blue-700'
-                                                                : 'bg-blue-600 text-amber-400 hover:bg-blue-500 active:scale-95'
-                                                        }`}
+                                                        className={`aspect-square flex items-center justify-center rounded font-bold text-xs sm:text-sm transition-all ${buttonClass}`}
                                                     >
                                                         ${displayValue}
                                                     </button>
@@ -1448,12 +1866,27 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
                                         const isAnswered = answeredQuestions.has(question.id)
                                         const displayValue = getDisplayValue(question, rowIndex)
+                                        const isCorrect = questionCorrectness[question.id]
+
+                                        // Determine button styling based on game state
+                                        let cellClass = 'clue-cell min-h-[60px] text-lg lg:text-2xl'
+                                        if (isAnswered) {
+                                            if (isCompletedGame && isCorrect !== null) {
+                                                // Completed game: color based on correctness
+                                                cellClass = isCorrect
+                                                    ? 'clue-cell min-h-[60px] text-lg lg:text-2xl bg-green-600/70 text-green-100 hover:bg-green-600/80'
+                                                    : 'clue-cell min-h-[60px] text-lg lg:text-2xl bg-red-600/70 text-red-100 hover:bg-red-600/80'
+                                            } else {
+                                                // In-progress game: standard answered style
+                                                cellClass = 'clue-cell min-h-[60px] text-lg lg:text-2xl answered'
+                                            }
+                                        }
 
                                         return (
                                             <button
                                                 key={question.id}
                                                 onClick={() => handleQuestionSelect(question)}
-                                                className={`clue-cell min-h-[60px] text-lg lg:text-2xl ${isAnswered ? 'answered' : ''}`}
+                                                className={cellClass}
                                             >
                                                 ${displayValue}
                                             </button>
@@ -1464,7 +1897,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                             </div>
                         </div>
                         </div>
-                    )}
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
@@ -1529,57 +1963,186 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <div className={`p-6 rounded-xl ${isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        {isCorrect ? (
-                                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        ) : (
-                                            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                            </svg>
-                                        )}
-                                        <span className={`text-sm font-bold ${isCorrect ? 'text-green-700' : 'text-red-700'}`}>
-                                            {isCorrect ? 'Correct!' : 'Incorrect'}
-                                        </span>
-                                    </div>
-                                    <p className="font-medium text-center">
-                                        {selectedQuestion.answer}
-                                    </p>
-                                    {!isCorrect && disputeContext && user?.id && (
-                                        <div className="mt-3 flex justify-end">
-                                            {disputeSubmitted ? (
-                                                <span className="text-sm text-gray-500 flex items-center gap-1">
-                                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                    Dispute submitted
-                                                </span>
-                                            ) : (
-                                                <span className="inline-flex items-center gap-1">
+                                {(() => {
+                                    const details = questionDetails[selectedQuestion.id]
+                                    const effectiveCorrect = details?.correct ?? isCorrect
+                                    const effectiveDisputeStatus = details?.disputeStatus ?? (disputeSubmitted ? 'PENDING' : 'NONE')
+                                    const storedUserAnswer = details?.userAnswer
+                                    const hasUserAnswer = storedUserAnswer || userAnswer.trim()
+                                    const isAnswerRevealed = !isCompletedGame || revealedAnswers[selectedQuestion.id]
+                                    
+                                    return (
+                                        <>
+                                            {/* In review mode (completed game), show reveal button first */}
+                                            {isCompletedGame && !isAnswerRevealed ? (
+                                                <div className="text-center py-6">
                                                     <button
-                                                        onClick={handleDispute}
-                                                        className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                        onClick={() => toggleRevealAnswer(selectedQuestion.id)}
+                                                        className="btn-primary px-8 py-3 text-lg flex items-center gap-2 mx-auto"
                                                     >
-                                                        Dispute this answer
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                        Reveal Answer
                                                     </button>
-                                                    <span className="relative group">
-                                                        <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
-                                                        <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                                                            An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                </div>
+                                            ) : (
+                                            <div className={`p-6 rounded-xl ${effectiveCorrect ? 'feedback-correct' : 'feedback-incorrect'}`}>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        {effectiveCorrect ? (
+                                                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                        ) : (
+                                                            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                        )}
+                                                        <span className={`text-sm font-bold ${effectiveCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                                                            {effectiveCorrect ? 'Correct!' : 'Incorrect'}
                                                         </span>
-                                                    </span>
-                                                </span>
+                                                    </div>
+                                                    {/* Hide answer button in review mode */}
+                                                    {isCompletedGame && (
+                                                        <button
+                                                            onClick={() => toggleRevealAnswer(selectedQuestion.id)}
+                                                            className={`text-xs font-medium flex items-center gap-1 ${effectiveCorrect ? 'text-green-700 hover:text-green-900' : 'text-red-700 hover:text-red-900'}`}
+                                                        >
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                            </svg>
+                                                            Hide
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <p className="font-medium text-center">
+                                                    {selectedQuestion.answer}
+                                                </p>
+                                                
+                                                {/* Action row: Show My Answer + Dispute (on same line) */}
+                                                {!effectiveCorrect && (
+                                                    <div className="mt-4 flex items-center justify-between gap-2">
+                                                        {/* Show My Answer toggle */}
+                                                        {hasUserAnswer ? (
+                                                            <button
+                                                                onClick={() => setRevealMyAnswer(!revealMyAnswer)}
+                                                                className="text-red-700 hover:text-red-900 text-sm font-medium flex items-center gap-1"
+                                                            >
+                                                                {revealMyAnswer ? (
+                                                                    <>
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                                                                        </svg>
+                                                                        Hide My Answer
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                        </svg>
+                                                                        Show My Answer
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        ) : (
+                                                            <span /> // Empty spacer when no answer to show
+                                                        )}
+                                                        
+                                                        {/* Dispute button or status */}
+                                                        {effectiveDisputeStatus === 'PENDING' ? (
+                                                            <span className="text-sm text-blue-600 flex items-center gap-1">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                                Dispute pending
+                                                            </span>
+                                                        ) : effectiveDisputeStatus === 'APPROVED' ? (
+                                                            <span className="text-sm text-green-600 flex items-center gap-1">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                                Dispute approved
+                                                            </span>
+                                                        ) : user?.id && hasUserAnswer ? (
+                                                            <span className="inline-flex items-center gap-1">
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        if (!selectedQuestion || !gameId) return
+                                                                        
+                                                                        const disputeCtx = {
+                                                                            questionId: selectedQuestion.id,
+                                                                            gameId: gameId,
+                                                                            round: currentRound,
+                                                                            userAnswer: storedUserAnswer || userAnswer.trim() || '',
+                                                                            mode: 'GAME' as const
+                                                                        }
+                                                                        
+                                                                        try {
+                                                                            const response = await fetch('/api/answers/disputes', {
+                                                                                method: 'POST',
+                                                                                headers: { 'Content-Type': 'application/json' },
+                                                                                body: JSON.stringify({
+                                                                                    ...disputeCtx,
+                                                                                    systemWasCorrect: false
+                                                                                })
+                                                                            })
+                                                                            
+                                                                            if (!response.ok) {
+                                                                                const error = await response.json()
+                                                                                console.error('Failed to submit dispute:', error.error)
+                                                                                return
+                                                                            }
+                                                                            
+                                                                            setQuestionDetails(prev => ({
+                                                                                ...prev,
+                                                                                [selectedQuestion.id]: {
+                                                                                    ...prev[selectedQuestion.id],
+                                                                                    disputeStatus: 'PENDING' as const
+                                                                                }
+                                                                            }))
+                                                                        } catch (error) {
+                                                                            console.error('Error submitting dispute:', error)
+                                                                        }
+                                                                    }}
+                                                                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                                >
+                                                                    Dispute this answer
+                                                                </button>
+                                                                <span className="relative group">
+                                                                    <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
+                                                                    <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                                        An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                                    </span>
+                                                                </span>
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Revealed answer box */}
+                                                {!effectiveCorrect && revealMyAnswer && hasUserAnswer && (
+                                                    <div className="mt-2 p-3 bg-red-200/50 rounded-lg border border-red-300">
+                                                        <p className="text-xs text-red-600 font-semibold mb-1">Your answer:</p>
+                                                        <p className="text-red-800 italic">{storedUserAnswer || userAnswer.trim()}</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                             )}
-                                        </div>
-                                    )}
-                                </div>
+                                        </>
+                                    )
+                                })()}
                                 <button
-                                    onClick={() => setSelectedQuestion(null)}
+                                    onClick={() => {
+                                        setSelectedQuestion(null)
+                                        setRevealMyAnswer(false)
+                                        // Note: Don't reset revealedAnswers - let user's revealed state persist for easier navigation
+                                    }}
                                     className="w-full btn-secondary py-3"
                                 >
-                                    Continue
+                                    {isCompletedGame ? 'Close' : 'Continue'}
                                 </button>
                             </div>
                         )}

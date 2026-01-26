@@ -211,6 +211,7 @@ model GameQuestion {
   questionId String
   answered   Boolean  @default(false)
   correct    Boolean?
+  userAnswer String?  @db.Text // Optional: raw user answer for showing what was answered
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   game       Game     @relation(fields: [gameId], references: [id])

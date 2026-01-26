@@ -35,6 +35,7 @@ const SpoilerWarningModal = dynamic(
 
 // Regular imports for lighter components
 import GameResumableList from './components/GameResumableList'
+import GameCompletedList from './components/GameCompletedList'
 import GameModeSelector from './components/GameModeSelector'
 
 interface Category {
@@ -75,12 +76,14 @@ interface InitialSpoilerSettings {
 
 interface GameHubClientProps {
     initialResumableGames: ClientResumableGame[]
+    initialCompletedGames: ClientResumableGame[]
     initialUser: InitialUser | null
     initialSpoilerSettings: InitialSpoilerSettings | null
 }
 
 export default function GameHubClient({ 
     initialResumableGames,
+    initialCompletedGames,
     initialUser,
     initialSpoilerSettings
 }: GameHubClientProps) {
@@ -88,8 +91,12 @@ export default function GameHubClient({
     // Use server-provided user data directly - no client fetch needed!
     const user = initialUser
     
+    // Games tab state
+    const [activeGamesTab, setActiveGamesTab] = useState<'inProgress' | 'completed'>('inProgress')
+    
     // Resumable games state - start with server-provided data
     const [resumableGames, setResumableGames] = useState<ClientResumableGame[]>(initialResumableGames)
+    const [completedGames, setCompletedGames] = useState<ClientResumableGame[]>(initialCompletedGames)
     const [loadingGames, setLoadingGames] = useState(false) // Start as false since we have initial data
     
     // New game configuration state
@@ -98,7 +105,7 @@ export default function GameHubClient({
     const [selectedDate, setSelectedDate] = useState<string>('')
     const [selectedDateObj, setSelectedDateObj] = useState<Date | null>(null)
     const [customCategories, setCustomCategories] = useState<Category[]>([])
-    const [rounds, setRounds] = useState({ single: true, double: true, final: false })
+    const [rounds, setRounds] = useState({ single: true, double: true, final: true })
     const [finalCategoryMode, setFinalCategoryMode] = useState<'shuffle' | 'byDate' | 'specificCategory'>('byDate')
     const [finalCategoryId, _setFinalCategoryId] = useState<string | null>(null)
     const [isStartingGame, setIsStartingGame] = useState(false)
@@ -141,19 +148,29 @@ export default function GameHubClient({
 
     // No fetch needed - spoiler settings provided by server!
 
-    // Refresh resumable games after ending a game
-    const refreshResumableGames = async () => {
+    // Refresh games after ending a game
+    const refreshGames = async () => {
         if (!user?.id) return
         
         setLoadingGames(true)
         try {
-            const response = await fetch('/api/games/resumable')
-            if (response.ok) {
-                const data = await response.json()
+            // Fetch both in parallel for snappy UX
+            const [resumableRes, completedRes] = await Promise.all([
+                fetch('/api/games/resumable'),
+                fetch('/api/games/completed')
+            ])
+            
+            if (resumableRes.ok) {
+                const data = await resumableRes.json()
                 setResumableGames(data.games || [])
             }
+            
+            if (completedRes.ok) {
+                const data = await completedRes.json()
+                setCompletedGames(data.games || [])
+            }
         } catch (error) {
-            console.error('Error fetching resumable games:', error)
+            console.error('Error fetching games:', error)
         } finally {
             setLoadingGames(false)
         }
@@ -417,7 +434,7 @@ export default function GameHubClient({
 
             if (response.ok) {
                 // Refresh the list
-                await refreshResumableGames()
+                await refreshGames()
             }
         } catch (error) {
             console.error('Error ending game:', error)
@@ -582,8 +599,8 @@ export default function GameHubClient({
 
 
     return (
-        <div className="min-h-screen bg-gray-100 py-8 px-4">
-            <div className="max-w-4xl mx-auto">
+        <div className="min-h-screen w-full bg-gray-100 py-8 px-4" style={{ scrollbarGutter: 'stable' }}>
+            <div className="w-full max-w-4xl mx-auto">
                 {/* Page Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Play Game</h1>
@@ -612,19 +629,75 @@ export default function GameHubClient({
                         </div>
                     </div>
                 ) : (
-                    // Show resumable games if authenticated
-                    <div className="mb-8">
-                        <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                            Your Games
-                        </h2>
-                        <GameResumableList 
-                            games={resumableGames}
-                            loading={loadingGames}
-                            onEndGame={handleEndGame}
-                        />
+                    // Show games section if authenticated
+                    <div className="w-full mb-8">
+                        {/* Header with tabs */}
+                        <div className="flex items-center justify-between mb-4 w-full">
+                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Your Games
+                            </h2>
+                            
+                            {/* Tabs */}
+                            <div className="flex bg-gray-100 rounded-lg p-0.5">
+                                <button
+                                    onClick={() => setActiveGamesTab('inProgress')}
+                                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                        activeGamesTab === 'inProgress'
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-900'
+                                    }`}
+                                >
+                                    In Progress
+                                    {resumableGames.length > 0 && (
+                                        <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${
+                                            activeGamesTab === 'inProgress'
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : 'bg-gray-200 text-gray-600'
+                                        }`}>
+                                            {resumableGames.length}
+                                        </span>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setActiveGamesTab('completed')}
+                                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                                        activeGamesTab === 'completed'
+                                            ? 'bg-white text-gray-900 shadow-sm'
+                                            : 'text-gray-600 hover:text-gray-900'
+                                    }`}
+                                >
+                                    Completed
+                                    {completedGames.length > 0 && (
+                                        <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${
+                                            activeGamesTab === 'completed'
+                                                ? 'bg-green-100 text-green-700'
+                                                : 'bg-gray-200 text-gray-600'
+                                        }`}>
+                                            {completedGames.length}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {/* Tab content - contain layout prevents content from affecting container width */}
+                        <div className="w-full overflow-hidden" style={{ contain: 'inline-size' }}>
+                            {activeGamesTab === 'inProgress' ? (
+                                <GameResumableList 
+                                    games={resumableGames}
+                                    loading={loadingGames}
+                                    onEndGame={handleEndGame}
+                                />
+                            ) : (
+                                <GameCompletedList 
+                                    games={completedGames}
+                                    loading={loadingGames}
+                                />
+                            )}
+                        </div>
                     </div>
                 )}
 

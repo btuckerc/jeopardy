@@ -104,7 +104,8 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                         where: { id: existingGameQuestion.id },
                         data: {
                             answered: true,
-                            correct
+                            correct,
+                            userAnswer: userAnswer.trim()
                         }
                     })
                 } else {
@@ -113,7 +114,8 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                             gameId,
                             questionId,
                             answered: true,
-                            correct
+                            correct,
+                            userAnswer: userAnswer.trim()
                         }
                     })
                 }
