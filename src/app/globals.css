@@ -187,15 +187,15 @@
     }
     
     .question-text {
-        @apply text-2xl md:text-3xl font-medium text-center leading-relaxed;
+        @apply text-lg sm:text-2xl md:text-3xl font-medium text-center leading-relaxed;
     }
     
     .question-category {
-        @apply text-amber-400 text-sm uppercase tracking-widest mb-4 text-center;
+        @apply text-amber-400 text-xs sm:text-sm uppercase tracking-widest mb-2 sm:mb-4 text-center;
     }
     
     .question-value {
-        @apply text-amber-400 text-4xl font-bold text-center mb-6;
+        @apply text-amber-400 text-2xl sm:text-4xl font-bold text-center mb-3 sm:mb-6;
     }
 
     /* ==========================================================================
@@ -239,14 +239,24 @@
     /*
      * Scrollable content area within modal - contains question text.
      * Allows scrolling if question is very long.
+     * Has min-height to ensure question is visible even with keyboard open.
      */
     .question-modal-scroll-area {
         @apply flex-1 overflow-y-auto overscroll-contain;
-        @apply px-5 pt-5 pb-3;
+        @apply px-4 pt-4 pb-2;
         @apply sm:px-8 sm:pt-8 sm:pb-4;
+        
+        /* Ensure question text area has minimum height */
+        min-height: 120px;
         
         /* Smooth scrolling and momentum on iOS */
         -webkit-overflow-scrolling: touch;
+    }
+    
+    @media (min-width: 640px) {
+        .question-modal-scroll-area {
+            min-height: 200px;
+        }
     }
     
     /*
@@ -284,23 +294,43 @@
     
     /*
      * Mobile input optimizations - larger tap targets, better focus states
+     * Has a subtle glow animation on mobile to draw attention
      */
     .mobile-answer-input {
         @apply w-full rounded-lg border-2 transition-all duration-200;
         @apply px-4 py-3 sm:py-3;
         @apply text-base sm:text-lg;
         @apply text-gray-900 bg-white;
-        @apply border-gray-300;
+        @apply border-amber-400;
         @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-200;
         @apply placeholder:text-gray-400 placeholder:italic;
         
         /* Prevent iOS zoom on focus (font-size >= 16px) */
         font-size: 16px;
+        
+        /* Subtle glow animation to draw attention on mobile */
+        animation: inputGlow 2s ease-in-out infinite;
+    }
+    
+    .mobile-answer-input:focus {
+        animation: none; /* Stop animation when focused */
+        @apply border-blue-500;
+    }
+    
+    @keyframes inputGlow {
+        0%, 100% {
+            box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+        }
+        50% {
+            box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.3);
+        }
     }
     
     @media (min-width: 640px) {
         .mobile-answer-input {
             font-size: 1.125rem; /* text-lg */
+            animation: none; /* No animation needed on desktop */
+            @apply border-gray-300;
         }
     }
     

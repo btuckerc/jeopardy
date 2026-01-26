@@ -3,6 +3,28 @@
 import { useEffect, useCallback, RefObject, useState } from 'react'
 
 /**
+ * Detects if the device is a touch device (mobile/tablet).
+ * Used to determine whether to auto-focus inputs.
+ */
+export function isTouchDevice(): boolean {
+    if (typeof window === 'undefined') return false
+    return (
+        'ontouchstart' in window ||
+        navigator.maxTouchPoints > 0 ||
+        // @ts-expect-error - msMaxTouchPoints is IE-specific
+        navigator.msMaxTouchPoints > 0
+    )
+}
+
+/**
+ * Detects if the device is likely a mobile phone based on screen width.
+ */
+export function isMobileScreen(): boolean {
+    if (typeof window === 'undefined') return false
+    return window.innerWidth < 640 // Tailwind's sm breakpoint
+}
+
+/**
  * Hook to handle mobile keyboard appearance and scroll inputs into view.
  * 
  * This hook provides a utility function that scrolls an input element into
@@ -12,7 +34,12 @@ import { useEffect, useCallback, RefObject, useState } from 'react'
  * Usage:
  * ```tsx
  * const inputRef = useRef<HTMLInputElement>(null)
- * const { scrollIntoView, isKeyboardVisible } = useMobileKeyboard()
+ * const { scrollIntoView, isKeyboardVisible, isMobile, focusInput } = useMobileKeyboard()
+ * 
+ * // Use focusInput instead of autoFocus - it only focuses on desktop
+ * useEffect(() => {
+ *   focusInput(inputRef)
+ * }, [focusInput])
  * 
  * <input 
  *   ref={inputRef} 
@@ -22,6 +49,12 @@ import { useEffect, useCallback, RefObject, useState } from 'react'
  */
 export function useMobileKeyboard() {
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
+    const [isMobile, setIsMobile] = useState(false)
+    
+    // Detect mobile on mount
+    useEffect(() => {
+        setIsMobile(isTouchDevice() && isMobileScreen())
+    }, [])
     
     // Track keyboard visibility using VisualViewport API
     useEffect(() => {
@@ -118,10 +151,35 @@ export function useMobileKeyboard() {
         }, delay)
     }, [])
 
+    /**
+     * Focuses an input element only on desktop devices.
+     * On mobile, we skip auto-focus to let users read the question first.
+     * The keyboard opening immediately would obscure the question text.
+     * 
+     * @param ref - React ref to the input element
+     * @param delay - Optional delay before focusing (default: 100ms for animation)
+     */
+    const focusInput = useCallback((
+        ref: RefObject<HTMLInputElement | HTMLTextAreaElement | null>,
+        delay: number = 100
+    ) => {
+        if (!ref?.current) return
+        
+        // Skip auto-focus on mobile devices
+        if (isTouchDevice() && isMobileScreen()) return
+        
+        // Small delay to let modal animation complete
+        setTimeout(() => {
+            ref.current?.focus()
+        }, delay)
+    }, [])
+
     return { 
         scrollIntoView,
         scrollModalToInput,
-        isKeyboardVisible
+        isKeyboardVisible,
+        isMobile,
+        focusInput
     }
 }
 

@@ -180,8 +180,15 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
     // Mobile keyboard handling
     const answerInputRef = useRef<HTMLInputElement>(null)
-    const { scrollIntoView } = useMobileKeyboard()
+    const { scrollIntoView, focusInput } = useMobileKeyboard()
     const [revealMyAnswer, setRevealMyAnswer] = useState(false)
+    
+    // Focus input on desktop when question modal opens (skip on mobile to let user read question first)
+    useEffect(() => {
+        if (selectedQuestion && !showAnswer && !answeredQuestions.has(selectedQuestion.id) && !isCompletedGame) {
+            focusInput(answerInputRef)
+        }
+    }, [selectedQuestion, showAnswer, answeredQuestions, isCompletedGame, focusInput])
     
     // Completed game state - for review mode
     const isCompletedGame = initialGameData?.status === 'COMPLETED'
@@ -1964,7 +1971,6 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                         autoCorrect="off"
                                         spellCheck="false"
                                         enterKeyHint="send"
-                                        autoFocus
                                     />
                                     <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                                         <button

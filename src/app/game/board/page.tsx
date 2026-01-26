@@ -117,7 +117,14 @@ export default function GameBoard() {
 
     // Mobile keyboard handling
     const answerInputRef = useRef<HTMLInputElement>(null)
-    const { scrollIntoView } = useMobileKeyboard()
+    const { scrollIntoView, focusInput } = useMobileKeyboard()
+    
+    // Focus input on desktop when question modal opens (skip on mobile to let user read question first)
+    useEffect(() => {
+        if (selectedQuestion && !showAnswer && !answeredQuestions.has(selectedQuestion.id)) {
+            focusInput(answerInputRef)
+        }
+    }, [selectedQuestion, showAnswer, answeredQuestions, focusInput])
 
     // Build players array for scoreboard (reserved for future use)
     const _players: Player[] = [
@@ -926,7 +933,6 @@ export default function GameBoard() {
                                         autoCorrect="off"
                                         spellCheck="false"
                                         enterKeyHint="send"
-                                        autoFocus
                                     />
                                     <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                                         <button
