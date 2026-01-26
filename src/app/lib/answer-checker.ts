@@ -30,7 +30,7 @@ function cosineSimilarity(a: Float32Array, b: Float32Array): number {
         dotProduct += a[i] * b[i];
         normA += a[i] * a[i];
         normB += b[i] * b[i];
-    }
+}
     const denominator = Math.sqrt(normA) * Math.sqrt(normB);
     return denominator === 0 ? 0 : dotProduct / denominator;
 }
@@ -114,7 +114,7 @@ async function getSemanticSimilarity(text1: string, text2: string): Promise<numb
 // =============================================================================
 // TEXT NORMALIZATION - Basic, standard transformations
 // =============================================================================
-
+    
 function normalizeText(text: string): string {
     return text
         .normalize('NFD')
@@ -134,8 +134,8 @@ function stripArticles(text: string): string {
         words.shift();
     }
     return words.join(' ');
-}
-
+    }
+    
 function stripQuestionPhrase(text: string): string {
     // Standard Jeopardy question formats
     const questionPhraseRegex = /^(what|who|where|when)\s+(is|are|was|were)\s+/i;
@@ -156,7 +156,7 @@ function stripTitlePrefix(text: string): string {
         }
     }
     return text;
-}
+                }
 
 function extractParentheticalVariants(text: string): string[] {
     const variants: string[] = [text];
@@ -168,7 +168,7 @@ function extractParentheticalVariants(text: string): string[] {
         let content = endMatch[2].trim();
         if (content.toLowerCase().startsWith('or ')) content = content.slice(3).trim();
         if (content) variants.push(content);
-    }
+                }
     
     // Start parentheses: "(Robert) Pattinson"
     const startMatch = text.match(/^\((.+?)\)\s+(.+)$/);
@@ -199,13 +199,13 @@ function extractParentheticalVariants(text: string): string[] {
 function jaroWinkler(s1: string, s2: string): number {
     if (s1 === s2) return 1;
     if (!s1.length || !s2.length) return 0;
-
+    
     const matchWindow = Math.floor(Math.max(s1.length, s2.length) / 2) - 1;
     const s1Matches = new Array(s1.length).fill(false);
     const s2Matches = new Array(s2.length).fill(false);
     
     let matches = 0, transpositions = 0;
-
+    
     for (let i = 0; i < s1.length; i++) {
         const start = Math.max(0, i - matchWindow);
         const end = Math.min(i + matchWindow + 1, s2.length);
@@ -216,9 +216,9 @@ function jaroWinkler(s1: string, s2: string): number {
             break;
         }
     }
-
+    
     if (!matches) return 0;
-
+    
     let k = 0;
     for (let i = 0; i < s1.length; i++) {
         if (!s1Matches[i]) continue;
@@ -226,7 +226,7 @@ function jaroWinkler(s1: string, s2: string): number {
         if (s1[i] !== s2[k]) transpositions++;
         k++;
     }
-
+    
     const jaro = (matches / s1.length + matches / s2.length + (matches - transpositions / 2) / matches) / 3;
     
     let prefix = 0;
@@ -234,7 +234,7 @@ function jaroWinkler(s1: string, s2: string): number {
         if (s1[i] === s2[i]) prefix++;
         else break;
     }
-
+    
     return jaro + prefix * 0.1 * (1 - jaro);
 }
 
@@ -273,13 +273,13 @@ function exactMatch(userAnswer: string, correctAnswer: string): boolean {
                     const lengthRatio = Math.min(compU.length, compC.length) / Math.max(compU.length, compC.length);
                     const similarity = jaroWinkler(compU, compC);
                     if (similarity >= 0.93 && lengthRatio >= 0.85 && compU[0] === compC[0]) {
-                        return true;
-                    }
+        return true;
+    }
                 }
             }
         }
     }
-    
+
     return false;
 }
 
@@ -306,14 +306,14 @@ export async function checkAnswerAsync(
     
     // FAST PATH: Exact/normalized matches don't need AI
     if (exactMatch(userAnswer, correctAnswer)) return true;
-    
+
     // Check overrides with exact matching
     if (overrideAnswers?.length) {
         for (const override of overrideAnswers) {
             if (exactMatch(userAnswer, override)) return true;
         }
-    }
-    
+}
+
     // AI SEMANTIC MATCHING - The primary mechanism
     const similarity = await getSemanticSimilarity(user, correct);
     
@@ -332,12 +332,12 @@ export async function checkAnswerAsync(
                 // Be very strict - require near-exact similarity
                 if (similarity >= 0.95) return true;
                 return false;
-            }
         }
-        
+    }
+
         // Standard threshold check
         if (similarity >= AI_THRESHOLD) return true;
-        
+
         // Check overrides with AI
         if (overrideAnswers?.length) {
             for (const override of overrideAnswers) {
@@ -347,12 +347,12 @@ export async function checkAnswerAsync(
         }
         
         return false;
-    }
-    
+            }
+            
     // AI UNAVAILABLE - Fall back to lenient rule-based matching
     return fallbackMatch(userAnswer, correctAnswer, overrideAnswers);
-}
-
+            }
+            
 /**
  * Fallback matching when AI is unavailable
  * More lenient to compensate for lack of semantic understanding
@@ -383,8 +383,8 @@ function fallbackMatch(
             // User gave last name, correct is full name
             if (uWords.length === 1 && cWords.length >= 2 && cWords.length <= 3) {
                 if (uWords[0] === cWords[cWords.length - 1]) return true;
-            }
-            
+    }
+
             // Higher typo tolerance in fallback mode
             const compU = normU.replace(/\s+/g, '');
             const compC = normC.replace(/\s+/g, '');
@@ -402,8 +402,8 @@ function fallbackMatch(
     }
     
     return false;
-}
-
+        }
+        
 /**
  * Synchronous answer checking - rule-based only
  * @deprecated Use checkAnswerAsync for AI-powered matching
@@ -420,7 +420,7 @@ export function checkAnswer(userAnswer: string, correctAnswer: string, overrideA
             if (exactMatch(userAnswer, override)) return true;
         }
     }
-    
+
     return fallbackMatch(userAnswer, correctAnswer, overrideAnswers);
 }
 
