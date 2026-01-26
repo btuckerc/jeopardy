@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '../../../lib/auth'
@@ -97,8 +97,42 @@ function FinalPracticeContent() {
     const [loading, setLoading] = useState(true)
     const [loadingQuestion, setLoadingQuestion] = useState(false)
     const [spoilerDate, setSpoilerDate] = useState<Date | null>(null)
+    
+    // Initialize sortBy from localStorage synchronously to avoid flash
+    const [sortBy, setSortBy] = useState<'airDate' | 'completion'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('final_practice_sort_preference')
+            if (saved === 'airDate' || saved === 'completion') {
+                return saved
+            }
+        }
+        return 'airDate'
+    })
+    // Initialize sortDirection from localStorage synchronously to avoid flash
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('final_practice_sort_direction')
+            if (saved === 'asc' || saved === 'desc') {
+                return saved
+            }
+        }
+        return 'desc'
+    })
+    const [isSortTransitioning, setIsSortTransitioning] = useState(false)
+    
+    // Persist sort preference to localStorage when user changes it
+    const handleSortChange = useCallback((newSort: 'airDate' | 'completion') => {
+        setSortBy(newSort)
+        localStorage.setItem('final_practice_sort_preference', newSort)
+    }, [])
+    
+    // Persist sort direction to localStorage when user changes it
+    const handleSortDirectionChange = useCallback((newDirection: 'asc' | 'desc') => {
+        setSortDirection(newDirection)
+        localStorage.setItem('final_practice_sort_direction', newDirection)
+    }, [])
 
-    // Load categories for Final Jeopardy
+    // Load categories for Final Jeopardy (only on user change, sorting is done client-side)
     useEffect(() => {
         const loadCategories = async () => {
             try {
@@ -112,6 +146,53 @@ function FinalPracticeContent() {
         }
         loadCategories()
     }, [user?.id])
+    
+    // Sort categories client-side (Final Jeopardy loads all categories at once)
+    // When sorting by completion, separate categories with progress from those without
+    const { inProgressCategories, notStartedCategories, sortedCategories } = useMemo(() => {
+        if (sortBy === 'completion') {
+            // Split into in-progress and not-started
+            const inProgress = categories.filter(c => Number(c.correctQuestions) > 0);
+            const notStarted = categories.filter(c => Number(c.correctQuestions) === 0);
+            
+            // Sort in-progress by completion percentage (asc/desc based on sortDirection)
+            const sortedInProgress = [...inProgress].sort((a, b) => {
+                const completionA = (Number(a.correctQuestions) / Number(a.totalQuestions)) || 0;
+                const completionB = (Number(b.correctQuestions) / Number(b.totalQuestions)) || 0;
+                return sortDirection === 'asc' 
+                    ? completionA - completionB 
+                    : completionB - completionA;
+            });
+            
+            // Sort not-started by air date (always newest first for stability)
+            const sortedNotStarted = [...notStarted].sort((a, b) => {
+                const dateA = a.mostRecentAirDate ? new Date(a.mostRecentAirDate) : new Date(0);
+                const dateB = b.mostRecentAirDate ? new Date(b.mostRecentAirDate) : new Date(0);
+                return dateB.getTime() - dateA.getTime();
+            });
+            
+            return {
+                inProgressCategories: sortedInProgress,
+                notStartedCategories: sortedNotStarted,
+                sortedCategories: [...sortedInProgress, ...sortedNotStarted]
+            };
+        }
+        
+        // Sort by air date (asc/desc based on sortDirection)
+        const sorted = [...categories].sort((a, b) => {
+            const dateA = a.mostRecentAirDate ? new Date(a.mostRecentAirDate) : new Date(0);
+            const dateB = b.mostRecentAirDate ? new Date(b.mostRecentAirDate) : new Date(0);
+            return sortDirection === 'asc'
+                ? dateA.getTime() - dateB.getTime()
+                : dateB.getTime() - dateA.getTime();
+        });
+        
+        return {
+            inProgressCategories: [],
+            notStartedCategories: [],
+            sortedCategories: sorted
+        };
+    }, [categories, sortBy, sortDirection])
 
     // Load question when category is selected
     const handleCategorySelect = useCallback(async (categoryId: string) => {
@@ -367,14 +448,92 @@ function FinalPracticeContent() {
             </div>
 
             {!selectedQuestion ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {categories.map(category => (
-                        <CategoryCard
-                            key={category.id}
-                            category={category}
-                            onClick={() => handleCategorySelect(category.id)}
-                        />
-                    ))}
+                <div>
+                    {/* Sort Controls */}
+                    <div className="mb-6 flex justify-end">
+                        <div className="flex items-center gap-2">
+                            {/* Asc/Desc Toggle */}
+                            <div className="relative grid grid-cols-2 bg-amber-600 rounded-lg p-1 shadow-md min-w-[80px]">
+                                <div 
+                                    style={{
+                                        transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+                                        transform: sortDirection === 'desc' ? 'translateX(100%)' : 'translateX(0)',
+                                    }}
+                                    className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-white rounded-md shadow-sm will-change-transform"
+                                />
+                                <button
+                                    onClick={() => handleSortDirectionChange('asc')}
+                                    className={`relative z-10 flex items-center justify-center p-2 rounded-md transition-colors duration-200 ${
+                                        sortDirection === 'asc' ? 'text-amber-900' : 'text-white/70 hover:text-white'
+                                    }`}
+                                    aria-label="Sort ascending"
+                                    title="Sort ascending"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                    </svg>
+                                </button>
+                                <button
+                                    onClick={() => handleSortDirectionChange('desc')}
+                                    className={`relative z-10 flex items-center justify-center p-2 rounded-md transition-colors duration-200 ${
+                                        sortDirection === 'desc' ? 'text-amber-900' : 'text-white/70 hover:text-white'
+                                    }`}
+                                    aria-label="Sort descending"
+                                    title="Sort descending"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            {/* Date/Progress Toggle */}
+                            <div className="relative grid grid-cols-2 bg-amber-600 rounded-lg p-1 shadow-md min-w-[200px]">
+                                <div 
+                                    style={{
+                                        transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+                                        transform: sortBy === 'completion' ? 'translateX(100%)' : 'translateX(0)',
+                                    }}
+                                    className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-white rounded-md shadow-sm will-change-transform"
+                                />
+                                <button
+                                    onClick={() => handleSortChange('airDate')}
+                                    className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
+                                        sortBy === 'airDate' ? 'text-amber-900' : 'text-white/70 hover:text-white'
+                                    }`}
+                                    aria-label="Sort by date"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <span className="hidden sm:inline">Date</span>
+                                </button>
+                                <button
+                                    onClick={() => handleSortChange('completion')}
+                                    className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
+                                        sortBy === 'completion' ? 'text-amber-900' : 'text-white/70 hover:text-white'
+                                    }`}
+                                    aria-label="Sort by progress"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                    </svg>
+                                    <span className="hidden sm:inline">Progress</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Categories Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {sortedCategories.map(category => (
+                            <CategoryCard
+                                key={category.id}
+                                category={category}
+                                onClick={() => handleCategorySelect(category.id)}
+                            />
+                        ))}
+                    </div>
                 </div>
             ) : (
                 <div className="max-w-3xl mx-auto">

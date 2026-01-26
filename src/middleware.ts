@@ -7,6 +7,9 @@ const isPublicRoute = createRouteMatcher([
     '/about',
     '/sign-in(.*)',
     '/sign-up(.*)',
+    '/game', // Game hub is public (shows sign-in prompt for guests)
+    '/help(.*)', // Help pages are public
+    '/leaderboard(.*)', // Leaderboard is public
     '/api/cron(.*)', // Cron jobs don't need user auth
     '/api/categories(.*)', // Public category browsing
     '/api/questions(.*)', // Public question access

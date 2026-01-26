@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { getAppUser } from '@/lib/clerk-auth'
-import { prisma } from '@/lib/prisma'
 import AdminClient from './AdminClient'
 
 /**
@@ -10,6 +9,10 @@ import AdminClient from './AdminClient'
  * 1. The check happens on the server before any HTML is sent
  * 2. Unauthorized users can't see the admin UI at all
  * 3. No loading states or flashes - immediate redirect or render
+ * 
+ * Performance optimization:
+ * - No longer prefetch game data since default tab (metrics-overview) uses React Query
+ * - Data is fetched on-demand by each tab when needed
  */
 export default async function AdminPage() {
     // Get the current user from Clerk + Prisma
@@ -34,34 +37,8 @@ export default async function AdminPage() {
         )
     }
     
-    // User is admin - fetch initial data server-side
-    let initialGames: any[] = []
-    try {
-        // Fetch games grouped by air date
-        const games = await prisma.question.groupBy({
-            by: ['airDate'],
-            _count: {
-                id: true
-            },
-            orderBy: {
-                airDate: 'desc'
-            },
-            where: {
-                airDate: {
-                    not: null
-                }
-            }
-        })
-        
-        initialGames = games.map(g => ({
-            airDate: g.airDate,
-            questionCount: g._count.id
-        }))
-    } catch (error) {
-        console.error('Error fetching initial games:', error)
-        // Continue with empty games - the client can retry
-    }
-    
-    // Render the admin client component with verified user and initial data
-    return <AdminClient user={user} initialGames={initialGames} />
+    // Render admin client with verified user
+    // Initial games data is no longer prefetched - each tab fetches its own data via React Query
+    // This improves initial page load time significantly
+    return <AdminClient user={user} initialGames={[]} />
 }

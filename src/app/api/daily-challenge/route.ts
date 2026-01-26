@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse, parseBody, badRequestResponse } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { parseGameByDate, parseGameById, getSeasonGames, type SeasonGame } from '@/lib/jarchive-scraper'
 import { checkAnswer } from '@/app/lib/answer-checker'
@@ -8,19 +10,20 @@ import { checkAndUnlockAchievements } from '@/lib/achievements'
 import { getGuestConfig, createGuestSession } from '@/lib/guest-sessions'
 import { isWeekday } from '@/lib/game-utils'
 import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
+import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 /**
  * GET /api/daily-challenge
  * Get today's daily challenge (Final Jeopardy question from historical games)
  */
-export async function GET(request: Request) {
+export const GET = withInstrumentation(async (request: NextRequest) => {
     try {
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
+        // Get the active challenge date (based on 9AM ET boundary)
+        const challengeDate = getActiveChallengeDate()
         
         // Check if challenge exists for today
         let challenge = await prisma.dailyChallenge.findUnique({
-            where: { date: today },
+            where: { date: challengeDate },
             include: {
                 question: {
                     include: {
@@ -33,13 +36,13 @@ export async function GET(request: Request) {
         // If no challenge exists, create one (with proper error handling)
         if (!challenge) {
             try {
-                challenge = await setupDailyChallenge(today)
+                challenge = await setupDailyChallenge(challengeDate)
             } catch (error: any) {
                 // If it's a unique constraint error, challenge was created by another request
                 if (error.code === 'P2002') {
                     // Retry fetching the challenge
                     challenge = await prisma.dailyChallenge.findUnique({
-                        where: { date: today },
+                        where: { date: challengeDate },
                         include: {
                             question: {
                                 include: {
@@ -101,7 +104,7 @@ export async function GET(request: Request) {
     } catch (error) {
         return serverErrorResponse('Error fetching daily challenge', error)
     }
-}
+})
 
 /**
  * POST /api/daily-challenge
@@ -111,7 +114,7 @@ const submitAnswerSchema = z.object({
     answer: z.string().min(1)
 })
 
-export async function POST(request: Request) {
+export const POST = withInstrumentation(async (request: NextRequest) => {
     try {
         const user = await getAppUser()
         const guestConfig = await getGuestConfig()
@@ -128,12 +131,12 @@ export async function POST(request: Request) {
         const { data: body, error } = await parseBody(request, submitAnswerSchema)
         if (error) return error
 
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
+        // Get the active challenge date (based on 9AM ET boundary)
+        const challengeDate = getActiveChallengeDate()
 
         // Get today's challenge
         let challenge = await prisma.dailyChallenge.findUnique({
-            where: { date: today },
+            where: { date: challengeDate },
             include: {
                 question: true
             }
@@ -141,12 +144,12 @@ export async function POST(request: Request) {
 
         if (!challenge) {
             try {
-                challenge = await setupDailyChallenge(today)
+                challenge = await setupDailyChallenge(challengeDate)
             } catch (error: any) {
                 // If it's a unique constraint error, challenge was created by another request
                 if (error.code === 'P2002') {
                     challenge = await prisma.dailyChallenge.findUnique({
-                        where: { date: today },
+                        where: { date: challengeDate },
                         include: {
                             question: true
                         }
@@ -232,7 +235,7 @@ export async function POST(request: Request) {
     } catch (error) {
         return serverErrorResponse('Error submitting daily challenge answer', error)
     }
-}
+})
 
 /**
  * Setup daily challenge for a given date

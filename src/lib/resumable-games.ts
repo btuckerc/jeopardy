@@ -9,7 +9,7 @@ export interface ResumableGame {
     currentRound: string
     currentScore: number
     roundBadges: string[]
-            categories: Array<{
+    categories: Array<{
         id: string
         name: string
         answeredCount: number
@@ -29,8 +29,9 @@ export interface ResumableGame {
  * Standard Jeopardy: 6 categories × 5 questions = 30 per round
  * Final Jeopardy: 1 question
  */
-function calculateExpectedQuestions(config: any): number {
-    const rounds = config?.rounds || { single: true, double: true, final: false }
+function calculateExpectedQuestions(config: unknown): number {
+    const cfg = config as { rounds?: { single?: boolean; double?: boolean; final?: boolean } } | null
+    const rounds = cfg?.rounds || { single: true, double: true, final: false }
     let total = 0
     
     // Each regular round has 6 categories × 5 questions = 30 questions
@@ -44,8 +45,63 @@ function calculateExpectedQuestions(config: any): number {
 }
 
 /**
+ * Generate a human-readable label for a game based on its config
+ */
+function generateGameLabel(config: unknown): string {
+    const cfg = config as { 
+        mode?: string
+        categories?: string[]
+        categoryIds?: string[]
+        date?: string 
+    } | null
+
+    if (!cfg?.mode) return 'Game'
+
+    switch (cfg.mode) {
+        case 'random':
+            return 'Random Categories'
+        case 'knowledge': {
+            const areas = cfg.categories || []
+            if (areas.length === 1) {
+                return areas[0].replace(/_/g, ' ')
+            } else if (areas.length > 1) {
+                return `${areas.length} Knowledge Areas`
+            }
+            return 'Knowledge Game'
+        }
+        case 'custom': {
+            const customCatCount = cfg.categoryIds?.length || 0
+            return `Custom (${customCatCount} categories)`
+        }
+        case 'date': {
+            if (cfg.date) {
+                const [year, month, day] = cfg.date.split('-').map(Number)
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                return `Episode: ${months[month - 1]} ${day}, ${year}`
+            }
+            return 'Date Game'
+        }
+        default:
+            return 'Game'
+    }
+}
+
+/**
+ * Get round badges from game config
+ */
+function getRoundBadges(config: unknown): string[] {
+    const cfg = config as { rounds?: { single?: boolean; double?: boolean; final?: boolean } } | null
+    const rounds = cfg?.rounds || { single: true, double: true, final: false }
+    const badges: string[] = []
+    if (rounds.single) badges.push('Single')
+    if (rounds.double) badges.push('Double')
+    if (rounds.final) badges.push('Final')
+    return badges
+}
+
+/**
  * Server-side utility to fetch resumable games
- * Can be called directly from server components
+ * OPTIMIZED: Uses lighter queries to avoid loading full question/category data
  */
 export async function getResumableGames(): Promise<ResumableGame[]> {
     const appUser = await getAppUser()
@@ -54,7 +110,8 @@ export async function getResumableGames(): Promise<ResumableGame[]> {
         return []
     }
 
-    // Fetch in-progress games for this user
+    // OPTIMIZED: Fetch games with minimal data
+    // Don't include full questions - just get counts
     const games = await prisma.game.findMany({
         where: {
             userId: appUser.id,
@@ -63,91 +120,128 @@ export async function getResumableGames(): Promise<ResumableGame[]> {
         orderBy: {
             updatedAt: 'desc'
         },
-        include: {
-            questions: {
-                include: {
-                    question: {
-                        include: {
-                            category: true
-                        }
-                    }
+        select: {
+            id: true,
+            seed: true,
+            config: true,
+            status: true,
+            currentRound: true,
+            currentScore: true,
+            createdAt: true,
+            updatedAt: true,
+            // Use _count for efficient aggregation
+            _count: {
+                select: {
+                    questions: true
                 }
             }
         }
     })
 
-    // Transform games to include useful summary info
-    const resumableGames: ResumableGame[] = games.map(game => {
-        const config = game.config as any
-        
-        // Generate a human-readable label for the game
-        let label = 'Game'
-        if (config?.mode === 'random') {
-            label = 'Random Categories'
-        } else if (config?.mode === 'knowledge') {
-            const areas = config.categories || []
-            if (areas.length === 1) {
-                label = areas[0].replace(/_/g, ' ')
-            } else if (areas.length > 1) {
-                label = `${areas.length} Knowledge Areas`
-            }
-        } else if (config?.mode === 'custom') {
-            const customCatCount = config.categoryIds?.length || 0
-            label = `Custom (${customCatCount} categories)`
-        } else if (config?.mode === 'date' && config.date) {
-            // Parse date string directly to avoid timezone issues
-            // config.date is in format "YYYY-MM-DD"
-            const [year, month, day] = config.date.split('-').map(Number)
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-            label = `Episode: ${months[month - 1]} ${day}, ${year}`
+    if (games.length === 0) {
+        return []
+    }
+
+    // OPTIMIZED: Get question stats for all games in a single batch query
+    // Group by gameId to get answered and correct counts
+    const gameIds = games.map(g => g.id)
+    
+    // Get answered/correct counts per game using groupBy
+    // We use separate queries for answered/correct counts since groupBy doesn't support conditional sums
+    const questionStats = await prisma.gameQuestion.groupBy({
+        by: ['gameId'],
+        where: {
+            gameId: { in: gameIds }
+        },
+        _count: {
+            id: true
         }
+    })
 
-        // Calculate progress
-        const answeredQuestions = game.questions.filter(q => q.answered).length
-        const correctQuestions = game.questions.filter(q => q.correct === true).length
-        const expectedTotalQuestions = calculateExpectedQuestions(config)
+    // Get correct counts per game
+    const correctCounts = await prisma.gameQuestion.groupBy({
+        by: ['gameId'],
+        where: {
+            gameId: { in: gameIds },
+            correct: true
+        },
+        _count: {
+            id: true
+        }
+    })
 
-        // Extract unique categories from answered game questions
-        const categoryMap = new Map<string, { id: string; name: string; answeredCount: number }>()
-        
-        game.questions.forEach(gq => {
-            const cat = gq.question.category
-            if (!categoryMap.has(cat.id)) {
-                categoryMap.set(cat.id, {
-                    id: cat.id,
-                    name: cat.name,
-                    answeredCount: 0
-                })
-            }
-            const catInfo = categoryMap.get(cat.id)!
-            if (gq.answered) {
-                catInfo.answeredCount++
-            }
+    // Get answered counts per game
+    const answeredCounts = await prisma.gameQuestion.groupBy({
+        by: ['gameId'],
+        where: {
+            gameId: { in: gameIds },
+            answered: true
+        },
+        _count: {
+            id: true
+        }
+    })
+
+    // OPTIMIZED: Get category info for all games in batch
+    // This uses a raw query to efficiently get category names and counts per game
+    const categoryInfo = await prisma.$queryRaw<Array<{
+        gameId: string
+        categoryId: string
+        categoryName: string
+        answeredCount: bigint
+    }>>`
+        SELECT 
+            gq."gameId",
+            q."categoryId",
+            c."name" as "categoryName",
+            COUNT(CASE WHEN gq."answered" = true THEN 1 END) as "answeredCount"
+        FROM "GameQuestion" gq
+        JOIN "Question" q ON gq."questionId" = q."id"
+        JOIN "Category" c ON q."categoryId" = c."id"
+        WHERE gq."gameId" = ANY(${gameIds})
+        GROUP BY gq."gameId", q."categoryId", c."name"
+    `
+
+    // Build lookup maps for efficient access
+    const statsMap = new Map(questionStats.map(s => [s.gameId, s._count.id]))
+    const correctMap = new Map(correctCounts.map(s => [s.gameId, s._count.id]))
+    const answeredMap = new Map(answeredCounts.map(s => [s.gameId, s._count.id]))
+    
+    // Group category info by gameId
+    const categoryByGame = new Map<string, Array<{ id: string; name: string; answeredCount: number }>>()
+    for (const cat of categoryInfo) {
+        if (!categoryByGame.has(cat.gameId)) {
+            categoryByGame.set(cat.gameId, [])
+        }
+        categoryByGame.get(cat.gameId)!.push({
+            id: cat.categoryId,
+            name: cat.categoryName,
+            answeredCount: Number(cat.answeredCount)
         })
+    }
 
-        const categories = Array.from(categoryMap.values())
-
-        // Build round badges
-        const rounds = config?.rounds || { single: true, double: true, final: false }
-        const roundBadges: string[] = []
-        if (rounds.single) roundBadges.push('Single')
-        if (rounds.double) roundBadges.push('Double')
-        if (rounds.final) roundBadges.push('Final')
+    // Transform games to ResumableGame format
+    const resumableGames: ResumableGame[] = games.map(game => {
+        const answeredQuestions: number = answeredMap.get(game.id) || 0
+        const correctQuestions: number = correctMap.get(game.id) || 0
+        const expectedTotalQuestions: number = calculateExpectedQuestions(game.config)
 
         return {
             id: game.id,
             seed: game.seed,
-            label,
+            label: generateGameLabel(game.config),
             status: game.status,
             currentRound: game.currentRound,
             currentScore: game.currentScore,
-            roundBadges,
-            categories,
+            roundBadges: getRoundBadges(game.config),
+            categories: categoryByGame.get(game.id) || [],
             progress: {
                 totalQuestions: expectedTotalQuestions,
                 answeredQuestions,
                 correctQuestions,
-                percentComplete: expectedTotalQuestions > 0 ? Math.round((answeredQuestions / expectedTotalQuestions) * 100) : 0
+                percentComplete: expectedTotalQuestions > 0 
+                    ? Math.round((answeredQuestions / expectedTotalQuestions) * 100) 
+                    : 0
             },
             createdAt: game.createdAt,
             updatedAt: game.updatedAt
@@ -156,4 +250,3 @@ export async function getResumableGames(): Promise<ResumableGame[]> {
 
     return resumableGames
 }
-

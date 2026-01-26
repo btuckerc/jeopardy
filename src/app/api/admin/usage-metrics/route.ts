@@ -179,6 +179,57 @@ export async function GET(request: Request) {
             })
         ])
 
+        // Onboarding status breakdown
+        const [
+            usersWithDisplayName,
+            usersWithGames,
+            usersWithDailyChallenges,
+            usersWithAchievements,
+            activeLastWeek,
+            activeLastDay
+        ] = await Promise.all([
+            prisma.user.count({ where: { displayName: { not: null } } }),
+            prisma.user.count({ where: { games: { some: {} } } }),
+            prisma.user.count({ where: { dailyChallenges: { some: {} } } }),
+            prisma.user.count({ where: { achievements: { some: {} } } }),
+            prisma.user.count({
+                where: {
+                    lastOnlineAt: {
+                        gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+                    }
+                }
+            }),
+            prisma.user.count({
+                where: {
+                    lastOnlineAt: {
+                        gte: new Date(now.getTime() - 24 * 60 * 60 * 1000)
+                    }
+                }
+            })
+        ])
+
+        // Calculate onboarding funnel
+        const onboarding = {
+            total: totalUsers,
+            withDisplayName: usersWithDisplayName,
+            withGames: usersWithGames,
+            withDailyChallenges: usersWithDailyChallenges,
+            withAchievements: usersWithAchievements,
+            // Derived percentages
+            profileCompleted: totalUsers > 0 ? Math.round((usersWithDisplayName / totalUsers) * 100) : 0,
+            playedGame: totalUsers > 0 ? Math.round((usersWithGames / totalUsers) * 100) : 0,
+            triedDaily: totalUsers > 0 ? Math.round((usersWithDailyChallenges / totalUsers) * 100) : 0,
+            earnedAchievement: totalUsers > 0 ? Math.round((usersWithAchievements / totalUsers) * 100) : 0,
+        }
+
+        // User activity breakdown
+        const activity = {
+            activeLastDay,
+            activeLastWeek,
+            activeLastMonth: activeUsers,
+            dormant: totalUsers - activeUsers, // Not active in 30 days
+        }
+
         // Get user activity by bucket
         const usersByBucket = await prisma.user.findMany({
             where: {
@@ -262,7 +313,9 @@ export async function GET(request: Request) {
                 totalUsers,
                 activeUsers30d: activeUsers,
                 newUsersInWindow: totals.newUsers
-            }
+            },
+            onboarding,
+            activity
         })
     } catch (error) {
         return serverErrorResponse('Error fetching usage metrics', error)

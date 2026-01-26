@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server'
 import { getAppUser } from '@/lib/clerk-auth'
+import { withInstrumentation } from '@/lib/api-instrumentation'
 
 /**
  * GET /api/user/me
  * Returns the current authenticated user's data from Prisma.
  * This is used by client components to get the full user data including role.
  */
-export async function GET() {
+export const GET = withInstrumentation(async () => {
     try {
         const user = await getAppUser()
         
@@ -25,5 +26,5 @@ export async function GET() {
             { status: 500 }
         )
     }
-}
+})
 

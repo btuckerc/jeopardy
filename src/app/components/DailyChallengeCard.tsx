@@ -26,8 +26,55 @@ export default function DailyChallengeCard({ challenge }: DailyChallengeCardProp
     // Calculate next challenge time on the server
     const nextChallengeTime = getNextChallengeTimeISO()
 
+    // If no challenge data, show a fallback CTA that links to /daily-challenge
+    // (the daily-challenge page will create the challenge if needed)
     if (!challenge) {
-        return null
+        return (
+            <div className="space-y-4">
+                <Link href="/daily-challenge" className="block group">
+                    <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-8 md:p-12 transition-all duration-300 group-hover:shadow-3xl group-hover:scale-[1.02]">
+                        {/* Subtle pattern overlay */}
+                        <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')]"></div>
+                        
+                        {/* Content */}
+                        <div className="relative z-10">
+                            {/* Daily Challenge Badge */}
+                            <div className="flex items-center justify-center mb-6">
+                                <div className="px-6 py-2 bg-amber-400 rounded-full shadow-lg">
+                                    <span className="text-blue-900 font-bold text-sm md:text-base tracking-wider uppercase">
+                                        Daily Challenge
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Placeholder content */}
+                            <div className="text-center mb-8">
+                                <div className="inline-block px-6 py-3 bg-white/10 backdrop-blur-sm rounded-lg border-2 border-white/20 mb-4">
+                                    <p className="text-white text-xl md:text-2xl font-semibold tracking-wide">
+                                        Today&apos;s Final Jeopardy
+                                    </p>
+                                </div>
+                                <p className="text-blue-100 text-base md:text-lg mt-4">
+                                    Test your knowledge with a classic Final Jeopardy question
+                                </p>
+                            </div>
+
+                            {/* Call to Action */}
+                            <div className="text-center">
+                                <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/20 backdrop-blur-sm rounded-lg border-2 border-white/30 group-hover:bg-white/30 transition-all">
+                                    <span className="text-white font-semibold text-lg">
+                                        Take the Challenge
+                                    </span>
+                                    <svg className="w-6 h-6 text-white transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </Link>
+            </div>
+        )
     }
 
     const hasAnswered = challenge.userAnswer !== null
@@ -108,4 +155,3 @@ export default function DailyChallengeCard({ challenge }: DailyChallengeCardProp
         </div>
     )
 }
-

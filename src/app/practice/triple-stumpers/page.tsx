@@ -226,18 +226,39 @@ function TripleStumpersContent() {
         }
         return 'airDate'
     })
+    // Initialize sortDirection from localStorage synchronously to avoid flash
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('triple_stumper_sort_direction')
+            if (saved === 'asc' || saved === 'desc') {
+                return saved
+            }
+        }
+        return 'desc'
+    })
     const [isSortTransitioning, setIsSortTransitioning] = useState(false)
     const sortByRef = useRef(sortBy)
+    const sortDirectionRef = useRef(sortDirection)
     const isInitialMount = useRef(true)
     const [totalStats, setTotalStats] = useState({ total: 0, conquered: 0 })
 
     useEffect(() => {
         sortByRef.current = sortBy
     }, [sortBy])
+    
+    useEffect(() => {
+        sortDirectionRef.current = sortDirection
+    }, [sortDirection])
 
     const handleSortChange = useCallback((newSort: 'airDate' | 'completion') => {
         setSortBy(newSort)
         localStorage.setItem('triple_stumper_sort_preference', newSort)
+    }, [])
+    
+    // Persist sort direction to localStorage when user changes it
+    const handleSortDirectionChange = useCallback((newDirection: 'asc' | 'desc') => {
+        setSortDirection(newDirection)
+        localStorage.setItem('triple_stumper_sort_direction', newDirection)
     }, [])
 
     // Handle scroll
@@ -257,7 +278,7 @@ function TripleStumpersContent() {
     useEffect(() => {
         const loadCategories = async () => {
             try {
-                const result = await getTripleStumperCategories(user?.id, 1, 20, sortByRef.current)
+                const result = await getTripleStumperCategories(user?.id, 1, 20, sortByRef.current, sortDirectionRef.current)
                 setCategories(result.categories)
                 setHasMore(result.hasMore)
                 
@@ -275,7 +296,7 @@ function TripleStumpersContent() {
         loadCategories()
     }, [user?.id])
 
-    // Refetch when sort changes
+    // Refetch when sort or direction changes
     useEffect(() => {
         if (isInitialMount.current || selectedCategory) return
         
@@ -284,7 +305,7 @@ function TripleStumpersContent() {
             setCurrentPage(1)
             
             try {
-                const result = await getTripleStumperCategories(user?.id, 1, 20, sortBy)
+                const result = await getTripleStumperCategories(user?.id, 1, 20, sortBy, sortDirection)
                 await new Promise(resolve => setTimeout(resolve, 150))
                 setCategories(result.categories)
                 setHasMore(result.hasMore)
@@ -296,7 +317,7 @@ function TripleStumpersContent() {
         }
         
         refetchWithNewSort()
-    }, [sortBy, user?.id, selectedCategory])
+    }, [sortBy, sortDirection, user?.id, selectedCategory])
 
     // URL state restoration
     useEffect(() => {
@@ -390,7 +411,7 @@ function TripleStumpersContent() {
         setLoadingMore(true)
         try {
             const nextPage = currentPage + 1
-            const result = await getTripleStumperCategories(user?.id, nextPage, 20, sortBy)
+            const result = await getTripleStumperCategories(user?.id, nextPage, 20, sortBy, sortDirection)
             setCategories(prev => [...prev, ...result.categories])
             setCurrentPage(nextPage)
             setHasMore(result.hasMore)
@@ -399,7 +420,7 @@ function TripleStumpersContent() {
         } finally {
             setLoadingMore(false)
         }
-    }, [loadingMore, currentPage, sortBy, user?.id])
+    }, [loadingMore, currentPage, sortBy, sortDirection, user?.id])
 
     // Infinite scroll observer
     useEffect(() => {
@@ -488,7 +509,7 @@ function TripleStumpersContent() {
         // Refresh categories to update progress after answering questions
         if (user?.id) {
             try {
-                const result = await getTripleStumperCategories(user.id, 1, 20, sortBy)
+                const result = await getTripleStumperCategories(user.id, 1, 20, sortBy, sortDirection)
                 setCategories(result.categories)
                 setHasMore(result.hasMore)
                 setCurrentPage(1)
@@ -794,43 +815,83 @@ function TripleStumpersContent() {
 
                 {/* Categories View */}
                 {!selectedCategory && categories.length > 0 && (
-                    <div className={`transition-opacity duration-200 ${isSortTransitioning ? 'opacity-50' : 'opacity-100'}`}>
+                    <div className={`transition-opacity duration-200 ${isSortTransitioning ? 'opacity-40' : 'opacity-100'}`}>
                         {/* Sort Controls */}
                         <div className="mb-6 flex justify-end">
-                            <div className="relative grid grid-cols-2 bg-yellow-600 rounded-lg p-1 shadow-md min-w-[200px]">
-                                <div 
-                                    style={{
-                                        transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
-                                        transform: sortBy === 'completion' ? 'translateX(100%)' : 'translateX(0)',
-                                    }}
-                                    className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-white rounded-md shadow-sm will-change-transform"
-                                />
-                                <button
-                                    onClick={() => handleSortChange('airDate')}
-                                    className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
-                                        sortBy === 'airDate' ? 'text-yellow-900' : 'text-white/70 hover:text-white'
-                                    }`}
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                    <span className="hidden sm:inline">Newest</span>
-                                </button>
-                                <button
-                                    onClick={() => handleSortChange('completion')}
-                                    className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
-                                        sortBy === 'completion' ? 'text-yellow-900' : 'text-white/70 hover:text-white'
-                                    }`}
-                                >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                    </svg>
-                                    <span className="hidden sm:inline">Progress</span>
-                                </button>
+                            <div className="flex items-center gap-2">
+                                {/* Asc/Desc Toggle */}
+                                <div className="relative grid grid-cols-2 bg-yellow-600 rounded-lg p-1 shadow-md min-w-[80px]">
+                                    <div 
+                                        style={{
+                                            transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+                                            transform: sortDirection === 'desc' ? 'translateX(100%)' : 'translateX(0)',
+                                        }}
+                                        className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-white rounded-md shadow-sm will-change-transform"
+                                    />
+                                    <button
+                                        onClick={() => handleSortDirectionChange('asc')}
+                                        className={`relative z-10 flex items-center justify-center p-2 rounded-md transition-colors duration-200 ${
+                                            sortDirection === 'asc' ? 'text-yellow-900' : 'text-white/70 hover:text-white'
+                                        }`}
+                                        aria-label="Sort ascending"
+                                        title="Sort ascending"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={() => handleSortDirectionChange('desc')}
+                                        className={`relative z-10 flex items-center justify-center p-2 rounded-md transition-colors duration-200 ${
+                                            sortDirection === 'desc' ? 'text-yellow-900' : 'text-white/70 hover:text-white'
+                                        }`}
+                                        aria-label="Sort descending"
+                                        title="Sort descending"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                
+                                {/* Date/Progress Toggle */}
+                                <div className="relative grid grid-cols-2 bg-yellow-600 rounded-lg p-1 shadow-md min-w-[200px]">
+                                    <div 
+                                        style={{
+                                            transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+                                            transform: sortBy === 'completion' ? 'translateX(100%)' : 'translateX(0)',
+                                        }}
+                                        className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-white rounded-md shadow-sm will-change-transform"
+                                    />
+                                    <button
+                                        onClick={() => handleSortChange('airDate')}
+                                        className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
+                                            sortBy === 'airDate' ? 'text-yellow-900' : 'text-white/70 hover:text-white'
+                                        }`}
+                                        aria-label="Sort by date"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <span className="hidden sm:inline">Date</span>
+                                    </button>
+                                    <button
+                                        onClick={() => handleSortChange('completion')}
+                                        className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
+                                            sortBy === 'completion' ? 'text-yellow-900' : 'text-white/70 hover:text-white'
+                                        }`}
+                                        aria-label="Sort by progress"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                        </svg>
+                                        <span className="hidden sm:inline">Progress</span>
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 transition-opacity duration-200 ${isSortTransitioning ? 'opacity-40' : 'opacity-100'}`}>
                             {categories.map(category => (
                                 <CategoryCard
                                     key={category.id}

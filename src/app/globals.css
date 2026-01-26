@@ -48,6 +48,8 @@
 @layer base {
     html {
         scroll-behavior: smooth;
+        /* Prevent layout shift when scrollbar appears/disappears */
+        overflow-y: scroll;
     }
     
     body {

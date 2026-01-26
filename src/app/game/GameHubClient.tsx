@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuth } from '../lib/auth'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
-import type { ResumableGame } from '@/lib/resumable-games'
 import type { ClientResumableGame } from './components/GameResumableList'
 
 // Dynamically import heavy components to reduce initial bundle size
@@ -59,13 +57,35 @@ const KNOWLEDGE_CATEGORIES = [
 
 type KnowledgeCategory = typeof KNOWLEDGE_CATEGORIES[number]
 
-interface GameHubClientProps {
-    initialResumableGames: ClientResumableGame[]
+// Props passed from server component - no fetching needed!
+interface InitialUser {
+    id: string
+    email: string
+    displayName: string | null
+    selectedIcon: string | null
+    avatarBackground: string | null
+    role: string
 }
 
-export default function GameHubClient({ initialResumableGames }: GameHubClientProps) {
+interface InitialSpoilerSettings {
+    enabled: boolean
+    cutoffDate: string | null
+}
+
+interface GameHubClientProps {
+    initialResumableGames: ClientResumableGame[]
+    initialUser: InitialUser | null
+    initialSpoilerSettings: InitialSpoilerSettings | null
+}
+
+export default function GameHubClient({ 
+    initialResumableGames,
+    initialUser,
+    initialSpoilerSettings
+}: GameHubClientProps) {
     const router = useRouter()
-    const { user, loading: authLoading } = useAuth()
+    // Use server-provided user data directly - no client fetch needed!
+    const user = initialUser
     
     // Resumable games state - start with server-provided data
     const [resumableGames, setResumableGames] = useState<ClientResumableGame[]>(initialResumableGames)
@@ -102,39 +122,23 @@ export default function GameHubClient({ initialResumableGames }: GameHubClientPr
     const [showSeedModal, setShowSeedModal] = useState(false)
     const [startingFromSeed, setStartingFromSeed] = useState(false)
 
-    // Spoiler settings state
+    // Spoiler settings state - initialized from server data
     const [spoilerSettings, setSpoilerSettings] = useState<{
         enabled: boolean
         cutoffDate: Date | null
-    } | null>(null)
+    } | null>(() => {
+        if (!initialSpoilerSettings) return null
+        return {
+            enabled: initialSpoilerSettings.enabled,
+            cutoffDate: initialSpoilerSettings.cutoffDate ? new Date(initialSpoilerSettings.cutoffDate) : null
+        }
+    })
     const [showSpoilerWarningModal, setShowSpoilerWarningModal] = useState(false)
     const [spoilerWarningConfig, setSpoilerWarningConfig] = useState<any>(null)
     const [spoilerWarningDate, setSpoilerWarningDate] = useState<string | null>(null)
     const [updatingSpoilerDate, setUpdatingSpoilerDate] = useState(false)
 
-    // Fetch spoiler settings (resumable games already provided by server)
-    useEffect(() => {
-        if (!user?.id || authLoading) {
-            return
-        }
-
-        const fetchSpoilerSettings = async () => {
-            try {
-                const response = await fetch('/api/user/spoiler-settings')
-                if (response.ok) {
-                    const data = await response.json()
-                    setSpoilerSettings({
-                        enabled: data.spoilerBlockEnabled ?? false,
-                        cutoffDate: data.spoilerBlockDate ? new Date(data.spoilerBlockDate) : null
-                    })
-                }
-            } catch (error) {
-                console.error('Error fetching spoiler settings:', error)
-            }
-        }
-
-        fetchSpoilerSettings()
-    }, [user?.id, authLoading])
+    // No fetch needed - spoiler settings provided by server!
 
     // Refresh resumable games after ending a game
     const refreshResumableGames = async () => {
@@ -586,16 +590,7 @@ export default function GameHubClient({ initialResumableGames }: GameHubClientPr
                 </div>
 
                 {/* Resumable Games Section */}
-                {authLoading ? (
-                    // Show loading skeleton while auth loads
-                    <div className="mb-8">
-                        <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-4"></div>
-                        <div className="card p-6 text-center">
-                            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-2"></div>
-                            <p className="text-gray-500">Loading your games...</p>
-                        </div>
-                    </div>
-                ) : !user ? (
+                {!user ? (
                     // Show sign-in prompt if not authenticated
                     <div className="mb-8">
                         <div className="card p-6 text-center bg-gray-50 border-dashed">

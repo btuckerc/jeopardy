@@ -4,6 +4,7 @@ import { getGuestConfig } from '@/lib/guest-sessions'
 import DailyChallengeClient from './DailyChallengeClient'
 import { Metadata } from 'next'
 import { setupDailyChallenge } from '../api/daily-challenge/route'
+import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 export const metadata: Metadata = {
     title: 'Daily Challenge | trivrdy',
@@ -70,12 +71,12 @@ export default async function DailyChallengePage() {
     let leaderboard: LeaderboardEntry[] = []
     
     try {
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
+        // Get the active challenge date (based on 9AM ET boundary)
+        const challengeDate = getActiveChallengeDate()
         
         // Get today's challenge, create if it doesn't exist
         let challengeData = await prisma.dailyChallenge.findUnique({
-            where: { date: today },
+            where: { date: challengeDate },
             include: {
                 question: {
                     include: {
@@ -88,13 +89,13 @@ export default async function DailyChallengePage() {
         // If no challenge exists, try to create one (may fail if no questions available)
         if (!challengeData) {
             try {
-                const createdChallenge = await setupDailyChallenge(today)
+                const createdChallenge = await setupDailyChallenge(challengeDate)
                 if (createdChallenge) {
                     challengeData = createdChallenge
                 } else {
                     // Setup returned null, try fetching anyway (might have been created by another request)
                     challengeData = await prisma.dailyChallenge.findUnique({
-                        where: { date: today },
+                        where: { date: challengeDate },
                         include: {
                             question: {
                                 include: {
@@ -108,7 +109,7 @@ export default async function DailyChallengePage() {
                 // If it's a unique constraint error, challenge was created by another request
                 if (error.code === 'P2002') {
                     challengeData = await prisma.dailyChallenge.findUnique({
-                        where: { date: today },
+                        where: { date: challengeDate },
                         include: {
                             question: {
                                 include: {

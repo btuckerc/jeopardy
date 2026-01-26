@@ -4,17 +4,18 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { prisma } from '@/lib/prisma'
 import HomepageClient from './HomepageClient'
 import DailyChallengeCard from './components/DailyChallengeCard'
+import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
 
 async function getDailyChallenge(userId: string | null) {
     try {
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
+        // Get the active challenge date (based on 9AM ET boundary)
+        const challengeDate = getActiveChallengeDate()
         
         // Check if challenge exists for today
         let challenge = await prisma.dailyChallenge.findUnique({
-            where: { date: today },
+            where: { date: challengeDate },
             include: {
                 question: {
                     include: {

@@ -1,13 +1,15 @@
 import { prisma } from '@/lib/prisma'
 import { requireAuth } from '@/lib/clerk-auth'
 import { jsonResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
+import { NextRequest } from 'next/server'
 
 /**
  * POST /api/user/activity
  * Record user activity (last online time and current page)
  * Throttled to update at most once per minute per user
  */
-export async function POST(request: Request) {
+export const POST = withInstrumentation(async (request: NextRequest) => {
     try {
         const user = await requireAuth()
         
@@ -48,4 +50,4 @@ export async function POST(request: Request) {
     } catch (error) {
         return serverErrorResponse('Failed to record activity', error)
     }
-}
+})

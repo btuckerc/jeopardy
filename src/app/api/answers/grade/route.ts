@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
 import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
 import { getStatsPoints } from '@/lib/scoring'
@@ -24,7 +25,7 @@ export const dynamic = 'force-dynamic'
  * Centralized grading endpoint that checks answers against canonical answer and overrides,
  * persists results to GameHistory/UserProgress, and returns dispute context.
  */
-export async function POST(request: NextRequest) {
+export const POST = withInstrumentation(async (request: NextRequest) => {
     try {
         const appUser = await getAppUser()
         if (!appUser) {
@@ -216,5 +217,5 @@ export async function POST(request: NextRequest) {
         console.error('Error grading answer:', error)
         return serverErrorResponse('Failed to grade answer', error)
     }
-}
+})
 

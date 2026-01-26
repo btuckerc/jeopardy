@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse, parseBody, badRequestResponse } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 
@@ -38,7 +39,7 @@ const completeGameSchema = z.object({
  * Update game state after answering a question, advancing rounds, or completing the game.
  * Supports multiple action types via the 'action' field.
  */
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+async function patchHandler(request: NextRequest, { params }: RouteParams) {
     try {
         const appUser = await getAppUser()
         if (!appUser) {
@@ -294,3 +295,4 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 }
 
+export const PATCH = withInstrumentation(patchHandler as any)

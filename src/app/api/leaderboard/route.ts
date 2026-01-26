@@ -7,6 +7,8 @@ import {
     parseSearchParams,
     paginationSchema
 } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
+import { NextRequest } from 'next/server'
 import { FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
@@ -30,7 +32,7 @@ interface LeaderboardEntry {
     avgPointsPerCorrect: number
 }
 
-export async function GET(request: Request) {
+export const GET = withInstrumentation(async (request: NextRequest) => {
     // Require authentication
     const { error: authError } = await requireAuth()
     if (authError) return authError
@@ -97,4 +99,4 @@ export async function GET(request: Request) {
     } catch (error) {
         return serverErrorResponse('Failed to fetch leaderboard', error)
     }
-} 
+})

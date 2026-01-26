@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, notFoundResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
 import type { Prisma } from '@prisma/client'
 import {
     getGameSpoilerPolicy,
@@ -10,8 +11,42 @@ import {
     wouldViolateSpoilerPolicy,
     type SpoilerPolicy
 } from '@/lib/spoiler-utils'
+import {
+    getFinalJeopardyCacheKey,
+    getCachedFinalJeopardy,
+    setCachedFinalJeopardy,
+    type CachedFinalJeopardy
+} from '@/lib/game-cache'
 
 export const dynamic = 'force-dynamic'
+
+// Step-level timing helper for performance analysis
+function createTimer(label: string) {
+    const times: { step: string; ms: number }[] = []
+    let lastTime = performance.now()
+    return {
+        mark(step: string) {
+            const now = performance.now()
+            times.push({ step, ms: Math.round(now - lastTime) })
+            lastTime = now
+        },
+        log() {
+            const total = times.reduce((sum, t) => sum + t.ms, 0)
+            console.log(`[PERF] ${label}: ${total}ms total`, times.map(t => `${t.step}=${t.ms}ms`).join(', '))
+        }
+    }
+}
+
+// Deterministic hash from seed string to number
+function hashSeed(seed: string): number {
+    let hash = 0
+    for (let i = 0; i < seed.length; i++) {
+        const char = seed.charCodeAt(i)
+        hash = ((hash << 5) - hash) + char
+        hash = hash & hash // Convert to 32bit integer
+    }
+    return Math.abs(hash)
+}
 
 type KnowledgeCategory =
     | 'GEOGRAPHY_AND_HISTORY'
@@ -25,9 +60,10 @@ type KnowledgeCategory =
  * GET /api/game/final
  * 
  * Returns a Final Jeopardy question for a game.
+ * OPTIMIZED: Uses count + skip for O(1) selection instead of loading all questions.
  * 
  * Query parameters:
- * - gameId: (optional) If provided, uses the game's stored spoiler policy
+ * - gameId: (optional) If provided, uses the game's stored spoiler policy + seed for determinism
  * - questionId: (optional) For fetching a specific question (resume)
  * - mode: 'random' | 'knowledge' | 'custom' | 'date'
  * - finalCategoryMode: 'shuffle' | 'byDate' | 'specificCategory'
@@ -36,11 +72,9 @@ type KnowledgeCategory =
  * - categoryIds: (for custom mode) comma-separated category IDs
  * - date: (for date mode or byDate finalCategoryMode) ISO date string
  */
-export async function GET(request: NextRequest) {
+export const GET = withInstrumentation(async (request: NextRequest) => {
+    const timer = createTimer('/api/game/final')
     try {
-        const appUser = await getAppUser()
-        const userId = appUser?.id
-
         const searchParams = request.nextUrl.searchParams
         const gameId = searchParams.get('gameId')
         const mode = searchParams.get('mode')
@@ -49,15 +83,45 @@ export async function GET(request: NextRequest) {
         const finalCategoryId = searchParams.get('finalCategoryId')
         const questionId = searchParams.get('questionId') // For fetching a specific question (resume)
 
+        // For specific questionId lookups, don't cache (used for resume)
+        // For new FJ selection with deterministic params, check cache
+        if (!questionId) {
+            const cacheKey = getFinalJeopardyCacheKey({ 
+                gameId, 
+                seed: null, // Will use gameId's seed internally
+                mode, 
+                date, 
+                finalCategoryMode, 
+                finalCategoryId 
+            })
+            if (cacheKey) {
+                const cached = getCachedFinalJeopardy(cacheKey)
+                if (cached) {
+                    timer.mark('cacheHit')
+                    timer.log()
+                    return jsonResponse(cached)
+                }
+            }
+            timer.mark('cacheMiss')
+        }
+
+        const appUser = await getAppUser()
+        timer.mark('auth')
+        const userId = appUser?.id
+
         // Determine the effective spoiler policy
-        // Priority:
-        // 1. If gameId is provided, use the game's stored/computed policy
-        // 2. Otherwise, compute from the current user's profile
         let spoilerPolicy: SpoilerPolicy
+        let gameSeed: string | null = null
 
         if (gameId) {
             // Use the game's spoiler policy for consistent board generation
             spoilerPolicy = await getGameSpoilerPolicy(gameId)
+            // Also fetch the game's seed for deterministic selection
+            const game = await prisma.game.findUnique({
+                where: { id: gameId },
+                select: { seed: true }
+            })
+            gameSeed = game?.seed ?? null
         } else if (userId) {
             // Fall back to the current user's profile settings
             spoilerPolicy = await computeUserEffectiveCutoff(userId)
@@ -65,6 +129,7 @@ export async function GET(request: NextRequest) {
             // No user, no game - no spoiler protection
             spoilerPolicy = { enabled: false, cutoffDate: null }
         }
+        timer.mark('spoilerPolicy')
 
         // If a specific question ID is provided, fetch that question directly
         if (questionId) {
@@ -79,25 +144,29 @@ export async function GET(request: NextRequest) {
                     }
                 }
             })
+            timer.mark('findUniqueQuestion')
 
             if (!question) {
+                timer.log()
                 return notFoundResponse('Final Jeopardy question not found')
             }
 
             // When resuming, verify the stored question is still compatible with the spoiler policy
-            // This handles edge cases where a game was created before spoiler settings were tightened
             if (wouldViolateSpoilerPolicy(question.airDate, spoilerPolicy)) {
                 const cutoffStr = spoilerPolicy.cutoffDate?.toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric'
                 })
+                timer.log()
                 return badRequestResponse(
                     `This Final Jeopardy question is from an episode that would violate the game's spoiler protection ` +
                     `(blocking ${cutoffStr} and later). The game cannot be resumed with current settings.`
                 )
             }
 
+            timer.mark('done')
+            timer.log()
             return jsonResponse({
                 id: question.id,
                 question: question.question,
@@ -149,7 +218,6 @@ export async function GET(request: NextRequest) {
             case 'date': {
                 if (date) {
                     // For date mode, we want the Final Jeopardy from that specific episode
-                    // Override the airDate condition to match exactly
                     whereClause = {
                         round: 'FINAL',
                         airDate: new Date(date)
@@ -172,26 +240,13 @@ export async function GET(request: NextRequest) {
                 airDate: new Date(date)
             }
         }
-        // 'shuffle' mode uses the existing whereClause as-is
 
-        // Get Final Jeopardy questions matching the criteria
-        const questions = await prisma.question.findMany({
-            where: whereClause,
-            include: {
-                category: {
-                    select: {
-                        id: true,
-                        name: true
-                    }
-                }
-            },
-            orderBy: [
-                { airDate: 'desc' }
-            ]
-        })
+        // OPTIMIZED: Use count + deterministic skip instead of loading all questions
+        const totalCount = await prisma.question.count({ where: whereClause })
+        timer.mark(`countQuestions(${totalCount})`)
 
-        if (questions.length === 0) {
-            // Provide a more specific error message when spoiler protection is active
+        if (totalCount === 0) {
+            timer.log()
             if (spoilerPolicy.enabled && spoilerPolicy.cutoffDate) {
                 const cutoffStr = spoilerPolicy.cutoffDate.toLocaleDateString('en-US', {
                     year: 'numeric',
@@ -206,10 +261,37 @@ export async function GET(request: NextRequest) {
             return notFoundResponse('No Final Jeopardy questions found matching the criteria')
         }
 
-        // Select a random question
-        const selectedQuestion = questions[Math.floor(Math.random() * questions.length)]
+        // Determine skip index - deterministic if we have a game seed, random otherwise
+        let skipIndex: number
+        if (gameSeed) {
+            // Use game seed + 'FINAL' to get deterministic but unique selection for FJ
+            skipIndex = hashSeed(gameSeed + 'FINAL') % totalCount
+        } else {
+            skipIndex = Math.floor(Math.random() * totalCount)
+        }
 
-        return jsonResponse({
+        // Fetch just the one question using skip
+        const selectedQuestion = await prisma.question.findFirst({
+            where: whereClause,
+            orderBy: { id: 'asc' }, // Stable ordering for deterministic skip
+            skip: skipIndex,
+            include: {
+                category: {
+                    select: {
+                        id: true,
+                        name: true
+                    }
+                }
+            }
+        })
+        timer.mark('fetchSingleQuestion')
+
+        if (!selectedQuestion) {
+            timer.log()
+            return notFoundResponse('Failed to select Final Jeopardy question')
+        }
+
+        const result: CachedFinalJeopardy = {
             id: selectedQuestion.id,
             question: selectedQuestion.question,
             answer: selectedQuestion.answer,
@@ -217,8 +299,27 @@ export async function GET(request: NextRequest) {
                 id: selectedQuestion.category.id,
                 name: selectedQuestion.category.name
             }
+        }
+
+        // Cache the result for future requests
+        const cacheKey = getFinalJeopardyCacheKey({ 
+            gameId, 
+            seed: gameSeed, 
+            mode, 
+            date, 
+            finalCategoryMode, 
+            finalCategoryId 
         })
+        if (cacheKey) {
+            setCachedFinalJeopardy(cacheKey, result)
+        }
+
+        timer.mark('done')
+        timer.log()
+        return jsonResponse(result)
     } catch (error) {
+        timer.mark('error')
+        timer.log()
         return serverErrorResponse('Failed to load Final Jeopardy', error)
     }
-}
+})

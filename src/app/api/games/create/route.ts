@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse, parseBody, badRequestResponse } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import { computeUserEffectiveCutoff, toStoredPolicy, type StoredSpoilerPolicy } from '@/lib/spoiler-utils'
@@ -29,7 +31,7 @@ const gameConfigSchema = z.object({
  * Create a new game with the given configuration.
  * Returns the game ID and seed for sharing.
  */
-export async function POST(request: Request) {
+export const POST = withInstrumentation(async (request: NextRequest) => {
     try {
         const appUser = await getAppUser()
 
@@ -117,4 +119,4 @@ export async function POST(request: Request) {
     } catch (error) {
         return serverErrorResponse('Failed to create game', error)
     }
-}
+})

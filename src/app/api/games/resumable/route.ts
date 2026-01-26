@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
 
 /**
  * Calculate expected total questions based on game config and rounds
@@ -27,7 +28,7 @@ function calculateExpectedQuestions(config: any): number {
  * Get all in-progress games for the current user.
  * Returns games with their configuration, current state, and category summaries.
  */
-export async function GET() {
+export const GET = withInstrumentation(async () => {
     try {
         const appUser = await getAppUser()
 
@@ -139,5 +140,5 @@ export async function GET() {
     } catch (error) {
         return serverErrorResponse('Failed to fetch resumable games', error)
     }
-}
+})
 

@@ -557,3 +557,55 @@ model IssueReport {
   @@index([questionId])
   @@index([gameId])
 }
+
+// =============================================================================
+// Observability Models
+// =============================================================================
+
+// Track API request metrics for admin observability dashboard
+model ApiRequestEvent {
+  id           String   @id @default(uuid())
+  requestId    String   @unique // Unique identifier for correlating with DbQueryEvents
+  timestamp    DateTime @default(now())
+  route        String // API route path (e.g., '/api/admin/users')
+  method       String // HTTP method (GET, POST, etc.)
+  statusCode   Int // HTTP status code
+  durationMs   Int // Request duration in milliseconds
+  userId       String? // Optional: authenticated user ID
+  isAdminRoute Boolean  @default(false) // Whether this is an admin route
+  errorCode    String? // Error code if request failed
+  errorMessage String?  @db.Text // Error message if request failed
+  userAgent    String?  @db.Text // Browser/client info
+  ip           String? // Client IP (hashed or partial for privacy)
+
+  @@index([timestamp])
+  @@index([route])
+  @@index([statusCode])
+  @@index([userId])
+  @@index([route, timestamp])
+  @@index([statusCode, timestamp])
+}
+
+// Track database query performance for slow query analysis
+model DbQueryEvent {
+  id         String   @id @default(uuid())
+  requestId  String? // Correlation with ApiRequestEvent (nullable for background jobs)
+  timestamp  DateTime @default(now())
+  model      String // Prisma model name (e.g., 'User', 'Question')
+  action     String // Prisma action (e.g., 'findMany', 'create', 'update')
+  durationMs Int // Query duration in milliseconds
+  success    Boolean  @default(true)
+  error      String?  @db.Text // Error message if query failed
+  // Safe metadata - no raw SQL or PII
+  recordCount Int? // Number of records returned/affected (when available)
+  isSlow     Boolean  @default(false) // Flagged as slow query (above threshold)
+
+  @@index([timestamp])
+  @@index([model])
+  @@index([action])
+  @@index([isSlow])
+  @@index([model, action])
+  @@index([requestId])
+  @@index([durationMs])
+  @@index([isSlow, timestamp])
+}

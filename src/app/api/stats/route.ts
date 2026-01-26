@@ -7,6 +7,8 @@ import {
     parseSearchParams,
     getAuthenticatedUser
 } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
+import { NextRequest } from 'next/server'
 import { getStatsPoints, FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
 
 export const dynamic = 'force-dynamic'
@@ -16,7 +18,7 @@ const statsParamsSchema = z.object({
     userId: z.string().optional()
 })
 
-export async function GET(request: Request) {
+export const GET = withInstrumentation(async (request: NextRequest) => {
     try {
         const { searchParams } = new URL(request.url)
         const { data: params, error } = parseSearchParams(searchParams, statsParamsSchema)
@@ -329,4 +331,4 @@ export async function GET(request: Request) {
     } catch (error) {
         return serverErrorResponse('Failed to fetch statistics', error)
     }
-} 
+})

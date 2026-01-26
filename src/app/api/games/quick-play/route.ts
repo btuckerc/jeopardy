@@ -4,12 +4,14 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 import { nanoid } from 'nanoid'
 import { computeUserEffectiveCutoff, toStoredPolicy, type StoredSpoilerPolicy } from '@/lib/spoiler-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
+import { NextRequest } from 'next/server'
 
 /**
  * POST /api/games/quick-play
  * Create a random game immediately with default settings (no configuration needed)
  */
-export async function POST(request: Request) {
+export const POST = withInstrumentation(async (request: NextRequest) => {
     try {
         const appUser = await getAppUser()
 
@@ -58,5 +60,5 @@ export async function POST(request: Request) {
     } catch (error) {
         return serverErrorResponse('Failed to create quick play game', error)
     }
-}
+})
 

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import UserAvatar from '@/components/UserAvatar'
 import NextChallengeCallout from '@/app/components/NextChallengeCallout'
 import type { AppUser } from '@/lib/clerk-auth'
+import { getNextChallengeTimeISO } from '@/lib/daily-challenge-utils'
 
 // Helper to format date string without timezone conversion
 // Takes ISO date string and returns formatted string like "November 7, 2022"
@@ -73,18 +74,6 @@ interface LeaderboardEntry {
     completedAt: string
 }
 
-// Calculate next challenge time (midnight UTC tomorrow)
-function getNextChallengeTime(): string {
-    const now = new Date()
-    const tomorrow = new Date(Date.UTC(
-        now.getUTCFullYear(),
-        now.getUTCMonth(),
-        now.getUTCDate() + 1,
-        0, 0, 0, 0
-    ))
-    return tomorrow.toISOString()
-}
-
 interface DailyChallengeClientProps {
     initialChallenge: DailyChallenge | null
     initialLeaderboard: LeaderboardEntry[]
@@ -106,7 +95,7 @@ export default function DailyChallengeClient({
     const [submitting, setSubmitting] = useState(false)
     const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>(initialLeaderboard)
     const [leaderboardLoading, setLeaderboardLoading] = useState(false)
-    const [nextChallengeTime] = useState(() => getNextChallengeTime())
+    const [nextChallengeTime] = useState(() => getNextChallengeTimeISO())
     const [disputeSubmitted, setDisputeSubmitted] = useState(false)
     const [disputeSubmitting, setDisputeSubmitting] = useState(false)
     const [revealMyAnswer, setRevealMyAnswer] = useState(false)

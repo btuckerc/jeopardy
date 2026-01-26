@@ -87,16 +87,18 @@ export async function getKnowledgeCategoryDetails(
     pageSize: number = 20,
     searchQuery?: string,
     excludeRound?: 'FINAL',
-    sortBy: 'airDate' | 'completion' = 'airDate'
+    sortBy: 'airDate' | 'completion' = 'airDate',
+    sortDirection: 'asc' | 'desc' = 'desc'
 ) {
     try {
         // Get user's spoiler settings
         const spoilerSettings = await getUserSpoilerSettings(userId)
         
-        // Build ORDER BY clause based on sortBy parameter
+        // Build ORDER BY clause based on sortBy and sortDirection parameters
+        const directionSql = sortDirection === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
         const orderByClause = sortBy === 'completion' 
-            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN qh.correct THEN cq.question_id END)::float / NULLIF(cq.total_questions, 0)) DESC NULLS LAST, cq.most_recent_air_date DESC NULLS LAST`
-            : Prisma.sql`ORDER BY cq.most_recent_air_date DESC NULLS LAST`;
+            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN qh.correct THEN cq.question_id END)::float / NULLIF(cq.total_questions, 0)) ${directionSql} NULLS LAST, cq.most_recent_air_date DESC NULLS LAST`
+            : Prisma.sql`ORDER BY cq.most_recent_air_date ${directionSql} NULLS LAST`;
         
         // Get categories with their questions and game history
         // Respecting spoiler date filter and excluding FINAL round if specified
@@ -560,16 +562,18 @@ export async function getRoundCategories(
     userId?: string,
     page: number = 1,
     pageSize: number = 20,
-    sortBy: 'airDate' | 'completion' = 'airDate'
+    sortBy: 'airDate' | 'completion' = 'airDate',
+    sortDirection: 'asc' | 'desc' = 'desc'
 ) {
     try {
         // Get user's spoiler settings
         const spoilerSettings = await getUserSpoilerSettings(userId)
         
-        // Build ORDER BY clause based on sortBy parameter
+        // Build ORDER BY clause based on sortBy and sortDirection parameters
+        const directionSql = sortDirection === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
         const orderByClause = sortBy === 'completion' 
-            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::float / NULLIF(cq.total_questions, 0)) DESC NULLS LAST, cq.most_recent_air_date DESC NULLS LAST`
-            : Prisma.sql`ORDER BY cq.most_recent_air_date DESC NULLS LAST`;
+            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::float / NULLIF(cq.total_questions, 0)) ${directionSql} NULLS LAST, cq.most_recent_air_date DESC NULLS LAST`
+            : Prisma.sql`ORDER BY cq.most_recent_air_date ${directionSql} NULLS LAST`;
         
         // Get categories with their questions filtered by round
         const result = await prisma.$queryRaw<Array<{
@@ -750,16 +754,18 @@ export async function getTripleStumperCategories(
     userId?: string,
     page: number = 1,
     pageSize: number = 20,
-    sortBy: 'airDate' | 'completion' = 'airDate'
+    sortBy: 'airDate' | 'completion' = 'airDate',
+    sortDirection: 'asc' | 'desc' = 'desc'
 ) {
     try {
         // Get user's spoiler settings
         const spoilerSettings = await getUserSpoilerSettings(userId)
         
-        // Build ORDER BY clause based on sortBy parameter
+        // Build ORDER BY clause based on sortBy and sortDirection parameters
+        const directionSql = sortDirection === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
         const orderByClause = sortBy === 'completion' 
-            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::float / NULLIF(COUNT(q.id), 0)) DESC NULLS LAST, MAX(q."airDate") DESC NULLS LAST`
-            : Prisma.sql`ORDER BY MAX(q."airDate") DESC NULLS LAST`;
+            ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::float / NULLIF(COUNT(q.id), 0)) ${directionSql} NULLS LAST, MAX(q."airDate") DESC NULLS LAST`
+            : Prisma.sql`ORDER BY MAX(q."airDate") ${directionSql} NULLS LAST`;
         
         // Get categories that have triple stumper questions
         const result = await prisma.$queryRaw<Array<{

@@ -1,8 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react'
 import type { AppUser } from '@/lib/clerk-auth'
 import { SimpleLineChart } from './SimpleLineChart'
+
+// Lazy load new observability tab components
+const ObservabilityTab = lazy(() => import('./components/tabs/ObservabilityTab').then(m => ({ default: m.ObservabilityTab })))
+const MetricsOverviewTab = lazy(() => import('./components/tabs/MetricsOverviewTab').then(m => ({ default: m.MetricsOverviewTab })))
+const PerformanceTab = lazy(() => import('./components/tabs/PerformanceTab').then(m => ({ default: m.PerformanceTab })))
+const UserDebugTab = lazy(() => import('./components/tabs/UserDebugTab').then(m => ({ default: m.UserDebugTab })))
+const ContentQualityTab = lazy(() => import('./components/tabs/ContentQualityTab').then(m => ({ default: m.ContentQualityTab })))
+
+// Loading fallback component
+function TabLoader() {
+    return (
+        <div className="flex items-center justify-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-3 text-gray-600">Loading...</span>
+        </div>
+    )
+}
 
 // Helper to format date string without timezone conversion
 // Takes YYYY-MM-DD and returns formatted string like "November 5, 2025"
@@ -71,8 +88,8 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [fetching, setFetching] = useState(false)
     const [pushing, setPushing] = useState(false)
     
-    // Tab state
-    const [activeTab, setActiveTab] = useState<'metrics' | 'manage' | 'fetch' | 'player-games' | 'disputes' | 'issues' | 'daily-challenges' | 'guest-config' | 'cron' | 'users'>('metrics')
+    // Tab state - includes new observability tabs (removed legacy metrics and users tabs)
+    const [activeTab, setActiveTab] = useState<'manage' | 'fetch' | 'player-games' | 'disputes' | 'issues' | 'daily-challenges' | 'guest-config' | 'cron' | 'metrics-overview' | 'performance' | 'observability' | 'user-debug' | 'content-quality'>('metrics-overview')
     
     // Metrics tab state
     const [metricsWindow, setMetricsWindow] = useState<'24h' | '7d' | '14d' | '30d'>('7d')
@@ -553,12 +570,12 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         }
     }, [userSearch, userSortBy, userSortOrder])
 
-    // Load users when tab is active or sort changes
+    // Load users when navigating (for navigation helper functions)
     useEffect(() => {
-        if (activeTab === 'users') {
-            fetchUsers()
+        if (activeTab === 'user-debug') {
+            // UserDebugTab handles its own fetching via React Query
         }
-    }, [activeTab, userSortBy, userSortOrder, fetchUsers])
+    }, [activeTab])
 
     // Fetch all games for a specific user
     const fetchUserAllGames = useCallback(async (userId: string) => {
@@ -598,7 +615,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
     // Navigate to Users tab and highlight user
     const navigateToUser = useCallback((userId: string) => {
-        setActiveTab('users')
+        setActiveTab('user-debug')
         // Scroll to top and fetch users if needed
         window.scrollTo({ top: 0, behavior: 'smooth' })
         if (users.length === 0) {
@@ -619,7 +636,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     }, [])
 
     const navigateToUsers = useCallback(() => {
-        setActiveTab('users')
+        setActiveTab('user-debug')
         window.scrollTo({ top: 0, behavior: 'smooth' })
         if (users.length === 0) {
             fetchUsers()
@@ -701,14 +718,14 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     
     // Fetch metrics when window changes
     useEffect(() => {
-        if (activeTab === 'metrics') {
+        if (activeTab === 'metrics-overview') {
             fetchOverviewMetrics(metricsWindow)
         }
     }, [metricsWindow, activeTab, fetchOverviewMetrics])
     
     // Load overview metrics on mount (for metrics tab)
     useEffect(() => {
-        if (activeTab === 'metrics') {
+        if (activeTab === 'metrics-overview') {
             fetchOverviewMetrics(metricsWindow)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -716,7 +733,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     
     // Load metrics when switching to metrics tab
     useEffect(() => {
-        if (activeTab === 'metrics' && !usageMetrics) {
+        if (activeTab === 'metrics-overview' && !usageMetrics) {
             fetchOverviewMetrics(metricsWindow)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1731,16 +1748,58 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             <div className="mb-6 border-b border-gray-200 bg-gray-50 relative">
                 <div className="pb-2 overflow-x-auto scrollbar-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
                     <div className="flex flex-wrap gap-2 px-4 py-2">
+                        {/* New Observability Tabs */}
                         <button
-                            onClick={() => setActiveTab('metrics')}
+                            onClick={() => setActiveTab('metrics-overview')}
                             className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'metrics'
+                                activeTab === 'metrics-overview'
                                     ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
                                     : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
                             }`}
                         >
-                            Metrics
+                            Overview
                         </button>
+                        <button
+                            onClick={() => setActiveTab('performance')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'performance'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            API Performance
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('observability')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'observability'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            DB Performance
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('user-debug')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'user-debug'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            User Debug
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('content-quality')}
+                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
+                                activeTab === 'content-quality'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
+                            }`}
+                        >
+                            Content
+                        </button>
+                        {/* Existing Tabs */}
                         <button
                             onClick={() => setActiveTab('manage')}
                             className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
@@ -1770,16 +1829,6 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             }`}
                         >
                             Games
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('users')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'users'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Users
                         </button>
                         <button
                             onClick={() => setActiveTab('disputes')}
@@ -1871,343 +1920,35 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 </div>
             )}
 
-            {/* METRICS TAB */}
-            {activeTab === 'metrics' && (
-                <div className="container mx-auto px-4 pb-8">
-                    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
-                            <h2 className="text-xl font-semibold text-black">Usage & Operational Metrics</h2>
-                            <div className="flex flex-wrap gap-2">
-                                {(['24h', '7d', '14d', '30d'] as const).map((window) => (
-                                    <button
-                                        key={window}
-                                        onClick={() => setMetricsWindow(window)}
-                                        disabled={metricsLoading}
-                                        className={`px-4 py-2 rounded-lg font-medium text-sm transition-all border-2 ${
-                                            metricsWindow === window
-                                                ? 'bg-blue-600 text-white border-blue-600'
-                                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
-                                    >
-                                        {window}
-                                    </button>
-                                ))}
-                                <button
-                                    onClick={() => fetchOverviewMetrics(metricsWindow)}
-                                    disabled={metricsLoading}
-                                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                                >
-                                    {metricsLoading ? 'Loading...' : 'Refresh'}
-                                </button>
-                            </div>
-                        </div>
+            {/* NEW OBSERVABILITY TABS */}
+            {activeTab === 'metrics-overview' && (
+                <Suspense fallback={<TabLoader />}>
+                    <MetricsOverviewTab />
+                </Suspense>
+            )}
 
-                        {metricsLoading ? (
-                            <div className="text-center py-12">
-                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                                <p className="mt-2 text-gray-600">Loading metrics...</p>
-                            </div>
-                        ) : (
-                            <>
-                                {/* Key Metrics Cards */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                                    {/* Total Users */}
-                                    {usageMetrics?.userbase && (
-                                        <button
-                                            onClick={navigateToUsers}
-                                            className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-4 text-left hover:bg-indigo-100 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group relative"
-                                            title="Click to view all users"
-                                        >
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div className="text-sm text-indigo-600 font-medium">Total Users</div>
-                                                <svg className="w-4 h-4 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </div>
-                                            <div className="text-2xl font-bold text-indigo-900">
-                                                {usageMetrics.userbase.totalUsers?.toLocaleString() || '0'}
-                                            </div>
-                                            <div className="text-xs text-gray-600 mt-1">
-                                                Active (30d): {usageMetrics.userbase.activeUsers30d?.toLocaleString() || '0'}
-                                            </div>
-                                            <div className="absolute bottom-2 right-2 text-xs text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                View →
-                                            </div>
-                                        </button>
-                                    )}
-                                    
-                                    {/* Questions Answered */}
-                                    {usageMetrics && (
-                                        <div className="bg-green-50 border-2 border-green-200 rounded-lg p-4">
-                                            <div className="text-sm text-green-600 font-medium mb-1">Questions ({metricsWindow})</div>
-                                            <div className="text-2xl font-bold text-green-900">
-                                                {((usageMetrics.totals?.guestQuestionsAnswered || 0) + (usageMetrics.totals?.gamesStarted || 0) * 10).toLocaleString()}
-                                            </div>
-                                            <div className="text-xs text-gray-600 mt-1">
-                                                Guest: {usageMetrics.totals?.guestQuestionsAnswered || 0} | Games: {(usageMetrics.totals?.gamesStarted || 0) * 10}
-                                            </div>
-                                        </div>
-                                    )}
-                                    
-                                    {/* Games Started vs Completed */}
-                                    {usageMetrics && (
-                                        <button
-                                            onClick={navigateToGames}
-                                            className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 text-left hover:bg-purple-100 hover:border-purple-300 hover:shadow-md transition-all cursor-pointer group relative"
-                                            title="Click to view all games"
-                                        >
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div className="text-sm text-purple-600 font-medium">Games ({metricsWindow})</div>
-                                                <svg className="w-4 h-4 text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </div>
-                                            <div className="text-2xl font-bold text-purple-900">
-                                                {(usageMetrics.totals?.gamesStarted || 0) + (usageMetrics.totals?.guestGamesStarted || 0)}
-                                            </div>
-                                            <div className="text-xs text-gray-600 mt-1">
-                                                Completed: {usageMetrics.totals?.gamesCompleted || 0} | Guest: {usageMetrics.totals?.guestGamesStarted || 0}
-                                            </div>
-                                            <div className="absolute bottom-2 right-2 text-xs text-purple-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                View →
-                                            </div>
-                                        </button>
-                                    )}
-                                    
-                                    {/* API Errors */}
-                                    {opsMetrics?.apiErrors && (
-                                        <div className={`border-2 rounded-lg p-4 ${
-                                            (opsMetrics.apiErrors.totals?.status500 || 0) > 0 
-                                                ? 'bg-red-50 border-red-200' 
-                                                : (opsMetrics.apiErrors.totals?.status404 || 0) > 10
-                                                ? 'bg-yellow-50 border-yellow-200'
-                                                : 'bg-gray-50 border-gray-200'
-                                        }`}>
-                                            <div className={`text-sm font-medium mb-1 ${
-                                                (opsMetrics.apiErrors.totals?.status500 || 0) > 0 
-                                                    ? 'text-red-600' 
-                                                    : (opsMetrics.apiErrors.totals?.status404 || 0) > 10
-                                                    ? 'text-yellow-600'
-                                                    : 'text-gray-600'
-                                            }`}>
-                                                API Errors ({metricsWindow})
-                                            </div>
-                                            <div className={`text-2xl font-bold ${
-                                                (opsMetrics.apiErrors.totals?.status500 || 0) > 0 
-                                                    ? 'text-red-900' 
-                                                    : (opsMetrics.apiErrors.totals?.status404 || 0) > 10
-                                                    ? 'text-yellow-900'
-                                                    : 'text-gray-900'
-                                            }`}>
-                                                {opsMetrics.apiErrors.totals?.total || 0}
-                                            </div>
-                                            <div className="text-xs text-gray-600 mt-1">
-                                                404: {opsMetrics.apiErrors.totals?.status404 || 0} | 500: {opsMetrics.apiErrors.totals?.status500 || 0}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
+            {activeTab === 'performance' && (
+                <Suspense fallback={<TabLoader />}>
+                    <PerformanceTab />
+                </Suspense>
+            )}
 
-                                {/* Guest Conversion & Pending Disputes */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                                    {/* Guest Conversion Rate */}
-                                    {usageMetrics && (
-                                        <button
-                                            onClick={navigateToGuestConfig}
-                                            className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 text-left hover:bg-blue-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group relative"
-                                            title="Click to manage guest settings"
-                                        >
-                                            <div className="flex items-center justify-between mb-1">
-                                                <div className="text-sm text-blue-600 font-medium">Guest Conversion ({metricsWindow})</div>
-                                                <svg className="w-4 h-4 text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </div>
-                                            <div className="text-2xl font-bold text-blue-900">
-                                                {usageMetrics.conversionRate?.toFixed(1) || '0.0'}%
-                                            </div>
-                                            <div className="text-xs text-gray-600 mt-1">
-                                                {usageMetrics.totals?.guestSessionsClaimed || 0} / {usageMetrics.totals?.guestSessionsCreated || 0} claimed
-                                            </div>
-                                            <div className="absolute bottom-2 right-2 text-xs text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                Manage →
-                                            </div>
-                                        </button>
-                                    )}
-                                    
-                                    {/* Pending Disputes */}
-                                    <button
-                                        onClick={navigateToDisputes}
-                                        className={`border-2 rounded-lg p-4 text-left transition-all cursor-pointer group relative hover:shadow-md ${
-                                            (pendingDisputesCount || 0) > 0 
-                                                ? 'bg-amber-50 border-amber-200 hover:bg-amber-100 hover:border-amber-300' 
-                                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
-                                        }`}
-                                        title="Click to review pending disputes"
-                                    >
-                                        <div className="flex items-center justify-between mb-1">
-                                            <div className={`text-sm font-medium ${
-                                                (pendingDisputesCount || 0) > 0 ? 'text-amber-600' : 'text-gray-600'
-                                            }`}>
-                                                Pending Disputes
-                                            </div>
-                                            <svg className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ${
-                                                (pendingDisputesCount || 0) > 0 ? 'text-amber-400' : 'text-gray-400'
-                                            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                            </svg>
-                                        </div>
-                                        <div className={`text-2xl font-bold ${
-                                            (pendingDisputesCount || 0) > 0 ? 'text-amber-900' : 'text-gray-900'
-                                        }`}>
-                                            {pendingDisputesCount ?? '...'}
-                                        </div>
-                                        {(pendingDisputesCount || 0) > 0 && (
-                                            <div className="absolute bottom-2 right-2 text-xs text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                Review →
-                                            </div>
-                                        )}
-                                    </button>
-                                </div>
+            {activeTab === 'observability' && (
+                <Suspense fallback={<TabLoader />}>
+                    <ObservabilityTab />
+                </Suspense>
+            )}
 
-                                {/* Time-Series Charts */}
-                                <div className="space-y-6">
-                                    {/* User Growth Chart */}
-                                    {usageMetrics?.timeSeries && (
-                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-                                            <SimpleLineChart
-                                                data={usageMetrics.timeSeries.map((d: any) => ({
-                                                    timestamp: d.timestamp,
-                                                    value: d.newUsers || 0
-                                                }))}
-                                                title="New Users Over Time"
-                                                color="#6366f1"
-                                            />
-                                        </div>
-                                    )}
+            {activeTab === 'user-debug' && (
+                <Suspense fallback={<TabLoader />}>
+                    <UserDebugTab />
+                </Suspense>
+            )}
 
-                                    {/* Active Users Chart */}
-                                    {usageMetrics?.timeSeries && (
-                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-                                            <SimpleLineChart
-                                                data={usageMetrics.timeSeries.map((d: any) => ({
-                                                    timestamp: d.timestamp,
-                                                    value: d.activeUsers || 0
-                                                }))}
-                                                title="Active Users Over Time"
-                                                color="#10b981"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* Questions Answered Chart */}
-                                    {usageMetrics?.timeSeries && (
-                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-                                            <SimpleLineChart
-                                                data={usageMetrics.timeSeries.map((d: any) => ({
-                                                    timestamp: d.timestamp,
-                                                    value: (d.guestQuestionsAnswered || 0) + (d.gamesStarted || 0) * 10
-                                                }))}
-                                                title="Questions Answered Over Time"
-                                                color="#22c55e"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* Games Started Chart */}
-                                    {usageMetrics?.timeSeries && (
-                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-                                            <SimpleLineChart
-                                                data={usageMetrics.timeSeries.map((d: any) => ({
-                                                    timestamp: d.timestamp,
-                                                    value: (d.gamesStarted || 0) + (d.guestGamesStarted || 0)
-                                                }))}
-                                                title="Games Started Over Time"
-                                                color="#a855f7"
-                                            />
-                                        </div>
-                                    )}
-
-                                    {/* API Errors Chart */}
-                                    {opsMetrics?.apiErrors?.timeSeries && opsMetrics.apiErrors.timeSeries.length > 0 && (
-                                        <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-                                            <SimpleLineChart
-                                                data={opsMetrics.apiErrors.timeSeries.map((d: any) => ({
-                                                    timestamp: d.timestamp,
-                                                    value: (d.status404 || 0) + (d.status500 || 0) + (d.other4xx || 0) + (d.other5xx || 0)
-                                                }))}
-                                                title="API Errors Over Time"
-                                                color="#ef4444"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Cron Job Health */}
-                                {opsMetrics && (
-                                    <div className="mt-6 pt-6 border-t border-gray-200">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <h3 className="text-lg font-semibold text-black">Cron Job Health</h3>
-                                            <button
-                                                onClick={navigateToCronJobs}
-                                                className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-                                            >
-                                                View Details
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                            {opsMetrics.cronJobs?.map((job: any) => (
-                                                <button
-                                                    key={job.jobName}
-                                                    onClick={navigateToCronJobs}
-                                                    className={`border-2 rounded-lg p-3 text-left transition-all cursor-pointer group hover:shadow-md ${
-                                                        job.health === 'unhealthy' 
-                                                            ? 'bg-red-50 border-red-200 hover:bg-red-100 hover:border-red-300' 
-                                                            : job.health === 'running'
-                                                            ? 'bg-yellow-50 border-yellow-200 hover:bg-yellow-100 hover:border-yellow-300'
-                                                            : 'bg-green-50 border-green-200 hover:bg-green-100 hover:border-green-300'
-                                                    }`}
-                                                    title={`Click to view ${job.displayName} details`}
-                                                >
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <div className="text-sm font-medium text-gray-900">{job.displayName}</div>
-                                                        <svg className={`w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity ${
-                                                            job.health === 'unhealthy' 
-                                                                ? 'text-red-400' 
-                                                                : job.health === 'running'
-                                                                ? 'text-yellow-400'
-                                                                : 'text-green-400'
-                                                        }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                        </svg>
-                                                    </div>
-                                                    <div className={`text-xs font-semibold ${
-                                                        job.health === 'unhealthy' 
-                                                            ? 'text-red-700' 
-                                                            : job.health === 'running'
-                                                            ? 'text-yellow-700'
-                                                            : 'text-green-700'
-                                                    }`}>
-                                                        {job.health === 'unhealthy' ? '⚠️ Unhealthy' :
-                                                         job.health === 'running' ? '⏳ Running' : '✓ Healthy'}
-                                                    </div>
-                                                    {job.lastExecution && (
-                                                        <div className="text-xs text-gray-600 mt-1">
-                                                            Last: {new Date(job.lastExecution.startedAt).toLocaleDateString()}
-                                                        </div>
-                                                    )}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                    </div>
-                </div>
+            {activeTab === 'content-quality' && (
+                <Suspense fallback={<TabLoader />}>
+                    <ContentQualityTab />
+                </Suspense>
             )}
 
             {/* FETCH TAB */}
@@ -3790,613 +3531,6 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 </div>
             )}
 
-            {/* USERS TAB */}
-            {activeTab === 'users' && (
-                <div className="space-y-6">
-                    <div className="bg-white rounded-lg shadow-md p-6">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 gap-4">
-                            <div>
-                                <h2 className="text-xl font-semibold text-black mb-2">User Management</h2>
-                                <p className="text-gray-600 text-sm">
-                                    View user activity, manage accounts, and send emails
-                                </p>
-                            </div>
-                            <button
-                                onClick={fetchUsers}
-                                disabled={loadingUsers}
-                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                            >
-                                {loadingUsers ? 'Loading...' : 'Refresh'}
-                            </button>
-                        </div>
-
-                        {/* Search and Sort Controls */}
-                        <div className="mb-4 space-y-3">
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <div className="flex-1">
-                                    <input
-                                        type="text"
-                                        placeholder="Search by email, name, or display name..."
-                                        value={userSearch}
-                                        onChange={(e) => {
-                                            setUserSearch(e.target.value)
-                                        }}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                fetchUsers()
-                                            }
-                                        }}
-                                        className="w-full p-2 border rounded text-gray-900"
-                                    />
-                                </div>
-                                <div className="flex gap-2 flex-shrink-0">
-                                    <div className="relative">
-                                        <select
-                                            value={userSortBy}
-                                            onChange={(e) => {
-                                                setUserSortBy(e.target.value as 'lastOnlineAt' | 'createdAt')
-                                            }}
-                                            className="px-3 py-2 pr-8 border rounded text-gray-900 bg-white text-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
-                                        >
-                                            <option value="lastOnlineAt">Sort by: Last Online</option>
-                                            <option value="createdAt">Sort by: Created Date</option>
-                                        </select>
-                                        <svg className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </div>
-                                    <button
-                                        onClick={() => {
-                                            setUserSortOrder(userSortOrder === 'asc' ? 'desc' : 'asc')
-                                        }}
-                                        className={`px-3 py-2 border rounded text-sm font-medium flex items-center gap-1 transition-colors ${
-                                            userSortOrder === 'desc'
-                                                ? 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100'
-                                                : 'bg-gray-50 border-gray-300 text-gray-700 hover:bg-gray-100'
-                                        }`}
-                                        title={`Sort ${userSortOrder === 'asc' ? 'Ascending' : 'Descending'} - Click to toggle`}
-                                    >
-                                        {userSortOrder === 'asc' ? (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                                                </svg>
-                                                Asc
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                </svg>
-                                                Desc
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Error Display */}
-                        {usersError && (
-                            <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-                                {usersError}
-                            </div>
-                        )}
-
-                        {/* Users List */}
-                        {loadingUsers ? (
-                            <div className="text-center py-8">
-                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                                <p className="mt-2 text-gray-600">Loading users...</p>
-                            </div>
-                        ) : users.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                                No users found matching your search.
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {users.map((user: any) => {
-                                    const lastOnline = user.lastOnlineAt
-                                        ? new Date(user.lastOnlineAt).toLocaleString()
-                                        : 'Never'
-                                    const inProgressCount = user.games?.length || 0
-
-                                    return (
-                                        <div key={user.id} className="border rounded-lg p-4 bg-gray-50">
-                                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                        <span className="font-bold text-gray-900">
-                                                            {user.displayName || user.name || 'No name'}
-                                                        </span>
-                                                        <span className="text-sm text-gray-500">
-                                                            {user.email}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-sm text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
-                                                        <span>Last Online: {lastOnline}</span>
-                                                        {user.lastSeenPath && (
-                                                            <>
-                                                                <span className="hidden sm:inline">|</span>
-                                                                <span>Last Page: <code className="bg-gray-200 px-1 rounded text-xs font-mono">{user.lastSeenPath}</code></span>
-                                                            </>
-                                                        )}
-                                                    </p>
-                                                    
-                                                    {/* In-Progress Games Section */}
-                                                    <div className="mt-3 space-y-2">
-                                                        {inProgressCount > 0 ? (
-                                                            <div className="space-y-2">
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <span className="font-semibold text-gray-900">{inProgressCount}</span>
-                                                                    <span className="text-sm text-gray-600">
-                                                                        {inProgressCount === 1 ? 'in-progress game' : 'in-progress games'}
-                                                                    </span>
-                                                                    <button
-                                                                        onClick={() => navigateToUserGames(user.id)}
-                                                                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 whitespace-nowrap font-medium transition-colors"
-                                                                        aria-label={`View all games for ${user.displayName || user.email}`}
-                                                                    >
-                                                                        View All Games →
-                                                                    </button>
-                                                                </div>
-                                                                <details className="group">
-                                                                    <summary className="cursor-pointer text-blue-600 hover:text-blue-800 text-sm font-medium list-none flex items-center gap-1">
-                                                                        <span className="group-open:hidden">▶</span>
-                                                                        <span className="hidden group-open:inline">▼</span>
-                                                                        View In-Progress Games
-                                                                    </summary>
-                                                                    <div className="mt-2 space-y-2 pl-4 border-l-2 border-gray-300">
-                                                                        {user.games.map((game: any) => (
-                                                                            <div key={game.id} className="pt-2">
-                                                                                <div className="text-sm text-gray-700 space-y-1">
-                                                                                    <div className="flex flex-wrap gap-x-2 gap-y-1">
-                                                                                        <span className="font-medium">Round:</span>
-                                                                                        <span>{game.currentRound}</span>
-                                                                                        <span className="hidden sm:inline">|</span>
-                                                                                        <span className="font-medium">Score:</span>
-                                                                                        <span className={game.currentScore >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                                                                            ${game.currentScore.toLocaleString()}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                    <div className="text-xs text-gray-500">
-                                                                                        Updated: {new Date(game.updatedAt).toLocaleString()}
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
-                                                                </details>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex items-center gap-2 flex-wrap">
-                                                                <span className="text-sm text-gray-400">No in-progress games</span>
-                                                                <button
-                                                                    onClick={() => navigateToUserGames(user.id)}
-                                                                    className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 whitespace-nowrap font-medium transition-colors"
-                                                                    aria-label={`View all games for ${user.displayName || user.email}`}
-                                                                >
-                                                                    View All Games →
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2 flex-shrink-0 flex-wrap">
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedUser(user)
-                                                            setShowDisplayNameModal(true)
-                                                            setDisplayNameAction(null)
-                                                            setEditDisplayNameValue(user.displayName || '')
-                                                        }}
-                                                        className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700 whitespace-nowrap"
-                                                        aria-label={`Manage display name for ${user.displayName || user.email}`}
-                                                    >
-                                                        Display Name
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedUser(user)
-                                                            setShowSendEmailModal(true)
-                                                            setEmailSubject('')
-                                                            setEmailBody('')
-                                                        }}
-                                                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 whitespace-nowrap"
-                                                        aria-label={`Send email to ${user.displayName || user.email}`}
-                                                    >
-                                                        Email
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            setSelectedUser(user)
-                                                            setShowDeleteUserModal(true)
-                                                            setDeleteUserConfirmText('')
-                                                        }}
-                                                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 whitespace-nowrap"
-                                                        aria-label={`Delete account for ${user.displayName || user.email}`}
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Display Name Management Modal */}
-            {showDisplayNameModal && selectedUser && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl my-auto">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">Manage Display Name</h3>
-                        <div className="mb-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                <strong>User:</strong> {selectedUser.displayName || selectedUser.name || 'No name'} ({selectedUser.email})
-                            </p>
-                            <p className="text-sm text-gray-600">
-                                <strong>Current Display Name:</strong> {selectedUser.displayName || <span className="text-gray-400">Not set</span>}
-                            </p>
-                        </div>
-
-                        <div className="space-y-4">
-                            {/* Action Selection */}
-                            {!displayNameAction && (
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => setDisplayNameAction('reset')}
-                                        className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 text-left"
-                                    >
-                                        <div className="font-semibold">Reset Display Name</div>
-                                        <div className="text-sm opacity-90">Generate a new random display name</div>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setDisplayNameAction('edit')
-                                            setEditDisplayNameValue(selectedUser.displayName || '')
-                                        }}
-                                        className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-left"
-                                    >
-                                        <div className="font-semibold">Edit Display Name</div>
-                                        <div className="text-sm opacity-90">Set a custom display name</div>
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Reset Confirmation */}
-                            {displayNameAction === 'reset' && (
-                                <div className="space-y-4">
-                                    <p className="text-gray-700">
-                                        This will generate a new random display name for this user. The current display name will be replaced.
-                                    </p>
-                                    <div className="flex flex-col sm:flex-row justify-end gap-3">
-                                        <button
-                                            onClick={() => {
-                                                setDisplayNameAction(null)
-                                            }}
-                                            className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
-                                        >
-                                            Back
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                setUpdatingDisplayName(true)
-                                                try {
-                                                    const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
-                                                        method: 'PATCH',
-                                                        headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({ action: 'reset' }),
-                                                    })
-
-                                                    if (response.ok) {
-                                                        const data = await response.json()
-                                                        setMessage(data.message || 'Display name reset successfully')
-                                                        setShowDisplayNameModal(false)
-                                                        setSelectedUser(null)
-                                                        setDisplayNameAction(null)
-                                                        fetchUsers()
-                                                    } else {
-                                                        const error = await response.json()
-                                                        alert(error.error || 'Failed to reset display name')
-                                                    }
-                                                } catch (error) {
-                                                    console.error('Error resetting display name:', error)
-                                                    alert('Failed to reset display name')
-                                                } finally {
-                                                    setUpdatingDisplayName(false)
-                                                }
-                                            }}
-                                            disabled={updatingDisplayName}
-                                            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                                        >
-                                            {updatingDisplayName ? 'Resetting...' : 'Reset Display Name'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Edit Form */}
-                            {displayNameAction === 'edit' && (
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            New Display Name
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={editDisplayNameValue}
-                                            onChange={(e) => setEditDisplayNameValue(e.target.value)}
-                                            placeholder="Enter display name"
-                                            className="w-full p-2 border rounded text-gray-900"
-                                            maxLength={50}
-                                            autoFocus
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            {editDisplayNameValue.length}/50 characters
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-col sm:flex-row justify-end gap-3">
-                                        <button
-                                            onClick={() => {
-                                                setDisplayNameAction(null)
-                                                setEditDisplayNameValue(selectedUser.displayName || '')
-                                            }}
-                                            className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                if (!editDisplayNameValue.trim()) {
-                                                    alert('Display name cannot be empty')
-                                                    return
-                                                }
-
-                                                setUpdatingDisplayName(true)
-                                                try {
-                                                    const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
-                                                        method: 'PATCH',
-                                                        headers: { 'Content-Type': 'application/json' },
-                                                        body: JSON.stringify({
-                                                            action: 'edit',
-                                                            displayName: editDisplayNameValue.trim(),
-                                                        }),
-                                                    })
-
-                                                    if (response.ok) {
-                                                        const data = await response.json()
-                                                        setMessage(data.message || 'Display name updated successfully')
-                                                        setShowDisplayNameModal(false)
-                                                        setSelectedUser(null)
-                                                        setDisplayNameAction(null)
-                                                        setEditDisplayNameValue('')
-                                                        fetchUsers()
-                                                    } else {
-                                                        const error = await response.json()
-                                                        alert(error.error || 'Failed to update display name')
-                                                    }
-                                                } catch (error) {
-                                                    console.error('Error updating display name:', error)
-                                                    alert('Failed to update display name')
-                                                } finally {
-                                                    setUpdatingDisplayName(false)
-                                                }
-                                            }}
-                                            disabled={updatingDisplayName || !editDisplayNameValue.trim()}
-                                            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                                        >
-                                            {updatingDisplayName ? 'Updating...' : 'Update Display Name'}
-                                        </button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Close button when no action selected */}
-                        {!displayNameAction && (
-                            <div className="mt-4 flex justify-end">
-                                <button
-                                    onClick={() => {
-                                        setShowDisplayNameModal(false)
-                                        setSelectedUser(null)
-                                        setDisplayNameAction(null)
-                                        setEditDisplayNameValue('')
-                                    }}
-                                    className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
-                                >
-                                    Close
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* Delete User Confirmation Modal */}
-            {showDeleteUserModal && selectedUser && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl my-auto">
-                        <h3 className="text-xl font-bold text-red-600 mb-4">Delete User Account</h3>
-                        <p className="text-gray-700 mb-4">
-                            You are about to delete the account for <strong>{selectedUser.displayName || selectedUser.name || selectedUser.email}</strong> ({selectedUser.email}).
-                        </p>
-                        <p className="text-gray-700 mb-4">
-                            This will permanently delete all user data from the database, including:
-                        </p>
-                        <ul className="list-disc list-inside text-gray-700 mb-4 space-y-1">
-                            <li>All games and game history</li>
-                            <li>User progress and achievements</li>
-                            <li>Daily challenge completions</li>
-                            <li>Disputes and answer overrides</li>
-                        </ul>
-                        <p className="text-yellow-600 font-semibold mb-4">
-                            Note: This does NOT delete the Clerk account. The user will still be able to sign in, but will need to create a new account.
-                        </p>
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Type the user&apos;s email to confirm deletion:
-                            </label>
-                            <input
-                                type="text"
-                                value={deleteUserConfirmText}
-                                onChange={(e) => setDeleteUserConfirmText(e.target.value)}
-                                placeholder={selectedUser.email}
-                                className="w-full p-2 border rounded text-gray-900"
-                            />
-                        </div>
-                        <div className="flex flex-col sm:flex-row justify-end gap-3">
-                            <button
-                                onClick={() => {
-                                    setShowDeleteUserModal(false)
-                                    setSelectedUser(null)
-                                    setDeleteUserConfirmText('')
-                                }}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={async () => {
-                                    if (deleteUserConfirmText !== selectedUser.email) {
-                                        alert('Email does not match. Please type the email exactly to confirm deletion.')
-                                        return
-                                    }
-
-                                    setDeletingUser(true)
-                                    try {
-                                        const response = await fetch(`/api/admin/users/${selectedUser.id}`, {
-                                            method: 'DELETE',
-                                        })
-
-                                        if (response.ok) {
-                                            setMessage(`Successfully deleted user ${selectedUser.email}`)
-                                            setShowDeleteUserModal(false)
-                                            setSelectedUser(null)
-                                            setDeleteUserConfirmText('')
-                                            fetchUsers()
-                                        } else {
-                                            const error = await response.json()
-                                            alert(error.error || 'Failed to delete user')
-                                        }
-                                    } catch (error) {
-                                        console.error('Error deleting user:', error)
-                                        alert('Failed to delete user')
-                                    } finally {
-                                        setDeletingUser(false)
-                                    }
-                                }}
-                                disabled={deletingUser || deleteUserConfirmText !== selectedUser.email}
-                                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                            >
-                                {deletingUser ? 'Deleting...' : 'Delete Account'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Send Email Modal */}
-            {showSendEmailModal && selectedUser && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-                    <div className="bg-white rounded-lg p-6 max-w-lg w-full shadow-xl my-auto">
-                        <h3 className="text-xl font-bold text-gray-900 mb-4">Send Email</h3>
-                        <div className="mb-4">
-                            <p className="text-sm text-gray-600 mb-2">
-                                <strong>To:</strong> {selectedUser.displayName || selectedUser.name || 'No name'} ({selectedUser.email})
-                            </p>
-                        </div>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Subject
-                                </label>
-                                <input
-                                    type="text"
-                                    value={emailSubject}
-                                    onChange={(e) => setEmailSubject(e.target.value)}
-                                    placeholder="Email subject"
-                                    className="w-full p-2 border rounded text-gray-900"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Message
-                                </label>
-                                <textarea
-                                    value={emailBody}
-                                    onChange={(e) => setEmailBody(e.target.value)}
-                                    placeholder="Email message"
-                                    rows={6}
-                                    className="w-full p-2 border rounded text-gray-900"
-                                />
-                            </div>
-                        </div>
-                        <div className="flex flex-col sm:flex-row justify-end gap-3 mt-6">
-                            <button
-                                onClick={() => {
-                                    setShowSendEmailModal(false)
-                                    setSelectedUser(null)
-                                    setEmailSubject('')
-                                    setEmailBody('')
-                                }}
-                                className="px-4 py-2 text-gray-600 hover:text-gray-800 whitespace-nowrap"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={async () => {
-                                    if (!emailSubject.trim() || !emailBody.trim()) {
-                                        alert('Subject and message are required')
-                                        return
-                                    }
-
-                                    if (!confirm('Are you sure you want to send this email?')) {
-                                        return
-                                    }
-
-                                    setSendingEmail(true)
-                                    try {
-                                        const response = await fetch('/api/admin/users/send-email', {
-                                            method: 'POST',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({
-                                                userId: selectedUser.id,
-                                                subject: emailSubject,
-                                                body: emailBody,
-                                            }),
-                                        })
-
-                                        if (response.ok) {
-                                            const data = await response.json()
-                                            setMessage(data.message || 'Email sent successfully')
-                                            setShowSendEmailModal(false)
-                                            setSelectedUser(null)
-                                            setEmailSubject('')
-                                            setEmailBody('')
-                                        } else {
-                                            const error = await response.json()
-                                            alert(error.error || 'Failed to send email')
-                                        }
-                                    } catch (error) {
-                                        console.error('Error sending email:', error)
-                                        alert('Failed to send email. Please check your SMTP configuration.')
-                                    } finally {
-                                        setSendingEmail(false)
-                                    }
-                                }}
-                                disabled={sendingEmail || !emailSubject.trim() || !emailBody.trim()}
-                                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                            >
-                                {sendingEmail ? 'Sending...' : 'Send Email'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* Edit Game Modal */}
             {editingGame && (

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { CRON_JOBS } from '@/lib/cron-jobs'
 import { CronJobStatus } from '@prisma/client'
 import { z } from 'zod'
-import { getErrorCountsByBucket, getErrorCountsByStatus } from '@/lib/api-error-logger'
+import { getErrorCountsByBucket, getErrorCountsByStatus } from '@/lib/api-instrumentation'
 
 export const dynamic = 'force-dynamic'
 
@@ -157,9 +157,11 @@ export async function GET(request: Request) {
             }
         })
 
-        // Get API error metrics
-        const errorCountsByStatus = getErrorCountsByStatus(startTime, now)
-        const errorCountsByBucket = getErrorCountsByBucket(startTime, now, bucketMs)
+        // Get API error metrics (now from database)
+        const [errorCountsByStatus, errorCountsByBucket] = await Promise.all([
+            getErrorCountsByStatus(startTime, now),
+            getErrorCountsByBucket(startTime, now, bucketMs)
+        ])
         
         // Build time-series for errors
         const errorTimeSeries: Array<{ timestamp: string; status404: number; status500: number; other4xx: number; other5xx: number }> = []

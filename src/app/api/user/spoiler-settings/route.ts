@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
+import { withInstrumentation } from '@/lib/api-instrumentation'
+import { NextRequest } from 'next/server'
 
-export async function GET() {
+export const GET = withInstrumentation(async () => {
     const appUser = await getAppUser()
 
     if (!appUser) {
@@ -27,9 +29,9 @@ export async function GET() {
     } catch (error) {
         return serverErrorResponse('Error fetching spoiler settings', error)
     }
-}
+})
 
-export async function POST(request: Request) {
+export const POST = withInstrumentation(async (request: NextRequest) => {
     const appUser = await getAppUser()
 
     if (!appUser) {
@@ -58,4 +60,4 @@ export async function POST(request: Request) {
     } catch (error) {
         return serverErrorResponse('Error updating spoiler settings', error)
     }
-}
+})

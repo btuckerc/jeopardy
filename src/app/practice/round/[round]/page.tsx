@@ -376,14 +376,29 @@ function FreePracticeContent() {
         }
         return 'airDate'
     })
+    // Initialize sortDirection from localStorage synchronously to avoid flash
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('practice_sort_direction')
+            if (saved === 'asc' || saved === 'desc') {
+                return saved
+            }
+        }
+        return 'desc'
+    })
     const [isSortTransitioning, setIsSortTransitioning] = useState(false)
     const sortByRef = useRef(sortBy) // Track sortBy for initial load
+    const sortDirectionRef = useRef(sortDirection) // Track sortDirection for initial load
     const isInitialMount = useRef(true)
     
-    // Keep sortByRef in sync
+    // Keep sortByRef and sortDirectionRef in sync
     useEffect(() => {
         sortByRef.current = sortBy
     }, [sortBy])
+    
+    useEffect(() => {
+        sortDirectionRef.current = sortDirection
+    }, [sortDirection])
     
     const [showBackToTop, setShowBackToTop] = useState(false)
 
@@ -391,6 +406,12 @@ function FreePracticeContent() {
     const handleSortChange = useCallback((newSort: 'airDate' | 'completion') => {
         setSortBy(newSort)
         localStorage.setItem('practice_sort_preference', newSort)
+    }, [])
+    
+    // Persist sort direction to localStorage when user changes it
+    const handleSortDirectionChange = useCallback((newDirection: 'asc' | 'desc') => {
+        setSortDirection(newDirection)
+        localStorage.setItem('practice_sort_direction', newDirection)
     }, [])
 
     // Handle scroll to show/hide back to top button
@@ -436,7 +457,7 @@ function FreePracticeContent() {
                 setCurrentPage(1)
                 setServerResults([])
                 try {
-                    const result = await getRoundCategories(round, user?.id, 1, 20, sortBy)
+                    const result = await getRoundCategories(round, user?.id, 1, 20, sortBy, sortDirection)
                     const transformedCategories = transformApiResponse(result.categories)
                     setCategories(transformedCategories)
                     setHasMore(result.hasMore)
@@ -457,7 +478,7 @@ function FreePracticeContent() {
     useEffect(() => {
         const loadRoundCategories = async () => {
             try {
-                const result = await getRoundCategories(round, user?.id, 1, 20, sortByRef.current)
+                const result = await getRoundCategories(round, user?.id, 1, 20, sortByRef.current, sortDirectionRef.current)
                 const transformedCategories = transformApiResponse(result.categories)
                 setCategories(transformedCategories)
                 setHasMore(result.hasMore)
@@ -471,7 +492,7 @@ function FreePracticeContent() {
         loadRoundCategories()
     }, [user?.id, round])
     
-    // Refetch categories when sort order changes (not on initial mount)
+    // Refetch categories when sort order or direction changes (not on initial mount)
     useEffect(() => {
         if (isInitialMount.current) return
         
@@ -480,7 +501,7 @@ function FreePracticeContent() {
             setCurrentPage(1)
             
             try {
-                const result = await getRoundCategories(round, user?.id, 1, 20, sortBy)
+                const result = await getRoundCategories(round, user?.id, 1, 20, sortBy, sortDirection)
                 const transformedCategories = transformApiResponse(result.categories)
                 
                 // Small delay to allow fade-out animation
@@ -496,7 +517,7 @@ function FreePracticeContent() {
         }
         
         refetchWithNewSort()
-    }, [sortBy, round, user?.id])
+    }, [sortBy, sortDirection, round, user?.id])
     
     // Handle URL state restoration and browser navigation
     // This effect runs when searchParams change (including browser back/forward)
@@ -681,7 +702,7 @@ function FreePracticeContent() {
         setLoadingMore(true)
         try {
             const nextPage = currentPage + 1
-            const result = await getRoundCategories(round, user?.id, nextPage, 20, sortBy)
+            const result = await getRoundCategories(round, user?.id, nextPage, 20, sortBy, sortDirection)
             const transformedCategories = transformApiResponse(result.categories)
             setCategories(prev => [...prev, ...transformedCategories])
             setCurrentPage(nextPage)
@@ -754,7 +775,7 @@ function FreePracticeContent() {
 
         if (user?.id) {
             try {
-                const result = await getRoundCategories(round, user.id, currentPage, 20, sortBy)
+                const result = await getRoundCategories(round, user.id, currentPage, 20, sortBy, sortDirection)
                 const transformedCategories = transformApiResponse(result.categories)
                 setCategories(transformedCategories)
                 setHasMore(result.hasMore)
@@ -762,7 +783,7 @@ function FreePracticeContent() {
                 console.error('Error refreshing categories:', error)
             }
         }
-    }, [user?.id, currentPage, updateUrlParams, round, sortBy])
+    }, [user?.id, currentPage, updateUrlParams, round, sortBy, sortDirection])
 
     const handleQuestionSelect = useCallback((question: Question) => {
         if (!question) return;
@@ -1036,20 +1057,30 @@ function FreePracticeContent() {
         }
     }, [user?.id])
 
-    // Sort categories by most recent air date or completion percentage
-    const sortedCategories = useMemo(() => {
+    // Categories are sorted server-side via the sortBy and sortDirection parameters.
+    // For lazy-loaded pages, we trust the server's ordering.
+    // When sorting by completion, we split into in-progress and not-started groups for display.
+    const { inProgressCategories, notStartedCategories, sortedCategories } = useMemo(() => {
         const categoriesToSort = searchQuery && searchQuery.length >= 2 ? combinedResults : categories;
-        return [...categoriesToSort].sort((a, b) => {
-            if (sortBy === 'completion') {
-                const completionA = (Number(a.correctQuestions) / Number(a.totalQuestions)) || 0;
-                const completionB = (Number(b.correctQuestions) / Number(b.totalQuestions)) || 0;
-                return completionB - completionA;
-            }
-            // Default: sort by air date (newest first)
-            const dateA = a.mostRecentAirDate ? new Date(a.mostRecentAirDate) : new Date(0);
-            const dateB = b.mostRecentAirDate ? new Date(b.mostRecentAirDate) : new Date(0);
-            return dateB.getTime() - dateA.getTime();
-        });
+        
+        if (sortBy === 'completion') {
+            // Split into in-progress and not-started (server already sorted each group)
+            const inProgress = categoriesToSort.filter(c => Number(c.correctQuestions) > 0);
+            const notStarted = categoriesToSort.filter(c => Number(c.correctQuestions) === 0);
+            
+            return {
+                inProgressCategories: inProgress,
+                notStartedCategories: notStarted,
+                sortedCategories: [...inProgress, ...notStarted]
+            };
+        }
+        
+        // For date sorting, server handles the order - just pass through
+        return {
+            inProgressCategories: [],
+            notStartedCategories: [],
+            sortedCategories: categoriesToSort
+        };
     }, [categories, combinedResults, sortBy, searchQuery]);
 
     if (loading) {
@@ -1167,42 +1198,86 @@ function FreePracticeContent() {
                                             )}
                                         </div>
                                         
-                                        {/* Sort Toggle */}
-                                        <div className="relative grid grid-cols-2 bg-blue-600 rounded-lg p-1 shadow-md min-w-[200px]">
-                                            {/* Sliding pill indicator - GPU-accelerated with spring-like easing */}
-                                            <div 
-                                                style={{
-                                                    transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
-                                                    transform: sortBy === 'completion' ? 'translateX(100%)' : 'translateX(0)',
-                                                }}
-                                                className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-amber-400 rounded-md shadow-sm will-change-transform"
-                                            />
-                                            <button
-                                                onClick={() => handleSortChange('airDate')}
-                                                className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
-                                                    sortBy === 'airDate'
-                                                        ? 'text-blue-900'
-                                                        : 'text-white/70 hover:text-white'
-                                                }`}
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                </svg>
-                                                <span className="hidden sm:inline">Newest</span>
-                                            </button>
-                                            <button
-                                                onClick={() => handleSortChange('completion')}
-                                                className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
-                                                    sortBy === 'completion'
-                                                        ? 'text-blue-900'
-                                                        : 'text-white/70 hover:text-white'
-                                                }`}
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                                </svg>
-                                                <span className="hidden sm:inline">Progress</span>
-                                            </button>
+                                        {/* Sort Controls Container */}
+                                        <div className="flex items-center gap-2">
+                                            {/* Asc/Desc Toggle */}
+                                            <div className="relative grid grid-cols-2 bg-blue-600 rounded-lg p-1 shadow-md min-w-[80px]">
+                                                <div 
+                                                    style={{
+                                                        transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+                                                        transform: sortDirection === 'desc' ? 'translateX(100%)' : 'translateX(0)',
+                                                    }}
+                                                    className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-amber-400 rounded-md shadow-sm will-change-transform"
+                                                />
+                                                <button
+                                                    onClick={() => handleSortDirectionChange('asc')}
+                                                    className={`relative z-10 flex items-center justify-center p-2 rounded-md transition-colors duration-200 ${
+                                                        sortDirection === 'asc'
+                                                            ? 'text-blue-900'
+                                                            : 'text-white/70 hover:text-white'
+                                                    }`}
+                                                    aria-label="Sort ascending"
+                                                    title="Sort ascending"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                                    </svg>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleSortDirectionChange('desc')}
+                                                    className={`relative z-10 flex items-center justify-center p-2 rounded-md transition-colors duration-200 ${
+                                                        sortDirection === 'desc'
+                                                            ? 'text-blue-900'
+                                                            : 'text-white/70 hover:text-white'
+                                                    }`}
+                                                    aria-label="Sort descending"
+                                                    title="Sort descending"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            
+                                            {/* Date/Progress Toggle */}
+                                            <div className="relative grid grid-cols-2 bg-blue-600 rounded-lg p-1 shadow-md min-w-[200px]">
+                                                {/* Sliding pill indicator - GPU-accelerated with spring-like easing */}
+                                                <div 
+                                                    style={{
+                                                        transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
+                                                        transform: sortBy === 'completion' ? 'translateX(100%)' : 'translateX(0)',
+                                                    }}
+                                                    className="absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] bg-amber-400 rounded-md shadow-sm will-change-transform"
+                                                />
+                                                <button
+                                                    onClick={() => handleSortChange('airDate')}
+                                                    className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
+                                                        sortBy === 'airDate'
+                                                            ? 'text-blue-900'
+                                                            : 'text-white/70 hover:text-white'
+                                                    }`}
+                                                    aria-label="Sort by date"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                    </svg>
+                                                    <span className="hidden sm:inline">Date</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => handleSortChange('completion')}
+                                                    className={`relative z-10 flex items-center justify-center gap-2 px-4 py-2 rounded-md font-medium transition-colors duration-200 ${
+                                                        sortBy === 'completion'
+                                                            ? 'text-blue-900'
+                                                            : 'text-white/70 hover:text-white'
+                                                    }`}
+                                                    aria-label="Sort by progress"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                                                    </svg>
+                                                    <span className="hidden sm:inline">Progress</span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
