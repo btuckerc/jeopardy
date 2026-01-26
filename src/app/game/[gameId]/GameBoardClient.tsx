@@ -183,15 +183,15 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const { scrollIntoView, focusInput } = useMobileKeyboard()
     const [revealMyAnswer, setRevealMyAnswer] = useState(false)
     
+    // Completed game state - for review mode
+    const isCompletedGame = initialGameData?.status === 'COMPLETED'
+    
     // Focus input on desktop when question modal opens (skip on mobile to let user read question first)
     useEffect(() => {
         if (selectedQuestion && !showAnswer && !answeredQuestions.has(selectedQuestion.id) && !isCompletedGame) {
             focusInput(answerInputRef)
         }
     }, [selectedQuestion, showAnswer, answeredQuestions, isCompletedGame, focusInput])
-    
-    // Completed game state - for review mode
-    const isCompletedGame = initialGameData?.status === 'COMPLETED'
     // Track which answers have been revealed in review mode (collapsed by default)
     const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({})
     const toggleRevealAnswer = (questionId: string) => {
