@@ -714,8 +714,6 @@ export type {
     ContentMetricsResponse,
     AbuseMetricsResponse,
     PerfMetricsResponse,
-    RouteStats,
-    RouteMetric,
     UserDebugResponse,
     UsersResponse,
     DisputesResponse,
