@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { jsonResponse, serverErrorResponse, parseSearchParams } from '@/lib/api-utils'
+import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 import { z } from 'zod'
 
 const searchParamsSchema = z.object({
@@ -17,9 +18,11 @@ export async function GET(request: Request) {
         if (error) return error
 
         const targetDate = params.date 
-            ? new Date(params.date)
-            : new Date()
-        targetDate.setHours(0, 0, 0, 0)
+            ? (() => {
+                const [year, month, day] = params.date.split('-').map(v => parseInt(v, 10))
+                return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+              })()
+            : getActiveChallengeDate()
 
         // Get challenge for the date
         const challenge = await prisma.dailyChallenge.findUnique({

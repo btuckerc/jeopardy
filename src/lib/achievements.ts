@@ -1,5 +1,6 @@
 import { prisma } from './prisma'
 import { KnowledgeCategory } from '@prisma/client'
+import { getActiveChallengeDate } from './daily-challenge-utils'
 
 /**
  * Event types that can trigger achievement checks
@@ -553,15 +554,15 @@ async function getDailyChallengeStreak(userId: string): Promise<number> {
     if (recentChallenges.length === 0) return 0
 
     let streak = 0
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const today = getActiveChallengeDate()
 
     for (let i = 0; i < recentChallenges.length; i++) {
         const challengeDate = new Date(recentChallenges[i].challenge.date)
-        challengeDate.setHours(0, 0, 0, 0)
+        challengeDate.setUTCHours(0, 0, 0, 0)
 
         const expectedDate = new Date(today)
-        expectedDate.setDate(today.getDate() - i)
+        expectedDate.setUTCDate(today.getUTCDate() - i)
+        expectedDate.setUTCHours(0, 0, 0, 0)
 
         if (challengeDate.getTime() === expectedDate.getTime()) {
             streak++

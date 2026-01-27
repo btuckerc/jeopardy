@@ -1,4 +1,5 @@
 import { prisma } from './prisma'
+import { getActiveChallengeDate } from './daily-challenge-utils'
 
 export interface AchievementProgress {
     current: number
@@ -296,16 +297,15 @@ async function getDailyChallengeStreak(userId: string): Promise<number> {
     if (challenges.length === 0) return 0
 
     let streak = 0
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    const today = getActiveChallengeDate()
 
     for (let i = 0; i < challenges.length; i++) {
         const challengeDate = new Date(challenges[i].challenge.date)
-        challengeDate.setHours(0, 0, 0, 0)
+        challengeDate.setUTCHours(0, 0, 0, 0)
         
         const expectedDate = new Date(today)
-        expectedDate.setDate(expectedDate.getDate() - i)
-        expectedDate.setHours(0, 0, 0, 0)
+        expectedDate.setUTCDate(today.getUTCDate() - i)
+        expectedDate.setUTCHours(0, 0, 0, 0)
 
         if (challengeDate.getTime() === expectedDate.getTime()) {
             streak++
