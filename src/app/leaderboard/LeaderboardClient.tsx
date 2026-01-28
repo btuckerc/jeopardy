@@ -7,25 +7,59 @@ import UserAvatar from '@/components/UserAvatar';
 import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt';
 import type { AppUser } from '@/lib/clerk-auth';
 
-interface LeaderboardEntry {
+// Leaderboard types
+type LeaderboardType = 'points' | 'weekly' | 'monthly' | 'streaks' | 'accuracy' | 'games';
+
+interface BaseLeaderboardEntry {
     id: string;
     displayName: string;
     selectedIcon: string | null;
     avatarBackground: string | null;
+}
+
+interface PointsLeaderboardEntry extends BaseLeaderboardEntry {
     correctAnswers: number;
     totalAnswered: number;
     totalPoints: number;
     avgPointsPerCorrect: number;
 }
 
-interface LeaderboardClientProps {
-    user: AppUser;
-    initialLeaderboard: LeaderboardEntry[];
+interface StreaksLeaderboardEntry extends BaseLeaderboardEntry {
+    currentStreak: number;
+    longestStreak: number;
 }
 
+interface AccuracyLeaderboardEntry extends BaseLeaderboardEntry {
+    correctAnswers: number;
+    totalAnswered: number;
+    accuracy: number;
+}
+
+interface GamesLeaderboardEntry extends BaseLeaderboardEntry {
+    gamesCompleted: number;
+    totalPoints: number;
+}
+
+type LeaderboardEntry = PointsLeaderboardEntry | StreaksLeaderboardEntry | AccuracyLeaderboardEntry | GamesLeaderboardEntry;
+
+interface LeaderboardClientProps {
+    user: AppUser;
+    initialLeaderboard: PointsLeaderboardEntry[];
+}
+
+// Tab configuration
+const leaderboardTabs: { type: LeaderboardType; label: string; shortLabel: string; icon: string; description: string }[] = [
+    { type: 'points', label: 'All-Time Points', shortLabel: 'All-Time', icon: '🏆', description: 'Ranked by total points earned' },
+    { type: 'weekly', label: 'This Week', shortLabel: 'Weekly', icon: '📅', description: 'Points earned in the last 7 days' },
+    { type: 'monthly', label: 'This Month', shortLabel: 'Monthly', icon: '📆', description: 'Points earned in the last 30 days' },
+    { type: 'streaks', label: 'Streaks', shortLabel: 'Streaks', icon: '🔥', description: 'Ranked by longest streak' },
+    { type: 'accuracy', label: 'Accuracy', shortLabel: 'Accuracy', icon: '🎯', description: 'Ranked by answer accuracy (min. 50 questions)' },
+    { type: 'games', label: 'Games Played', shortLabel: 'Games', icon: '🎮', description: 'Ranked by games completed' },
+];
+
 // Fetch function for React Query
-async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-    const response = await fetch('/api/leaderboard?limit=100');
+async function fetchLeaderboard(type: LeaderboardType): Promise<LeaderboardEntry[]> {
+    const response = await fetch(`/api/leaderboard?limit=100&type=${type}`);
     if (!response.ok) {
         throw new Error('Failed to fetch leaderboard');
     }
@@ -33,29 +67,42 @@ async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
     return Array.isArray(data) ? data : (data.leaderboard || []);
 }
 
+// Type guards
+function isPointsEntry(entry: LeaderboardEntry, type: LeaderboardType): entry is PointsLeaderboardEntry {
+    return type === 'points' || type === 'weekly' || type === 'monthly';
+}
+
+function isStreaksEntry(entry: LeaderboardEntry, type: LeaderboardType): entry is StreaksLeaderboardEntry {
+    return type === 'streaks';
+}
+
+function isAccuracyEntry(entry: LeaderboardEntry, type: LeaderboardType): entry is AccuracyLeaderboardEntry {
+    return type === 'accuracy';
+}
+
+function isGamesEntry(entry: LeaderboardEntry, type: LeaderboardType): entry is GamesLeaderboardEntry {
+    return type === 'games';
+}
+
 export default function LeaderboardClient({ user, initialLeaderboard }: LeaderboardClientProps) {
     const [showBackToTop, setShowBackToTop] = useState(false);
     const [achievementBadges, setAchievementBadges] = useState<Record<string, string[]>>({});
     const [previousRank, setPreviousRank] = useState<number | null>(null);
+    const [activeTab, setActiveTab] = useState<LeaderboardType>('points');
     const queryClient = useQueryClient();
 
     // Use React Query with stale-while-revalidate pattern
-    // - initialData: Server-rendered data for instant display
-    // - staleTime: Consider data fresh for 30 seconds (no refetch)
-    // - refetchOnWindowFocus: Refetch when user returns to tab
-    // - refetchOnMount: Always check for fresh data on navigation
-    const { data: leaderboard = initialLeaderboard } = useQuery({
-        queryKey: ['leaderboard'],
-        queryFn: fetchLeaderboard,
-        initialData: initialLeaderboard,
+    const { data: leaderboard = initialLeaderboard, isLoading } = useQuery({
+        queryKey: ['leaderboard', activeTab],
+        queryFn: () => fetchLeaderboard(activeTab),
+        initialData: activeTab === 'points' ? initialLeaderboard : undefined,
         staleTime: 30 * 1000, // Data is fresh for 30 seconds
         gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-        refetchOnWindowFocus: true, // Refetch when tab becomes active
-        refetchOnMount: 'always', // Always check on navigation
+        refetchOnWindowFocus: true,
+        refetchOnMount: 'always',
     });
 
-    // Listen for user profile updates (dispatched from UserSettings)
-    // Invalidate the query to trigger a refetch
+    // Listen for user profile updates
     useEffect(() => {
         const handleProfileUpdate = () => {
             queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
@@ -83,23 +130,23 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
     const currentUserEntry = leaderboard.find(e => e.id === user.id);
     const currentUserRank = currentUserEntry ? leaderboard.findIndex(e => e.id === user.id) + 1 : null;
 
-    // Load previous rank from localStorage
+    // Load previous rank from localStorage (only for points leaderboard)
     useEffect(() => {
+        if (activeTab !== 'points') return;
+        
         const stored = localStorage.getItem('trivrdy_previousRank');
         if (stored && currentUserRank) {
             const prev = parseInt(stored, 10);
             if (!isNaN(prev) && prev !== currentUserRank) {
                 setPreviousRank(prev);
-                // Update stored rank
                 localStorage.setItem('trivrdy_previousRank', currentUserRank.toString());
             } else if (!stored || isNaN(prev)) {
-                // First time or invalid, store current rank
                 localStorage.setItem('trivrdy_previousRank', currentUserRank.toString());
             }
         } else if (currentUserRank) {
             localStorage.setItem('trivrdy_previousRank', currentUserRank.toString());
         }
-    }, [currentUserRank]);
+    }, [currentUserRank, activeTab]);
 
     // Fetch achievement badges for leaderboard users
     useEffect(() => {
@@ -116,11 +163,11 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
             });
     }, [leaderboard]);
 
-    // Calculate distance to next rank for current user
-    const distanceToNextRank = currentUserEntry && currentUserRank && currentUserRank > 1
+    // Calculate distance to next rank for current user (points-based leaderboards)
+    const distanceToNextRank = currentUserEntry && currentUserRank && currentUserRank > 1 && isPointsEntry(currentUserEntry, activeTab)
         ? (() => {
-            const nextRankEntry = leaderboard[currentUserRank - 2]; // -2 because rank is 1-indexed
-            if (nextRankEntry) {
+            const nextRankEntry = leaderboard[currentUserRank - 2];
+            if (nextRankEntry && isPointsEntry(nextRankEntry, activeTab)) {
                 return nextRankEntry.totalPoints - currentUserEntry.totalPoints;
             }
             return null;
@@ -128,13 +175,12 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
         : null;
 
     // Calculate rank change
-    const rankChange = previousRank && currentUserRank
-        ? previousRank - currentUserRank // Positive = moved up, negative = moved down
+    const rankChange = previousRank && currentUserRank && activeTab === 'points'
+        ? previousRank - currentUserRank
         : null;
 
     const scrollToUserRow = () => {
         if (currentUserEntry && currentUserRank) {
-            // Choose the correct element based on viewport width (md breakpoint = 768px)
             const isMobile = window.innerWidth < 768;
             const elementId = isMobile
                 ? `leaderboard-card-${currentUserEntry.id}`
@@ -142,13 +188,162 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
             const element = document.getElementById(elementId);
             if (element) {
                 element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Add a brief highlight effect
                 element.classList.add('ring-4', 'ring-blue-400');
                 setTimeout(() => {
                     element.classList.remove('ring-4', 'ring-blue-400');
                 }, 2000);
             }
         }
+    };
+
+    // Get the current tab info
+    const currentTabInfo = leaderboardTabs.find(t => t.type === activeTab)!;
+
+    // Format value based on leaderboard type
+    const formatPrimaryValue = (entry: LeaderboardEntry): string => {
+        if (isPointsEntry(entry, activeTab)) {
+            return `$${entry.totalPoints.toLocaleString()}`;
+        }
+        if (isStreaksEntry(entry, activeTab)) {
+            return `${entry.longestStreak} days`;
+        }
+        if (isAccuracyEntry(entry, activeTab)) {
+            return `${entry.accuracy.toFixed(1)}%`;
+        }
+        if (isGamesEntry(entry, activeTab)) {
+            return `${entry.gamesCompleted} games`;
+        }
+        return '';
+    };
+
+    // Get secondary stats for display
+    const getSecondaryStats = (entry: LeaderboardEntry): { label: string; value: string }[] => {
+        if (isPointsEntry(entry, activeTab)) {
+            return [
+                { label: "Q's", value: `${entry.correctAnswers}/${entry.totalAnswered}` },
+                { label: 'Avg', value: entry.avgPointsPerCorrect.toLocaleString() },
+            ];
+        }
+        if (isStreaksEntry(entry, activeTab)) {
+            return [
+                { label: 'Current', value: `${entry.currentStreak} days` },
+            ];
+        }
+        if (isAccuracyEntry(entry, activeTab)) {
+            return [
+                { label: "Q's", value: `${entry.correctAnswers}/${entry.totalAnswered}` },
+            ];
+        }
+        if (isGamesEntry(entry, activeTab)) {
+            return [
+                { label: 'Points', value: `$${entry.totalPoints.toLocaleString()}` },
+            ];
+        }
+        return [];
+    };
+
+    // Get column headers based on type
+    const getTableHeaders = (): { label: string; align: 'left' | 'right' }[] => {
+        const base = [
+            { label: 'Rank', align: 'left' as const },
+            { label: 'Player', align: 'left' as const },
+        ];
+
+        switch (activeTab) {
+            case 'points':
+            case 'weekly':
+            case 'monthly':
+                return [
+                    ...base,
+                    { label: 'Total Points', align: 'right' as const },
+                    { label: 'Questions', align: 'right' as const },
+                    { label: 'Avg Pts/Correct', align: 'right' as const },
+                ];
+            case 'streaks':
+                return [
+                    ...base,
+                    { label: 'Longest Streak', align: 'right' as const },
+                    { label: 'Current Streak', align: 'right' as const },
+                ];
+            case 'accuracy':
+                return [
+                    ...base,
+                    { label: 'Accuracy', align: 'right' as const },
+                    { label: 'Questions', align: 'right' as const },
+                ];
+            case 'games':
+                return [
+                    ...base,
+                    { label: 'Games Completed', align: 'right' as const },
+                    { label: 'Total Points', align: 'right' as const },
+                ];
+            default:
+                return base;
+        }
+    };
+
+    // Render table cells based on type
+    const renderTableCells = (entry: LeaderboardEntry) => {
+        if (isPointsEntry(entry, activeTab)) {
+            return (
+                <>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
+                        ${entry.totalPoints.toLocaleString()}
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+                        {entry.correctAnswers.toLocaleString()} / {entry.totalAnswered.toLocaleString()}
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+                        {entry.avgPointsPerCorrect.toLocaleString()}
+                    </td>
+                </>
+            );
+        }
+        if (isStreaksEntry(entry, activeTab)) {
+            return (
+                <>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
+                        <span className="inline-flex items-center gap-1">
+                            🔥 {entry.longestStreak} days
+                        </span>
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+                        {entry.currentStreak > 0 ? (
+                            <span className="inline-flex items-center gap-1 text-orange-600 font-medium">
+                                🔥 {entry.currentStreak} days
+                            </span>
+                        ) : (
+                            <span className="text-gray-400">-</span>
+                        )}
+                    </td>
+                </>
+            );
+        }
+        if (isAccuracyEntry(entry, activeTab)) {
+            return (
+                <>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
+                        {entry.accuracy.toFixed(1)}%
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+                        {entry.correctAnswers.toLocaleString()} / {entry.totalAnswered.toLocaleString()}
+                    </td>
+                </>
+            );
+        }
+        if (isGamesEntry(entry, activeTab)) {
+            return (
+                <>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
+                        {entry.gamesCompleted.toLocaleString()}
+                    </td>
+                    <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm text-gray-900">
+                        ${entry.totalPoints.toLocaleString()}
+                    </td>
+                </>
+            );
+        }
+        return null;
     };
 
     return (
@@ -170,7 +365,7 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
                             <span>Global Leaderboard</span>
                         </h1>
                         <p className="page-subtitle text-sm md:text-base lg:text-lg text-gray-600">
-                            See how you rank against other players.
+                            {currentTabInfo.description}
                         </p>
                     </div>
 
@@ -191,12 +386,7 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
                                 )}
                             </div>
                             <div className="text-xs md:text-sm text-gray-600 flex justify-center gap-4 md:block md:space-y-1">
-                                <div>Points: <span className="font-semibold text-gray-900">${currentUserEntry.totalPoints.toLocaleString()}</span></div>
-                                <div>Accuracy: <span className="font-semibold text-gray-900">
-                                    {currentUserEntry.totalAnswered > 0 
-                                        ? Math.round((currentUserEntry.correctAnswers / currentUserEntry.totalAnswered) * 100)
-                                        : 0}%
-                                </span></div>
+                                <div>{currentTabInfo.icon} <span className="font-semibold text-gray-900">{formatPrimaryValue(currentUserEntry)}</span></div>
                                 {rankChange !== null && rankChange !== 0 && (
                                     <div className={`flex items-center gap-1 ${rankChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                         {rankChange > 0 ? (
@@ -235,254 +425,273 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
                 </div>
             </div>
 
+            {/* Leaderboard Type Tabs */}
+            <div className="mb-4 md:mb-6">
+                <div className="border-b border-gray-200">
+                    <nav className="-mb-px flex overflow-x-auto scrollbar-hide" aria-label="Leaderboard tabs">
+                        {leaderboardTabs.map((tab) => (
+                            <button
+                                key={tab.type}
+                                onClick={() => setActiveTab(tab.type)}
+                                className={`whitespace-nowrap py-3 px-3 md:px-4 border-b-2 font-medium text-sm transition-colors flex items-center gap-1.5 ${
+                                    activeTab === tab.type
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                            >
+                                <span className="text-base">{tab.icon}</span>
+                                <span className="hidden sm:inline">{tab.label}</span>
+                                <span className="sm:hidden">{tab.shortLabel}</span>
+                            </button>
+                        ))}
+                    </nav>
+                </div>
+            </div>
+
+            {/* Loading State */}
+            {isLoading && (
+                <div className="card p-8 text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading leaderboard...</p>
+                </div>
+            )}
+
             {/* Mobile Card List (visible < md) */}
-            <ul className="md:hidden space-y-3" role="list" aria-label="Leaderboard">
-                {leaderboard.length === 0 ? (
-                    <li className="card p-6 text-center">
-                        <div className="flex flex-col items-center gap-3">
-                            <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
-                                <svg className="w-7 h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className="font-semibold text-gray-900 mb-1">No scores yet</p>
-                                <p className="text-sm text-gray-600 mb-3">Start practicing to see your name on the leaderboard!</p>
-                                <Link href="/practice" className="btn-primary btn-sm inline-flex items-center gap-2">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                    </svg>
-                                    Start Studying
-                                </Link>
-                            </div>
-                        </div>
-                    </li>
-                ) : leaderboard.map((entry, index) => {
-                    const rank = index + 1;
-                    const isCurrentUser = entry.id === user.id;
-                    const isTopThree = rank <= 3;
-
-                    // Determine card background for top three or current user
-                    let cardBgClass = 'bg-white';
-                    let rankTextClass = 'text-gray-700';
-                    if (rank === 1) {
-                        cardBgClass = 'bg-amber-50 border-amber-200';
-                        rankTextClass = 'text-amber-700';
-                    } else if (rank === 2) {
-                        cardBgClass = 'bg-gray-100 border-gray-300';
-                        rankTextClass = 'text-gray-600';
-                    } else if (rank === 3) {
-                        cardBgClass = 'bg-orange-50 border-orange-200';
-                        rankTextClass = 'text-orange-700';
-                    }
-                    if (isCurrentUser) {
-                        cardBgClass = 'bg-blue-50 border-blue-400 ring-2 ring-blue-300';
-                    }
-
-                    return (
-                        <li
-                            key={entry.id}
-                            id={`leaderboard-card-${entry.id}`}
-                            className={`card ${cardBgClass} p-3 transition-colors`}
-                        >
-                            {/* Top row: rank + points */}
-                            <div className="flex items-center justify-between mb-2">
-                                <div className="flex items-center gap-1.5">
-                                    {isTopThree && (
-                                        <span className="text-base leading-none">
-                                            {rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}
-                                        </span>
-                                    )}
-                                    <span className={`text-sm font-semibold ${rankTextClass}`}>#{rank}</span>
-                                </div>
-                                <span className="text-base font-bold text-gray-900">${entry.totalPoints.toLocaleString()}</span>
-                            </div>
-
-                            {/* Middle row: avatar + name + achievements */}
-                            <div className="flex items-center gap-3 mb-2">
-                                <UserAvatar
-                                    email=""
-                                    displayName={entry.displayName}
-                                    selectedIcon={entry.selectedIcon}
-                                    avatarBackground={entry.avatarBackground}
-                                    size="sm"
-                                />
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <span className={`truncate text-sm font-medium ${isCurrentUser ? 'text-blue-900 font-bold' : 'text-gray-900'}`}>
-                                        {entry.displayName}
-                                    </span>
-                                    {achievementBadges[entry.id] && achievementBadges[entry.id].length > 0 && (
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                            {achievementBadges[entry.id].slice(0, 3).map((icon, idx) => (
-                                                <span key={idx} className="text-sm" title="Achievement badge">
-                                                    {icon}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                    {isCurrentUser && (
-                                        <span className="flex-shrink-0 px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-semibold rounded-full">
-                                            You
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Bottom row: stats */}
-                            <div className="flex items-center gap-4 text-xs text-gray-600">
-                                <div>
-                                    <span className="text-gray-500">Q&apos;s:</span>{' '}
-                                    <span className="font-medium text-gray-800">{entry.correctAnswers}/{entry.totalAnswered}</span>
+            {!isLoading && (
+                <ul className="md:hidden space-y-3" role="list" aria-label="Leaderboard">
+                    {leaderboard.length === 0 ? (
+                        <li className="card p-6 text-center">
+                            <div className="flex flex-col items-center gap-3">
+                                <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
+                                    <span className="text-2xl">{currentTabInfo.icon}</span>
                                 </div>
                                 <div>
-                                    <span className="text-gray-500">Avg:</span>{' '}
-                                    <span className="font-medium text-gray-800">{entry.avgPointsPerCorrect.toLocaleString()}</span>
+                                    <p className="font-semibold text-gray-900 mb-1">No scores yet</p>
+                                    <p className="text-sm text-gray-600 mb-3">Start practicing to see your name on the leaderboard!</p>
+                                    <Link href="/practice" className="btn-primary btn-sm inline-flex items-center gap-2">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                        </svg>
+                                        Start Studying
+                                    </Link>
                                 </div>
                             </div>
                         </li>
-                    );
-                })}
-            </ul>
+                    ) : leaderboard.map((entry, index) => {
+                        const rank = index + 1;
+                        const isCurrentUser = entry.id === user.id;
+                        const isTopThree = rank <= 3;
+
+                        // Determine card background for top three or current user
+                        let cardBgClass = 'bg-white';
+                        let rankTextClass = 'text-gray-700';
+                        if (rank === 1) {
+                            cardBgClass = 'bg-amber-50 border-amber-200';
+                            rankTextClass = 'text-amber-700';
+                        } else if (rank === 2) {
+                            cardBgClass = 'bg-gray-100 border-gray-300';
+                            rankTextClass = 'text-gray-600';
+                        } else if (rank === 3) {
+                            cardBgClass = 'bg-orange-50 border-orange-200';
+                            rankTextClass = 'text-orange-700';
+                        }
+                        if (isCurrentUser) {
+                            cardBgClass = 'bg-blue-50 border-blue-400 ring-2 ring-blue-300';
+                        }
+
+                        const secondaryStats = getSecondaryStats(entry);
+
+                        return (
+                            <li
+                                key={entry.id}
+                                id={`leaderboard-card-${entry.id}`}
+                                className={`card ${cardBgClass} p-3 transition-colors`}
+                            >
+                                {/* Top row: rank + primary value */}
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-1.5">
+                                        {isTopThree && (
+                                            <span className="text-base leading-none">
+                                                {rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}
+                                            </span>
+                                        )}
+                                        <span className={`text-sm font-semibold ${rankTextClass}`}>#{rank}</span>
+                                    </div>
+                                    <span className="text-base font-bold text-gray-900">{formatPrimaryValue(entry)}</span>
+                                </div>
+
+                                {/* Middle row: avatar + name + achievements */}
+                                <div className="flex items-center gap-3 mb-2">
+                                    <UserAvatar
+                                        email=""
+                                        displayName={entry.displayName}
+                                        selectedIcon={entry.selectedIcon}
+                                        avatarBackground={entry.avatarBackground}
+                                        size="sm"
+                                    />
+                                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span className={`truncate text-sm font-medium ${isCurrentUser ? 'text-blue-900 font-bold' : 'text-gray-900'}`}>
+                                            {entry.displayName}
+                                        </span>
+                                        {achievementBadges[entry.id] && achievementBadges[entry.id].length > 0 && (
+                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                {achievementBadges[entry.id].slice(0, 3).map((icon, idx) => (
+                                                    <span key={idx} className="text-sm" title="Achievement badge">
+                                                        {icon}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {isCurrentUser && (
+                                            <span className="flex-shrink-0 px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-semibold rounded-full">
+                                                You
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Bottom row: stats */}
+                                {secondaryStats.length > 0 && (
+                                    <div className="flex items-center gap-4 text-xs text-gray-600">
+                                        {secondaryStats.map((stat, idx) => (
+                                            <div key={idx}>
+                                                <span className="text-gray-500">{stat.label}:</span>{' '}
+                                                <span className="font-medium text-gray-800">{stat.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
 
             {/* Desktop Table (visible >= md) */}
-            <div className="hidden md:block card overflow-hidden">
-                <div className="overflow-x-auto">
-                    <div className="inline-block min-w-full align-middle">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50 border-b-2 border-gray-200">
-                                <tr>
-                                    <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                                        Rank
-                                    </th>
-                                    <th scope="col" className="px-4 lg:px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                                        Player
-                                    </th>
-                                    <th scope="col" className="px-4 lg:px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                                        Total Points
-                                    </th>
-                                    <th scope="col" className="px-4 lg:px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                                        Questions
-                                    </th>
-                                    <th scope="col" className="px-4 lg:px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                                        Avg Pts/Correct
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {leaderboard.length === 0 ? (
+            {!isLoading && (
+                <div className="hidden md:block card overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <div className="inline-block min-w-full align-middle">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50 border-b-2 border-gray-200">
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-16 text-center">
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
-                                                    <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                                    </svg>
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold text-gray-900 text-lg mb-1">No scores yet</p>
-                                                    <p className="text-gray-600 mb-4">Start practicing to see your name on the leaderboard!</p>
-                                                    <Link href="/practice" className="btn-primary inline-flex items-center gap-2">
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                                        </svg>
-                                                        Start Studying
-                                                    </Link>
-                                                </div>
-                                            </div>
-                                        </td>
+                                        {getTableHeaders().map((header, idx) => (
+                                            <th
+                                                key={idx}
+                                                scope="col"
+                                                className={`px-4 lg:px-6 py-3 text-${header.align} text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap`}
+                                            >
+                                                {header.label}
+                                            </th>
+                                        ))}
                                     </tr>
-                                ) : leaderboard.map((entry, index) => {
-                                    const rank = index + 1;
-                                    const isCurrentUser = entry.id === user.id;
-                                    const isTopThree = rank <= 3;
-                                    
-                                    // Determine background and text colors for top three
-                                    let rowBgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-                                    let rankTextClass = 'text-gray-900';
-                                    
-                                    if (rank === 1) {
-                                        rowBgClass = 'bg-amber-50';
-                                        rankTextClass = 'text-amber-700';
-                                    } else if (rank === 2) {
-                                        rowBgClass = 'bg-gray-100';
-                                        rankTextClass = 'text-gray-700';
-                                    } else if (rank === 3) {
-                                        rowBgClass = 'bg-orange-50';
-                                        rankTextClass = 'text-orange-700';
-                                    }
-                                    
-                                    // Override with current user highlight
-                                    if (isCurrentUser) {
-                                        rowBgClass = 'bg-blue-50 ring-2 ring-blue-400';
-                                    }
-                                    
-                                    return (
-                                        <tr 
-                                            id={`leaderboard-row-${entry.id}`}
-                                            key={entry.id} 
-                                            className={`${rowBgClass} transition-colors hover:bg-blue-50/50`}
-                                        >
-                                            <td className="px-4 lg:px-6 py-3 whitespace-nowrap">
-                                                <div className="flex items-center gap-2">
-                                                    {isTopThree && (
-                                                        <span className="text-lg">
-                                                            {rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}
-                                                        </span>
-                                                    )}
-                                                    <span className={`text-sm font-semibold ${rankTextClass}`}>
-                                                        {rank}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 lg:px-6 py-3 whitespace-nowrap">
-                                                <div className="flex items-center justify-start space-x-3">
-                                                    <div className="flex-shrink-0">
-                                                        <UserAvatar
-                                                            email=""
-                                                            displayName={entry.displayName}
-                                                            selectedIcon={entry.selectedIcon}
-                                                            avatarBackground={entry.avatarBackground}
-                                                            size="md"
-                                                        />
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {leaderboard.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={getTableHeaders().length} className="px-6 py-16 text-center">
+                                                <div className="flex flex-col items-center gap-4">
+                                                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+                                                        <span className="text-4xl">{currentTabInfo.icon}</span>
                                                     </div>
-                                                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                                                        <div className={`text-sm font-medium truncate ${isCurrentUser ? 'text-blue-900 font-bold' : 'text-gray-900'}`}>
-                                                            {entry.displayName}
-                                                        </div>
-                                                        {achievementBadges[entry.id] && achievementBadges[entry.id].length > 0 && (
-                                                            <div className="flex items-center gap-1 flex-shrink-0">
-                                                                {achievementBadges[entry.id].slice(0, 3).map((icon, idx) => (
-                                                                    <span key={idx} className="text-sm" title="Achievement badge">
-                                                                        {icon}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
-                                                        )}
-                                                        {isCurrentUser && (
-                                                            <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full flex-shrink-0">
-                                                                You
-                                                            </span>
-                                                        )}
+                                                    <div>
+                                                        <p className="font-semibold text-gray-900 text-lg mb-1">No scores yet</p>
+                                                        <p className="text-gray-600 mb-4">Start practicing to see your name on the leaderboard!</p>
+                                                        <Link href="/practice" className="btn-primary inline-flex items-center gap-2">
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                                            </svg>
+                                                            Start Studying
+                                                        </Link>
                                                     </div>
                                                 </div>
-                                            </td>
-                                            <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm font-semibold text-gray-900">
-                                                ${entry.totalPoints.toLocaleString()}
-                                            </td>
-                                            <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm text-gray-900">
-                                                {entry.correctAnswers.toLocaleString()} / {entry.totalAnswered.toLocaleString()}
-                                            </td>
-                                            <td className="px-4 lg:px-6 py-3 whitespace-nowrap text-right text-sm text-gray-900">
-                                                {entry.avgPointsPerCorrect.toLocaleString()}
                                             </td>
                                         </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                                    ) : leaderboard.map((entry, index) => {
+                                        const rank = index + 1;
+                                        const isCurrentUser = entry.id === user.id;
+                                        const isTopThree = rank <= 3;
+                                        
+                                        // Determine background and text colors for top three
+                                        let rowBgClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                                        let rankTextClass = 'text-gray-900';
+                                        
+                                        if (rank === 1) {
+                                            rowBgClass = 'bg-amber-50';
+                                            rankTextClass = 'text-amber-700';
+                                        } else if (rank === 2) {
+                                            rowBgClass = 'bg-gray-100';
+                                            rankTextClass = 'text-gray-700';
+                                        } else if (rank === 3) {
+                                            rowBgClass = 'bg-orange-50';
+                                            rankTextClass = 'text-orange-700';
+                                        }
+                                        
+                                        // Override with current user highlight
+                                        if (isCurrentUser) {
+                                            rowBgClass = 'bg-blue-50 ring-2 ring-blue-400';
+                                        }
+                                        
+                                        return (
+                                            <tr 
+                                                id={`leaderboard-row-${entry.id}`}
+                                                key={entry.id} 
+                                                className={`${rowBgClass} transition-colors hover:bg-blue-50/50`}
+                                            >
+                                                <td className="px-4 lg:px-6 py-3 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        {isTopThree && (
+                                                            <span className="text-lg">
+                                                                {rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉'}
+                                                            </span>
+                                                        )}
+                                                        <span className={`text-sm font-semibold ${rankTextClass}`}>
+                                                            {rank}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 lg:px-6 py-3 whitespace-nowrap">
+                                                    <div className="flex items-center justify-start space-x-3">
+                                                        <div className="flex-shrink-0">
+                                                            <UserAvatar
+                                                                email=""
+                                                                displayName={entry.displayName}
+                                                                selectedIcon={entry.selectedIcon}
+                                                                avatarBackground={entry.avatarBackground}
+                                                                size="md"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                            <div className={`text-sm font-medium truncate ${isCurrentUser ? 'text-blue-900 font-bold' : 'text-gray-900'}`}>
+                                                                {entry.displayName}
+                                                            </div>
+                                                            {achievementBadges[entry.id] && achievementBadges[entry.id].length > 0 && (
+                                                                <div className="flex items-center gap-1 flex-shrink-0">
+                                                                    {achievementBadges[entry.id].slice(0, 3).map((icon, idx) => (
+                                                                        <span key={idx} className="text-sm" title="Achievement badge">
+                                                                            {icon}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            {isCurrentUser && (
+                                                                <span className="px-2 py-0.5 bg-blue-600 text-white text-xs font-semibold rounded-full flex-shrink-0">
+                                                                    You
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                {renderTableCells(entry)}
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Back to Top Button */}
             {showBackToTop && (

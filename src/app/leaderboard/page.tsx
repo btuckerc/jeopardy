@@ -7,8 +7,8 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
     title: 'Trivia Rankings & Leaderboard | Jeopardy Stats | trivrdy',
-    description: 'See how you rank against other trivia champions. View the global leaderboard, track your Jeopardy stats, and compete for the top spot.',
-    keywords: 'trivia leaderboard, jeopardy rankings, trivia stats, jeopardy leaderboard, trivia competition, jeopardy scores',
+    description: 'See how you rank against other trivia champions. View the global leaderboard, track your Jeopardy stats, and compete for the top spot. Compare your weekly, monthly, and all-time scores.',
+    keywords: 'trivia leaderboard, jeopardy rankings, trivia stats, jeopardy leaderboard, trivia competition, jeopardy scores, weekly leaderboard, streak rankings',
     openGraph: {
         title: 'Trivia Rankings & Leaderboard | Jeopardy Stats | trivrdy',
         description: 'See how you rank against other trivia champions. View the global leaderboard, track your Jeopardy stats, and compete for the top spot.',
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     },
 };
 
-interface LeaderboardEntry {
+interface PointsLeaderboardEntry {
     id: string;
     displayName: string;
     selectedIcon: string | null;
@@ -72,10 +72,10 @@ export default async function LeaderboardPage() {
         );
     }
 
-    // Fetch leaderboard data server-side
-    let leaderboard: LeaderboardEntry[] = [];
+    // Fetch leaderboard data server-side (all-time points as default)
+    let leaderboard: PointsLeaderboardEntry[] = [];
     try {
-        leaderboard = await prisma.$queryRaw<LeaderboardEntry[]>`
+        leaderboard = await prisma.$queryRaw<PointsLeaderboardEntry[]>`
             WITH UserStats AS (
                 SELECT 
                     u.id,
