@@ -168,6 +168,15 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                                 </svg>
                                 Leaderboard
                             </Link>
+                            <Link
+                                href="/high-scores"
+                                className="flex items-center px-3 py-2 text-sm font-medium text-white hover:text-gray-300 transition-colors duration-150 ease-in-out whitespace-nowrap"
+                            >
+                                <svg className="h-5 w-5 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                </svg>
+                                High Scores
+                            </Link>
                         </div>
 
                         {/* Intermediate Navigation - Priority items only (md to lg) */}
@@ -282,6 +291,18 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 4v12l-4-2-4 2V4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                             Leaderboard
+                        </div>
+                    </Link>
+                    <Link
+                        href="/high-scores"
+                        className="text-white hover:bg-blue-700 focus:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-800 block px-4 py-3 text-base font-medium transition-colors duration-150 ease-in-out"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                        <div className="flex items-center">
+                            <svg className="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                            </svg>
+                            High Scores
                         </div>
                     </Link>
                     {isMobile && (
