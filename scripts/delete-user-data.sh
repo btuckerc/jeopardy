@@ -2,6 +2,16 @@
 # Delete all user data by email
 # Usage: ./delete-user-data.sh "user@example.com"
 
+# Load environment variables from .env file if it exists
+if [ -f .env ]; then
+	export $(grep -v '^#' .env | xargs)
+fi
+
+# Use environment variables or defaults
+DB_USER="${POSTGRES_USER:-trivrdy}"
+DB_NAME="${POSTGRES_DB:-trivrdy}"
+DB_PASSWORD="${POSTGRES_PASSWORD:-}"
+
 EMAIL="$1"
 
 if [ -z "$EMAIL" ]; then
@@ -10,6 +20,8 @@ if [ -z "$EMAIL" ]; then
 fi
 
 echo "Deleting all data for user: $EMAIL"
+echo "Database: $DB_NAME (user: $DB_USER)"
+echo ""
 echo "This will permanently delete:"
 echo "  - User account"
 echo "  - All games and game questions"
@@ -56,9 +68,15 @@ BEGIN
 END \$\$;
 "
 
-# Execute the SQL
-docker compose exec -T db psql -U jeopardy -d jeopardy -c "$SQL"
+# Execute the SQL using the correct credentials from .env
+docker compose exec -T db psql -U "$DB_USER" -d "$DB_NAME" -c "$SQL"
 
-echo ""
-echo "Done! User data for $EMAIL has been deleted."
-echo "Note: Clerk user data must be deleted separately from the Clerk dashboard."
+if [ $? -eq 0 ]; then
+	echo ""
+	echo "Done! User data for $EMAIL has been deleted."
+	echo "Note: Clerk user data must be deleted separately from the Clerk dashboard."
+else
+	echo ""
+	echo "Error: Failed to delete user data. Check that the database is running and credentials are correct."
+	echo "Current settings: DB_USER=$DB_USER, DB_NAME=$DB_NAME"
+fi

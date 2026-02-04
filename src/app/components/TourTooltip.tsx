@@ -35,17 +35,26 @@ export default function TourTooltip({
         return () => document.removeEventListener('mousedown', handleClickOutside)
     }, [])
     
-    const positionClasses = {
-        top: 'bottom-full mb-2',
-        bottom: 'top-full mt-2',
-        left: 'right-full mr-2',
-        right: 'left-full ml-2'
+    // Dynamic arrow positioning based on actual position
+    const getArrowClasses = () => {
+        switch (position) {
+            case 'bottom':
+                return '-top-1.5 left-1/2 -translate-x-1/2 border-t border-l'
+            case 'top':
+                return '-bottom-1.5 left-1/2 -translate-x-1/2 border-b border-r'
+            case 'right':
+                return '-left-1.5 top-1/2 -translate-y-1/2 border-t border-l'
+            case 'left':
+                return '-right-1.5 top-1/2 -translate-y-1/2 border-b border-r'
+            default:
+                return '-top-1.5 left-1/2 -translate-x-1/2 border-t border-l'
+        }
     }
     
     return (
         <div
             ref={tooltipRef}
-            className={`absolute ${positionClasses[position]} z-50 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 p-6 animate-fade-in-up`}
+            className="relative z-50 w-full max-w-[340px] bg-white rounded-xl shadow-2xl border border-gray-200 p-6 animate-fade-in-up"
         >
             {/* Progress indicator */}
             <div className="flex items-center justify-between mb-4">
@@ -89,12 +98,7 @@ export default function TourTooltip({
             </div>
             
             {/* Arrow */}
-            <div className={`absolute w-3 h-3 bg-white border-gray-200 transform rotate-45 ${
-                position === 'bottom' ? '-top-1.5 left-1/2 -translate-x-1/2 border-t border-l' :
-                position === 'top' ? '-bottom-1.5 left-1/2 -translate-x-1/2 border-b border-r' :
-                position === 'right' ? '-left-1.5 top-1/2 -translate-y-1/2 border-t border-l' :
-                '-right-1.5 top-1/2 -translate-y-1/2 border-b border-r'
-            }`} />
+            <div className={`absolute w-3 h-3 bg-white border-gray-200 transform rotate-45 ${getArrowClasses()}`} />
         </div>
     )
 }
