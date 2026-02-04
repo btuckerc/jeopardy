@@ -283,25 +283,6 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                 />
             )}
             
-            {/* Transparent clickable area inside ring */}
-            {highlightStyle && (
-                <div
-                    className="fixed z-50 pointer-events-auto cursor-pointer"
-                    style={{
-                        top: highlightStyle.top,
-                        left: highlightStyle.left,
-                        width: highlightStyle.width,
-                        height: highlightStyle.height,
-                        background: 'transparent',
-                        borderRadius: '16px',
-                    }}
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        skipTour()
-                    }}
-                />
-            )}
-            
             {/* Tooltip */}
             <div
                 ref={tooltipRef}
