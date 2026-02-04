@@ -161,6 +161,7 @@ export default async function RootLayout({
                     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
                     <link rel="canonical" href="https://trivrdy.com" />
                     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+                    <meta name="mobile-web-app-capable" content="yes" />
                     <JsonLd data={websiteSchema} />
                     <JsonLd data={softwareApplicationSchema} />
                 </head>
