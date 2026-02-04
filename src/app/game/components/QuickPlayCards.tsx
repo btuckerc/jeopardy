@@ -153,18 +153,6 @@ export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsPr
                         }
                     `}
                 >
-                    {/* Practice Mode Badge */}
-                    {isPracticeMode(preset.id) && (
-                        <div className="absolute top-3 right-3">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                                Study
-                            </span>
-                        </div>
-                    )}
-
                     {/* Icon */}
                     <div className={`
                         w-14 h-14 rounded-xl flex items-center justify-center mb-4
@@ -193,32 +181,49 @@ export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsPr
                         {preset.description}
                     </p>
 
-                    {/* Estimated time */}
-                    <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {preset.estimatedTime}
-                    </div>
+                    {/* Practice Mode CTA or Regular Content */}
+                    {isPracticeMode(preset.id) ? (
+                        <div className="mt-2 flex items-center gap-2 text-amber-600 font-semibold text-sm group">
+                            <span>Study</span>
+                            <svg 
+                                className="w-4 h-4 transition-transform group-hover:translate-x-1" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                            </svg>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Estimated time */}
+                            <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {preset.estimatedTime}
+                            </div>
 
-                    {/* Round indicators */}
-                    <div className="mt-4 flex gap-1">
-                        {preset.rounds.single && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded font-medium">
-                                Single
-                            </span>
-                        )}
-                        {preset.rounds.double && (
-                            <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded font-medium">
-                                Double
-                            </span>
-                        )}
-                        {preset.rounds.final && (
-                            <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded font-medium">
-                                Final
-                            </span>
-                        )}
-                    </div>
+                            {/* Round indicators */}
+                            <div className="mt-4 flex gap-1">
+                                {preset.rounds.single && (
+                                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded font-medium">
+                                        Single
+                                    </span>
+                                )}
+                                {preset.rounds.double && (
+                                    <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded font-medium">
+                                        Double
+                                    </span>
+                                )}
+                                {preset.rounds.final && (
+                                    <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded font-medium">
+                                        Final
+                                    </span>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </button>
             ))}
         </div>
