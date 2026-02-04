@@ -170,6 +170,7 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         
         // Banner step - no target needed
         if (step.isBanner) {
+            targetRef.current = null
             scheduleUpdate()
             return
         }
@@ -179,16 +180,20 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         if (element) {
             targetRef.current = element
             
-            const rect = element.getBoundingClientRect()
-            const isVisible = rect.top >= 0 && rect.bottom <= window.innerHeight
+            // Force immediate position update
+            scheduleUpdate()
             
-            if (!isVisible) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
-                scrollTimeout.current = setTimeout(scheduleUpdate, 500)
-            } else {
-                scheduleUpdate()
-            }
+            // Check visibility after a small delay to ensure DOM is ready
+            setTimeout(() => {
+                const rect = element.getBoundingClientRect()
+                const isVisible = rect.top >= 100 && rect.bottom <= window.innerHeight - 100
+                
+                if (!isVisible) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
+                    scrollTimeout.current = setTimeout(scheduleUpdate, 600)
+                }
+            }, 50)
         }
         
         return () => {
@@ -366,18 +371,27 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                         </button>
                     </div>
                     
-                    {/* Arrow */}
+                    {/* Arrow - attached to tooltip edge */}
                     <div 
-                        className="absolute w-4 h-4 bg-white border-gray-200 transform rotate-45 border-t border-l"
+                        className="absolute w-3 h-3 bg-white"
                         style={{
-                            top: step.position === 'bottom' ? '-8px' : 'auto',
-                            bottom: step.position === 'top' ? '-8px' : 'auto',
-                            left: step.arrowPosition === 'left' ? '24px' : 
-                                  step.arrowPosition === 'right' ? 'auto' : 
-                                  step.arrowPosition === 'center' ? '50%' : '50%',
-                            right: step.arrowPosition === 'right' ? '24px' : 'auto',
-                            transform: `rotate(45deg) ${step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : ''}`,
-                            marginLeft: step.arrowPosition === 'center' || !step.arrowPosition ? '0' : '0'
+                            // Position at tooltip edge
+                            top: step.position === 'bottom' ? '-6px' : step.position === 'top' ? 'auto' : '50%',
+                            bottom: step.position === 'top' ? '-6px' : 'auto',
+                            left: step.position === 'right' ? '-6px' : step.position === 'left' ? 'auto' : 
+                                  step.arrowPosition === 'left' ? '32px' : step.arrowPosition === 'right' ? 'auto' : '50%',
+                            right: step.position === 'left' ? '-6px' : step.position === 'right' ? 'auto' :
+                                   step.arrowPosition === 'right' ? '32px' : 'auto',
+                            // Rotate to point right direction
+                            transform: step.position === 'bottom' ? 'translateX(-50%) rotate(45deg)' :
+                                      step.position === 'top' ? 'translateX(-50%) rotate(45deg)' :
+                                      step.position === 'right' ? 'translateY(-50%) rotate(45deg)' :
+                                      'translateY(-50%) rotate(45deg)',
+                            // Show border on appropriate sides
+                            borderTop: '1px solid #e5e7eb',
+                            borderLeft: step.position === 'bottom' || step.position === 'right' ? '1px solid #e5e7eb' : 'none',
+                            borderRight: step.position === 'top' || step.position === 'left' ? '1px solid #e5e7eb' : 'none',
+                            borderBottom: 'none'
                         }}
                     />
                 </div>
