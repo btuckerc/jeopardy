@@ -11,6 +11,7 @@ import type { AppUser } from '@/lib/clerk-auth'
 import type { UnlockedAchievement } from '@/types/admin'
 import { getNextChallengeTimeISO } from '@/lib/daily-challenge-utils'
 import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
+import ShareResults from './components/ShareResults'
 
 // Helper to format date string without timezone conversion
 // Takes ISO date string and returns formatted string like "November 7, 2022"
@@ -569,6 +570,18 @@ export default function DailyChallengeClient({
                                             </div>
                                         </div>
                                         
+                                        {/* Share Results */}
+                                        {showAnswer && challenge && (
+                                            <div className="pt-4">
+                                                <ShareResults 
+                                                    date={challenge.date}
+                                                    category={challenge.question.category}
+                                                    isCorrect={isCorrect || false}
+                                                    streak={0}
+                                                />
+                                            </div>
+                                        )}
+                                        
                                         {/* Next Challenge Countdown */}
                                         <div className="pt-4">
                                             <NextChallengeCallout nextChallengeTime={nextChallengeTime} />
@@ -610,6 +623,25 @@ export default function DailyChallengeClient({
                         </div>
                     </div>
                     
+                    {/* Archive Link - Above Leaderboard */}
+                    <div className="w-full max-w-4xl">
+                        <div className="bg-blue-800/50 backdrop-blur-sm rounded-xl border border-blue-700/50 p-4 sm:p-6 text-center">
+                            <h3 className="text-white font-semibold mb-1">Missed a day?</h3>
+                            <p className="text-blue-200 text-sm mb-4">
+                                Catch up on challenges from the last 7 days
+                            </p>
+                            <Link
+                                href="/daily-challenge/archive"
+                                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-amber-400 hover:bg-amber-500 text-blue-900 rounded-xl font-bold transition-colors whitespace-nowrap"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                View Archive
+                            </Link>
+                        </div>
+                    </div>
+
                     {/* Leaderboard - Centered Below Question */}
                     <div className="w-full max-w-4xl">
                         <div className="bg-blue-800 rounded-xl sm:rounded-2xl shadow-2xl p-4 sm:p-6 md:p-8 relative overflow-hidden">

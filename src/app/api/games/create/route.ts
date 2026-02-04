@@ -21,6 +21,8 @@ const gameConfigSchema = z.object({
     }).optional(),
     finalCategoryMode: z.enum(['shuffle', 'byDate', 'specificCategory']).optional(),
     finalCategoryId: z.string().optional(),
+    preset: z.enum(['classic', 'quick', 'practice', 'challenge']).optional(), // Quick play preset type
+    categoryFilter: z.string().optional(), // Category filter for challenge mode
     // Spoiler override options - allows user to explicitly override their spoiler settings for this game
     overrideSpoilerCutoff: z.string().optional(), // ISO date string - use this as the cutoff instead of user's profile
     ignoreSpoilerCutoff: z.boolean().optional() // If true, disable spoiler protection for this game
@@ -43,7 +45,10 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         if (error) return error
 
         // Validate mode-specific requirements
-        if (config.mode === 'knowledge' && (!config.categories || config.categories.length === 0)) {
+        // Knowledge mode requires categories, unless it's challenge mode (triple stumpers)
+        if (config.mode === 'knowledge' && 
+            (!config.categories || config.categories.length === 0) &&
+            config.categoryFilter !== 'TRIPLE_STUMPER') {
             return badRequestResponse('Knowledge mode requires at least one knowledge category')
         }
         if (config.mode === 'custom' && (!config.categoryIds || config.categoryIds.length === 0)) {
@@ -92,6 +97,8 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             rounds,
             finalCategoryMode: config.finalCategoryMode,
             finalCategoryId: config.finalCategoryId,
+            preset: config.preset,
+            categoryFilter: config.categoryFilter,
             spoilerProtection
         } as unknown as Prisma.InputJsonValue
 

@@ -67,6 +67,79 @@ function seededShuffle(array: string[], random: () => number): string[] {
 }
 
 /**
+ * Select categories for challenge mode with triple stumper prioritization
+ * Priority: 3+ unanswered triple stumpers → 2+ → 1+ → random
+ */
+async function selectChallengeCategories(
+    eligibleCategoryIds: string[],
+    userId: string,
+    round: 'SINGLE' | 'DOUBLE',
+    seed: string | null
+): Promise<string[]> {
+    // Handle edge case: no eligible categories
+    if (eligibleCategoryIds.length === 0) {
+        console.log('[selectChallengeCategories] No eligible categories provided')
+        return []
+    }
+    
+    if (eligibleCategoryIds.length <= 5) {
+        return eligibleCategoryIds
+    }
+
+    // Get triple stumper counts per category with user's answered status
+    // Join through Game table to get userId since GameQuestion doesn't have userId directly
+    const categoryStats = await prisma.$queryRaw<Array<{
+        categoryId: string
+        totalTripleStumpers: bigint
+        answeredCount: bigint
+    }>>`
+        SELECT 
+            q."categoryId",
+            COUNT(*) as "totalTripleStumpers",
+            COUNT(CASE WHEN gq."answered" = true AND g."userId" = ${userId} THEN 1 END) as "answeredCount"
+        FROM "Question" q
+        LEFT JOIN "GameQuestion" gq ON q."id" = gq."questionId"
+        LEFT JOIN "Game" g ON gq."gameId" = g."id" AND g."userId" = ${userId}
+        WHERE q."categoryId" = ANY(${eligibleCategoryIds}::text[])
+            AND q."round" = ${round}::"JeopardyRound"
+            AND q."wasTripleStumper" = true
+        GROUP BY q."categoryId"
+    `
+
+    // Calculate unanswered counts and group by priority
+    const categoriesWithStats = categoryStats.map(stat => ({
+        categoryId: stat.categoryId,
+        total: Number(stat.totalTripleStumpers),
+        answered: Number(stat.answeredCount),
+        unanswered: Number(stat.totalTripleStumpers) - Number(stat.answeredCount)
+    }))
+
+    // Priority tiers
+    const threePlus = categoriesWithStats.filter(c => c.unanswered >= 3).map(c => c.categoryId)
+    const twoPlus = categoriesWithStats.filter(c => c.unanswered === 2).map(c => c.categoryId)
+    const onePlus = categoriesWithStats.filter(c => c.unanswered === 1).map(c => c.categoryId)
+    const anyTripleStumper = categoriesWithStats.filter(c => c.total > 0).map(c => c.categoryId)
+
+    // Shuffle each tier
+    const shuffle = (arr: string[]) => seed 
+        ? seededShuffle(arr, seededRandom(seed + round))
+        : arr.sort(() => Math.random() - 0.5)
+
+    const shuffledThreePlus = shuffle(threePlus)
+    const shuffledTwoPlus = shuffle(twoPlus)
+    const shuffledOnePlus = shuffle(onePlus)
+    const shuffledAny = shuffle(anyTripleStumper)
+
+    // Combine in priority order
+    let selected = [...shuffledThreePlus, ...shuffledTwoPlus, ...shuffledOnePlus, ...shuffledAny]
+    
+    // Remove duplicates and limit to 5
+    selected = [...new Set(selected)].slice(0, 5)
+
+    return selected
+}
+
+/**
  * GET /api/categories/game
  * 
  * Returns categories and questions for a game board.
@@ -81,6 +154,7 @@ function seededShuffle(array: string[], random: () => number): string[] {
  * - categories: (for knowledge mode) comma-separated knowledge category names
  * - categoryIds: (for custom mode) comma-separated category IDs
  * - date: (for date mode) ISO date string
+ * - categoryFilter: 'TRIPLE_STUMPER' for challenge mode
  */
 export const GET = withInstrumentation(async (request: NextRequest) => {
     const timer = createTimer('/api/categories/game')
@@ -100,6 +174,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const date = searchParams.get('date')
         const categories = searchParams.get('categories')
         const categoryIds = searchParams.get('categoryIds')
+        const categoryFilter = searchParams.get('categoryFilter')
 
         // Check cache first for deterministic requests
         const cacheKey = getBoardCacheKey({ gameId, seed, round, mode, date, categories, categoryIds })
@@ -162,9 +237,14 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             }
         }
 
+        // Add triple stumper filter for challenge mode
+        if (categoryFilter === 'TRIPLE_STUMPER') {
+            questionWhere.wasTripleStumper = true
+        }
+
         // OPTIMIZED: Use groupBy to get category IDs with question counts
         // This avoids loading all questions - just aggregates counts per category
-        const categoryStats = await prisma.question.groupBy({
+        let categoryStats = await prisma.question.groupBy({
             by: ['categoryId'],
             where: questionWhere,
             _count: { id: true }
@@ -172,9 +252,46 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         timer.mark(`groupByCategories(${categoryStats.length})`)
 
         // Filter to categories with at least 1 question
-        const eligibleCategoryIds = categoryStats
+        const tripleStumperCategoryIds = categoryStats
             .filter(c => c._count.id > 0)
             .map(c => c.categoryId)
+        
+        let eligibleCategoryIds = [...tripleStumperCategoryIds]
+        let fallbackCategoryIds: string[] = []
+
+        // For challenge mode: if we don't have enough triple stumper categories, 
+        // fall back to regular categories
+        if (categoryFilter === 'TRIPLE_STUMPER' && eligibleCategoryIds.length < 5) {
+            console.log(`[Challenge Mode] Only ${eligibleCategoryIds.length} triple stumper categories found, falling back to regular categories`)
+            
+            // Query for regular categories without the triple stumper filter
+            const fallbackWhere: Prisma.QuestionWhereInput = {
+                round: round,
+                ...(airDateCondition ? { airDate: airDateCondition } : {})
+            }
+            
+            const fallbackStats = await prisma.question.groupBy({
+                by: ['categoryId'],
+                where: fallbackWhere,
+                _count: { id: true }
+            })
+            
+            // Get regular category IDs (excluding ones we already have)
+            const existingIds = new Set(eligibleCategoryIds)
+            fallbackCategoryIds = fallbackStats
+                .filter(c => c._count.id > 0 && !existingIds.has(c.categoryId))
+                .map(c => c.categoryId)
+            
+            // Add fallback categories to fill up to at least 5
+            const needed = 5 - eligibleCategoryIds.length
+            const addedFallbackIds = fallbackCategoryIds.slice(0, needed)
+            eligibleCategoryIds = [
+                ...eligibleCategoryIds,
+                ...addedFallbackIds
+            ]
+            
+            console.log(`[Challenge Mode] Added ${addedFallbackIds.length} regular categories, total: ${eligibleCategoryIds.length}`)
+        }
 
         if (eligibleCategoryIds.length === 0) {
             timer.log()
@@ -202,6 +319,21 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         } else if (mode === 'date') {
             // Date mode: use all categories from that episode (will be filtered by date)
             selectedCategoryIds = eligibleCategoryIds
+        } else if (categoryFilter === 'TRIPLE_STUMPER' && userId) {
+            // Challenge mode: Prioritize categories with more triple stumpers that user hasn't answered
+            selectedCategoryIds = await selectChallengeCategories(eligibleCategoryIds, userId, round, seed)
+            
+            // If selectChallengeCategories returns empty, fall back to regular category selection
+            if (selectedCategoryIds.length === 0) {
+                console.log('[Challenge Mode] selectChallengeCategories returned empty, using fallback selection')
+                if (eligibleCategoryIds.length <= 5) {
+                    selectedCategoryIds = eligibleCategoryIds
+                } else {
+                    selectedCategoryIds = seed 
+                        ? seededShuffle(eligibleCategoryIds, seededRandom(seed + round)).slice(0, 5)
+                        : eligibleCategoryIds.sort(() => Math.random() - 0.5).slice(0, 5)
+                }
+            }
         } else if (eligibleCategoryIds.length <= 5) {
             // If we have 5 or fewer, use all of them
             selectedCategoryIds = eligibleCategoryIds
@@ -248,12 +380,21 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             selectedCategoryIds.map(async (categoryId): Promise<CategoryWithQuestions> => {
                 const categoryName = categoryNameMap.get(categoryId) || 'Unknown'
                 
+                // Check if this is a fallback category (not in the original triple stumper list)
+                // Use tripleStumperCategoryIds to determine if it's a true triple stumper category
+                const isTripleStumperCategory = tripleStumperCategoryIds.includes(categoryId)
+                
+                // For fallback categories (not in tripleStumperCategoryIds), don't apply the triple stumper filter
+                const categoryQuestionWhere = !isTripleStumperCategory
+                    ? { round: questionWhere.round, ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {}) }
+                    : questionWhere
+                
                 // For date mode, questions are already filtered by date
                 if (mode === 'date') {
                     const questions = await prisma.question.findMany({
                         where: {
                             categoryId,
-                            ...questionWhere
+                            ...categoryQuestionWhere
                         },
                         orderBy: { value: 'asc' },
                         take: 5,
@@ -276,7 +417,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                     by: ['airDate'],
                     where: {
                         categoryId,
-                        ...questionWhere,
+                        ...categoryQuestionWhere,
                         airDate: { not: null }
                     },
                     _count: { id: true },
@@ -291,7 +432,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 const questions = await prisma.question.findMany({
                     where: {
                         categoryId,
-                        ...questionWhere,
+                        ...categoryQuestionWhere,
                         ...(bestDate ? { airDate: bestDate } : {})
                     },
                     orderBy: { value: 'asc' },
@@ -349,6 +490,11 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
     } catch (error) {
         timer.mark('error')
         timer.log()
+        console.error('[Categories API] Error loading categories:', error)
+        // Log additional context for debugging
+        if (error instanceof Error) {
+            console.error('[Categories API] Error stack:', error.stack)
+        }
         return serverErrorResponse('Failed to load categories', error)
     }
 })

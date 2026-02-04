@@ -10,6 +10,7 @@ import { syncAdminRoles } from '@/lib/sync-admin-roles'
 import { getAppUser } from '@/lib/clerk-auth'
 import { JsonLd } from '@/components/JsonLd'
 import KeyboardShortcutsProvider from './components/KeyboardShortcutsProvider'
+import GuestProgressBanner from './components/GuestProgressBanner'
 
 const inter = Inter({ subsets: ['latin'] })
 const fredoka = Fredoka({ weight: '500', subsets: ['latin'] })
@@ -88,15 +89,7 @@ export const metadata = {
         address: false,
         telephone: false,
     },
-    other: {
-        'apple-mobile-web-app-capable': 'yes',
-        'apple-mobile-web-app-title': 'trivrdy',
-        'mobile-web-app-capable': 'yes',
-        'apple-touch-fullscreen': 'yes',
-        'msapplication-TileColor': '#1E40AF',
-        'msapplication-tap-highlight': 'no',
-        'theme-color': '#1E40AF'
-    }
+
 }
 
 export default async function RootLayout({
@@ -219,6 +212,7 @@ export default async function RootLayout({
                             </footer>
                         </div>
                         <Toaster position="bottom-right" />
+                        <GuestProgressBanner />
                         </KeyboardShortcutsProvider>
                     </Providers>
                 </body>

@@ -4,6 +4,7 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { prisma } from '@/lib/prisma'
 import HomepageClient from './HomepageClient'
 import DailyChallengeCardClient from './components/DailyChallengeCardClient'
+import OnboardingTour from './components/OnboardingTour'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
@@ -222,18 +223,25 @@ export default async function Home() {
                         </div>
                     </div>
 
+                    {/* Onboarding Tour */}
+                    <OnboardingTour />
+
                     {/* Daily Challenge Card */}
-                    <div className="mt-8 max-w-4xl mx-auto">
+                    <div id="daily-challenge-card" className="mt-8 max-w-4xl mx-auto">
                         <DailyChallengeCardClient challenge={dailyChallenge} stats={dailyChallengeStats} />
                     </div>
 
                     {/* Mode Cards */}
                     <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 max-w-4xl mx-auto">
                         {/* Game Mode */}
-                        <HomepageClient user={user} mode="game" />
+                        <div id="play-game-card">
+                            <HomepageClient user={user} mode="game" />
+                        </div>
                         
                         {/* Study Mode */}
-                        <HomepageClient user={user} mode="practice" />
+                        <div id="practice-card">
+                            <HomepageClient user={user} mode="practice" />
+                        </div>
                     </div>
 
                     {/* Guest Sign In Prompt */}

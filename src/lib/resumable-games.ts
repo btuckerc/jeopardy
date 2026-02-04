@@ -50,12 +50,27 @@ function calculateExpectedQuestions(config: unknown): number {
 function generateGameLabel(config: unknown): string {
     const cfg = config as { 
         mode?: string
+        preset?: string
         categories?: string[]
         categoryIds?: string[]
         date?: string 
     } | null
 
     if (!cfg?.mode) return 'Game'
+
+    // Check for preset first to show custom titles
+    if (cfg.preset) {
+        switch (cfg.preset) {
+            case 'classic':
+                return 'Classic Game'
+            case 'quick':
+                return 'Quick Game'
+            case 'challenge':
+                return 'Challenge Mode'
+            case 'practice':
+                return 'Practice Mode'
+        }
+    }
 
     switch (cfg.mode) {
         case 'random':

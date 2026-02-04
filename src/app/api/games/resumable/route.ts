@@ -90,7 +90,15 @@ export const GET = withInstrumentation(async () => {
 
             // Generate a human-readable label for the game
             let label = 'Game'
-            if (config?.mode === 'random') {
+            
+            // Check for preset first (quick play modes)
+            if (config?.preset === 'classic') {
+                label = 'Classic Game'
+            } else if (config?.preset === 'quick') {
+                label = 'Quick Game'
+            } else if (config?.preset === 'challenge') {
+                label = 'Challenge Mode'
+            } else if (config?.mode === 'random') {
                 label = 'Random Categories'
             } else if (config?.mode === 'knowledge') {
                 const areas = config.categories || []

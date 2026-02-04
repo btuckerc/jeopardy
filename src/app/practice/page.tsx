@@ -7,7 +7,7 @@ export default function PracticeLanding() {
             <p className="text-gray-600 mb-8 text-lg">
                 Study mode games still count toward your stats and streaks.
             </p>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl">
                 {/* Study by Category Card */}
                 <Link

@@ -11,6 +11,7 @@ import type { Player } from '@/components/Scoreboard'
 import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
 import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt'
 import type { UnlockedAchievement } from '@/types/admin'
+import { useGuestProgress } from '@/app/components/GuestProgressBanner'
 
 interface Question {
     id: string
@@ -43,6 +44,7 @@ interface GameConfig {
     finalJeopardyQuestionId?: string // Stored when FJ is loaded, used for resume
     finalJeopardyStage?: 'category' | 'question' | 'result' // Current stage of FJ
     finalJeopardyWager?: number // The wager that was placed
+    categoryFilter?: string // Category filter for challenge mode
 }
 
 // Helper functions defined before the component
@@ -116,6 +118,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const params = useParams()
     const gameId = params?.gameId as string
     const { user } = useAuth()
+    const { incrementProgress } = useGuestProgress()
     
     // Start loading: if no initial data, or if we have initial data (we still need to load categories/Final Jeopardy)
     const [loading, setLoading] = useState(true)
@@ -294,6 +297,9 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         // Pass seed for consistent category ordering
         if (seed) {
             params.append('seed', seed)
+        }
+        if (config.categoryFilter) {
+            params.append('categoryFilter', config.categoryFilter)
         }
 
         const response = await fetch(`/api/categories/game?${params.toString()}`)
@@ -1047,6 +1053,11 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
             setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
 
+            // Track guest progress
+            if (!user) {
+                incrementProgress()
+            }
+
             if (result) {
                 setScore(prev => prev + pointsEarned)
                 setGameStats(prev => ({ ...prev, correct: prev.correct + 1 }))
@@ -1083,6 +1094,11 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             }))
             
             setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
+
+            // Track guest progress
+            if (!user) {
+                incrementProgress()
+            }
 
             const categoryIndex = categories.findIndex(c => c.questions.some(q => q?.id === selectedQuestion.id))
             const questionIndex = categories[categoryIndex]?.questions.findIndex(q => q?.id === selectedQuestion.id) ?? -1
@@ -1145,6 +1161,11 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         }))
         
         setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
+
+        // Track guest progress
+        if (!user) {
+            incrementProgress()
+        }
 
         await saveGameState('answer', {
             questionId: selectedQuestion.id,

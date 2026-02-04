@@ -37,6 +37,7 @@ const SpoilerWarningModal = dynamic(
 import GameResumableList from './components/GameResumableList'
 import GameCompletedList from './components/GameCompletedList'
 import GameModeSelector from './components/GameModeSelector'
+import QuickPlayCards from './components/QuickPlayCards'
 
 interface Category {
     id: string
@@ -148,7 +149,26 @@ export default function GameHubClient({
 
     // No fetch needed - spoiler settings provided by server!
 
-    // Refresh games after ending a game
+    // Refresh games when component mounts and when window regains focus
+    useEffect(() => {
+        if (user?.id) {
+            refreshGames()
+        }
+    }, [user?.id])
+
+    // Refresh games when window regains focus (e.g., after playing a game)
+    useEffect(() => {
+        const handleFocus = () => {
+            if (user?.id) {
+                refreshGames()
+            }
+        }
+
+        window.addEventListener('focus', handleFocus)
+        return () => window.removeEventListener('focus', handleFocus)
+    }, [user?.id])
+
+    // Refresh games after ending a game or creating a new game
     const refreshGames = async () => {
         if (!user?.id) return
         
@@ -605,6 +625,18 @@ export default function GameHubClient({
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Play Game</h1>
                     <p className="text-gray-600">Start a new game or continue where you left off.</p>
+                </div>
+
+                {/* Quick Play Cards */}
+                <div className="mb-8">
+                    <h2 className="text-lg font-semibold text-gray-700 mb-4">Quick Start</h2>
+                    <QuickPlayCards 
+                        user={user} 
+                        onGameCreated={() => {
+                            // Refresh games list when a new game is created
+                            refreshGames()
+                        }} 
+                    />
                 </div>
 
                 {/* Resumable Games Section */}
