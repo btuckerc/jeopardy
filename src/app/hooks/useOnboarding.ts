@@ -20,6 +20,23 @@ export function useOnboarding(userId?: string | null) {
     })
     
     useEffect(() => {
+        // RESTART ON REFRESH: Always show tour on page load
+        // To revert: Uncomment the persistence logic below and remove this block
+        
+        // Always show tour on mount (restart on refresh behavior)
+        localStorage.removeItem(ONBOARDING_KEY)
+        localStorage.setItem(ONBOARDING_STEP_KEY, '0')
+        if (userId) {
+            localStorage.setItem(ONBOARDING_USER_KEY, userId)
+        }
+        setState({
+            isComplete: false,
+            currentStep: 0,
+            showTour: true
+        })
+        
+        /* 
+        // PERSISTENCE LOGIC (uncomment to restore):
         // Check if this is a different user than before
         const lastUserId = localStorage.getItem(ONBOARDING_USER_KEY)
         const isNewUser = userId && lastUserId !== userId
@@ -45,6 +62,7 @@ export function useOnboarding(userId?: string | null) {
             currentStep: savedStep,
             showTour: !isComplete
         })
+        */
     }, [userId])
     
     const nextStep = useCallback(() => {

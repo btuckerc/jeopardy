@@ -1,42 +1,45 @@
 'use client'
 
 import { useEffect, useRef, useCallback, useState } from 'react'
-import TourTooltip from './TourTooltip'
 import { useOnboarding } from '@/app/hooks/useOnboarding'
 
 interface TourStep {
-    targetId: string | null  // null for splash screen
+    targetId: string | null
     title: string
     description: string
     position: 'top' | 'bottom' | 'left' | 'right'
-    isSplash?: boolean
+    arrowPosition?: 'left' | 'center' | 'right'
+    isBanner?: boolean
 }
 
 const tourSteps: TourStep[] = [
     {
         targetId: null,
         title: 'Welcome to trivrdy! 🎉',
-        description: 'Your journey to Jeopardy mastery starts here. Take a quick tour to learn the ropes, or jump right in and start playing!',
+        description: 'New here? Take a quick tour to learn the ropes! Or explore on your own.',
         position: 'bottom',
-        isSplash: true
+        isBanner: true
     },
     {
         targetId: 'daily-challenge-card',
         title: 'Daily Challenge',
-        description: 'Start each day with a fresh Final Jeopardy question and build your streak! Answer correctly to climb the leaderboard.',
-        position: 'bottom'
+        description: 'Start each day with a fresh Final Jeopardy question and build your streak!',
+        position: 'bottom',
+        arrowPosition: 'center'
     },
     {
         targetId: 'play-game-card',
         title: 'Play Full Games',
-        description: 'Play complete Jeopardy games with Single, Double, and Final rounds. Choose from random games or customize your experience.',
-        position: 'bottom'
+        description: 'Play complete Jeopardy games with Single, Double, and Final rounds.',
+        position: 'bottom',
+        arrowPosition: 'left'
     },
     {
         targetId: 'practice-card',
         title: 'Study Mode',
-        description: 'Focus on specific categories, rounds, or challenge yourself with triple stumpers. Perfect for targeted practice.',
-        position: 'top'
+        description: 'Focus on specific categories or challenge yourself with triple stumpers.',
+        position: 'top',
+        arrowPosition: 'right'
     }
 ]
 
@@ -44,48 +47,44 @@ interface OnboardingTourProps {
     userId?: string | null
 }
 
+// Mobile detection using viewport width
+const isMobileDevice = () => {
+    if (typeof window === 'undefined') return false
+    // Check viewport width (mobile typically < 768px)
+    const isMobileWidth = window.innerWidth < 768
+    // Also check user agent as backup
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    return isMobileWidth || isMobileUA
+}
+
 export default function OnboardingTour({ userId }: OnboardingTourProps) {
     const { showTour, currentStep, nextStep, skipTour, completeTour } = useOnboarding(userId)
     const [actualStep, setActualStep] = useState(0)
+    const [isMobile, setIsMobile] = useState(false)
     
-    const highlightRef = useRef<HTMLDivElement>(null)
     const tooltipRef = useRef<HTMLDivElement>(null)
     const targetRef = useRef<HTMLElement | null>(null)
     const rafId = useRef<number | null>(null)
     const scrollTimeout = useRef<NodeJS.Timeout | null>(null)
     
-    // Tooltip dimensions
     const TOOLTIP_WIDTH = 340
     const TOOLTIP_HEIGHT = 220
     const GAP = 16
     const VIEWPORT_MARGIN = 20
     
-    // Calculate position ensuring tooltip stays fully in viewport
-    const calculateSafePosition = useCallback((targetRect: DOMRect, preferred: string) => {
+    // Check mobile on mount and resize
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(isMobileDevice())
+        checkMobile()
+        window.addEventListener('resize', checkMobile)
+        return () => window.removeEventListener('resize', checkMobile)
+    }, [])
+    
+    // Calculate safe tooltip position
+    const calculatePosition = useCallback((targetRect: DOMRect, position: string) => {
         const vw = window.innerWidth
         const vh = window.innerHeight
         
-        // Calculate available space
-        const spaceTop = targetRect.top - VIEWPORT_MARGIN
-        const spaceBottom = vh - targetRect.bottom - VIEWPORT_MARGIN
-        const spaceLeft = targetRect.left - VIEWPORT_MARGIN
-        const spaceRight = vw - targetRect.right - VIEWPORT_MARGIN
-        
-        const needHeight = TOOLTIP_HEIGHT + GAP
-        const needWidth = TOOLTIP_WIDTH + GAP
-        
-        // Determine best position
-        let position: 'top' | 'bottom' | 'left' | 'right'
-        
-        if (preferred === 'bottom' && spaceBottom >= needHeight) position = 'bottom'
-        else if (preferred === 'top' && spaceTop >= needHeight) position = 'top'
-        else if (spaceBottom >= needHeight) position = 'bottom'
-        else if (spaceTop >= needHeight) position = 'top'
-        else if (spaceRight >= needWidth) position = 'right'
-        else if (spaceLeft >= needWidth) position = 'left'
-        else position = 'bottom' // fallback
-        
-        // Calculate coordinates
         let x = 0
         let y = 0
         
@@ -93,7 +92,6 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
             case 'bottom': {
                 y = targetRect.bottom + GAP
                 x = targetRect.left + targetRect.width / 2 - TOOLTIP_WIDTH / 2
-                // Clamp to viewport
                 x = Math.max(VIEWPORT_MARGIN, Math.min(x, vw - TOOLTIP_WIDTH - VIEWPORT_MARGIN))
                 break
             }
@@ -104,69 +102,60 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                 break
             }
             case 'right': {
-                y = targetRect.top + targetRect.height / 2 - TOOLTIP_HEIGHT / 2
                 x = targetRect.right + GAP
+                y = targetRect.top + targetRect.height / 2 - TOOLTIP_HEIGHT / 2
                 y = Math.max(VIEWPORT_MARGIN, Math.min(y, vh - TOOLTIP_HEIGHT - VIEWPORT_MARGIN))
                 break
             }
             case 'left': {
-                y = targetRect.top + targetRect.height / 2 - TOOLTIP_HEIGHT / 2
                 x = targetRect.left - GAP - TOOLTIP_WIDTH
+                y = targetRect.top + targetRect.height / 2 - TOOLTIP_HEIGHT / 2
                 y = Math.max(VIEWPORT_MARGIN, Math.min(y, vh - TOOLTIP_HEIGHT - VIEWPORT_MARGIN))
                 break
             }
         }
         
-        return { x, y, position }
+        return { x, y }
     }, [])
     
-    // Update positions
-    const updatePositions = useCallback(() => {
-        const highlight = highlightRef.current
+    // Update tooltip position
+    const updatePosition = useCallback(() => {
         const tooltip = tooltipRef.current
         const target = targetRef.current
         const step = tourSteps[actualStep]
         
         if (!tooltip) return
         
-        // Handle splash screen (no highlight, centered at bottom)
-        if (step.isSplash) {
-            if (highlight) highlight.style.display = 'none'
-            
-            // Center at bottom of viewport
-            const vw = window.innerWidth
-            const vh = window.innerHeight
-            const x = (vw - TOOLTIP_WIDTH) / 2
-            const y = vh - TOOLTIP_HEIGHT - 100  // 100px from bottom
-            
-            tooltip.style.transform = `translate(${x}px, ${y}px)`
-            tooltip.style.display = 'block'
+        // Banner step - fixed at bottom
+        if (step.isBanner) {
+            tooltip.style.position = 'fixed'
+            tooltip.style.bottom = '0'
+            tooltip.style.left = '0'
+            tooltip.style.right = '0'
+            tooltip.style.top = 'auto'
+            tooltip.style.transform = 'none'
+            tooltip.style.width = '100%'
             return
         }
         
         // Regular step with target
-        if (!target || !highlight) return
+        if (!target) return
         
         const rect = target.getBoundingClientRect()
-        const pos = calculateSafePosition(rect, step.position)
+        const pos = calculatePosition(rect, step.position)
         
-        // Show and position highlight
-        highlight.style.display = 'block'
-        highlight.style.transform = `translate(${rect.left - 8}px, ${rect.top - 8}px)`
-        highlight.style.width = `${rect.width + 16}px`
-        highlight.style.height = `${rect.height + 16}px`
-        
-        // Position tooltip
-        tooltip.style.display = 'block'
+        tooltip.style.position = 'fixed'
+        tooltip.style.bottom = 'auto'
+        tooltip.style.left = '0'
+        tooltip.style.right = 'auto'
+        tooltip.style.width = `${TOOLTIP_WIDTH}px`
         tooltip.style.transform = `translate(${pos.x}px, ${pos.y}px)`
-        tooltip.setAttribute('data-position', pos.position)
-    }, [actualStep, calculateSafePosition])
+    }, [actualStep, calculatePosition])
     
-    // Schedule update
     const scheduleUpdate = useCallback(() => {
         if (rafId.current) cancelAnimationFrame(rafId.current)
-        rafId.current = requestAnimationFrame(updatePositions)
-    }, [updatePositions])
+        rafId.current = requestAnimationFrame(updatePosition)
+    }, [updatePosition])
     
     // Sync with onboarding hook
     useEffect(() => {
@@ -175,34 +164,28 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
     
     // Initialize step
     useEffect(() => {
-        if (!showTour || actualStep >= tourSteps.length) return
+        if (!showTour || isMobile || actualStep >= tourSteps.length) return
         
         const step = tourSteps[actualStep]
         
-        // Handle splash screen
-        if (step.isSplash) {
+        // Banner step - no target needed
+        if (step.isBanner) {
             scheduleUpdate()
             return
         }
         
-        // Handle regular step with target
+        // Regular step - find target
         const element = document.getElementById(step.targetId!)
         if (element) {
             targetRef.current = element
             
-            // Check if element is visible
             const rect = element.getBoundingClientRect()
             const isVisible = rect.top >= 0 && rect.bottom <= window.innerHeight
             
             if (!isVisible) {
-                // Scroll to element
                 element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                
-                // Wait for scroll to complete, then update
                 if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
-                scrollTimeout.current = setTimeout(() => {
-                    scheduleUpdate()
-                }, 500)
+                scrollTimeout.current = setTimeout(scheduleUpdate, 500)
             } else {
                 scheduleUpdate()
             }
@@ -212,11 +195,11 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
             if (rafId.current) cancelAnimationFrame(rafId.current)
             if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
         }
-    }, [showTour, actualStep, scheduleUpdate])
+    }, [showTour, isMobile, actualStep, scheduleUpdate])
     
     // Scroll/resize handlers
     useEffect(() => {
-        if (!showTour) return
+        if (!showTour || isMobile) return
         
         const handleScroll = () => scheduleUpdate()
         const handleResize = () => scheduleUpdate()
@@ -228,16 +211,16 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
             window.removeEventListener('scroll', handleScroll)
             window.removeEventListener('resize', handleResize)
         }
-    }, [showTour, scheduleUpdate])
+    }, [showTour, isMobile, scheduleUpdate])
     
     // Handle escape
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && showTour) skipTour()
+            if (e.key === 'Escape' && showTour && !isMobile) skipTour()
         }
         window.addEventListener('keydown', handleKey)
         return () => window.removeEventListener('keydown', handleKey)
-    }, [showTour, skipTour])
+    }, [showTour, isMobile, skipTour])
     
     const handleNext = () => {
         if (actualStep === tourSteps.length - 1) {
@@ -247,60 +230,157 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         }
     }
     
-    if (!showTour || actualStep >= tourSteps.length) return null
+    // Don't show on mobile
+    if (!showTour || isMobile || actualStep >= tourSteps.length) return null
     
     const step = tourSteps[actualStep]
+    const isLastStep = actualStep === tourSteps.length - 1
+    const isFirstStep = actualStep === 0
     
+    // Banner component (step 0)
+    if (step.isBanner) {
+        return (
+            <div
+                ref={tooltipRef}
+                className="fixed bottom-0 left-0 right-0 z-50 bg-blue-900 border-t-4 border-amber-400 shadow-2xl"
+            >
+                <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+                    <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1">
+                            <h3 className="text-lg font-bold text-white mb-1">
+                                {step.title}
+                            </h3>
+                            <p className="text-blue-200 text-sm">
+                                {step.description}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                            <button
+                                onClick={() => skipTour()}
+                                className="text-blue-300 hover:text-white text-sm font-medium transition-colors whitespace-nowrap"
+                            >
+                                Dismiss
+                            </button>
+                            <button
+                                onClick={handleNext}
+                                className="bg-amber-400 hover:bg-amber-500 text-blue-900 px-5 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap"
+                            >
+                                Take Tour →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+    
+    // Regular tour step with spotlight
     return (
         <>
-            {/* Backdrop - darker outside, lighter inside highlight */}
+            {/* Backdrop with transparent hole using mask */}
             <div 
-                className="fixed inset-0 bg-black/60 z-40 animate-fade-in" 
-                onClick={() => skipTour()}
+                className="fixed inset-0 z-40 animate-fade-in pointer-events-none"
+                style={{
+                    background: 'rgba(0, 0, 0, 0.6)',
+                }}
             />
             
-            {/* Highlight overlay with lighter interior */}
-            <div
-                ref={highlightRef}
-                className="fixed z-40 pointer-events-none hidden"
-                style={{ top: 0, left: 0 }}
-            >
-                {/* Outer glow ring */}
-                <div 
-                    className="absolute -inset-2 rounded-3xl animate-pulse"
+            {/* Highlight ring - allows clicks to pass through to target */}
+            {targetRef.current && (
+                <div
+                    className="fixed z-50 pointer-events-none"
                     style={{
-                        boxShadow: '0 0 0 4px #fbbf24, 0 0 20px 8px rgba(251, 191, 36, 0.5)'
+                        top: 0,
+                        left: 0,
+                        transform: `translate(${(targetRef.current?.getBoundingClientRect().left || 0) - 8}px, ${(targetRef.current?.getBoundingClientRect().top || 0) - 8}px)`,
+                        width: (targetRef.current?.getBoundingClientRect().width || 0) + 16,
+                        height: (targetRef.current?.getBoundingClientRect().height || 0) + 16,
                     }}
-                />
-                {/* Light inner area */}
-                <div 
-                    className="w-full h-full rounded-2xl"
-                    style={{
-                        background: 'rgba(255, 255, 255, 0.15)',
-                        backdropFilter: 'brightness(1.2)'
-                    }}
-                />
-            </div>
+                >
+                    {/* Outer glow */}
+                    <div 
+                        className="absolute -inset-2 rounded-3xl animate-pulse"
+                        style={{
+                            boxShadow: '0 0 0 4px #fbbf24, 0 0 20px 8px rgba(251, 191, 36, 0.6)'
+                        }}
+                    />
+                    {/* Inner transparent area */}
+                    <div className="w-full h-full rounded-2xl bg-transparent" />
+                </div>
+            )}
             
             {/* Tooltip */}
             <div
                 ref={tooltipRef}
-                className="fixed z-50 hidden"
-                style={{ 
-                    top: 0, 
-                    left: 0,
-                    width: TOOLTIP_WIDTH
-                }}
+                className="fixed z-50"
+                style={{ top: 0, left: 0, width: TOOLTIP_WIDTH }}
             >
-                <TourTooltip
-                    title={step.title}
-                    description={step.description}
-                    step={actualStep}
-                    totalSteps={tourSteps.length}
-                    onNext={handleNext}
-                    onSkip={skipTour}
-                    isSplash={step.isSplash}
-                />
+                <div className="relative bg-white rounded-xl shadow-2xl border border-gray-200 p-6 animate-fade-in-up">
+                    {/* X Close button */}
+                    <button
+                        onClick={() => skipTour()}
+                        className="absolute top-3 right-3 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                        aria-label="Close tour"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    
+                    {/* Progress dots */}
+                    <div className="flex items-center gap-1 mb-4">
+                        {tourSteps.slice(1).map((_, i) => (
+                            <div
+                                key={i}
+                                className={`w-2 h-2 rounded-full transition-colors ${
+                                    i < actualStep ? 'bg-amber-400' : 'bg-gray-300'
+                                }`}
+                            />
+                        ))}
+                        <span className="text-xs text-gray-500 ml-2">
+                            {actualStep} of {tourSteps.length - 1}
+                        </span>
+                    </div>
+                    
+                    {/* Content */}
+                    <h3 className="text-xl font-bold text-gray-900 mb-2 pr-6">
+                        {step.title}
+                    </h3>
+                    <p className="text-gray-600 text-sm mb-6 leading-relaxed">
+                        {step.description}
+                    </p>
+                    
+                    {/* Actions */}
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={() => skipTour()}
+                            className="text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
+                        >
+                            Skip Tour
+                        </button>
+                        <button
+                            onClick={handleNext}
+                            className="bg-amber-400 hover:bg-amber-500 text-blue-900 px-5 py-2.5 rounded-lg font-bold text-sm transition-colors"
+                        >
+                            {isLastStep ? 'Finish' : 'Next →'}
+                        </button>
+                    </div>
+                    
+                    {/* Arrow */}
+                    <div 
+                        className="absolute w-4 h-4 bg-white border-gray-200 transform rotate-45 border-t border-l"
+                        style={{
+                            top: step.position === 'bottom' ? '-8px' : 'auto',
+                            bottom: step.position === 'top' ? '-8px' : 'auto',
+                            left: step.arrowPosition === 'left' ? '24px' : 
+                                  step.arrowPosition === 'right' ? 'auto' : 
+                                  step.arrowPosition === 'center' ? '50%' : '50%',
+                            right: step.arrowPosition === 'right' ? '24px' : 'auto',
+                            transform: `rotate(45deg) ${step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : ''}`,
+                            marginLeft: step.arrowPosition === 'center' || !step.arrowPosition ? '0' : '0'
+                        }}
+                    />
+                </div>
             </div>
         </>
     )
