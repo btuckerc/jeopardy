@@ -380,14 +380,19 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             selectedCategoryIds.map(async (categoryId): Promise<CategoryWithQuestions> => {
                 const categoryName = categoryNameMap.get(categoryId) || 'Unknown'
                 
-                // Check if this is a fallback category (not in the original triple stumper list)
-                // Use tripleStumperCategoryIds to determine if it's a true triple stumper category
-                const isTripleStumperCategory = tripleStumperCategoryIds.includes(categoryId)
+                // CHALLENGE MODE: Show ALL questions from triple stumper categories
+                // Categories are selected based on containing triple stumpers, but we display all questions
+                // This provides the "challenge" through category selection, not question filtering
+                // NOTE: To revert to showing only triple stumpers, use the commented code below:
+                // const isTripleStumperCategory = tripleStumperCategoryIds.includes(categoryId)
+                // const categoryQuestionWhere = isTripleStumperCategory
+                //     ? { round: questionWhere.round, ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {}), wasTripleStumper: true }
+                //     : { round: questionWhere.round, ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {}) }
                 
-                // For fallback categories (not in tripleStumperCategoryIds), don't apply the triple stumper filter
-                const categoryQuestionWhere = !isTripleStumperCategory
-                    ? { round: questionWhere.round, ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {}) }
-                    : questionWhere
+                const categoryQuestionWhere = {
+                    round: questionWhere.round,
+                    ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {})
+                }
                 
                 // For date mode, questions are already filtered by date
                 if (mode === 'date') {
