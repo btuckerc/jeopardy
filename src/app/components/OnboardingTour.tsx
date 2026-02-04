@@ -43,8 +43,16 @@ const tourSteps: TourStep[] = [
     }
 ]
 
+interface TourState {
+    hasSeenTour: boolean
+    tourCompleted: boolean
+    tourDismissed: boolean
+    tourDismissedAt: string | null
+}
+
 interface OnboardingTourProps {
     userId?: string | null
+    initialTourState?: TourState | null
 }
 
 const isMobileDevice = () => {
@@ -54,8 +62,8 @@ const isMobileDevice = () => {
     return isMobileWidth || isMobileUA
 }
 
-export default function OnboardingTour({ userId }: OnboardingTourProps) {
-    const { showTour, currentStep, nextStep, skipTour, completeTour } = useOnboarding(userId)
+export default function OnboardingTour({ userId, initialTourState }: OnboardingTourProps) {
+    const { showTour, currentStep, nextStep, skipTour, completeTour } = useOnboarding(userId, initialTourState)
     const [actualStep, setActualStep] = useState(0)
     const [isMobile, setIsMobile] = useState(false)
     const [targetRect, setTargetRect] = useState<DOMRect | null>(null)

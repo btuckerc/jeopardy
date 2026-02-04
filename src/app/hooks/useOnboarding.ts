@@ -16,18 +16,42 @@ interface OnboardingState {
     isLoading: boolean
 }
 
-export function useOnboarding(userId?: string | null) {
-    const [state, setState] = useState<OnboardingState>({
-        isComplete: true,
-        currentStep: 0,
-        showTour: false,
-        isLoading: true
+export function useOnboarding(userId?: string | null, initialTourState?: TourState | null) {
+    const [state, setState] = useState<OnboardingState>(() => {
+        // If we have initial state from server, use it immediately (no loading, no flash)
+        if (initialTourState) {
+            const shouldShowTour = !initialTourState.tourCompleted && !initialTourState.tourDismissed
+            return {
+                isComplete: initialTourState.tourCompleted || initialTourState.tourDismissed,
+                currentStep: 0,
+                showTour: shouldShowTour,
+                isLoading: false
+            }
+        }
+        
+        // If no user or no initial state, default to not showing tour
+        if (!userId) {
+            return {
+                isComplete: true,
+                currentStep: 0,
+                showTour: false,
+                isLoading: false
+            }
+        }
+        
+        // Loading state only if we need to fetch client-side (shouldn't happen with server rendering)
+        return {
+            isComplete: true,
+            currentStep: 0,
+            showTour: false,
+            isLoading: true
+        }
     })
     
-    // Fetch tour state from server
+    // Only fetch client-side if we don't have initial state (fallback for client-side navigation)
     useEffect(() => {
-        if (!userId) {
-            setState(prev => ({ ...prev, isLoading: false }))
+        // Skip if we already have initial state from server
+        if (initialTourState || !userId) {
             return
         }
         
@@ -35,11 +59,11 @@ export function useOnboarding(userId?: string | null) {
             try {
                 const response = await fetch('/api/user/tour-state')
                 if (!response.ok) {
-                    // If API fails, default to showing tour
+                    // If API fails, default to not showing tour
                     setState({
-                        isComplete: false,
+                        isComplete: true,
                         currentStep: 0,
-                        showTour: true,
+                        showTour: false,
                         isLoading: false
                     })
                     return
@@ -57,18 +81,18 @@ export function useOnboarding(userId?: string | null) {
                     isLoading: false
                 })
             } catch (error) {
-                // On error, default to showing tour
+                // On error, default to not showing tour
                 setState({
-                    isComplete: false,
+                    isComplete: true,
                     currentStep: 0,
-                    showTour: true,
+                    showTour: false,
                     isLoading: false
                 })
             }
         }
         
         fetchTourState()
-    }, [userId])
+    }, [userId, initialTourState])
     
     const nextStep = useCallback(() => {
         setState(prev => ({

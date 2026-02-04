@@ -265,24 +265,55 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
             // If this was a game mode dispute, also update GameQuestion and game score
             if (dispute.mode === 'GAME' && dispute.gameId) {
-                const gameQuestion = await tx.gameQuestion.findFirst({
+                let gameQuestion = await tx.gameQuestion.findFirst({
                     where: {
                         gameId: dispute.gameId,
                         questionId: dispute.questionId
                     }
                 })
 
-                if (gameQuestion && !gameQuestion.correct) {
-                    const questionValue = dispute.question.value || 200
-                    const statsPoints = getStatsPoints({
-                        round: dispute.question.round,
-                        faceValue: questionValue,
-                        correct: true
-                    })
+                const questionValue = dispute.question.value || 200
+                const statsPoints = getStatsPoints({
+                    round: dispute.question.round,
+                    faceValue: questionValue,
+                    correct: true
+                })
 
-                    await tx.gameQuestion.update({
-                        where: { id: gameQuestion.id },
-                        data: { correct: true }
+                if (gameQuestion) {
+                    // GameQuestion exists - update it to be correct/answered
+                    if (!gameQuestion.correct) {
+                        // Only add points if not already correct
+                        await tx.gameQuestion.update({
+                            where: { id: gameQuestion.id },
+                            data: { 
+                                correct: true,
+                                answered: true
+                            }
+                        })
+
+                        // Update game score
+                        await tx.game.update({
+                            where: { id: dispute.gameId },
+                            data: {
+                                currentScore: { increment: statsPoints }
+                            }
+                        })
+                    } else {
+                        // Already correct, just ensure answered flag is set
+                        await tx.gameQuestion.update({
+                            where: { id: gameQuestion.id },
+                            data: { answered: true }
+                        })
+                    }
+                } else {
+                    // No GameQuestion exists - create it and add points
+                    await tx.gameQuestion.create({
+                        data: {
+                            gameId: dispute.gameId,
+                            questionId: dispute.questionId,
+                            answered: true,
+                            correct: true
+                        }
                     })
 
                     // Update game score

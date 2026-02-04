@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { getNextChallengeTimeISO } from '@/lib/daily-challenge-utils'
 import NextChallengeCallout from './NextChallengeCallout'
@@ -66,12 +66,21 @@ export default function DailyChallengeCardClient({ challenge: initialChallenge, 
         }
     }, [])
     
+    // Track if this is the initial mount
+    const isInitialMount = useRef(true)
+    
     // Refresh data on mount and when tab becomes visible
     useEffect(() => {
-        // Refresh immediately on mount to sync with any changes made on the daily challenge page
-        refreshData()
+        // Skip initial mount - we already have server-provided initial data
+        // This prevents the Daily Challenge flash when the page first loads
+        if (isInitialMount.current) {
+            isInitialMount.current = false
+        } else {
+            // Only refresh on subsequent calls (e.g., when returning from daily challenge page)
+            refreshData()
+        }
         
-        // Also refresh when tab becomes visible (user navigating back)
+        // Always refresh when tab becomes visible (user navigating back from another page)
         const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible') {
                 refreshData()

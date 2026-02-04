@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -149,8 +149,18 @@ export default function GameHubClient({
 
     // No fetch needed - spoiler settings provided by server!
 
+    // Track if this is the initial mount
+    const isInitialMount = useRef(true)
+    
     // Refresh games when component mounts and when window regains focus
     useEffect(() => {
+        // Skip initial mount - we already have server-provided initial data
+        // This prevents the "Loading your games" flash when the page first loads
+        if (isInitialMount.current) {
+            isInitialMount.current = false
+            return
+        }
+        
         if (user?.id) {
             refreshGames()
         }

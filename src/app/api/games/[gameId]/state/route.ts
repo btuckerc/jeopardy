@@ -127,26 +127,13 @@ async function patchHandler(request: NextRequest, context?: { params?: Record<st
                     })
                 }
 
-                // Update game score
-                const newScore = game.currentScore + (correct ? pointsEarned : 0)
-                await prisma.game.update({
-                    where: { id: gameId },
-                    data: { currentScore: newScore }
-                })
-
-                // Also save to GameHistory for stats tracking
-                await prisma.gameHistory.create({
-                    data: {
-                        userId: appUser.id,
-                        questionId,
-                        correct,
-                        points: correct ? pointsEarned : 0
-                    }
-                })
+                // Note: Game score is already updated by /api/answers/grade
+                // This endpoint should only update GameQuestion state
+                // GameHistory is also created by /api/answers/grade for consistency
 
                 return jsonResponse({
                     success: true,
-                    currentScore: newScore,
+                    currentScore: game.currentScore,
                     questionAnswered: questionId
                 })
             }

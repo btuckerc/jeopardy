@@ -171,6 +171,14 @@ export default async function Home() {
         getDailyChallengeStats(user?.id || null)
     ])
 
+    // Get tour state from user (already fetched above)
+    const tourState = user ? {
+        hasSeenTour: user.hasSeenTour,
+        tourCompleted: user.tourCompleted,
+        tourDismissed: user.tourDismissed,
+        tourDismissedAt: user.tourDismissedAt?.toISOString() || null
+    } : null
+
     return (
         <>
             {/* Hero Section */}
@@ -223,8 +231,8 @@ export default async function Home() {
                         </div>
                     </div>
 
-                    {/* Onboarding Tour */}
-                    <OnboardingTour userId={user?.id} />
+                    {/* Onboarding Tour - pass initial state from server */}
+                    <OnboardingTour userId={user?.id} initialTourState={tourState} />
 
                     {/* Daily Challenge Card */}
                     <div id="daily-challenge-card" className="mt-8 max-w-4xl mx-auto">

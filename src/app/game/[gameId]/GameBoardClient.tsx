@@ -151,6 +151,13 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         return answered
     })
     const [score, setScore] = useState(initialGameData?.currentScore || 0)
+    const scoreRef = useRef(score)
+    
+    // Keep ref in sync with state for polling functions
+    useEffect(() => {
+        scoreRef.current = score
+    }, [score])
+    
     const [gameStats, setGameStats] = useState({ correct: 0, incorrect: 0 })
     const [showCelebrationModal, setShowCelebrationModal] = useState(false)
     const [showProfilePrompt, setShowProfilePrompt] = useState(false)
@@ -775,64 +782,74 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     
     useEffect(() => {
         if (!gameId || loading || showFinalJeopardy) {
-            return // Don't poll if game isn't loaded or we're in Final Jeopardy
+            return // Don't connect if game isn't loaded or we're in Final Jeopardy
         }
 
-        const checkApprovedDisputes = async () => {
+        // Use Server-Sent Events for real-time dispute updates
+        let eventSource: EventSource | null = null
+        let reconnectTimeout: NodeJS.Timeout | null = null
+
+        const connectSSE = () => {
             try {
-                const response = await fetch(`/api/games/${gameId}/approved-disputes`)
-                if (!response.ok) {
-                    return // Silently fail - don't spam errors
+                eventSource = new EventSource(`/api/games/${gameId}/events`)
+
+                eventSource.onmessage = (event) => {
+                    // Handle heartbeat or general messages
+                    console.debug('SSE message:', event.data)
                 }
 
-                const data = await response.json()
-                const approvedDisputes = data.approvedDisputes || []
-                const seenDisputes = loadSeenDisputes()
+                eventSource.addEventListener('dispute_approved', (event) => {
+                    try {
+                        const data = JSON.parse(event.data)
+                        
+                        // Update score from server
+                        setScore(data.newScore)
 
-                // Process new disputes that haven't been seen yet
-                for (const dispute of approvedDisputes) {
-                    const disputeKey = `${dispute.questionId}-${dispute.resolvedAt}`
-                    
-                    if (!seenDisputes.has(disputeKey)) {
-                        // Mark as seen in localStorage
-                        saveSeenDispute(disputeKey)
-                        
-                        // Update score
-                        setScore(prev => prev + dispute.points)
-                        
-                        // Mark question as answered correctly
-                        setAnsweredQuestions(prev => new Set([...prev, dispute.questionId]))
-                        
-                        // Update game stats
-                        setGameStats(prev => ({ ...prev, correct: prev.correct + 1 }))
-                        
                         // Update question details to reflect approved dispute
                         setQuestionDetails(prev => {
-                            const existing = prev[dispute.questionId]
+                            const existing = prev[data.questionId]
                             return {
                                 ...prev,
-                                [dispute.questionId]: {
+                                [data.questionId]: {
                                     userAnswer: existing?.userAnswer ?? null,
                                     correct: true,
                                     disputeStatus: 'APPROVED' as const
                                 }
                             }
                         })
-                        
+
+                        // Add to answered questions
+                        setAnsweredQuestions(prev => {
+                            const newSet = new Set(prev)
+                            newSet.add(data.questionId)
+                            return newSet
+                        })
+
+                        // Update correctness
+                        setQuestionCorrectness(prev => ({
+                            ...prev,
+                            [data.questionId]: true
+                        }))
+
+                        // Update game stats
+                        setGameStats(prev => ({
+                            correct: prev.correct + 1,
+                            incorrect: prev.incorrect
+                        }))
+
                         // If this question is currently selected, update its display
-                        if (selectedQuestion?.id === dispute.questionId) {
+                        if (selectedQuestion?.id === data.questionId) {
                             setIsCorrect(true)
                         }
-                        
-                        // Show toast notification only if user hasn't moved on to next question
-                        // We check if the question is still in answeredQuestions (meaning they haven't navigated away)
+
+                        // Show toast notification
                         toast.success(
                             (t) => (
                                 <div className="flex items-center gap-2">
                                     <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    <span>Dispute approved! +${dispute.points.toLocaleString()} points</span>
+                                    <span>Dispute approved! +${data.points.toLocaleString()} points</span>
                                 </div>
                             ),
                             {
@@ -841,20 +858,43 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                 icon: null,
                             }
                         )
+
+                        // Reload categories to show the question as correctly answered on the board
+                        if (gameConfig && (currentRound === 'SINGLE' || currentRound === 'DOUBLE')) {
+                            loadCategories(currentRound, gameConfig, gameSeed || undefined)
+                        }
+                    } catch (error) {
+                        console.error('Error handling SSE dispute_approved event:', error)
                     }
+                })
+
+                eventSource.onerror = (error) => {
+                    console.error('SSE error:', error)
+                    eventSource?.close()
+                    
+                    // Reconnect after 5 seconds
+                    reconnectTimeout = setTimeout(connectSSE, 5000)
+                }
+
+                eventSource.onopen = () => {
+                    console.debug('SSE connection opened')
                 }
             } catch (error) {
-                // Silently fail - don't spam console with errors
-                console.debug('Error checking approved disputes:', error)
+                console.error('Error creating SSE connection:', error)
+                // Reconnect after 5 seconds
+                reconnectTimeout = setTimeout(connectSSE, 5000)
             }
         }
 
-        // Check immediately, then every 30 seconds
-        checkApprovedDisputes()
-        const interval = setInterval(checkApprovedDisputes, 30000)
+        connectSSE()
 
-        return () => clearInterval(interval)
-    }, [gameId, loading, showFinalJeopardy, loadSeenDisputes, saveSeenDispute])
+        return () => {
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout)
+            }
+            eventSource?.close()
+        }
+    }, [gameId, loading, showFinalJeopardy, gameConfig, currentRound, gameSeed, loadCategories, selectedQuestion])
 
     // Handle round completion
     const handleRoundComplete = useCallback(async () => {
