@@ -67,6 +67,13 @@ model User {
   lastGameDate         DateTime?
   lastOnlineAt         DateTime?
   lastSeenPath         String?
+  
+  // Onboarding tour state
+  hasSeenTour          Boolean              @default(false)
+  tourCompleted        Boolean              @default(false)
+  tourDismissed        Boolean              @default(false)
+  tourDismissedAt      DateTime?
+  
   accounts             Account[]
   sessions             Session[]
   games                Game[]

@@ -156,11 +156,11 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         }
     }, [showTour, isMobile, actualStep, targetRect])
     
-    // Scroll handler
+    // Scroll and resize handler - combined for performance
     useEffect(() => {
         if (!showTour || isMobile) return
         
-        const handleScroll = () => {
+        const handleUpdate = () => {
             if (rafId.current) cancelAnimationFrame(rafId.current)
             rafId.current = requestAnimationFrame(() => {
                 const step = tourSteps[actualStep]
@@ -173,8 +173,13 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
             })
         }
         
-        window.addEventListener('scroll', handleScroll, { passive: true })
-        return () => window.removeEventListener('scroll', handleScroll)
+        window.addEventListener('scroll', handleUpdate, { passive: true })
+        window.addEventListener('resize', handleUpdate, { passive: true })
+        
+        return () => {
+            window.removeEventListener('scroll', handleUpdate)
+            window.removeEventListener('resize', handleUpdate)
+        }
     }, [showTour, isMobile, actualStep])
     
     // Handle escape
@@ -293,27 +298,32 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                     transform: targetRect ? undefined : 'translate(-9999px, -9999px)'
                 }}
             >
-                {/* Arrow - rendered first so it's behind the tooltip content */}
+                {/* Arrow - using pseudo-element approach with proper positioning */}
                 <div 
-                    className="absolute w-0 h-0"
+                    className="absolute"
                     style={{
-                        zIndex: 1,
+                        width: '20px',
+                        height: '20px',
+                        background: 'white',
                         // Position based on tooltip placement
-                        top: step.position === 'bottom' ? '0px' : step.position === 'top' ? 'auto' : '50%',
-                        bottom: step.position === 'top' ? '0px' : 'auto',
-                        left: step.position === 'right' ? '0px' : step.position === 'left' ? 'auto' : 
-                              step.arrowPosition === 'left' ? '40px' : step.arrowPosition === 'right' ? 'auto' : '50%',
-                        right: step.position === 'left' ? '0px' : step.position === 'right' ? 'auto' :
-                               step.arrowPosition === 'right' ? '40px' : 'auto',
+                        top: step.position === 'bottom' ? '-10px' : step.position === 'top' ? 'auto' : step.arrowPosition === 'center' || !step.arrowPosition ? 'calc(50% - 10px)' : '24px',
+                        bottom: step.position === 'top' ? '-10px' : 'auto',
+                        left: step.position === 'right' ? '-10px' : step.position === 'left' ? 'auto' : 
+                              step.arrowPosition === 'left' ? '32px' : step.arrowPosition === 'right' ? 'auto' : '50%',
+                        right: step.position === 'left' ? '-10px' : step.position === 'right' ? 'auto' :
+                               step.arrowPosition === 'right' ? '32px' : 'auto',
                         transform: step.position === 'bottom' || step.position === 'top' 
-                            ? (step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : 'none')
-                            : 'translateY(-50%)',
-                        // Triangle direction - 10px for better visibility
-                        borderLeft: step.position === 'right' ? 'none' : step.position === 'left' ? '10px solid white' : '10px solid transparent',
-                        borderRight: step.position === 'left' ? 'none' : step.position === 'right' ? '10px solid white' : '10px solid transparent',
-                        borderTop: step.position === 'bottom' ? 'none' : step.position === 'top' ? '10px solid white' : '10px solid transparent',
-                        borderBottom: step.position === 'top' ? 'none' : step.position === 'bottom' ? '10px solid white' : '10px solid transparent',
-                        filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))'
+                            ? (step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%) rotate(45deg)' : 'rotate(45deg)')
+                            : 'translateY(-50%) rotate(45deg)',
+                        // Border to match tooltip
+                        border: '1px solid #e5e7eb',
+                        borderRight: step.position === 'right' ? '1px solid #e5e7eb' : 'none',
+                        borderBottom: step.position === 'bottom' ? '1px solid #e5e7eb' : 'none',
+                        borderTop: step.position === 'top' ? '1px solid #e5e7eb' : 'none',
+                        borderLeft: step.position === 'left' ? '1px solid #e5e7eb' : 'none',
+                        // Shadow
+                        boxShadow: '-2px -2px 4px rgba(0,0,0,0.05)',
+                        zIndex: 1
                     }}
                 />
                 
