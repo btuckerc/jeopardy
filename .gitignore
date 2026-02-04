@@ -43,3 +43,9 @@ next-env.d.ts
 
 # opencode agent skills
 .opencode/
+
+# Patch files
+*.patch
+
+# Database backups (contain production data)
+/backups/

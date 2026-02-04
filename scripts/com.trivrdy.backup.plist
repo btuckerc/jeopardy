@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.trivrdy.backup</string>
+    
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/admin/homelab/jeopardy/scripts/backup-database.sh</string>
+    </array>
+    
+    <!-- Run weekly on Sundays at 3:00 AM -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    
+    <!-- Also run at load (catches up if machine was off during scheduled time) -->
+    <key>RunAtLoad</key>
+    <false/>
+    
+    <!-- Environment -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+    
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>/Users/admin/homelab/jeopardy/backups/launchd-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/admin/homelab/jeopardy/backups/launchd-stderr.log</string>
+    
+    <!-- Keep alive settings - don't restart on failure, just run on schedule -->
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>

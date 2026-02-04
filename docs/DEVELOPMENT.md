@@ -122,6 +122,81 @@ npm run db:backfill -- --start-date 2024-01-01 --end-date 2024-12-31
 | `db:fetch` | Fetch recent questions |
 | `db:backfill` | Backfill historical questions |
 
+### Database Backups
+
+The project includes a backup script for creating point-in-time snapshots of the production database.
+
+#### Manual Backup
+
+```bash
+# Create a backup
+./scripts/backup-database.sh
+
+# Create a backup and keep only the 5 most recent
+./scripts/backup-database.sh --keep 5
+```
+
+Backups are saved to `backups/trivrdy_backup_YYYYMMDD_HHMMSS.sql` with:
+- Full schema (tables, indexes, constraints)
+- All data
+- `--clean --if-exists` flags for safe restores
+
+#### Automated Weekly Backups (macOS)
+
+To enable automatic weekly backups using macOS launchd:
+
+```bash
+# 1. Install the launch agent
+cp scripts/com.trivrdy.backup.plist ~/Library/LaunchAgents/
+
+# 2. Load the agent (starts the schedule)
+launchctl load ~/Library/LaunchAgents/com.trivrdy.backup.plist
+
+# 3. Verify it's loaded
+launchctl list | grep trivrdy
+```
+
+The agent runs every **Sunday at 3:00 AM** and keeps the 8 most recent backups (2 months).
+
+**Managing the backup schedule:**
+
+```bash
+# Check status
+launchctl list | grep trivrdy
+
+# Run backup manually (test the schedule)
+launchctl start com.trivrdy.backup
+
+# Stop scheduled backups
+launchctl unload ~/Library/LaunchAgents/com.trivrdy.backup.plist
+
+# View logs
+tail -f backups/backup.log
+tail -f backups/launchd-stdout.log
+```
+
+#### Restoring from Backup
+
+⚠️ **Warning**: Restoring will replace all existing data. Create a fresh backup first if needed.
+
+```bash
+# Restore from a backup file (container must be running)
+docker exec -i jeopardy-db-1 psql -U trivrdy -d trivrdy < backups/trivrdy_backup_YYYYMMDD_HHMMSS.sql
+
+# Example with a specific backup
+docker exec -i jeopardy-db-1 psql -U trivrdy -d trivrdy < backups/trivrdy_backup_20260204_075652.sql
+```
+
+After restoring:
+1. Verify the data: `docker exec jeopardy-db-1 psql -U trivrdy -d trivrdy -c "SELECT COUNT(*) FROM \"Question\""`
+2. Restart the web container to clear any caches: `docker restart jeopardy-web-1`
+
+#### Backup File Location
+
+Backups are stored in the `backups/` directory (git-ignored). The backup script creates:
+- `trivrdy_backup_YYYYMMDD_HHMMSS.sql` - The database dump
+- `backup.log` - Backup operation logs
+
 ## Vector Embeddings
 
 Trivrdy uses OpenAI's `text-embedding-3-small` model with pgvector for semantic search.
