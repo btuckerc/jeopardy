@@ -1,21 +1,29 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import TourTooltip from './TourTooltip'
 import { useOnboarding } from '@/app/hooks/useOnboarding'
 
 interface TourStep {
-    targetId: string
+    targetId: string | null  // null for splash screen
     title: string
     description: string
     position: 'top' | 'bottom' | 'left' | 'right'
+    isSplash?: boolean
 }
 
 const tourSteps: TourStep[] = [
     {
-        targetId: 'daily-challenge-card',
+        targetId: null,
         title: 'Welcome to trivrdy! 🎉',
-        description: 'Practice with real Jeopardy questions, track your progress, and compete on the leaderboard. Start each day with a fresh Final Jeopardy question and build your streak!',
+        description: 'Your journey to Jeopardy mastery starts here. Take a quick tour to learn the ropes, or jump right in and start playing!',
+        position: 'bottom',
+        isSplash: true
+    },
+    {
+        targetId: 'daily-challenge-card',
+        title: 'Daily Challenge',
+        description: 'Start each day with a fresh Final Jeopardy question and build your streak! Answer correctly to climb the leaderboard.',
         position: 'bottom'
     },
     {
@@ -28,7 +36,7 @@ const tourSteps: TourStep[] = [
         targetId: 'practice-card',
         title: 'Study Mode',
         description: 'Focus on specific categories, rounds, or challenge yourself with triple stumpers. Perfect for targeted practice.',
-        position: 'top'  // Changed to 'top' for better positioning on lower elements
+        position: 'top'
     }
 ]
 
@@ -36,301 +44,264 @@ interface OnboardingTourProps {
     userId?: string | null
 }
 
-// Debounce utility for scroll/resize events
-function debounce<T extends (...args: unknown[]) => void>(fn: T, delay: number) {
-    let timeoutId: ReturnType<typeof setTimeout>
-    return (...args: Parameters<T>) => {
-        clearTimeout(timeoutId)
-        timeoutId = setTimeout(() => fn(...args), delay)
-    }
-}
-
 export default function OnboardingTour({ userId }: OnboardingTourProps) {
     const { showTour, currentStep, nextStep, skipTour, completeTour } = useOnboarding(userId)
-    const [targetElement, setTargetElement] = useState<HTMLElement | null>(null)
-    const [actualPosition, setActualPosition] = useState<'top' | 'bottom' | 'left' | 'right'>('bottom')
-    const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({})
+    const [actualStep, setActualStep] = useState(0)
     
-    // Refs for cleanup
-    const resizeObserverRef = useRef<ResizeObserver | null>(null)
-    const rafIdRef = useRef<number | null>(null)
-    const isCalculatingRef = useRef(false)
+    const highlightRef = useRef<HTMLDivElement>(null)
+    const tooltipRef = useRef<HTMLDivElement>(null)
+    const targetRef = useRef<HTMLElement | null>(null)
+    const rafId = useRef<number | null>(null)
+    const scrollTimeout = useRef<NodeJS.Timeout | null>(null)
     
-    // Tooltip dimensions (can be measured or estimated)
+    // Tooltip dimensions
     const TOOLTIP_WIDTH = 340
     const TOOLTIP_HEIGHT = 220
     const GAP = 16
-    const VIEWPORT_PADDING = 20
+    const VIEWPORT_MARGIN = 20
     
-    // Comprehensive position calculation with viewport boundary detection
-    const calculateOptimalPosition = useCallback((element: HTMLElement, preferredPosition: 'top' | 'bottom' | 'left' | 'right') => {
-        const rect = element.getBoundingClientRect()
-        const viewportWidth = window.innerWidth
-        const viewportHeight = window.innerHeight
+    // Calculate position ensuring tooltip stays fully in viewport
+    const calculateSafePosition = useCallback((targetRect: DOMRect, preferred: string) => {
+        const vw = window.innerWidth
+        const vh = window.innerHeight
         
-        // Calculate available space in all directions
-        const spaceAbove = rect.top - VIEWPORT_PADDING
-        const spaceBelow = viewportHeight - rect.bottom - VIEWPORT_PADDING
-        const spaceLeft = rect.left - VIEWPORT_PADDING
-        const spaceRight = viewportWidth - rect.right - VIEWPORT_PADDING
+        // Calculate available space
+        const spaceTop = targetRect.top - VIEWPORT_MARGIN
+        const spaceBottom = vh - targetRect.bottom - VIEWPORT_MARGIN
+        const spaceLeft = targetRect.left - VIEWPORT_MARGIN
+        const spaceRight = vw - targetRect.right - VIEWPORT_MARGIN
         
-        // Calculate required space for each direction
         const needHeight = TOOLTIP_HEIGHT + GAP
         const needWidth = TOOLTIP_WIDTH + GAP
         
-        // Score each position based on available space and preference
-        const positions: { position: 'top' | 'bottom' | 'left' | 'right'; score: number }[] = [
-            { 
-                position: 'bottom', 
-                score: (spaceBelow >= needHeight ? 100 : spaceBelow / needHeight * 50) + 
-                       (preferredPosition === 'bottom' ? 50 : 0)
-            },
-            { 
-                position: 'top', 
-                score: (spaceAbove >= needHeight ? 100 : spaceAbove / needHeight * 50) + 
-                       (preferredPosition === 'top' ? 50 : 0)
-            },
-            { 
-                position: 'right', 
-                score: (spaceRight >= needWidth ? 90 : spaceRight / needWidth * 45) + 
-                       (preferredPosition === 'right' ? 50 : 0)
-            },
-            { 
-                position: 'left', 
-                score: (spaceLeft >= needWidth ? 90 : spaceLeft / needWidth * 45) + 
-                       (preferredPosition === 'left' ? 50 : 0)
-            }
-        ]
+        // Determine best position
+        let position: 'top' | 'bottom' | 'left' | 'right'
         
-        // Sort by score descending
-        positions.sort((a, b) => b.score - a.score)
+        if (preferred === 'bottom' && spaceBottom >= needHeight) position = 'bottom'
+        else if (preferred === 'top' && spaceTop >= needHeight) position = 'top'
+        else if (spaceBottom >= needHeight) position = 'bottom'
+        else if (spaceTop >= needHeight) position = 'top'
+        else if (spaceRight >= needWidth) position = 'right'
+        else if (spaceLeft >= needWidth) position = 'left'
+        else position = 'bottom' // fallback
         
-        // Return the best position
-        return positions[0].position
-    }, [])
-    
-    // Calculate tooltip position style based on element and position
-    const calculateTooltipStyle = useCallback((element: HTMLElement, position: 'top' | 'bottom' | 'left' | 'right'): React.CSSProperties => {
-        const rect = element.getBoundingClientRect()
-        const viewportWidth = window.innerWidth
-        const viewportHeight = window.innerHeight
-        
-        let top = 0
-        let left = 0
+        // Calculate coordinates
+        let x = 0
+        let y = 0
         
         switch (position) {
-            case 'bottom':
-                top = rect.bottom + GAP
-                left = rect.left + rect.width / 2
-                // Center horizontally, but keep within viewport
-                left = Math.max(VIEWPORT_PADDING + TOOLTIP_WIDTH / 2, 
-                               Math.min(left, viewportWidth - VIEWPORT_PADDING - TOOLTIP_WIDTH / 2))
-                return {
-                    top,
-                    left,
-                    transform: 'translateX(-50%)',
-                    maxWidth: Math.min(TOOLTIP_WIDTH, viewportWidth - VIEWPORT_PADDING * 2)
-                }
-                
-            case 'top':
-                top = rect.top - GAP
-                left = rect.left + rect.width / 2
-                // Center horizontally, but keep within viewport
-                left = Math.max(VIEWPORT_PADDING + TOOLTIP_WIDTH / 2, 
-                               Math.min(left, viewportWidth - VIEWPORT_PADDING - TOOLTIP_WIDTH / 2))
-                return {
-                    top,
-                    left,
-                    transform: 'translate(-50%, -100%)',
-                    maxWidth: Math.min(TOOLTIP_WIDTH, viewportWidth - VIEWPORT_PADDING * 2)
-                }
-                
-            case 'right':
-                top = rect.top + rect.height / 2
-                left = rect.right + GAP
-                // Center vertically, but keep within viewport
-                top = Math.max(VIEWPORT_PADDING + TOOLTIP_HEIGHT / 2,
-                              Math.min(top, viewportHeight - VIEWPORT_PADDING - TOOLTIP_HEIGHT / 2))
-                return {
-                    top,
-                    left,
-                    transform: 'translateY(-50%)',
-                    maxWidth: Math.min(TOOLTIP_WIDTH, viewportWidth - left - VIEWPORT_PADDING)
-                }
-                
-            case 'left':
-                top = rect.top + rect.height / 2
-                left = rect.left - GAP
-                // Center vertically, but keep within viewport
-                top = Math.max(VIEWPORT_PADDING + TOOLTIP_HEIGHT / 2,
-                              Math.min(top, viewportHeight - VIEWPORT_PADDING - TOOLTIP_HEIGHT / 2))
-                return {
-                    top,
-                    left,
-                    transform: 'translate(-100%, -50%)',
-                    maxWidth: Math.min(TOOLTIP_WIDTH, left - VIEWPORT_PADDING)
-                }
+            case 'bottom': {
+                y = targetRect.bottom + GAP
+                x = targetRect.left + targetRect.width / 2 - TOOLTIP_WIDTH / 2
+                // Clamp to viewport
+                x = Math.max(VIEWPORT_MARGIN, Math.min(x, vw - TOOLTIP_WIDTH - VIEWPORT_MARGIN))
+                break
+            }
+            case 'top': {
+                y = targetRect.top - GAP - TOOLTIP_HEIGHT
+                x = targetRect.left + targetRect.width / 2 - TOOLTIP_WIDTH / 2
+                x = Math.max(VIEWPORT_MARGIN, Math.min(x, vw - TOOLTIP_WIDTH - VIEWPORT_MARGIN))
+                break
+            }
+            case 'right': {
+                y = targetRect.top + targetRect.height / 2 - TOOLTIP_HEIGHT / 2
+                x = targetRect.right + GAP
+                y = Math.max(VIEWPORT_MARGIN, Math.min(y, vh - TOOLTIP_HEIGHT - VIEWPORT_MARGIN))
+                break
+            }
+            case 'left': {
+                y = targetRect.top + targetRect.height / 2 - TOOLTIP_HEIGHT / 2
+                x = targetRect.left - GAP - TOOLTIP_WIDTH
+                y = Math.max(VIEWPORT_MARGIN, Math.min(y, vh - TOOLTIP_HEIGHT - VIEWPORT_MARGIN))
+                break
+            }
         }
+        
+        return { x, y, position }
     }, [])
     
-    // Update position using requestAnimationFrame for smooth performance
-    const updatePosition = useCallback(() => {
-        if (!targetElement || isCalculatingRef.current) return
+    // Update positions
+    const updatePositions = useCallback(() => {
+        const highlight = highlightRef.current
+        const tooltip = tooltipRef.current
+        const target = targetRef.current
+        const step = tourSteps[actualStep]
         
-        isCalculatingRef.current = true
+        if (!tooltip) return
         
-        rafIdRef.current = requestAnimationFrame(() => {
-            const step = tourSteps[currentStep]
-            if (step) {
-                const optimalPosition = calculateOptimalPosition(targetElement, step.position)
-                setActualPosition(optimalPosition)
-                setTooltipStyle(calculateTooltipStyle(targetElement, optimalPosition))
-            }
-            isCalculatingRef.current = false
-        })
-    }, [targetElement, currentStep, calculateOptimalPosition, calculateTooltipStyle])
-    
-    // Initialize and observe target element
-    useEffect(() => {
-        if (!showTour || currentStep >= tourSteps.length) {
-            // Cleanup when tour is hidden
-            if (resizeObserverRef.current) {
-                resizeObserverRef.current.disconnect()
-                resizeObserverRef.current = null
-            }
-            if (rafIdRef.current) {
-                cancelAnimationFrame(rafIdRef.current)
-                rafIdRef.current = null
-            }
+        // Handle splash screen (no highlight, centered at bottom)
+        if (step.isSplash) {
+            if (highlight) highlight.style.display = 'none'
+            
+            // Center at bottom of viewport
+            const vw = window.innerWidth
+            const vh = window.innerHeight
+            const x = (vw - TOOLTIP_WIDTH) / 2
+            const y = vh - TOOLTIP_HEIGHT - 100  // 100px from bottom
+            
+            tooltip.style.transform = `translate(${x}px, ${y}px)`
+            tooltip.style.display = 'block'
             return
         }
         
-        const step = tourSteps[currentStep]
-        const element = document.getElementById(step.targetId)
+        // Regular step with target
+        if (!target || !highlight) return
         
+        const rect = target.getBoundingClientRect()
+        const pos = calculateSafePosition(rect, step.position)
+        
+        // Show and position highlight
+        highlight.style.display = 'block'
+        highlight.style.transform = `translate(${rect.left - 8}px, ${rect.top - 8}px)`
+        highlight.style.width = `${rect.width + 16}px`
+        highlight.style.height = `${rect.height + 16}px`
+        
+        // Position tooltip
+        tooltip.style.display = 'block'
+        tooltip.style.transform = `translate(${pos.x}px, ${pos.y}px)`
+        tooltip.setAttribute('data-position', pos.position)
+    }, [actualStep, calculateSafePosition])
+    
+    // Schedule update
+    const scheduleUpdate = useCallback(() => {
+        if (rafId.current) cancelAnimationFrame(rafId.current)
+        rafId.current = requestAnimationFrame(updatePositions)
+    }, [updatePositions])
+    
+    // Sync with onboarding hook
+    useEffect(() => {
+        setActualStep(currentStep)
+    }, [currentStep])
+    
+    // Initialize step
+    useEffect(() => {
+        if (!showTour || actualStep >= tourSteps.length) return
+        
+        const step = tourSteps[actualStep]
+        
+        // Handle splash screen
+        if (step.isSplash) {
+            scheduleUpdate()
+            return
+        }
+        
+        // Handle regular step with target
+        const element = document.getElementById(step.targetId!)
         if (element) {
-            setTargetElement(element)
+            targetRef.current = element
             
-            // Initial position calculation
-            updatePosition()
-            
-            // Scroll element into view if needed
+            // Check if element is visible
             const rect = element.getBoundingClientRect()
-            const isInViewport = rect.top >= 0 && rect.bottom <= window.innerHeight
-            if (!isInViewport) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            }
+            const isVisible = rect.top >= 0 && rect.bottom <= window.innerHeight
             
-            // Setup ResizeObserver for performant resize detection
-            if (typeof ResizeObserver !== 'undefined') {
-                resizeObserverRef.current = new ResizeObserver(() => {
-                    updatePosition()
-                })
-                resizeObserverRef.current.observe(element)
-                // Also observe document.body for overall layout changes
-                resizeObserverRef.current.observe(document.body)
+            if (!isVisible) {
+                // Scroll to element
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                
+                // Wait for scroll to complete, then update
+                if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
+                scrollTimeout.current = setTimeout(() => {
+                    scheduleUpdate()
+                }, 500)
+            } else {
+                scheduleUpdate()
             }
         }
         
         return () => {
-            if (resizeObserverRef.current) {
-                resizeObserverRef.current.disconnect()
-            }
-            if (rafIdRef.current) {
-                cancelAnimationFrame(rafIdRef.current)
-            }
+            if (rafId.current) cancelAnimationFrame(rafId.current)
+            if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
         }
-    }, [showTour, currentStep, updatePosition])
+    }, [showTour, actualStep, scheduleUpdate])
     
-    // Debounced scroll and window resize handlers
+    // Scroll/resize handlers
     useEffect(() => {
-        if (!showTour || !targetElement) return
+        if (!showTour) return
         
-        const debouncedUpdate = debounce(updatePosition, 16) // ~60fps
+        const handleScroll = () => scheduleUpdate()
+        const handleResize = () => scheduleUpdate()
         
-        window.addEventListener('scroll', debouncedUpdate, { passive: true })
-        window.addEventListener('resize', debouncedUpdate, { passive: true })
+        window.addEventListener('scroll', handleScroll, { passive: true })
+        window.addEventListener('resize', handleResize, { passive: true })
         
         return () => {
-            window.removeEventListener('scroll', debouncedUpdate)
-            window.removeEventListener('resize', debouncedUpdate)
+            window.removeEventListener('scroll', handleScroll)
+            window.removeEventListener('resize', handleResize)
         }
-    }, [showTour, targetElement, updatePosition])
+    }, [showTour, scheduleUpdate])
     
-    // Handle escape key to close tour
+    // Handle escape
     useEffect(() => {
-        const handleEscape = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && showTour) {
-                skipTour()
-            }
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && showTour) skipTour()
         }
-        
-        window.addEventListener('keydown', handleEscape)
-        return () => window.removeEventListener('keydown', handleEscape)
+        window.addEventListener('keydown', handleKey)
+        return () => window.removeEventListener('keydown', handleKey)
     }, [showTour, skipTour])
     
-    // Handle backdrop click to close
-    const handleBackdropClick = (e: React.MouseEvent) => {
-        if (e.target === e.currentTarget) {
-            skipTour()
-        }
-    }
-    
-    if (!showTour || currentStep >= tourSteps.length) {
-        return null
-    }
-    
-    const currentTourStep = tourSteps[currentStep]
-    
     const handleNext = () => {
-        if (currentStep === tourSteps.length - 1) {
+        if (actualStep === tourSteps.length - 1) {
             completeTour()
         } else {
             nextStep()
         }
     }
     
+    if (!showTour || actualStep >= tourSteps.length) return null
+    
+    const step = tourSteps[actualStep]
+    
     return (
         <>
-            {/* Backdrop - clickable to close */}
+            {/* Backdrop - darker outside, lighter inside highlight */}
             <div 
-                className="fixed inset-0 bg-black/50 z-40 animate-fade-in cursor-pointer" 
-                onClick={handleBackdropClick}
-                aria-label="Close tour"
+                className="fixed inset-0 bg-black/60 z-40 animate-fade-in" 
+                onClick={() => skipTour()}
             />
             
-            {/* Highlight overlay - NOT clickable, allows clicking through to element */}
-            {targetElement && (
-                <div
-                    className="fixed z-50 pointer-events-none transition-all duration-300"
+            {/* Highlight overlay with lighter interior */}
+            <div
+                ref={highlightRef}
+                className="fixed z-40 pointer-events-none hidden"
+                style={{ top: 0, left: 0 }}
+            >
+                {/* Outer glow ring */}
+                <div 
+                    className="absolute -inset-2 rounded-3xl animate-pulse"
                     style={{
-                        top: targetElement.getBoundingClientRect().top - 8,
-                        left: targetElement.getBoundingClientRect().left - 8,
-                        width: targetElement.getBoundingClientRect().width + 16,
-                        height: targetElement.getBoundingClientRect().height + 16,
+                        boxShadow: '0 0 0 4px #fbbf24, 0 0 20px 8px rgba(251, 191, 36, 0.5)'
                     }}
-                >
-                    <div className="w-full h-full rounded-2xl ring-4 ring-amber-400 ring-offset-4 ring-offset-transparent animate-pulse" />
-                </div>
-            )}
+                />
+                {/* Light inner area */}
+                <div 
+                    className="w-full h-full rounded-2xl"
+                    style={{
+                        background: 'rgba(255, 255, 255, 0.15)',
+                        backdropFilter: 'brightness(1.2)'
+                    }}
+                />
+            </div>
             
             {/* Tooltip */}
-            {targetElement && (
-                <div
-                    className="fixed z-50 transition-all duration-300"
-                    style={tooltipStyle}
-                >
-                    <TourTooltip
-                        title={currentTourStep.title}
-                        description={currentTourStep.description}
-                        step={currentStep}
-                        totalSteps={tourSteps.length}
-                        onNext={handleNext}
-                        onSkip={skipTour}
-                        position={actualPosition}
-                    />
-                </div>
-            )}
+            <div
+                ref={tooltipRef}
+                className="fixed z-50 hidden"
+                style={{ 
+                    top: 0, 
+                    left: 0,
+                    width: TOOLTIP_WIDTH
+                }}
+            >
+                <TourTooltip
+                    title={step.title}
+                    description={step.description}
+                    step={actualStep}
+                    totalSteps={tourSteps.length}
+                    onNext={handleNext}
+                    onSkip={skipTour}
+                    isSplash={step.isSplash}
+                />
+            </div>
         </>
     )
 }

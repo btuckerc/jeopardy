@@ -81,9 +81,6 @@ BEGIN
         RAISE NOTICE 'Deleting UserAchievement records...';
         DELETE FROM "UserAchievement" WHERE "userId" = user_id;
         
-        RAISE NOTICE 'Deleting AchievementProgress records...';
-        DELETE FROM "AchievementProgress" WHERE "userId" = user_id;
-        
         RAISE NOTICE 'Deleting UserProgress records...';
         DELETE FROM "UserProgress" WHERE "userId" = user_id;
         
