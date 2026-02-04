@@ -1,10 +1,51 @@
 import { Metadata } from 'next'
 import { getAppUser } from '@/lib/clerk-auth'
+import { JsonLd } from '@/components/JsonLd'
 import ArchiveClient from '@/app/daily-challenge/archive/ArchiveClient'
 
 export const metadata: Metadata = {
-    title: 'Daily Challenge Archive | trivrdy',
-    description: 'View and complete past daily challenges from the last 7 days. Catch up on missed days and maintain your streak.',
+    title: 'Daily Challenge Archive | Past Trivia Questions - trivrdy',
+    description: 'Access past Daily Challenges from the last 7 days. Catch up on missed Jeopardy questions and maintain your streak.',
+    keywords: 'daily challenge archive, past jeopardy questions, trivia archive, jeopardy history, daily trivia archive',
+    openGraph: {
+        title: 'Daily Challenge Archive | Past Trivia Questions - trivrdy',
+        description: 'Access past Daily Challenges from the last 7 days. Catch up on missed Jeopardy questions.',
+        url: 'https://trivrdy.com/daily-challenge/archive',
+        type: 'website',
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: 'Daily Challenge Archive | Past Trivia Questions - trivrdy',
+        description: 'Access past Daily Challenges from the last 7 days.',
+    },
+    alternates: {
+        canonical: 'https://trivrdy.com/daily-challenge/archive',
+    },
+}
+
+const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+        {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: 'https://trivrdy.com',
+        },
+        {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Daily Challenge',
+            item: 'https://trivrdy.com/daily-challenge',
+        },
+        {
+            '@type': 'ListItem',
+            position: 3,
+            name: 'Archive',
+            item: 'https://trivrdy.com/daily-challenge/archive',
+        },
+    ],
 }
 
 export const dynamic = 'force-dynamic'
@@ -31,6 +72,7 @@ export default async function ArchivePage() {
                 {/* Client Component */}
                 <ArchiveClient />
             </div>
+            <JsonLd data={breadcrumbSchema} />
         </div>
     )
 }

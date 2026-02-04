@@ -3,7 +3,7 @@ import { Inter, Fredoka } from 'next/font/google'
 import Link from 'next/link'
 import { Providers } from './providers'
 import { Toaster } from 'react-hot-toast'
-import { PageTitle } from './components/PageTitle'
+
 import { Navigation } from '@/components/Navigation'
 import { ClerkProvider } from '@clerk/nextjs'
 import { syncAdminRoles } from '@/lib/sync-admin-roles'
@@ -28,9 +28,9 @@ export const metadata = {
             ? 'https://www.trivrdy.com'
             : 'http://localhost:3000'
     ),
-    title: 'trivrdy - Free Jeopardy Practice & Study Tool | 12,000+ Questions',
-    description: 'Practice Jeopardy with 12,000+ authentic questions. Free study tool with flashcards, game mode, leaderboards, and progress tracking. Master trivia and compete globally.',
-    keywords: 'jeopardy, trivia game, study jeopardy, practice trivia, trivrdy, jeopardy simulator, jeopardy practice, trivia practice, quiz game, knowledge quiz, online trivia, jeopardy questions, trivia study, tucker craig, game show practice',
+    title: 'Play Jeopardy Free | Trivia Practice Game - trivrdy',
+    description: 'Master Jeopardy with 12,000+ real questions. Free online trivia practice with flashcards, game modes, and leaderboards. Study smart, compete globally, track your progress.',
+    keywords: 'jeopardy practice, free jeopardy game, trivia questions, study jeopardy, online trivia game, jeopardy simulator, practice trivia, quiz game, knowledge quiz, trivrdy, jeopardy study tool, trivia flashcards, game show practice, learn trivia',
     authors: [{ name: 'Tucker Craig', url: 'https://tuckercraig.com' }],
     creator: 'Tucker Craig',
     publisher: 'Tucker Craig',
@@ -39,21 +39,21 @@ export const metadata = {
         locale: 'en_US',
         url: 'https://trivrdy.com',
         siteName: 'trivrdy',
-        title: 'trivrdy - Free Jeopardy Practice & Study Tool | 12,000+ Questions',
-        description: 'Practice Jeopardy with 12,000+ authentic questions. Free study tool with flashcards, game mode, leaderboards, and progress tracking. Master trivia and compete globally.',
+        title: 'Play Jeopardy Free | Trivia Practice Game - trivrdy',
+        description: 'Master Jeopardy with 12,000+ real questions. Free online trivia practice with flashcards, game modes, and leaderboards.',
         images: [
             {
                 url: '/og-image.png',
                 width: 1200,
                 height: 630,
-                alt: 'trivrdy - Jeopardy Study Game',
+                alt: 'trivrdy - Free Jeopardy Practice Game with 12,000+ Questions',
             }
         ],
     },
     twitter: {
         card: 'summary_large_image',
-        title: 'trivrdy - Free Jeopardy Practice & Study Tool',
-        description: 'Practice Jeopardy with 12,000+ authentic questions. Free study tool with flashcards, game mode, and leaderboards.',
+        title: 'Play Jeopardy Free | Trivia Practice Game - trivrdy',
+        description: 'Master Jeopardy with 12,000+ real questions. Free online trivia practice with flashcards, game modes, and leaderboards.',
         images: ['/og-image.png'],
         creator: '@btuckerc',
         site: '@btuckerc',
@@ -168,7 +168,6 @@ export default async function RootLayout({
                 <body className={inter.className}>
                     <Providers>
                         <KeyboardShortcutsProvider>
-                            <PageTitle />
                             <div className="min-h-screen bg-gray-100 flex flex-col">
                                 <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
                                 <main className="flex-1 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">

@@ -1,7 +1,7 @@
 {
-    "name": "trivrdy",
+    "name": "trivrdy - Free Jeopardy Practice",
     "short_name": "trivrdy",
-    "description": "Study Jeopardy Online | Practice Trivia Game",
+    "description": "Master Jeopardy with 12,000+ real questions. Free online trivia practice with flashcards, game modes, and leaderboards.",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#1D4ED8",

@@ -6,19 +6,19 @@ import LeaderboardClient from './LeaderboardClient';
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-    title: 'Trivia Rankings & Leaderboard | Jeopardy Stats | trivrdy',
-    description: 'See how you rank against other trivia champions. View the global leaderboard, track your Jeopardy stats, and compete for the top spot.',
-    keywords: 'trivia leaderboard, jeopardy rankings, trivia stats, jeopardy leaderboard, trivia competition, jeopardy scores',
+    title: 'Trivia Leaderboard | Rankings & Scores - trivrdy',
+    description: 'Compete on the global trivia leaderboard. See how you rank against other Jeopardy champions, track your stats, and climb to the top spot.',
+    keywords: 'trivia leaderboard, jeopardy rankings, trivia competition, jeopardy leaderboard, trivia scores, global rankings, trivia champions',
     openGraph: {
-        title: 'Trivia Rankings & Leaderboard | Jeopardy Stats | trivrdy',
-        description: 'See how you rank against other trivia champions. View the global leaderboard, track your Jeopardy stats, and compete for the top spot.',
+        title: 'Trivia Leaderboard | Rankings & Scores - trivrdy',
+        description: 'Compete on the global trivia leaderboard. See how you rank against other Jeopardy champions.',
         url: 'https://trivrdy.com/leaderboard',
         type: 'website',
     },
     twitter: {
         card: 'summary_large_image',
-        title: 'Trivia Rankings & Leaderboard | trivrdy',
-        description: 'See how you rank against other trivia champions. View the global leaderboard and compete for the top spot.',
+        title: 'Trivia Leaderboard | Rankings & Scores - trivrdy',
+        description: 'Compete on the global trivia leaderboard. See how you rank against other Jeopardy champions.',
     },
     alternates: {
         canonical: 'https://trivrdy.com/leaderboard',

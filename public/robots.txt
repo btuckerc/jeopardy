@@ -1,0 +1,21 @@
+# robots.txt for trivrdy.com
+# Allow all search engines to crawl everything except private areas
+
+User-agent: *
+Allow: /
+
+# Disallow private and auth pages
+Disallow: /admin
+Disallow: /settings
+Disallow: /sign-in
+Disallow: /sign-up
+Disallow: /api/
+
+# Allow specific API endpoints that might be useful
+Allow: /api/og
+
+# Sitemap location
+Sitemap: https://trivrdy.com/sitemap.xml
+
+# Crawl rate (optional, only use if experiencing server load issues)
+# Crawl-delay: 1

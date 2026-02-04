@@ -7,17 +7,22 @@ import { setupDailyChallenge } from '../api/daily-challenge/route'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 export const metadata: Metadata = {
-    title: 'Daily Challenge | trivrdy',
-    description: 'Test your knowledge with today\'s Daily Challenge - a Final Jeopardy question from Jeopardy history.',
+    title: 'Daily Trivia Challenge | New Jeopardy Question - trivrdy',
+    description: 'Test your knowledge with today\'s Daily Challenge - a new Final Jeopardy question every day. Compete with others and track your streak.',
     robots: {
         index: true,
         follow: true,
     },
     openGraph: {
-        title: 'Daily Challenge | trivrdy',
-        description: 'Test your knowledge with today\'s Daily Challenge.',
+        title: 'Daily Trivia Challenge | New Jeopardy Question - trivrdy',
+        description: 'Test your knowledge with today\'s Daily Challenge - a new Final Jeopardy question every day.',
         url: 'https://trivrdy.com/daily-challenge',
         type: 'website',
+    },
+    twitter: {
+        card: 'summary_large_image',
+        title: 'Daily Trivia Challenge | New Jeopardy Question - trivrdy',
+        description: 'Test your knowledge with today\'s Daily Challenge - a new Final Jeopardy question every day.',
     },
     alternates: {
         canonical: 'https://trivrdy.com/daily-challenge',

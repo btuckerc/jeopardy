@@ -629,7 +629,6 @@ export default function GameHubClient({
 
                 {/* Quick Play Cards */}
                 <div className="mb-8">
-                    <h2 className="text-lg font-semibold text-gray-700 mb-4">Quick Start</h2>
                     <QuickPlayCards 
                         user={user} 
                         onGameCreated={() => {

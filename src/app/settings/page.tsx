@@ -1,7 +1,17 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { Metadata } from 'next'
 import { getAppUser } from '@/lib/clerk-auth'
 import SettingsClient from './SettingsClient'
+
+export const metadata: Metadata = {
+    title: 'Settings | trivrdy Account',
+    description: 'Manage your trivrdy account settings, display name, and preferences.',
+    robots: {
+        index: false,
+        follow: true,
+    },
+}
 
 export default async function SettingsPage() {
     const appUser = await getAppUser()

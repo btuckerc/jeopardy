@@ -3,14 +3,14 @@ import Link from 'next/link'
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-    title: 'Sign In | trivrdy',
+    title: 'Sign In to trivrdy | Jeopardy Practice Game',
     description: 'Sign in to trivrdy to track your progress, compete on the leaderboard, and save your Jeopardy game statistics.',
     robots: {
         index: false,
         follow: true,
     },
     openGraph: {
-        title: 'Sign In | trivrdy',
+        title: 'Sign In to trivrdy | Jeopardy Practice Game',
         description: 'Sign in to trivrdy to track your progress and compete on the leaderboard.',
         url: 'https://trivrdy.com/sign-in',
         type: 'website',
