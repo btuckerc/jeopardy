@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-const ONBOARDING_KEY = 'trivrdy-onboarding-completed'
-const ONBOARDING_STEP_KEY = 'trivrdy-onboarding-step'
+const ONBOARDING_COMPLETED_KEY = 'trivrdy-onboarding-completed'
+const ONBOARDING_IN_PROGRESS_KEY = 'trivrdy-onboarding-in-progress'
 const ONBOARDING_USER_KEY = 'trivrdy-onboarding-user'
 
 interface OnboardingState {
@@ -14,20 +14,31 @@ interface OnboardingState {
 
 export function useOnboarding(userId?: string | null) {
     const [state, setState] = useState<OnboardingState>({
-        isComplete: true, // Default to complete to prevent flash
+        isComplete: true,
         currentStep: 0,
         showTour: false
     })
     
     useEffect(() => {
-        // Check if this is a different user than before
         const lastUserId = localStorage.getItem(ONBOARDING_USER_KEY)
         const isNewUser = userId && lastUserId !== userId
+        const isCompleted = localStorage.getItem(ONBOARDING_COMPLETED_KEY) === 'true'
+        const wasInProgress = localStorage.getItem(ONBOARDING_IN_PROGRESS_KEY) === 'true'
         
-        // If new user, reset onboarding state
+        if (isCompleted) {
+            // Tour was completed, don't show
+            setState({
+                isComplete: true,
+                currentStep: 0,
+                showTour: false
+            })
+            return
+        }
+        
         if (isNewUser) {
-            localStorage.removeItem(ONBOARDING_KEY)
-            localStorage.setItem(ONBOARDING_USER_KEY, userId)
+            // New user - start fresh
+            localStorage.setItem(ONBOARDING_USER_KEY, userId!)
+            localStorage.removeItem(ONBOARDING_IN_PROGRESS_KEY)
             setState({
                 isComplete: false,
                 currentStep: 0,
@@ -36,21 +47,32 @@ export function useOnboarding(userId?: string | null) {
             return
         }
         
-        // Check localStorage on mount
-        const isComplete = localStorage.getItem(ONBOARDING_KEY) === 'true'
-        const savedStep = parseInt(localStorage.getItem(ONBOARDING_STEP_KEY) || '0', 10)
+        if (wasInProgress) {
+            // User refreshed during tour - reset to banner
+            localStorage.removeItem(ONBOARDING_IN_PROGRESS_KEY)
+            setState({
+                isComplete: false,
+                currentStep: 0,
+                showTour: true
+            })
+            return
+        }
         
+        // Default: show banner for existing users who haven't completed
         setState({
-            isComplete,
-            currentStep: savedStep,
-            showTour: !isComplete
+            isComplete: false,
+            currentStep: 0,
+            showTour: true
         })
     }, [userId])
     
     const nextStep = useCallback(() => {
         setState(prev => {
             const newStep = prev.currentStep + 1
-            localStorage.setItem(ONBOARDING_STEP_KEY, newStep.toString())
+            // Mark as in progress when moving from banner to first step
+            if (prev.currentStep === 0) {
+                localStorage.setItem(ONBOARDING_IN_PROGRESS_KEY, 'true')
+            }
             return {
                 ...prev,
                 currentStep: newStep
@@ -59,8 +81,8 @@ export function useOnboarding(userId?: string | null) {
     }, [])
     
     const skipTour = useCallback(() => {
-        localStorage.setItem(ONBOARDING_KEY, 'true')
-        localStorage.setItem(ONBOARDING_STEP_KEY, '0')
+        localStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true')
+        localStorage.removeItem(ONBOARDING_IN_PROGRESS_KEY)
         setState(prev => ({
             ...prev,
             isComplete: true,
@@ -69,8 +91,8 @@ export function useOnboarding(userId?: string | null) {
     }, [])
     
     const completeTour = useCallback(() => {
-        localStorage.setItem(ONBOARDING_KEY, 'true')
-        localStorage.setItem(ONBOARDING_STEP_KEY, '0')
+        localStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true')
+        localStorage.removeItem(ONBOARDING_IN_PROGRESS_KEY)
         setState(prev => ({
             ...prev,
             isComplete: true,
@@ -79,8 +101,8 @@ export function useOnboarding(userId?: string | null) {
     }, [])
     
     const restartTour = useCallback(() => {
-        localStorage.removeItem(ONBOARDING_KEY)
-        localStorage.setItem(ONBOARDING_STEP_KEY, '0')
+        localStorage.removeItem(ONBOARDING_COMPLETED_KEY)
+        localStorage.removeItem(ONBOARDING_IN_PROGRESS_KEY)
         setState({
             isComplete: false,
             currentStep: 0,
