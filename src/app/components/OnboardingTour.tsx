@@ -186,7 +186,7 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         return () => window.removeEventListener('keydown', handleKey)
     }, [showTour, isMobile, skipTour])
     
-    // Adjust footer padding
+    // Adjust footer padding based on banner height
     useEffect(() => {
         if (typeof window === 'undefined') return
         
@@ -196,10 +196,12 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         const step = tourSteps[actualStep]
         
         if (step?.isBanner) {
-            footer.style.paddingBottom = '100px'
+            // Banner is approximately 80px tall (py-4 + content), add extra padding
+            footer.style.paddingBottom = '120px'
             footer.style.transition = 'padding-bottom 0.3s ease-out'
         } else {
-            footer.style.paddingBottom = '24px'
+            // Reset to original padding
+            footer.style.paddingBottom = ''
         }
         
         return () => {
@@ -253,24 +255,14 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
     
     return (
         <>
-            {/* Dark backdrop with clip-path for transparent hole */}
+            {/* Dark backdrop with rounded transparent hole using mask */}
             {highlightStyle && (
                 <div 
                     className="fixed inset-0 z-40 animate-fade-in pointer-events-auto"
                     style={{
                         background: 'rgba(0, 0, 0, 0.6)',
-                        clipPath: `polygon(
-                            0% 0%, 
-                            100% 0%, 
-                            100% 100%, 
-                            0% 100%,
-                            0% ${highlightStyle.top}px,
-                            ${highlightStyle.left}px ${highlightStyle.top}px,
-                            ${highlightStyle.left}px ${highlightStyle.top + highlightStyle.height}px,
-                            ${highlightStyle.left + highlightStyle.width}px ${highlightStyle.top + highlightStyle.height}px,
-                            ${highlightStyle.left + highlightStyle.width}px ${highlightStyle.top}px,
-                            0% ${highlightStyle.top}px
-                        )`
+                        maskImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cdefs%3E%3Cmask id='hole'%3E%3Crect width='100%25' height='100%25' fill='white'/%3E%3Crect x='${highlightStyle.left}' y='${highlightStyle.top}' width='${highlightStyle.width}' height='${highlightStyle.height}' rx='16' ry='16' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='100%25' height='100%25' mask='url(%23hole)' fill='black'/%3E%3C/svg%3E")`,
+                        WebkitMaskImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cdefs%3E%3Cmask id='hole'%3E%3Crect width='100%25' height='100%25' fill='white'/%3E%3Crect x='${highlightStyle.left}' y='${highlightStyle.top}' width='${highlightStyle.width}' height='${highlightStyle.height}' rx='16' ry='16' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='100%25' height='100%25' mask='url(%23hole)' fill='black'/%3E%3C/svg%3E")`,
                     }}
                     onClick={() => skipTour()}
                 />
@@ -357,26 +349,26 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                         </button>
                     </div>
                     
-                    {/* Arrow */}
+                    {/* Arrow - overlaps tooltip edge by 50% */}
                     <div 
-                        className="absolute w-0 h-0"
+                        className="absolute w-0 h-0 -z-10"
                         style={{
-                            // Position based on tooltip placement
-                            top: step.position === 'bottom' ? '-8px' : step.position === 'top' ? 'auto' : '50%',
-                            bottom: step.position === 'top' ? '-8px' : 'auto',
-                            left: step.position === 'right' ? '-8px' : step.position === 'left' ? 'auto' : 
+                            // Position based on tooltip placement - overlaps by 4px (half of 8px triangle)
+                            top: step.position === 'bottom' ? '-4px' : step.position === 'top' ? 'auto' : '50%',
+                            bottom: step.position === 'top' ? '-4px' : 'auto',
+                            left: step.position === 'right' ? '-4px' : step.position === 'left' ? 'auto' : 
                                   step.arrowPosition === 'left' ? '40px' : step.arrowPosition === 'right' ? 'auto' : '50%',
-                            right: step.position === 'left' ? '-8px' : step.position === 'right' ? 'auto' :
+                            right: step.position === 'left' ? '-4px' : step.position === 'right' ? 'auto' :
                                    step.arrowPosition === 'right' ? '40px' : 'auto',
                             transform: step.position === 'bottom' || step.position === 'top' 
                                 ? (step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : 'none')
                                 : 'translateY(-50%)',
-                            // Triangle direction
-                            borderLeft: step.position === 'right' ? 'none' : step.position === 'left' ? '8px solid white' : '8px solid transparent',
-                            borderRight: step.position === 'left' ? 'none' : step.position === 'right' ? '8px solid white' : '8px solid transparent',
-                            borderTop: step.position === 'bottom' ? 'none' : step.position === 'top' ? '8px solid white' : '8px solid transparent',
-                            borderBottom: step.position === 'top' ? 'none' : step.position === 'bottom' ? '8px solid white' : '8px solid transparent',
-                            filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.1))'
+                            // Triangle direction - 10px for better visibility
+                            borderLeft: step.position === 'right' ? 'none' : step.position === 'left' ? '10px solid white' : '10px solid transparent',
+                            borderRight: step.position === 'left' ? 'none' : step.position === 'right' ? '10px solid white' : '10px solid transparent',
+                            borderTop: step.position === 'bottom' ? 'none' : step.position === 'top' ? '10px solid white' : '10px solid transparent',
+                            borderBottom: step.position === 'top' ? 'none' : step.position === 'bottom' ? '10px solid white' : '10px solid transparent',
+                            filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))'
                         }}
                     />
                 </div>
