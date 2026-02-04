@@ -40,6 +40,11 @@ export interface AppUser {
     image: string | null
     lastOnlineAt?: Date | null
     lastSeenPath?: string | null
+    // Tour state
+    hasSeenTour: boolean
+    tourCompleted: boolean
+    tourDismissed: boolean
+    tourDismissedAt: Date | null
 }
 
 /**
@@ -110,7 +115,24 @@ export async function syncClerkUserToPrisma(clerkUserId: string): Promise<AppUse
     try {
         // First, try to find by clerkUserId (most specific)
         let user = await prisma.user.findUnique({
-            where: { clerkUserId }
+            where: { clerkUserId },
+            select: {
+                id: true,
+                clerkUserId: true,
+                email: true,
+                name: true,
+                displayName: true,
+                selectedIcon: true,
+                avatarBackground: true,
+                role: true,
+                image: true,
+                lastOnlineAt: true,
+                lastSeenPath: true,
+                hasSeenTour: true,
+                tourCompleted: true,
+                tourDismissed: true,
+                tourDismissedAt: true,
+            }
         })
         
         if (user) {
@@ -141,7 +163,24 @@ export async function syncClerkUserToPrisma(clerkUserId: string): Promise<AppUse
         
         // Not found by clerkUserId - try to find by email (for existing users migrating to Clerk)
         user = await prisma.user.findUnique({
-            where: { email }
+            where: { email },
+            select: {
+                id: true,
+                clerkUserId: true,
+                email: true,
+                name: true,
+                displayName: true,
+                selectedIcon: true,
+                avatarBackground: true,
+                role: true,
+                image: true,
+                lastOnlineAt: true,
+                lastSeenPath: true,
+                hasSeenTour: true,
+                tourCompleted: true,
+                tourDismissed: true,
+                tourDismissedAt: true,
+            }
         })
         
         if (user) {
@@ -233,6 +272,10 @@ function toAppUser(user: {
     image: string | null
     lastOnlineAt?: Date | null
     lastSeenPath?: string | null
+    hasSeenTour: boolean
+    tourCompleted: boolean
+    tourDismissed: boolean
+    tourDismissedAt: Date | null
 }): AppUser {
     return {
         id: user.id,
@@ -246,6 +289,10 @@ function toAppUser(user: {
         image: user.image,
         lastOnlineAt: user.lastOnlineAt,
         lastSeenPath: user.lastSeenPath,
+        hasSeenTour: user.hasSeenTour,
+        tourCompleted: user.tourCompleted,
+        tourDismissed: user.tourDismissed,
+        tourDismissedAt: user.tourDismissedAt,
     }
 }
 
@@ -263,7 +310,24 @@ export async function getAppUser(): Promise<AppUser | null> {
     
     // Try to find user by Clerk ID first
     const user = await prisma.user.findUnique({
-        where: { clerkUserId }
+        where: { clerkUserId },
+        select: {
+            id: true,
+            clerkUserId: true,
+            email: true,
+            name: true,
+            displayName: true,
+            selectedIcon: true,
+            avatarBackground: true,
+            role: true,
+            image: true,
+            lastOnlineAt: true,
+            lastSeenPath: true,
+            hasSeenTour: true,
+            tourCompleted: true,
+            tourDismissed: true,
+            tourDismissedAt: true,
+        }
     })
     
     if (user) {
