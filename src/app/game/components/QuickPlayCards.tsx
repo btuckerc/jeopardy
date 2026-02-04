@@ -53,19 +53,6 @@ const presets: PresetConfig[] = [
         estimatedTime: '5-10 min'
     },
     {
-        id: 'practice',
-        title: 'Practice Mode',
-        description: 'Study with random category questions',
-        icon: (
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-        ),
-        rounds: { single: true, double: true, final: true },
-        mode: 'knowledge',
-        estimatedTime: '15-20 min'
-    },
-    {
         id: 'challenge',
         title: 'Challenge Mode',
         description: 'Triple stumpers - the hardest questions',
@@ -78,6 +65,19 @@ const presets: PresetConfig[] = [
         mode: 'knowledge',
         categoryFilter: 'TRIPLE_STUMPER',
         estimatedTime: '20-30 min'
+    },
+    {
+        id: 'practice',
+        title: 'Practice Mode',
+        description: 'Study with random category questions',
+        icon: (
+            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+        ),
+        rounds: { single: true, double: true, final: true },
+        mode: 'knowledge',
+        estimatedTime: '15-20 min'
     }
 ]
 
@@ -134,6 +134,8 @@ export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsPr
         }
     }
 
+    const isPracticeMode = (id: string) => id === 'practice'
+
     return (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {presets.map((preset) => (
@@ -145,10 +147,24 @@ export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsPr
                         relative p-6 rounded-2xl border-2 transition-all duration-300 text-left
                         ${startingPreset === preset.id 
                             ? 'bg-gray-100 border-gray-300 cursor-wait' 
-                            : 'bg-white border-gray-200 hover:border-amber-400 hover:shadow-lg hover:-translate-y-1'
+                            : isPracticeMode(preset.id)
+                                ? 'bg-white border-dashed border-amber-300 hover:border-amber-500 hover:shadow-lg hover:-translate-y-1'
+                                : 'bg-white border-gray-200 hover:border-amber-400 hover:shadow-lg hover:-translate-y-1'
                         }
                     `}
                 >
+                    {/* Practice Mode Badge */}
+                    {isPracticeMode(preset.id) && (
+                        <div className="absolute top-3 right-3">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-medium">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                                Study
+                            </span>
+                        </div>
+                    )}
+
                     {/* Icon */}
                     <div className={`
                         w-14 h-14 rounded-xl flex items-center justify-center mb-4
