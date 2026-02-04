@@ -53,12 +53,12 @@ if [ "$CONFIRM" != "yes" ]; then
 fi
 
 # SQL to delete user by email
-# Use proper escaping and parameter handling
+# Note: User.id is TEXT (CUID format like 'cml7cuqq40000nw6rusu29v2a'), not UUID
 SQL=$(
 	cat <<EOF
 DO \$\$
 DECLARE
-    user_id UUID;
+    user_id TEXT;
 BEGIN
     -- Find user by email
     SELECT id INTO user_id FROM "User" WHERE email = '$EMAIL';
@@ -66,17 +66,34 @@ BEGIN
     IF user_id IS NULL THEN
         RAISE NOTICE 'User with email $EMAIL not found';
     ELSE
-        RAISE NOTICE 'Deleting user %', user_id;
+        RAISE NOTICE 'Found user ID: %', user_id;
         
         -- Delete in order to respect foreign keys
+        RAISE NOTICE 'Deleting GameQuestion records...';
         DELETE FROM "GameQuestion" WHERE "gameId" IN (SELECT id FROM "Game" WHERE "userId" = user_id);
+        
+        RAISE NOTICE 'Deleting Game records...';
         DELETE FROM "Game" WHERE "userId" = user_id;
+        
+        RAISE NOTICE 'Deleting UserDailyChallenge records...';
         DELETE FROM "UserDailyChallenge" WHERE "userId" = user_id;
+        
+        RAISE NOTICE 'Deleting UserAchievement records...';
         DELETE FROM "UserAchievement" WHERE "userId" = user_id;
+        
+        RAISE NOTICE 'Deleting AchievementProgress records...';
         DELETE FROM "AchievementProgress" WHERE "userId" = user_id;
+        
+        RAISE NOTICE 'Deleting UserProgress records...';
         DELETE FROM "UserProgress" WHERE "userId" = user_id;
+        
+        RAISE NOTICE 'Deleting GameHistory records...';
         DELETE FROM "GameHistory" WHERE "userId" = user_id;
+        
+        RAISE NOTICE 'Deleting AnswerDispute records...';
         DELETE FROM "AnswerDispute" WHERE "userId" = user_id;
+        
+        RAISE NOTICE 'Deleting User record...';
         DELETE FROM "User" WHERE id = user_id;
         
         RAISE NOTICE 'User % deleted successfully', user_id;
