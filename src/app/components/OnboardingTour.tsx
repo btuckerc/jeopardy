@@ -298,32 +298,52 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                     transform: targetRect ? undefined : 'translate(-9999px, -9999px)'
                 }}
             >
-                {/* Arrow - using pseudo-element approach with proper positioning */}
+                {/* Arrow - Traditional CSS border triangle speech bubble approach */}
                 <div 
                     className="absolute"
                     style={{
-                        width: '20px',
-                        height: '20px',
-                        background: 'white',
+                        width: 0,
+                        height: 0,
+                        zIndex: 1,
                         // Position based on tooltip placement
-                        top: step.position === 'bottom' ? '-10px' : step.position === 'top' ? 'auto' : step.arrowPosition === 'center' || !step.arrowPosition ? 'calc(50% - 10px)' : '24px',
-                        bottom: step.position === 'top' ? '-10px' : 'auto',
-                        left: step.position === 'right' ? '-10px' : step.position === 'left' ? 'auto' : 
-                              step.arrowPosition === 'left' ? '32px' : step.arrowPosition === 'right' ? 'auto' : '50%',
-                        right: step.position === 'left' ? '-10px' : step.position === 'right' ? 'auto' :
-                               step.arrowPosition === 'right' ? '32px' : 'auto',
-                        transform: step.position === 'bottom' || step.position === 'top' 
-                            ? (step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%) rotate(45deg)' : 'rotate(45deg)')
-                            : 'translateY(-50%) rotate(45deg)',
-                        // Border to match tooltip
-                        border: '1px solid #e5e7eb',
-                        borderRight: step.position === 'right' ? '1px solid #e5e7eb' : 'none',
-                        borderBottom: step.position === 'bottom' ? '1px solid #e5e7eb' : 'none',
-                        borderTop: step.position === 'top' ? '1px solid #e5e7eb' : 'none',
-                        borderLeft: step.position === 'left' ? '1px solid #e5e7eb' : 'none',
-                        // Shadow
-                        boxShadow: '-2px -2px 4px rgba(0,0,0,0.05)',
-                        zIndex: 1
+                        ...(step.position === 'bottom' && {
+                            top: '-12px',
+                            left: step.arrowPosition === 'center' || !step.arrowPosition ? '50%' : step.arrowPosition === 'left' ? '32px' : 'auto',
+                            right: step.arrowPosition === 'right' ? '32px' : 'auto',
+                            transform: step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : 'none',
+                            borderLeft: '12px solid transparent',
+                            borderRight: '12px solid transparent',
+                            borderBottom: '12px solid white',
+                            filter: 'drop-shadow(0 -2px 2px rgba(0,0,0,0.1))'
+                        }),
+                        ...(step.position === 'top' && {
+                            bottom: '-12px',
+                            left: step.arrowPosition === 'center' || !step.arrowPosition ? '50%' : step.arrowPosition === 'left' ? '32px' : 'auto',
+                            right: step.arrowPosition === 'right' ? '32px' : 'auto',
+                            transform: step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : 'none',
+                            borderLeft: '12px solid transparent',
+                            borderRight: '12px solid transparent',
+                            borderTop: '12px solid white',
+                            filter: 'drop-shadow(0 2px 2px rgba(0,0,0,0.1))'
+                        }),
+                        ...(step.position === 'right' && {
+                            left: '-12px',
+                            top: step.arrowPosition === 'center' || !step.arrowPosition ? '50%' : '24px',
+                            transform: step.arrowPosition === 'center' || !step.arrowPosition ? 'translateY(-50%)' : 'none',
+                            borderTop: '12px solid transparent',
+                            borderBottom: '12px solid transparent',
+                            borderRight: '12px solid white',
+                            filter: 'drop-shadow(-2px 0 2px rgba(0,0,0,0.1))'
+                        }),
+                        ...(step.position === 'left' && {
+                            right: '-12px',
+                            top: step.arrowPosition === 'center' || !step.arrowPosition ? '50%' : '24px',
+                            transform: step.arrowPosition === 'center' || !step.arrowPosition ? 'translateY(-50%)' : 'none',
+                            borderTop: '12px solid transparent',
+                            borderBottom: '12px solid transparent',
+                            borderLeft: '12px solid white',
+                            filter: 'drop-shadow(2px 0 2px rgba(0,0,0,0.1))'
+                        })
                     }}
                 />
                 
