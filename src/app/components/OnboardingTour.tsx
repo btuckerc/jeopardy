@@ -293,7 +293,31 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                     transform: targetRect ? undefined : 'translate(-9999px, -9999px)'
                 }}
             >
-                <div className="relative bg-white rounded-xl shadow-2xl border border-gray-200 p-6 animate-fade-in-up">
+                {/* Arrow - rendered first so it's behind the tooltip content */}
+                <div 
+                    className="absolute w-0 h-0"
+                    style={{
+                        zIndex: 1,
+                        // Position based on tooltip placement
+                        top: step.position === 'bottom' ? '0px' : step.position === 'top' ? 'auto' : '50%',
+                        bottom: step.position === 'top' ? '0px' : 'auto',
+                        left: step.position === 'right' ? '0px' : step.position === 'left' ? 'auto' : 
+                              step.arrowPosition === 'left' ? '40px' : step.arrowPosition === 'right' ? 'auto' : '50%',
+                        right: step.position === 'left' ? '0px' : step.position === 'right' ? 'auto' :
+                               step.arrowPosition === 'right' ? '40px' : 'auto',
+                        transform: step.position === 'bottom' || step.position === 'top' 
+                            ? (step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : 'none')
+                            : 'translateY(-50%)',
+                        // Triangle direction - 10px for better visibility
+                        borderLeft: step.position === 'right' ? 'none' : step.position === 'left' ? '10px solid white' : '10px solid transparent',
+                        borderRight: step.position === 'left' ? 'none' : step.position === 'right' ? '10px solid white' : '10px solid transparent',
+                        borderTop: step.position === 'bottom' ? 'none' : step.position === 'top' ? '10px solid white' : '10px solid transparent',
+                        borderBottom: step.position === 'top' ? 'none' : step.position === 'bottom' ? '10px solid white' : '10px solid transparent',
+                        filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))'
+                    }}
+                />
+                
+                <div className="relative bg-white rounded-xl shadow-2xl border border-gray-200 p-6 animate-fade-in-up" style={{ zIndex: 2 }}>
                     {/* X Close button */}
                     <button
                         onClick={() => skipTour()}
@@ -328,29 +352,6 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                             {isLastStep ? 'Finish' : 'Next →'}
                         </button>
                     </div>
-                    
-                    {/* Arrow - overlaps tooltip edge by 50% */}
-                    <div 
-                        className="absolute w-0 h-0 -z-10"
-                        style={{
-                            // Position based on tooltip placement - overlaps by 4px (half of 8px triangle)
-                            top: step.position === 'bottom' ? '-4px' : step.position === 'top' ? 'auto' : '50%',
-                            bottom: step.position === 'top' ? '-4px' : 'auto',
-                            left: step.position === 'right' ? '-4px' : step.position === 'left' ? 'auto' : 
-                                  step.arrowPosition === 'left' ? '40px' : step.arrowPosition === 'right' ? 'auto' : '50%',
-                            right: step.position === 'left' ? '-4px' : step.position === 'right' ? 'auto' :
-                                   step.arrowPosition === 'right' ? '40px' : 'auto',
-                            transform: step.position === 'bottom' || step.position === 'top' 
-                                ? (step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : 'none')
-                                : 'translateY(-50%)',
-                            // Triangle direction - 10px for better visibility
-                            borderLeft: step.position === 'right' ? 'none' : step.position === 'left' ? '10px solid white' : '10px solid transparent',
-                            borderRight: step.position === 'left' ? 'none' : step.position === 'right' ? '10px solid white' : '10px solid transparent',
-                            borderTop: step.position === 'bottom' ? 'none' : step.position === 'top' ? '10px solid white' : '10px solid transparent',
-                            borderBottom: step.position === 'top' ? 'none' : step.position === 'bottom' ? '10px solid white' : '10px solid transparent',
-                            filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.15))'
-                        }}
-                    />
                 </div>
             </div>
         </>

@@ -145,6 +145,7 @@ export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsPr
                     disabled={startingPreset !== null}
                     className={`
                         relative p-6 rounded-2xl border-2 transition-all duration-300 text-left
+                        flex flex-col h-full
                         ${startingPreset === preset.id 
                             ? 'bg-gray-100 border-gray-300 cursor-wait' 
                             : isPracticeMode(preset.id)
@@ -153,77 +154,82 @@ export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsPr
                         }
                     `}
                 >
-                    {/* Icon */}
-                    <div className={`
-                        w-14 h-14 rounded-xl flex items-center justify-center mb-4
-                        ${preset.id === 'classic' ? 'bg-blue-100 text-blue-600' :
-                          preset.id === 'quick' ? 'bg-green-100 text-green-600' :
-                          preset.id === 'practice' ? 'bg-amber-100 text-amber-600' :
-                          'bg-purple-100 text-purple-600'}
-                    `}>
-                        {startingPreset === preset.id ? (
-                            <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        ) : (
-                            preset.icon
-                        )}
+                    {/* Top content - grows to fill space */}
+                    <div className="flex-1">
+                        {/* Icon */}
+                        <div className={`
+                            w-14 h-14 rounded-xl flex items-center justify-center mb-4
+                            ${preset.id === 'classic' ? 'bg-blue-100 text-blue-600' :
+                              preset.id === 'quick' ? 'bg-green-100 text-green-600' :
+                              preset.id === 'practice' ? 'bg-amber-100 text-amber-600' :
+                              'bg-purple-100 text-purple-600'}
+                        `}>
+                            {startingPreset === preset.id ? (
+                                <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            ) : (
+                                preset.icon
+                            )}
+                        </div>
+
+                        {/* Title */}
+                        <h3 className="font-bold text-gray-900 text-lg mb-1">
+                            {preset.title}
+                        </h3>
+
+                        {/* Description */}
+                        <p className="text-gray-600 text-sm mb-3">
+                            {preset.description}
+                        </p>
                     </div>
 
-                    {/* Title */}
-                    <h3 className="font-bold text-gray-900 text-lg mb-1">
-                        {preset.title}
-                    </h3>
-
-                    {/* Description */}
-                    <p className="text-gray-600 text-sm mb-3">
-                        {preset.description}
-                    </p>
-
-                    {/* Practice Mode CTA or Regular Content */}
-                    {isPracticeMode(preset.id) ? (
-                        <div className="mt-2 flex items-center gap-2 text-amber-600 font-semibold text-sm group">
-                            <span>Study</span>
-                            <svg 
-                                className="w-4 h-4 transition-transform group-hover:translate-x-1" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                viewBox="0 0 24 24"
-                            >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                            </svg>
-                        </div>
-                    ) : (
-                        <>
-                            {/* Estimated time */}
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    {/* Bottom content - anchored to bottom */}
+                    <div className="mt-auto">
+                        {isPracticeMode(preset.id) ? (
+                            <div className="flex items-center gap-2 text-amber-600 font-semibold text-sm group">
+                                <span>Study</span>
+                                <svg 
+                                    className="w-4 h-4 transition-transform group-hover:translate-x-1" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                 </svg>
-                                {preset.estimatedTime}
                             </div>
+                        ) : (
+                            <>
+                                {/* Estimated time */}
+                                <div className="flex items-center gap-1 text-xs text-gray-500">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    {preset.estimatedTime}
+                                </div>
 
-                            {/* Round indicators */}
-                            <div className="mt-4 flex gap-1">
-                                {preset.rounds.single && (
-                                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded font-medium">
-                                        Single
-                                    </span>
-                                )}
-                                {preset.rounds.double && (
-                                    <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded font-medium">
-                                        Double
-                                    </span>
-                                )}
-                                {preset.rounds.final && (
-                                    <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded font-medium">
-                                        Final
-                                    </span>
-                                )}
-                            </div>
-                        </>
-                    )}
+                                {/* Round indicators */}
+                                <div className="mt-4 flex gap-1">
+                                    {preset.rounds.single && (
+                                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded font-medium">
+                                            Single
+                                        </span>
+                                    )}
+                                    {preset.rounds.double && (
+                                        <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded font-medium">
+                                            Double
+                                        </span>
+                                    )}
+                                    {preset.rounds.final && (
+                                        <span className="px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded font-medium">
+                                            Final
+                                        </span>
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </button>
             ))}
         </div>
