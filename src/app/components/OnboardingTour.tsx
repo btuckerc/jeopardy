@@ -32,8 +32,12 @@ const tourSteps: TourStep[] = [
     }
 ]
 
-export default function OnboardingTour() {
-    const { showTour, currentStep, nextStep, skipTour, completeTour } = useOnboarding()
+interface OnboardingTourProps {
+    userId?: string | null
+}
+
+export default function OnboardingTour({ userId }: OnboardingTourProps) {
+    const { showTour, currentStep, nextStep, skipTour, completeTour } = useOnboarding(userId)
     const [targetElement, setTargetElement] = useState<HTMLElement | null>(null)
     const [actualPosition, setActualPosition] = useState<'top' | 'bottom' | 'left' | 'right'>('bottom')
     

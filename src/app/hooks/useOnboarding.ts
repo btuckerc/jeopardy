@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 
 const ONBOARDING_KEY = 'trivrdy-onboarding-completed'
 const ONBOARDING_STEP_KEY = 'trivrdy-onboarding-step'
+const ONBOARDING_USER_KEY = 'trivrdy-onboarding-user'
 
 interface OnboardingState {
     isComplete: boolean
@@ -11,7 +12,7 @@ interface OnboardingState {
     showTour: boolean
 }
 
-export function useOnboarding() {
+export function useOnboarding(userId?: string | null) {
     const [state, setState] = useState<OnboardingState>({
         isComplete: true, // Default to complete to prevent flash
         currentStep: 0,
@@ -19,6 +20,22 @@ export function useOnboarding() {
     })
     
     useEffect(() => {
+        // Check if this is a different user than before
+        const lastUserId = localStorage.getItem(ONBOARDING_USER_KEY)
+        const isNewUser = userId && lastUserId !== userId
+        
+        // If new user, reset onboarding state
+        if (isNewUser) {
+            localStorage.removeItem(ONBOARDING_KEY)
+            localStorage.setItem(ONBOARDING_USER_KEY, userId)
+            setState({
+                isComplete: false,
+                currentStep: 0,
+                showTour: true
+            })
+            return
+        }
+        
         // Check localStorage on mount
         const isComplete = localStorage.getItem(ONBOARDING_KEY) === 'true'
         const savedStep = parseInt(localStorage.getItem(ONBOARDING_STEP_KEY) || '0', 10)
@@ -28,7 +45,7 @@ export function useOnboarding() {
             currentStep: savedStep,
             showTour: !isComplete
         })
-    }, [])
+    }, [userId])
     
     const nextStep = useCallback(() => {
         setState(prev => {

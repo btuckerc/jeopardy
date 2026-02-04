@@ -224,7 +224,7 @@ export default async function Home() {
                     </div>
 
                     {/* Onboarding Tour */}
-                    <OnboardingTour />
+                    <OnboardingTour userId={user?.id} />
 
                     {/* Daily Challenge Card */}
                     <div id="daily-challenge-card" className="mt-8 max-w-4xl mx-auto">
