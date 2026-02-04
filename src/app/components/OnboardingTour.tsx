@@ -31,14 +31,14 @@ const tourSteps: TourStep[] = [
         targetId: 'play-game-card',
         title: 'Play Full Games',
         description: 'Play complete Jeopardy games with Single, Double, and Final rounds.',
-        position: 'bottom',
+        position: 'right',
         arrowPosition: 'left'
     },
     {
         targetId: 'practice-card',
         title: 'Study Mode',
         description: 'Focus on specific categories or challenge yourself with triple stumpers.',
-        position: 'top',
+        position: 'left',
         arrowPosition: 'right'
     }
 ]
@@ -90,14 +90,12 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
             return
         }
         
-        // Find target element
         const findTarget = () => {
             const element = document.getElementById(step.targetId!)
             if (element) {
                 const rect = element.getBoundingClientRect()
                 setTargetRect(rect)
                 
-                // Check if visible
                 const isVisible = rect.top >= 50 && rect.bottom <= window.innerHeight - 50
                 if (!isVisible) {
                     element.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -105,7 +103,6 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
             }
         }
         
-        // Try immediately and after a delay
         findTarget()
         const timer = setTimeout(findTarget, 100)
         
@@ -122,6 +119,7 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         if (!tooltip || step.isBanner || !targetRect) return
         
         const vw = window.innerWidth
+        const vh = window.innerHeight
         
         let x = 0
         let y = 0
@@ -138,6 +136,20 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                 y = targetRect.top - GAP - TOOLTIP_HEIGHT
                 x = targetRect.left + targetRect.width / 2 - TOOLTIP_WIDTH / 2
                 x = Math.max(VIEWPORT_MARGIN, Math.min(x, vw - TOOLTIP_WIDTH - VIEWPORT_MARGIN))
+                tooltip.style.transform = `translate(${x}px, ${y}px)`
+                break
+            }
+            case 'right': {
+                x = targetRect.right + GAP
+                y = targetRect.top + targetRect.height / 2 - TOOLTIP_HEIGHT / 2
+                y = Math.max(VIEWPORT_MARGIN, Math.min(y, vh - TOOLTIP_HEIGHT - VIEWPORT_MARGIN))
+                tooltip.style.transform = `translate(${x}px, ${y}px)`
+                break
+            }
+            case 'left': {
+                x = targetRect.left - GAP - TOOLTIP_WIDTH
+                y = targetRect.top + targetRect.height / 2 - TOOLTIP_HEIGHT / 2
+                y = Math.max(VIEWPORT_MARGIN, Math.min(y, vh - TOOLTIP_HEIGHT - VIEWPORT_MARGIN))
                 tooltip.style.transform = `translate(${x}px, ${y}px)`
                 break
             }
@@ -173,6 +185,27 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         window.addEventListener('keydown', handleKey)
         return () => window.removeEventListener('keydown', handleKey)
     }, [showTour, isMobile, skipTour])
+    
+    // Adjust footer padding
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        
+        const footer = document.querySelector('footer')
+        if (!footer) return
+        
+        const step = tourSteps[actualStep]
+        
+        if (step?.isBanner) {
+            footer.style.paddingBottom = '100px'
+            footer.style.transition = 'padding-bottom 0.3s ease-out'
+        } else {
+            footer.style.paddingBottom = '24px'
+        }
+        
+        return () => {
+            footer.style.paddingBottom = ''
+        }
+    }, [actualStep])
     
     const handleNext = () => {
         if (actualStep === tourSteps.length - 1) {
@@ -211,7 +244,6 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
         )
     }
     
-    // Calculate highlight position with padding
     const highlightStyle = targetRect ? {
         top: targetRect.top - 8,
         left: targetRect.left - 8,
@@ -221,32 +253,61 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
     
     return (
         <>
-            {/* Dark backdrop */}
-            <div className="fixed inset-0 z-40 bg-black/60 animate-fade-in pointer-events-none" />
-            
-            {/* Highlight ring */}
+            {/* Dark backdrop with clip-path for transparent hole */}
             {highlightStyle && (
-                <>
-                    {/* Glow effect */}
-                    <div
-                        className="fixed z-50 pointer-events-none"
-                        style={{
-                            ...highlightStyle,
-                            boxShadow: '0 0 0 4px #fbbf24, 0 0 20px 8px rgba(251, 191, 36, 0.6)',
-                            borderRadius: '16px',
-                        }}
-                    />
-                    {/* Transparent inner area */}
-                    <div
-                        className="fixed z-50 pointer-events-auto cursor-pointer"
-                        style={{
-                            ...highlightStyle,
-                            background: 'transparent',
-                            borderRadius: '16px',
-                        }}
-                        onClick={() => skipTour()}
-                    />
-                </>
+                <div 
+                    className="fixed inset-0 z-40 animate-fade-in pointer-events-auto"
+                    style={{
+                        background: 'rgba(0, 0, 0, 0.6)',
+                        clipPath: `polygon(
+                            0% 0%, 
+                            100% 0%, 
+                            100% 100%, 
+                            0% 100%,
+                            0% ${highlightStyle.top}px,
+                            ${highlightStyle.left}px ${highlightStyle.top}px,
+                            ${highlightStyle.left}px ${highlightStyle.top + highlightStyle.height}px,
+                            ${highlightStyle.left + highlightStyle.width}px ${highlightStyle.top + highlightStyle.height}px,
+                            ${highlightStyle.left + highlightStyle.width}px ${highlightStyle.top}px,
+                            0% ${highlightStyle.top}px
+                        )`
+                    }}
+                    onClick={() => skipTour()}
+                />
+            )}
+            
+            {/* Amber glow ring around target */}
+            {highlightStyle && (
+                <div
+                    className="fixed z-50 pointer-events-none"
+                    style={{
+                        top: highlightStyle.top,
+                        left: highlightStyle.left,
+                        width: highlightStyle.width,
+                        height: highlightStyle.height,
+                        boxShadow: '0 0 0 4px #fbbf24, 0 0 20px 8px rgba(251, 191, 36, 0.6)',
+                        borderRadius: '16px',
+                    }}
+                />
+            )}
+            
+            {/* Transparent clickable area inside ring */}
+            {highlightStyle && (
+                <div
+                    className="fixed z-50 pointer-events-auto cursor-pointer"
+                    style={{
+                        top: highlightStyle.top,
+                        left: highlightStyle.left,
+                        width: highlightStyle.width,
+                        height: highlightStyle.height,
+                        background: 'transparent',
+                        borderRadius: '16px',
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation()
+                        skipTour()
+                    }}
+                />
             )}
             
             {/* Tooltip */}
@@ -257,7 +318,7 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                     top: 0, 
                     left: 0, 
                     width: TOOLTIP_WIDTH,
-                    transform: targetRect ? undefined : 'translate(-9999px, -9999px)' // Hide if no target
+                    transform: targetRect ? undefined : 'translate(-9999px, -9999px)'
                 }}
             >
                 <div className="relative bg-white rounded-xl shadow-2xl border border-gray-200 p-6 animate-fade-in-up">
@@ -296,20 +357,26 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
                         </button>
                     </div>
                     
-                    {/* Arrow - attached to tooltip */}
+                    {/* Arrow */}
                     <div 
                         className="absolute w-0 h-0"
                         style={{
+                            // Position based on tooltip placement
                             top: step.position === 'bottom' ? '-8px' : step.position === 'top' ? 'auto' : '50%',
                             bottom: step.position === 'top' ? '-8px' : 'auto',
-                            left: step.arrowPosition === 'left' ? '40px' : step.arrowPosition === 'right' ? 'auto' : '50%',
-                            right: step.arrowPosition === 'right' ? '40px' : 'auto',
-                            transform: step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : 'none',
-                            borderLeft: '8px solid transparent',
-                            borderRight: '8px solid transparent',
-                            borderBottom: step.position === 'bottom' ? '8px solid white' : 'none',
-                            borderTop: step.position === 'top' ? '8px solid white' : 'none',
-                            filter: 'drop-shadow(0 -1px 1px rgba(0,0,0,0.1))'
+                            left: step.position === 'right' ? '-8px' : step.position === 'left' ? 'auto' : 
+                                  step.arrowPosition === 'left' ? '40px' : step.arrowPosition === 'right' ? 'auto' : '50%',
+                            right: step.position === 'left' ? '-8px' : step.position === 'right' ? 'auto' :
+                                   step.arrowPosition === 'right' ? '40px' : 'auto',
+                            transform: step.position === 'bottom' || step.position === 'top' 
+                                ? (step.arrowPosition === 'center' || !step.arrowPosition ? 'translateX(-50%)' : 'none')
+                                : 'translateY(-50%)',
+                            // Triangle direction
+                            borderLeft: step.position === 'right' ? 'none' : step.position === 'left' ? '8px solid white' : '8px solid transparent',
+                            borderRight: step.position === 'left' ? 'none' : step.position === 'right' ? '8px solid white' : '8px solid transparent',
+                            borderTop: step.position === 'bottom' ? 'none' : step.position === 'top' ? '8px solid white' : '8px solid transparent',
+                            borderBottom: step.position === 'top' ? 'none' : step.position === 'bottom' ? '8px solid white' : '8px solid transparent',
+                            filter: 'drop-shadow(0 0 2px rgba(0,0,0,0.1))'
                         }}
                     />
                 </div>
