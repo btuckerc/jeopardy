@@ -255,16 +255,15 @@ export default function OnboardingTour({ userId }: OnboardingTourProps) {
     
     return (
         <>
-            {/* Dark backdrop with rounded transparent hole using mask */}
+            {/* Dark backdrop with rounded transparent hole using mask - click-through enabled */}
             {highlightStyle && (
                 <div 
-                    className="fixed inset-0 z-40 animate-fade-in pointer-events-auto"
+                    className="fixed inset-0 z-40 animate-fade-in pointer-events-none"
                     style={{
                         background: 'rgba(0, 0, 0, 0.6)',
                         maskImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cdefs%3E%3Cmask id='hole'%3E%3Crect width='100%25' height='100%25' fill='white'/%3E%3Crect x='${highlightStyle.left}' y='${highlightStyle.top}' width='${highlightStyle.width}' height='${highlightStyle.height}' rx='16' ry='16' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='100%25' height='100%25' mask='url(%23hole)' fill='black'/%3E%3C/svg%3E")`,
                         WebkitMaskImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cdefs%3E%3Cmask id='hole'%3E%3Crect width='100%25' height='100%25' fill='white'/%3E%3Crect x='${highlightStyle.left}' y='${highlightStyle.top}' width='${highlightStyle.width}' height='${highlightStyle.height}' rx='16' ry='16' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='100%25' height='100%25' mask='url(%23hole)' fill='black'/%3E%3C/svg%3E")`,
                     }}
-                    onClick={() => skipTour()}
                 />
             )}
             
