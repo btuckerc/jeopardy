@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { checkAnswer } from '@/app/lib/answer-checker'
+import { checkAnswer, normalizeAnswerText } from '@/app/lib/answer-checker'
 
 export interface AnswerOverride {
   id: string
@@ -41,19 +41,8 @@ export function isAnswerAcceptedWithOverrides(
   canonicalAnswer: string,
   overrides: AnswerOverride[]
 ): boolean {
-  // First check against canonical answer
-  if (checkAnswer(userAnswer, canonicalAnswer)) {
-    return true
-  }
-  
-  // Then check against all overrides
-  for (const override of overrides) {
-    if (checkAnswer(userAnswer, override.text)) {
-      return true
-    }
-  }
-  
-  return false
+  return checkAnswer(userAnswer, canonicalAnswer)
+    || overrides.some((override) => checkAnswer(userAnswer, override.text))
 }
 
 /**
@@ -61,16 +50,5 @@ export function isAnswerAcceptedWithOverrides(
  * Uses the same normalization logic as checkAnswer
  */
 export function normalizeAnswerForOverride(answer: string): string {
-  // Use the same normalization that checkAnswer uses internally
-  // This ensures consistency between checking and storage
-  return answer
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\uFF0D-]/g, ' ')
-    .replace(/[^a-z0-9\s&]/g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/\s*&\s*/g, ' and ')
-    .trim()
+  return normalizeAnswerText(answer)
 }
-

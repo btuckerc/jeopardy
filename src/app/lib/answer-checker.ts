@@ -116,7 +116,7 @@ async function getSemanticSimilarity(text1: string, text2: string): Promise<numb
 // TEXT NORMALIZATION - Basic, standard transformations
 // =============================================================================
     
-function normalizeText(text: string): string {
+export function normalizeAnswerText(text: string): string {
     return text
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
@@ -130,7 +130,7 @@ function normalizeText(text: string): string {
 }
 
 function stripArticles(text: string): string {
-    const words = normalizeText(text).split(' ');
+    const words = normalizeAnswerText(text).split(' ');
     while (words.length > 1 && ARTICLES.includes(words[0])) {
         words.shift();
     }
@@ -284,6 +284,11 @@ function exactMatch(userAnswer: string, correctAnswer: string): boolean {
     return false;
 }
 
+function hasExactOverrideMatch(userAnswer: string, overrideAnswers?: string[]): boolean {
+    if (!overrideAnswers?.length) return false;
+    return overrideAnswers.some(override => exactMatch(userAnswer, override));
+}
+
 // =============================================================================
 // MAIN ANSWER CHECKING - AI-First
 // =============================================================================
@@ -309,11 +314,7 @@ export async function checkAnswerAsync(
     if (exactMatch(userAnswer, correctAnswer)) return true;
 
     // Check overrides with exact matching
-    if (overrideAnswers?.length) {
-        for (const override of overrideAnswers) {
-            if (exactMatch(userAnswer, override)) return true;
-        }
-}
+    if (hasExactOverrideMatch(userAnswer, overrideAnswers)) return true;
 
     // AI SEMANTIC MATCHING - The primary mechanism
     const similarity = await getSemanticSimilarity(user, correct);
@@ -325,7 +326,6 @@ export async function checkAnswerAsync(
         const correctWords = stripArticles(correct).split(/\s+/).filter(w => w.length > 2);
         
         if (userWords.length > 0 && correctWords.length > userWords.length) {
-            const _userSet = new Set(userWords);
             const allUserWordsInCorrect = userWords.every(w => correctWords.includes(w));
             
             if (allUserWordsInCorrect) {
@@ -416,11 +416,7 @@ export function checkAnswer(userAnswer: string, correctAnswer: string, overrideA
     
     if (exactMatch(userAnswer, correctAnswer)) return true;
     
-    if (overrideAnswers?.length) {
-        for (const override of overrideAnswers) {
-            if (exactMatch(userAnswer, override)) return true;
-        }
-    }
+    if (hasExactOverrideMatch(userAnswer, overrideAnswers)) return true;
 
     return fallbackMatch(userAnswer, correctAnswer, overrideAnswers);
 }
