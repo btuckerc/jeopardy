@@ -8,8 +8,14 @@ const isPublicRoute = createRouteMatcher([
     '/sign-in(.*)',
     '/sign-up(.*)',
     '/game', // Game hub is public (shows sign-in prompt for guests)
+    '/practice(.*)', // Practice and SEO landing pages are public
+    '/final-jeopardy-practice(.*)',
+    '/jeopardy-categories(.*)',
+    '/jeopardy-study-guide(.*)',
+    '/triple-stumper-questions(.*)',
     '/friends', // Friends hub shows sign-in CTA for guests
     '/help(.*)', // Help pages are public
+    '/privacy(.*)', // Privacy policy must be public
     '/leaderboard(.*)', // Leaderboard is public
     '/api/cron(.*)', // Cron jobs don't need user auth
     '/api/categories(.*)', // Public category browsing
@@ -58,7 +64,7 @@ export default clerkMiddleware(async (auth, request) => {
 export const config = {
     matcher: [
         // Skip Next.js internals and all static files, unless found in search params
-        '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+        '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|json|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|txt|xml)).*)',
         // Always run for API routes
         '/(api|trpc)(.*)',
     ],

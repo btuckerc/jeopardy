@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { Fredoka } from 'next/font/google'
 import { getAppUser } from '@/lib/clerk-auth'
 import { prisma } from '@/lib/prisma'
@@ -10,6 +11,11 @@ import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
 
 export const dynamic = 'force-dynamic'
+export const metadata: Metadata = {
+    alternates: {
+        canonical: 'https://trivrdy.com',
+    },
+}
 
 async function getDailyChallenge(userId: string | null) {
     try {

@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 
 export default function sitemap(): MetadataRoute.Sitemap {
     const baseUrl = process.env.NODE_ENV === 'production'
-        ? 'https://www.trivrdy.com'
+        ? 'https://trivrdy.com'
         : 'http://localhost:3000'
 
     const routes = [
@@ -19,7 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
         {
             path: '/daily-challenge/archive',
             changeFrequency: 'daily' as const,
-            priority: 0.6,
+            priority: 0.7,
         },
         {
             path: '/game',
@@ -42,7 +42,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
             priority: 0.8,
         },
         {
-            path: '/practice/round/final',
+            path: '/final-jeopardy-practice',
             changeFrequency: 'weekly' as const,
             priority: 0.8,
         },
@@ -52,12 +52,22 @@ export default function sitemap(): MetadataRoute.Sitemap {
             priority: 0.8,
         },
         {
-            path: '/leaderboard',
+            path: '/triple-stumper-questions',
             changeFrequency: 'weekly' as const,
-            priority: 0.7,
+            priority: 0.8,
         },
         {
-            path: '/stats',
+            path: '/jeopardy-categories',
+            changeFrequency: 'weekly' as const,
+            priority: 0.8,
+        },
+        {
+            path: '/jeopardy-study-guide',
+            changeFrequency: 'weekly' as const,
+            priority: 0.8,
+        },
+        {
+            path: '/leaderboard',
             changeFrequency: 'weekly' as const,
             priority: 0.7,
         },
@@ -80,4 +90,3 @@ export default function sitemap(): MetadataRoute.Sitemap {
         priority: route.priority,
     }))
 }
-

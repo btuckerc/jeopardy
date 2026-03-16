@@ -25,7 +25,7 @@ export const viewport = {
 export const metadata = {
     metadataBase: new URL(
         process.env.NODE_ENV === 'production'
-            ? 'https://www.trivrdy.com'
+            ? 'https://trivrdy.com'
             : 'http://localhost:3000'
     ),
     title: 'Play Jeopardy Free | Trivia Practice Game - trivrdy',
@@ -57,12 +57,6 @@ export const metadata = {
         images: ['/og-image.png'],
         creator: '@btuckerc',
         site: '@btuckerc',
-    },
-    alternates: {
-        canonical: 'https://trivrdy.com',
-        types: {
-            'application/atom+xml': 'https://bsky.app/profile/btuckerc.com',
-        },
     },
     robots: {
         index: true,
@@ -111,7 +105,7 @@ export default async function RootLayout({
     const appUser = await getAppUser()
     
     const baseUrl = process.env.NODE_ENV === 'production'
-        ? 'https://www.trivrdy.com'
+        ? 'https://trivrdy.com'
         : 'http://localhost:3000'
 
     const websiteSchema = {
@@ -165,7 +159,6 @@ export default async function RootLayout({
             <html lang="en" suppressHydrationWarning>
                 <head>
                     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-                    <link rel="canonical" href="https://trivrdy.com" />
                     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
                     <meta name="mobile-web-app-capable" content="yes" />
                     <JsonLd data={websiteSchema} />

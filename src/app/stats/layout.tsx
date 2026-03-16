@@ -17,8 +17,14 @@ export const metadata: Metadata = {
         title: 'Trivia Progress & Stats | Jeopardy Tracker - trivrdy',
         description: 'Track your trivia progress with detailed Jeopardy statistics. View accuracy, points earned, and category performance.',
     },
-    alternates: {
-        canonical: 'https://trivrdy.com/stats',
+    robots: {
+        index: false,
+        follow: false,
+        googleBot: {
+            index: false,
+            follow: false,
+            noimageindex: true,
+        },
     },
 }
 
@@ -53,4 +59,3 @@ export default function StatsLayout({
         </>
     )
 }
-
