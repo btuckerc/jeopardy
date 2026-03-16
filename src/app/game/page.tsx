@@ -2,6 +2,7 @@ import { getResumableGames, getCompletedGames, type ResumableGame } from '@/lib/
 import { getAppUser } from '@/lib/clerk-auth'
 import { prisma } from '@/lib/prisma'
 import GameHubClient from './GameHubClient'
+import BackToTopButton from '@/components/BackToTopButton'
 
 // Convert Date objects to strings for client component serialization
 function serializeResumableGames(games: ResumableGame[]) {
@@ -50,11 +51,14 @@ export default async function GameHubPage() {
     } : null
 
     return (
-        <GameHubClient 
-            initialResumableGames={serializedGames}
-            initialCompletedGames={serializedCompletedGames}
-            initialUser={initialUser}
-            initialSpoilerSettings={serializedSpoilerSettings}
-        />
+        <>
+            <GameHubClient
+                initialResumableGames={serializedGames}
+                initialCompletedGames={serializedCompletedGames}
+                initialUser={initialUser}
+                initialSpoilerSettings={serializedSpoilerSettings}
+            />
+            <BackToTopButton />
+        </>
     )
 }

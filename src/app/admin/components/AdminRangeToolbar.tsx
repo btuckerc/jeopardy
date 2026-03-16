@@ -10,7 +10,7 @@ interface AdminRangeToolbarProps {
 
 export function AdminRangeToolbar({ title, value, onChange }: AdminRangeToolbarProps) {
     return (
-        <section className="workspace-main-header">
+        <section className="workspace-main-header workspace-main-header-sticky">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="min-w-0">
                     <h1 className="workspace-main-title">{title}</h1>

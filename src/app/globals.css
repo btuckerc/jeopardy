@@ -509,6 +509,10 @@
         @apply w-full max-w-full rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm md:px-6;
     }
 
+    .workspace-main-header-sticky {
+        @apply lg:sticky lg:top-0 lg:z-20 lg:bg-white/95 lg:backdrop-blur;
+    }
+
     .workspace-main-header-layout {
         @apply flex flex-col gap-4 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center;
     }
@@ -671,6 +675,16 @@
             margin-left: 0;
             @apply h-full overflow-y-auto pr-1;
             min-height: 0;
+        }
+    }
+
+    @media (max-width: 639px) {
+        .workspace-main-header {
+            @apply rounded-[1.6rem] px-4 py-3;
+        }
+
+        .workspace-main-title {
+            @apply text-[1.9rem];
         }
     }
 

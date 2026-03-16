@@ -2,6 +2,7 @@ import { jsonResponse, serverErrorResponse, requireAdmin, parseSearchParams } fr
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { FriendChallengeStatus } from '@prisma/client'
+import { isCustomDisplayName } from '@/lib/display-name'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +25,10 @@ interface GroupByCountRow {
     _count: {
         id: number
     }
+}
+
+function countCustomDisplayNames<T extends { displayName: string | null }>(users: T[]): number {
+    return users.filter((user) => isCustomDisplayName(user.displayName)).length
 }
 
 const usageMetricsParamsSchema = z.object({
@@ -251,11 +256,7 @@ export async function GET(request: Request) {
             playersInWindow,
             completedGamePlayersInWindow,
             dailyParticipantsInWindow,
-            newUsersWithDisplayNameInWindow,
-            newUsersWithGamesInWindow,
-            newUsersWithDailyChallengesInWindow,
-            newUsersWithAchievementsInWindow,
-            activatedUsersInWindow,
+            newUsersInWindow,
             totalFriendships,
             usersWithFriends,
             activeUsersWithFriendsInWindow,
@@ -297,40 +298,20 @@ export async function GET(request: Request) {
                     dailyChallenges: { some: { completedAt: { gte: startTime } } },
                 },
             }),
-            prisma.user.count({
+            prisma.user.findMany({
                 where: {
                     createdAt: { gte: startTime },
-                    displayName: { not: null },
                 },
-            }),
-            prisma.user.count({
-                where: {
-                    createdAt: { gte: startTime },
-                    games: { some: {} },
-                },
-            }),
-            prisma.user.count({
-                where: {
-                    createdAt: { gte: startTime },
-                    dailyChallenges: { some: {} },
-                },
-            }),
-            prisma.user.count({
-                where: {
-                    createdAt: { gte: startTime },
-                    achievements: { some: {} },
-                },
-            }),
-            prisma.user.count({
-                where: {
-                    createdAt: { gte: startTime },
-                    OR: [
-                        { displayName: { not: null } },
-                        { games: { some: {} } },
-                        { dailyChallenges: { some: {} } },
-                        { achievements: { some: {} } },
-                        { tourCompleted: true },
-                    ],
+                select: {
+                    displayName: true,
+                    tourCompleted: true,
+                    _count: {
+                        select: {
+                            games: true,
+                            dailyChallenges: true,
+                            achievements: true,
+                        },
+                    },
                 },
             }),
             prisma.friendship.count(),
@@ -367,16 +348,30 @@ export async function GET(request: Request) {
             }),
         ])
 
+        const newUsersWithDisplayNameInWindow = countCustomDisplayNames(newUsersInWindow)
+        const newUsersWithGamesInWindow = newUsersInWindow.filter((user) => user._count.games > 0).length
+        const newUsersWithDailyChallengesInWindow = newUsersInWindow.filter((user) => user._count.dailyChallenges > 0).length
+        const newUsersWithAchievementsInWindow = newUsersInWindow.filter((user) => user._count.achievements > 0).length
+        const activatedUsersInWindow = newUsersInWindow.filter((user) =>
+            isCustomDisplayName(user.displayName) ||
+            user._count.games > 0 ||
+            user._count.dailyChallenges > 0 ||
+            user._count.achievements > 0 ||
+            user.tourCompleted,
+        ).length
+
         // Onboarding status breakdown
         const [
-            usersWithDisplayName,
+            usersForDisplayName,
             usersWithGames,
             usersWithDailyChallenges,
             usersWithAchievements,
             activeLastWeek,
             activeLastDay
         ] = await Promise.all([
-            prisma.user.count({ where: { displayName: { not: null } } }),
+            prisma.user.findMany({
+                select: { displayName: true },
+            }),
             prisma.user.count({ where: { games: { some: {} } } }),
             prisma.user.count({ where: { dailyChallenges: { some: {} } } }),
             prisma.user.count({ where: { achievements: { some: {} } } }),
@@ -395,6 +390,8 @@ export async function GET(request: Request) {
                 }
             })
         ])
+
+        const usersWithDisplayName = countCustomDisplayNames(usersForDisplayName)
 
         const segmentWhere = {
             lastOnlineAt: {

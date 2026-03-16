@@ -66,7 +66,7 @@ function OverviewSection({
                 <div className={`mb-5 flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-end lg:justify-between ${headerClassName || ''}`}>
                     <div className="min-w-0">
                         <div className="text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-slate-400 sm:text-[0.68rem]">{eyebrow}</div>
-                        <h2 className="mt-2 text-[1.7rem] font-semibold tracking-tight leading-tight text-slate-950 sm:text-[1.9rem]">{title}</h2>
+                        <h2 className="mt-2 text-[1.5rem] font-semibold tracking-tight leading-tight text-slate-950 sm:text-[1.9rem]">{title}</h2>
                         {description ? <p className="mt-2 max-w-3xl text-[0.92rem] leading-6 text-slate-500">{description}</p> : null}
                     </div>
                     {actions ? <div className="w-full shrink-0 lg:w-auto">{actions}</div> : null}
@@ -95,11 +95,11 @@ function HeroMetric({
 
     return (
         <div className={`rounded-[24px] border px-4 py-4 sm:px-5 ${tintStyles[accent]}`}>
-            <div className="text-[0.64rem] font-semibold uppercase tracking-[0.2em] opacity-70 sm:text-[0.68rem]">{label}</div>
-            <div className={`mt-3 break-words leading-none font-semibold tracking-tight text-slate-950 ${valueClassName}`}>
+            <div className="text-[0.6rem] font-semibold uppercase tracking-[0.2em] opacity-70 sm:text-[0.68rem]">{label}</div>
+            <div className={`mt-2 break-words leading-none font-semibold tracking-tight text-slate-950 ${valueClassName}`}>
                 {typeof value === 'number' ? value.toLocaleString() : value}
             </div>
-            <div className="mt-2 text-[0.92rem] leading-6 text-slate-600">{detail}</div>
+            <div className="mt-2 text-[0.88rem] leading-6 text-slate-600 sm:text-[0.92rem]">{detail}</div>
         </div>
     )
 }
@@ -129,7 +129,7 @@ function SignalCard({
             <div className="flex h-full flex-col pt-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
-                        <div className="text-[1rem] font-semibold leading-8 text-slate-900 sm:text-[1.1rem]">{title}</div>
+                        <div className="text-[0.96rem] font-semibold leading-7 text-slate-900 sm:text-[1.1rem]">{title}</div>
                         <div className={`mt-1 break-words leading-[0.95] font-semibold tracking-tight text-slate-950 ${valueClassName}`}>
                             {typeof value === 'number' ? value.toLocaleString() : value}
                         </div>
@@ -140,7 +140,7 @@ function SignalCard({
                         </div>
                     ) : null}
                 </div>
-                <p className="mt-3 text-[0.92rem] leading-6 text-slate-500">{description}</p>
+                <p className="mt-3 text-[0.88rem] leading-6 text-slate-500 sm:text-[0.92rem]">{description}</p>
             </div>
         </div>
     )
@@ -165,16 +165,16 @@ function JourneyStepRow({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                     <div className="text-[0.64rem] font-semibold uppercase tracking-[0.22em] text-slate-400">{step}</div>
-                    <div className="mt-2 text-[1.05rem] font-semibold text-slate-900 sm:text-[1.2rem]">{label}</div>
+                    <div className="mt-2 text-[0.98rem] font-semibold text-slate-900 sm:text-[1.2rem]">{label}</div>
                 </div>
                 <div className="shrink-0">
-                    <div className="text-[2rem] font-semibold leading-none tracking-tight text-slate-950">{value.toLocaleString()}</div>
+                    <div className="text-[1.8rem] font-semibold leading-none tracking-tight text-slate-950 sm:text-[2rem]">{value.toLocaleString()}</div>
                     {percent !== undefined ? (
                         <div className="mt-1 text-right text-xs font-medium text-slate-500">{formatPercent(percent)}</div>
                     ) : null}
                 </div>
             </div>
-            <p className="mt-3 text-[0.92rem] leading-6 text-slate-500">{detail}</p>
+            <p className="mt-3 text-[0.88rem] leading-6 text-slate-500 sm:text-[0.92rem]">{detail}</p>
             {percent !== undefined ? (
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
                     <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" style={{ width: `${normalizedPercent}%` }} />
@@ -193,8 +193,8 @@ function InsightList({
         <div className="space-y-3">
             {items.map((item) => (
                 <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                    <div className="min-w-0 text-[0.92rem] font-medium text-slate-600">{item.label}</div>
-                    <div className={`rounded-full border px-3 py-1 text-[0.92rem] font-semibold ${tintStyles[item.tone || 'slate']}`}>
+                    <div className="min-w-0 text-[0.88rem] font-medium text-slate-600 sm:text-[0.92rem]">{item.label}</div>
+                    <div className={`rounded-full border px-3 py-1 text-[0.88rem] font-semibold sm:text-[0.92rem] ${tintStyles[item.tone || 'slate']}`}>
                         {item.value}
                     </div>
                 </div>
@@ -230,20 +230,17 @@ export function MetricsOverviewTab({ window }: MetricsOverviewTabProps) {
 
     return (
         <div className="space-y-8 pb-4">
-            <section className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-[linear-gradient(135deg,rgba(248,250,252,1)_0%,rgba(255,255,255,1)_48%,rgba(241,245,249,0.96)_100%)] shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)]">
-                <div className="absolute inset-y-0 right-0 w-[40%] bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.16),transparent_58%)]" />
-                <div className="absolute left-0 top-0 h-32 w-32 rounded-full bg-blue-200/30 blur-3xl" />
-                <div className="relative grid gap-6 p-6 sm:p-7 xl:grid-cols-[minmax(0,1.15fr)_minmax(21rem,0.85fr)] xl:gap-7">
-                    <div>
-                        <div className="text-[0.72rem] font-semibold uppercase tracking-[0.28em] text-slate-400">System Overview</div>
-                        <h2 className="mt-3 max-w-[15ch] text-[1.9rem] font-semibold leading-[1.02] tracking-tight text-slate-950 sm:text-[2.15rem] xl:text-[2.35rem]">
-                            A cleaner read on activation, stickiness, and live user momentum.
-                        </h2>
-                        <p className="mt-3 max-w-2xl text-[0.95rem] leading-6 text-slate-500">
-                            The overview is now arranged as an operator briefing for {reportingLabel}, with product signals first and secondary diagnostics pushed lower.
-                        </p>
+            <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_right,rgba(56,189,248,0.12),transparent_30%),radial-gradient(circle_at_top_left,rgba(96,165,250,0.08),transparent_24%),linear-gradient(135deg,rgba(248,250,252,1)_0%,rgba(255,255,255,1)_58%,rgba(241,245,249,0.96)_100%)] shadow-[0_24px_80px_-40px_rgba(15,23,42,0.35)]">
+                <div className="grid gap-5 p-5 sm:p-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(19rem,0.82fr)] xl:gap-6 xl:p-7">
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="text-[0.68rem] font-semibold uppercase tracking-[0.26em] text-slate-400">System Overview</div>
+                            <div className="inline-flex rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-[0.75rem] font-medium text-slate-500 sm:hidden">
+                                {reportingLabel}
+                            </div>
+                        </div>
 
-                        <div className="mt-6 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
                             <HeroMetric
                                 label="Activation"
                                 value={formatPercent(usageMetrics?.activation?.activationRate)}
@@ -265,13 +262,13 @@ export function MetricsOverviewTab({ window }: MetricsOverviewTabProps) {
                         </div>
                     </div>
 
-                    <div className="rounded-[28px] border border-slate-200 bg-white/88 p-5 backdrop-blur">
+                    <div className="rounded-[28px] border border-slate-200 bg-white/90 p-4 backdrop-blur sm:p-5">
                         <div className="mb-4 flex items-center justify-between">
                             <div>
                                 <div className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-slate-400">At A Glance</div>
                                 <div className="mt-2 text-[1.35rem] font-semibold tracking-tight text-slate-950">Operator pulse</div>
                             </div>
-                            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500">
+                            <div className="hidden rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-500 sm:inline-flex">
                                 {reportingLabel}
                             </div>
                         </div>
@@ -390,10 +387,10 @@ export function MetricsOverviewTab({ window }: MetricsOverviewTabProps) {
                         />
                         <JourneyStepRow
                             step="Step 3"
-                            label="Set display name"
+                            label="Set custom display name"
                             value={activationWithDisplayName}
                             percent={activationNewUsers ? (activationWithDisplayName / activationNewUsers) * 100 : 0}
-                            detail="A simple identity step that usually indicates first-session intent."
+                            detail="Chose a name beyond the system-assigned default, which is a cleaner signal of profile intent."
                         />
                         <JourneyStepRow
                             step="Step 4"
