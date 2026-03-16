@@ -24,6 +24,12 @@ import {
     type CustomCategorySelection,
 } from '@/lib/custom-category-selections'
 import { hasBlockedRelationship, isFriend } from '@/lib/friends'
+import {
+    finalizeReconciledGameChallengeState,
+    findChallengeGameStateForUser,
+    hasConflictingActiveChallengeForPair,
+    reconcileGameChallengeState,
+} from '@/lib/friend-challenge-state'
 
 const customCategorySelectionSchema = z.object({
     categoryId: z.string(),
@@ -61,7 +67,10 @@ const challengeListSchema = z.object({
         .default('all'),
     includeExpired: z.coerce.boolean().default(false),
     limit: z.coerce.number().int().min(1).max(100).default(100),
+    challengeId: z.string().trim().min(1).optional(),
 })
+
+const DEFAULT_FRIEND_CHALLENGE_CATEGORY_COUNT = 3
 
 function challengeParticipantMetadata(challenge: { challengerUserId: string, opponentUserId: string }) {
     return {
@@ -169,7 +178,18 @@ async function findChallengeGameIdForUser(params: {
         WHERE "userId" = ${params.userId}
           AND "config"->>'friendChallengeId' = ${params.challengeId}
           AND "status" IN ('IN_PROGRESS', 'COMPLETED')
-        ORDER BY "createdAt" DESC
+        ORDER BY
+            CASE
+                WHEN "status" = 'COMPLETED' THEN 2
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM "GameQuestion" gq
+                    WHERE gq."gameId" = "Game"."id"
+                      AND gq."answered" = true
+                ) THEN 1
+                ELSE 0
+            END DESC,
+            "createdAt" DESC
         LIMIT 1
     `
 
@@ -447,22 +467,6 @@ async function ensureChallengeGameForUser(params: {
     return createdGame.id
 }
 
-async function findChallengeGameStateForUser(params: {
-    userId: string
-    challengeId: string
-}) {
-    const rows = await prisma.$queryRaw<Array<{ id: string, status: string, currentScore: number }>>`
-        SELECT "id", "status", "currentScore"
-        FROM "Game"
-        WHERE "userId" = ${params.userId}
-          AND "config"->>'friendChallengeId' = ${params.challengeId}
-        ORDER BY "createdAt" DESC
-        LIMIT 1
-    `
-
-    return rows[0] ?? null
-}
-
 async function getChallengeBoardMetadata(challengeId: string): Promise<{
     boardCategoryId: string | null
     boardCategoryIds: string[]
@@ -522,7 +526,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
     if (parsed.error) return parsed.error
 
     const now = new Date()
-    const { status, includeExpired, limit } = parsed.data
+    const { status, includeExpired, limit, challengeId } = parsed.data
 
     try {
         await prisma.friendChallenge.updateMany({
@@ -542,6 +546,10 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 { challengerUserId: user.id },
                 { opponentUserId: user.id },
             ],
+        }
+
+        if (challengeId) {
+            where.id = challengeId
         }
 
         if (status !== 'all') {
@@ -594,29 +602,67 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                     }
                 }
 
+                if (
+                    challenge.status !== FriendChallengeStatus.ACCEPTED
+                    && challenge.status !== FriendChallengeStatus.COMPLETED
+                ) {
+                    const [challengerGameId, opponentGameId, boardMetadata] = await Promise.all([
+                        findChallengeGameIdForUser({
+                            userId: challenge.challengerUserId,
+                            challengeId: challenge.id,
+                        }),
+                        findChallengeGameIdForUser({
+                            userId: challenge.opponentUserId,
+                            challengeId: challenge.id,
+                        }),
+                        getChallengeBoardMetadata(challenge.id),
+                    ])
+
+                    return {
+                        ...challenge,
+                        challengerGameId,
+                        opponentGameId,
+                        boardCategoryId: boardMetadata.boardCategoryId,
+                        boardCategoryIds: boardMetadata.boardCategoryIds,
+                        boardCategories: boardMetadata.boardCategories,
+                    }
+                }
+
                 const [challengerGame, opponentGame, boardMetadata] = await Promise.all([
-                    findChallengeGameStateForUser({
+                    findChallengeGameStateForUser(prisma, {
                         userId: challenge.challengerUserId,
                         challengeId: challenge.id,
                     }),
-                    findChallengeGameStateForUser({
+                    findChallengeGameStateForUser(prisma, {
                         userId: challenge.opponentUserId,
                         challengeId: challenge.id,
                     }),
                     getChallengeBoardMetadata(challenge.id),
                 ])
 
-                const nextChallengerScore = challengerGame?.currentScore ?? challenge.challengerScore
-                const nextOpponentScore = opponentGame?.currentScore ?? challenge.opponentScore
-                const shouldComplete =
-                    challenge.status === FriendChallengeStatus.ACCEPTED
-                    && challengerGame?.status === 'COMPLETED'
-                    && opponentGame?.status === 'COMPLETED'
+                const reconciled = reconcileGameChallengeState(challenge, challengerGame, opponentGame)
+                const needsConflictCheck = (
+                    challenge.status === FriendChallengeStatus.COMPLETED
+                    && reconciled.status === FriendChallengeStatus.ACCEPTED
+                )
+                const finalized = finalizeReconciledGameChallengeState({
+                    challenge,
+                    reconciled,
+                    hasConflictingActiveChallenge: needsConflictCheck
+                        ? await hasConflictingActiveChallengeForPair(prisma, {
+                            challengeId: challenge.id,
+                            challengerUserId: challenge.challengerUserId,
+                            opponentUserId: challenge.opponentUserId,
+                        })
+                        : false,
+                })
+                const scoreChanged = finalized.challengerScore !== challenge.challengerScore
+                    || finalized.opponentScore !== challenge.opponentScore
+                const statusChanged = finalized.status !== challenge.status
+                    || finalized.winnerUserId !== challenge.winnerUserId
+                    || ((finalized.completedAt?.getTime() ?? null) !== (challenge.completedAt?.getTime() ?? null))
 
-                const scoreChanged = nextChallengerScore !== challenge.challengerScore
-                    || nextOpponentScore !== challenge.opponentScore
-
-                if (!scoreChanged && !shouldComplete) {
+                if (!scoreChanged && !statusChanged) {
                     return {
                         ...challenge,
                         challengerGameId: challengerGame?.id ?? null,
@@ -627,32 +673,25 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                     }
                 }
 
-                const nextWinnerUserId = shouldComplete
-                    ? nextChallengerScore! > nextOpponentScore!
-                        ? challenge.challengerUserId
-                        : nextOpponentScore! > nextChallengerScore!
-                            ? challenge.opponentUserId
-                            : null
-                    : challenge.winnerUserId
-
                 const updatedChallenge = await prisma.$transaction(async (tx) => {
                     const updated = await tx.friendChallenge.update({
                         where: { id: challenge.id },
                         data: {
-                            challengerScore: nextChallengerScore,
-                            opponentScore: nextOpponentScore,
-                            ...(shouldComplete
-                                ? {
-                                    status: FriendChallengeStatus.COMPLETED,
-                                    completedAt: now,
-                                    winnerUserId: nextWinnerUserId,
-                                }
-                                : {}),
+                            challengerScore: finalized.challengerScore,
+                            opponentScore: finalized.opponentScore,
+                            status: finalized.status,
+                            winnerUserId: finalized.winnerUserId,
+                            completedAt: finalized.status === FriendChallengeStatus.COMPLETED
+                                ? (challenge.completedAt ?? now)
+                                : null,
                         },
                         include: buildChallengeInclude(),
                     })
 
-                    if (shouldComplete) {
+                    if (
+                        challenge.status !== FriendChallengeStatus.COMPLETED
+                        && finalized.status === FriendChallengeStatus.COMPLETED
+                    ) {
                         await tx.friendActivity.create({
                             data: {
                                 actorUserId: challenge.challengerUserId,
@@ -661,8 +700,8 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                                 activityType: FriendActivityType.CHALLENGE_COMPLETED,
                                 metadata: {
                                     challengeId: challenge.id,
-                                    challengerScore: nextChallengerScore,
-                                    opponentScore: nextOpponentScore,
+                                    challengerScore: finalized.challengerScore,
+                                    opponentScore: finalized.opponentScore,
                                     ...challengeParticipantMetadata(challenge),
                                 },
                             },
@@ -756,7 +795,10 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             let boardCategoryIds: string[] = []
             let boardCategorySelections: CustomCategorySelection[] = []
             if (mode === FriendChallengeMode.GAME) {
-                const desiredCount = clampFriendChallengeCategoryCount(categoryCount)
+                const desiredCount = clampFriendChallengeCategoryCount(
+                    categoryCount,
+                    DEFAULT_FRIEND_CHALLENGE_CATEGORY_COUNT,
+                )
                 const previousBoardCategoryIds = await findPreviousBoardCategoryIdsForMatchup({
                     challengerUserId: user.id,
                     opponentUserId: opponentId,

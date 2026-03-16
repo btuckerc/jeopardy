@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 import type { UnlockedAchievement } from '@/types/admin'
 import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
 import ShareResults from '@/app/daily-challenge/components/ShareResults'
+import { formatDailyChallengeDate } from '@/lib/daily-challenge-utils'
 
 interface ArchiveDay {
     id: string
@@ -29,21 +30,21 @@ interface ArchiveDay {
 interface ArchiveDayDetailProps {
     day: ArchiveDay
     onBack: () => void
-    onParticipationUpdate: (challengeId: string, participation: {
+    onParticipationUpdate: (challengeId: string, update: {
         correct: boolean
         completedAt: string
         userAnswerText: string | null
+        answer?: string | null
     }) => void
 }
 
 // Helper to format date
 function formatDate(dateStr: string): string {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', {
+    return formatDailyChallengeDate(dateStr, {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
-        day: 'numeric'
+        day: 'numeric',
     })
 }
 
@@ -140,7 +141,8 @@ export default function ArchiveDayDetail({ day, onBack, onParticipationUpdate }:
             onParticipationUpdate(day.id, {
                 correct: data.correct,
                 completedAt: new Date().toISOString(),
-                userAnswerText: userAnswer
+                userAnswerText: userAnswer,
+                answer: data.answer ?? null,
             })
             
             toast.success(data.correct ? 'Correct!' : 'Incorrect')

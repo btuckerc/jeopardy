@@ -8,6 +8,64 @@
 const TIMEZONE = 'America/New_York'
 const UNLOCK_HOUR = 9 // 9 AM ET
 
+export function getDailyChallengeDateKey(value: Date | string): string {
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        const directMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+        if (directMatch) {
+            return trimmed
+        }
+
+        const parsed = new Date(trimmed)
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString().slice(0, 10)
+        }
+
+        return trimmed
+    }
+
+    return value.toISOString().slice(0, 10)
+}
+
+export function getDailyChallengeDateFromKey(
+    value: Date | string,
+): Date {
+    const dateKey = getDailyChallengeDateKey(value)
+    const match = dateKey.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+
+    if (!match) {
+        const parsed = new Date(dateKey)
+        return Number.isNaN(parsed.getTime()) ? new Date(NaN) : parsed
+    }
+
+    return new Date(Date.UTC(
+        Number.parseInt(match[1], 10),
+        Number.parseInt(match[2], 10) - 1,
+        Number.parseInt(match[3], 10),
+        12,
+        0,
+        0,
+        0,
+    ))
+}
+
+export function formatDailyChallengeDate(
+    value: Date | string,
+    options: Intl.DateTimeFormatOptions = {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    },
+    locale: string = 'en-US',
+): string {
+    const displayDate = getDailyChallengeDateFromKey(value)
+    if (Number.isNaN(displayDate.getTime())) {
+        return getDailyChallengeDateKey(value)
+    }
+
+    return displayDate.toLocaleDateString(locale, options)
+}
+
 /**
  * Get the current time components in America/New_York timezone
  */
@@ -130,8 +188,7 @@ export function getActiveChallengeDate(now: Date = new Date()): Date {
  * Get the active challenge date as an ISO date string (YYYY-MM-DD)
  */
 export function getActiveChallengeDateString(now: Date = new Date()): string {
-    const date = getActiveChallengeDate(now)
-    return date.toISOString().split('T')[0]
+    return getDailyChallengeDateKey(getActiveChallengeDate(now))
 }
 
 /**

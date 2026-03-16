@@ -3,7 +3,11 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { NextRequest } from 'next/server'
-import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
+import {
+    getActiveChallengeDate,
+    getDailyChallengeDateFromKey,
+    getDailyChallengeDateKey,
+} from '@/lib/daily-challenge-utils'
 
 /**
  * GET /api/daily-challenge/archive
@@ -14,7 +18,7 @@ export const GET = withInstrumentation(async (_request: NextRequest) => {
         const { searchParams } = _request.nextUrl
         const revealAnswers = searchParams.get('reveal') === 'true'
         const user = await getAppUser()
-        const activeDate = getActiveChallengeDate()
+        const activeDate = getDailyChallengeDateFromKey(getActiveChallengeDate())
         
         // Calculate the date 6 days ago (to get 7 days total including today)
         const sevenDaysAgo = new Date(activeDate)
@@ -73,7 +77,7 @@ export const GET = withInstrumentation(async (_request: NextRequest) => {
             const includeAnswer = revealAnswers || !!participation
             return {
                 id: challenge.id,
-                date: challenge.date.toISOString(),
+                date: getDailyChallengeDateKey(challenge.date),
                 question: {
                     id: challenge.question.id,
                     question: challenge.question.question,
@@ -91,7 +95,7 @@ export const GET = withInstrumentation(async (_request: NextRequest) => {
         
         return jsonResponse({
             challenges: archiveData,
-            activeDate: activeDate.toISOString()
+            activeDate: getDailyChallengeDateKey(activeDate)
         })
     } catch (error) {
         console.error('Error fetching daily challenge archive:', error)

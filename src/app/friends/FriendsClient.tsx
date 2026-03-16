@@ -150,6 +150,7 @@ type InviteState =
 interface InvitePreview {
     state: InviteState
     canSendRequest: boolean
+    requestId?: string | null
     inviter: Pick<FriendProfile, 'id' | 'displayName' | 'selectedIcon' | 'avatarBackground'>
     code: string | null
 }
@@ -294,6 +295,8 @@ interface RemoveFriendConfirmationState {
 type FriendSection = 'friends' | 'connect' | 'requests' | 'challenges' | 'activity' | 'compare' | 'settings'
 
 type ActivityFilter = 'all' | 'requests' | 'challenges' | 'completed'
+
+const DEFAULT_FRIEND_CHALLENGE_CATEGORY_COUNT = 3
 
 const ACTIVITY_FILTER_OPTIONS: { value: ActivityFilter; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -759,7 +762,9 @@ export default function FriendsClient({ user }: FriendsClientProps) {
 
         setInviteLoading(true)
         try {
-            const response = await fetch(`/api/friends/invite?${query.toString()}`)
+            const response = await fetch(`/api/friends/invite?${query.toString()}`, {
+                cache: 'no-store',
+            })
             if (!response.ok) {
                 const payload = await response.json()
                 throw new Error(payload?.error || 'Unable to load this invite')
@@ -789,10 +794,10 @@ export default function FriendsClient({ user }: FriendsClientProps) {
 
         try {
             const [friendsResponse, challengeResponse, activityResponse, inviteResponse] = await Promise.all([
-                fetch('/api/friends?status=pending'),
-                fetch('/api/challenges/friends?status=all&includeExpired=true'),
-                fetch('/api/friends/activity?limit=40'),
-                fetch('/api/friends/invite'),
+                fetch('/api/friends?status=pending', { cache: 'no-store' }),
+                fetch('/api/challenges/friends?status=all&includeExpired=true', { cache: 'no-store' }),
+                fetch('/api/friends/activity?limit=40', { cache: 'no-store' }),
+                fetch('/api/friends/invite', { cache: 'no-store' }),
             ])
 
             if (!friendsResponse.ok || !challengeResponse.ok || !activityResponse.ok || !inviteResponse.ok) {
@@ -851,7 +856,9 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         setErrorMessage('')
         setComparisonLoading(true)
         try {
-            const response = await fetch(`/api/friends/streak-comparison?friendId=${friendId}`)
+            const response = await fetch(`/api/friends/streak-comparison?friendId=${friendId}`, {
+                cache: 'no-store',
+            })
             if (!response.ok) {
                 const body = await response.json()
                 throw new Error(body?.error || 'Unable to compare with this friend')
@@ -903,11 +910,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         setActiveSection('connect')
 
         const nextParams = new URLSearchParams(searchParams.toString())
-        nextParams.delete('invite')
-        if (!nextParams.get('tab')) {
-            nextParams.set('tab', 'connect')
-        }
-
+        nextParams.set('tab', 'connect')
         router.replace(`/friends?${nextParams.toString()}`, { scroll: false })
         void loadInvitePreview({ token: inviteToken }).catch(markError)
     }, [loadInvitePreview, router, searchParams])
@@ -932,6 +935,25 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             document.removeEventListener('visibilitychange', handleVisibilityRefresh)
         }
     }, [loadFriendData])
+
+    useEffect(() => {
+        const eventSource = new EventSource('/api/friends/events')
+
+        eventSource.addEventListener('social_update', () => {
+            void loadFriendData({ silent: true })
+            if (selectedFriendId) {
+                void loadComparison(selectedFriendId)
+            }
+        })
+
+        eventSource.onerror = () => {
+            eventSource.close()
+        }
+
+        return () => {
+            eventSource.close()
+        }
+    }, [loadComparison, loadFriendData, selectedFriendId])
 
     useEffect(() => {
         if (!selectedFriendId) {
@@ -1150,6 +1172,30 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         await sendFriendRequest(invitePreview.inviter.id)
     }
 
+    const acceptRequestFromPreview = async () => {
+        if (!invitePreview?.requestId) {
+            return
+        }
+
+        await respondToRequest(invitePreview.requestId, 'accept')
+        setInviteActionMessage('Friend request accepted.')
+        setInvitePreview((previous) => (
+            previous ? { ...previous, state: 'already_friends', canSendRequest: false } : previous
+        ))
+    }
+
+    const cancelRequestFromPreview = async () => {
+        if (!invitePreview?.requestId) {
+            return
+        }
+
+        await respondToRequest(invitePreview.requestId, 'cancel')
+        setInviteActionMessage('Friend request cancelled.')
+        setInvitePreview((previous) => (
+            previous ? { ...previous, state: 'ready', canSendRequest: true, requestId: null } : previous
+        ))
+    }
+
     const buildInviteUrl = () => {
         if (!ownInvite?.inviteToken || typeof window === 'undefined') {
             return ''
@@ -1181,8 +1227,13 @@ export default function FriendsClient({ user }: FriendsClientProps) {
 
     const shareInviteNatively = async () => {
         const inviteUrl = buildInviteUrl()
-        const shareTitle = 'Add me on trivrdy'
-        const shareText = `${user.displayName || 'Join me'} on trivrdy and compare trivia streaks.`
+        const inviterName = user.displayName || 'A friend'
+        const shareTitle = `${inviterName} invited you to trivrdy`
+        const shareText = [
+            `${inviterName} wants to connect on trivrdy.`,
+            'Add me as a friend to compare daily challenge results and send head-to-head boards.',
+            ownInvite?.code ? `Friend code: ${ownInvite.code}` : null,
+        ].filter(Boolean).join('\n')
 
         if (typeof navigator !== 'undefined' && navigator.share) {
             await navigator.share({
@@ -1264,7 +1315,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             opponentId: nextOpponentId,
             mode: 'GAME',
             categorySelection: 'RANDOM',
-            categoryCount: 6,
+            categoryCount: DEFAULT_FRIEND_CHALLENGE_CATEGORY_COUNT,
             categoryChoices: [],
         })
         setActiveChallengeConflict(null)
@@ -1597,12 +1648,13 @@ export default function FriendsClient({ user }: FriendsClientProps) {
     const openEndChallengeModal = (challenge: ChallengeRecord) => {
         const challengerName = formatUserLabel(challenge.challenger)
         const opponentName = formatUserLabel(challenge.opponent)
+        const isWaitingOnOpponent = isViewerWaitingOnChallenge(challenge)
         setEndChallengeModal({
             mode: 'end-active',
             challengeId: challenge.id,
-            title: 'End active challenge?',
+            title: isWaitingOnOpponent ? 'Cancel waiting challenge?' : 'End active challenge?',
             message: `This will cancel the active challenge between ${challengerName} and ${opponentName}. This cannot be undone.`,
-            confirmLabel: 'Yes, end challenge',
+            confirmLabel: isWaitingOnOpponent ? 'Yes, cancel challenge' : 'Yes, end challenge',
         })
     }
 
@@ -1907,6 +1959,18 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             : request.fromUser.displayName || request.fromUser.email || 'Unknown'
 
     const isChallengeExpired = (challenge: ChallengeRecord) => challenge.status === 'EXPIRED' || new Date(challenge.expiresAt) <= new Date()
+
+    const isViewerWaitingOnChallenge = (challenge: ChallengeRecord) => {
+        if (challenge.mode !== 'GAME' || challenge.status !== 'ACCEPTED') {
+            return false
+        }
+
+        const viewerIsChallenger = challenge.challengerUserId === user.id
+        const viewerScore = viewerIsChallenger ? challenge.challengerScore : challenge.opponentScore
+        const opponentScore = viewerIsChallenger ? challenge.opponentScore : challenge.challengerScore
+
+        return viewerScore !== null && opponentScore === null
+    }
 
     const challengeExpiresSoon = (challenge: ChallengeRecord) => {
         if (challenge.status !== 'PENDING') return false
@@ -2222,28 +2286,20 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                 </aside>
 
                 <div className="workspace-main">
-                    <section className="workspace-main-header">
-                        <div className="workspace-main-header-layout">
-                            <div className="min-w-0">
-                                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
-                                    {activeFriendNavItem?.label || 'Friends'}
-                                </div>
-                                <h1 className="workspace-main-title mt-2">{currentFriendSection.title}</h1>
-                                <p className="workspace-main-subtitle max-w-3xl">{currentFriendSection.subtitle}</p>
+                    {activeSection !== 'connect' ? (
+                        <section className="friends-cta-banner" aria-label="Add a friend call to action">
+                            <div className="friends-cta-banner-copy">Add a friend</div>
+                            <div className="friends-cta-banner-action">
+                                <button
+                                    type="button"
+                                    className="btn-primary btn-sm"
+                                    onClick={() => activateSection('connect')}
+                                >
+                                    Add Friend
+                                </button>
                             </div>
-                            {activeSection !== 'connect' ? (
-                                <div className="workspace-main-header-action">
-                                    <button
-                                        type="button"
-                                        className="btn-primary btn-sm"
-                                        onClick={() => activateSection('connect')}
-                                    >
-                                        Add Friend
-                                    </button>
-                                </div>
-                            ) : null}
-                        </div>
-                    </section>
+                        </section>
+                    ) : null}
 
                     {activeSection === 'connect' && (
                         <section className="workspace-surface p-5 md:p-6">
@@ -2415,16 +2471,38 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                                 ) : null}
                                             </div>
                                         </div>
-                                        {invitePreview.canSendRequest ? (
-                                            <button
-                                                type="button"
-                                                className="btn-primary btn-sm"
-                                                onClick={() => void sendRequestFromPreview().catch(markError)}
-                                                disabled={inviteLoading}
-                                            >
-                                                Send friend request
-                                            </button>
-                                        ) : null}
+                                        <div className="flex flex-wrap gap-2">
+                                            {invitePreview.canSendRequest ? (
+                                                <button
+                                                    type="button"
+                                                    className="btn-primary btn-sm"
+                                                    onClick={() => void sendRequestFromPreview().catch(markError)}
+                                                    disabled={inviteLoading}
+                                                >
+                                                    Send friend request
+                                                </button>
+                                            ) : null}
+                                            {invitePreview.state === 'incoming_pending' && invitePreview.requestId ? (
+                                                <button
+                                                    type="button"
+                                                    className="btn-primary btn-sm"
+                                                    onClick={() => void acceptRequestFromPreview().catch(markError)}
+                                                    disabled={inviteLoading}
+                                                >
+                                                    Accept request
+                                                </button>
+                                            ) : null}
+                                            {invitePreview.state === 'outgoing_pending' && invitePreview.requestId ? (
+                                                <button
+                                                    type="button"
+                                                    className="btn-outline btn-sm"
+                                                    onClick={() => void cancelRequestFromPreview().catch(markError)}
+                                                    disabled={inviteLoading}
+                                                >
+                                                    Cancel request
+                                                </button>
+                                            ) : null}
+                                        </div>
                                     </div>
                                 </div>
                             ) : null}
@@ -2692,6 +2770,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                             opponentScore: challenge.opponentScore?.toString() || '',
                                         }
                                         const expiresSoon = challengeExpiresSoon(challenge)
+                                        const isWaitingOnOpponent = isViewerWaitingOnChallenge(challenge)
                                         const winner = winnerCopy(challenge)
                                         const challengerName = formatUserLabel(challenge.challenger)
                                         const opponentName = formatUserLabel(challenge.opponent)
@@ -2757,7 +2836,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                                                 className="btn-outline btn-sm"
                                                                 onClick={() => openEndChallengeModal(challenge)}
                                                             >
-                                                                End
+                                                                {isWaitingOnOpponent ? 'Cancel' : 'End'}
                                                             </button>
                                                         ) : null}
                                                         {challenge.challengerUserId === user.id && challenge.status === 'PENDING' ? (
@@ -2848,7 +2927,11 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                                             className="btn-primary btn-sm ml-auto"
                                                             onClick={() => void launchChallengeGame(challenge.id).catch(markError)}
                                                         >
-                                                            {challenge.status === 'COMPLETED' ? 'Review Challenge Round' : 'Play Challenge Round'}
+                                                            {challenge.status === 'COMPLETED'
+                                                                ? 'Review Challenge Round'
+                                                                : isWaitingOnOpponent
+                                                                    ? 'Review while you wait'
+                                                                    : 'Play Challenge Round'}
                                                         </button>
                                                     </div>
                                                 )}
@@ -3881,7 +3964,10 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                                 onClick={() => setChallengeCategoryCount(count)}
                                                 disabled={creatingChallenge}
                                             >
-                                                {count}
+                                                <span>{count}</span>
+                                                {count === 1 ? <span className="ml-1 text-[11px] font-medium opacity-80">Quick</span> : null}
+                                                {count === 3 ? <span className="ml-1 text-[11px] font-medium opacity-80">Recommended</span> : null}
+                                                {count === 6 ? <span className="ml-1 text-[11px] font-medium opacity-80">Long</span> : null}
                                             </button>
                                         ))}
                                     </div>

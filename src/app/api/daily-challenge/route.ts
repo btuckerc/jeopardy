@@ -8,7 +8,7 @@ import { parseGameById, getSeasonGames, type SeasonGame, type ParsedGame } from 
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import { getGuestConfig, createGuestSession } from '@/lib/guest-sessions'
 import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
-import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
+import { getActiveChallengeDate, getDailyChallengeDateKey } from '@/lib/daily-challenge-utils'
 
 /**
  * GET /api/daily-challenge
@@ -85,7 +85,7 @@ export const GET = withInstrumentation(async (_request: NextRequest) => {
 
         return jsonResponse({
             id: challenge.id,
-            date: challenge.date,
+            date: getDailyChallengeDateKey(challenge.date),
             question: {
                 id: challenge.question.id,
                 question: challenge.question.question,

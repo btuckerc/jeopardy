@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
 import { getGuestConfig, createGuestSession } from '@/lib/guest-sessions'
-import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
+import { getActiveChallengeDate, getDailyChallengeDateFromKey } from '@/lib/daily-challenge-utils'
 
 const submitSchema = z.object({
     challengeId: z.string(),
@@ -55,11 +55,11 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         }
         
         // Validate the challenge is within the 7-day window
-        const activeDate = getActiveChallengeDate()
+        const activeDate = getDailyChallengeDateFromKey(getActiveChallengeDate())
         const sevenDaysAgo = new Date(activeDate)
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
-        
-        const challengeDate = new Date(challenge.date)
+
+        const challengeDate = getDailyChallengeDateFromKey(challenge.date)
         if (challengeDate < sevenDaysAgo || challengeDate > activeDate) {
             return jsonResponse({ 
                 error: 'Challenge is outside the 7-day archive window' 

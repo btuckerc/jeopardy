@@ -1,0 +1,21 @@
+# robots.txt for trivrdy.com
+# Allow all search engines to crawl public pages
+
+User-agent: *
+Allow: /
+
+# Disallow private and auth pages
+Disallow: /api/
+Disallow: /admin/
+Disallow: /settings/
+Disallow: /sign-in/
+Disallow: /sign-up/
+
+# Disallow game boards (personal game sessions)
+Disallow: /game/*/
+
+# Allow opengraph image generation
+Allow: /api/og
+
+# Sitemap location
+Sitemap: https://trivrdy.com/sitemap.xml

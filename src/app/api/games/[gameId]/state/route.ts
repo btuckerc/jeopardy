@@ -7,6 +7,12 @@ import { z } from 'zod'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import type { Prisma } from '@prisma/client'
 import { FriendActivityType, FriendChallengeMode, FriendChallengeStatus } from '@prisma/client'
+import {
+    finalizeReconciledGameChallengeState,
+    findChallengeGameStateForUser,
+    hasConflictingActiveChallengeForPair,
+    reconcileGameChallengeState,
+} from '@/lib/friend-challenge-state'
 
 interface GameConfig {
     finalJeopardyQuestionId?: string
@@ -76,54 +82,64 @@ async function syncFriendChallengeCompletion(params: {
             return
         }
 
-        const partiallyUpdated = await tx.friendChallenge.update({
-            where: { id: challenge.id },
-            data: isChallenger
-                ? { challengerScore: params.finalScore }
-                : { opponentScore: params.finalScore },
+        const challengerGame = await findChallengeGameStateForUser(tx, {
+            userId: challenge.challengerUserId,
+            challengeId: challenge.id,
         })
-
-        const challengerScore = isChallenger ? params.finalScore : partiallyUpdated.challengerScore
-        const opponentScore = isOpponent ? params.finalScore : partiallyUpdated.opponentScore
-        const hasBothScores = challengerScore !== null && opponentScore !== null
-
-        if (!hasBothScores || partiallyUpdated.status === FriendChallengeStatus.COMPLETED) {
-            return
-        }
-
-        const winnerUserId =
-            challengerScore > opponentScore
-                ? challenge.challengerUserId
-                : opponentScore > challengerScore
-                    ? challenge.opponentUserId
-                    : null
+        const opponentGame = await findChallengeGameStateForUser(tx, {
+            userId: challenge.opponentUserId,
+            challengeId: challenge.id,
+        })
+        const reconciled = reconcileGameChallengeState(challenge, challengerGame, opponentGame)
+        const needsConflictCheck = (
+            challenge.status === FriendChallengeStatus.COMPLETED
+            && reconciled.status === FriendChallengeStatus.ACCEPTED
+        )
+        const finalized = finalizeReconciledGameChallengeState({
+            challenge,
+            reconciled,
+            hasConflictingActiveChallenge: needsConflictCheck
+                ? await hasConflictingActiveChallengeForPair(tx, {
+                    challengeId: challenge.id,
+                    challengerUserId: challenge.challengerUserId,
+                    opponentUserId: challenge.opponentUserId,
+                })
+                : false,
+        })
 
         await tx.friendChallenge.update({
             where: { id: challenge.id },
             data: {
-                status: FriendChallengeStatus.COMPLETED,
-                challengerScore,
-                opponentScore,
-                winnerUserId,
-                completedAt: params.completedAt,
+                challengerScore: finalized.challengerScore,
+                opponentScore: finalized.opponentScore,
+                status: finalized.status,
+                winnerUserId: finalized.winnerUserId,
+                completedAt: finalized.status === FriendChallengeStatus.COMPLETED
+                    ? (challenge.completedAt ?? params.completedAt)
+                    : null,
             },
         })
 
-        await tx.friendActivity.create({
-            data: {
-                actorUserId: params.userId,
-                relatedUserId: isChallenger ? challenge.opponentUserId : challenge.challengerUserId,
-                challengeId: challenge.id,
-                activityType: FriendActivityType.CHALLENGE_COMPLETED,
-                metadata: {
+        if (
+            challenge.status !== FriendChallengeStatus.COMPLETED
+            && finalized.status === FriendChallengeStatus.COMPLETED
+        ) {
+            await tx.friendActivity.create({
+                data: {
+                    actorUserId: params.userId,
+                    relatedUserId: isChallenger ? challenge.opponentUserId : challenge.challengerUserId,
                     challengeId: challenge.id,
-                    challengerScore,
-                    opponentScore,
-                    challengeChallengerUserId: challenge.challengerUserId,
-                    challengeOpponentUserId: challenge.opponentUserId,
+                    activityType: FriendActivityType.CHALLENGE_COMPLETED,
+                    metadata: {
+                        challengeId: challenge.id,
+                        challengerScore: finalized.challengerScore,
+                        opponentScore: finalized.opponentScore,
+                        challengeChallengerUserId: challenge.challengerUserId,
+                        challengeOpponentUserId: challenge.opponentUserId,
+                    },
                 },
-            },
-        })
+            })
+        }
     })
 }
 

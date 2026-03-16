@@ -126,6 +126,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             invite: {
                 state,
                 canSendRequest: state === 'ready',
+                requestId: existingRequest?.id ?? null,
                 inviter: {
                     id: targetUser.id,
                     displayName: targetUser.displayName,

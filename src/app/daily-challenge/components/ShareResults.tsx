@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { formatDailyChallengeDate } from '@/lib/daily-challenge-utils'
 
 interface ShareResultsProps {
     date: string
@@ -14,12 +15,7 @@ export default function ShareResults({ date, category, isCorrect, streak, timeTo
     const [copied, setCopied] = useState(false)
 
     const generateShareText = () => {
-        const dateObj = new Date(date)
-        const dateStr = dateObj.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        })
+        const dateStr = formatDailyChallengeDate(date)
         
         const parts = [
             `trivrdy Daily Challenge - ${dateStr}`,

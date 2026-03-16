@@ -565,6 +565,40 @@
         @apply rounded-2xl border border-slate-200 bg-slate-50;
     }
 
+    .friends-cta-banner {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgb(191 219 254 / 0.9);
+        background:
+            radial-gradient(circle at right center, rgb(191 219 254 / 0.45), transparent 32%),
+            linear-gradient(135deg, rgb(248 250 252), rgb(239 246 255));
+        box-shadow: 0 12px 28px -24px rgba(37, 99, 235, 0.45);
+        @apply flex items-center justify-between gap-3 rounded-[1.6rem] px-4 py-3 md:px-5;
+    }
+
+    .friends-cta-banner::after {
+        content: '';
+        position: absolute;
+        inset: auto -2.5rem -3rem auto;
+        width: 7rem;
+        height: 7rem;
+        border-radius: 9999px;
+        background: radial-gradient(circle, rgb(59 130 246 / 0.12), transparent 70%);
+        pointer-events: none;
+    }
+
+    .friends-cta-banner-copy {
+        position: relative;
+        z-index: 1;
+        @apply min-w-0 text-sm font-medium text-blue-800;
+    }
+
+    .friends-cta-banner-action {
+        position: relative;
+        z-index: 1;
+        @apply flex items-center justify-end;
+    }
+
     .workspace-floating-action {
         @apply fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700 hover:shadow-xl;
     }
@@ -685,6 +719,10 @@
 
         .workspace-main-title {
             @apply text-[1.9rem];
+        }
+
+        .friends-cta-banner {
+            @apply rounded-[1.35rem] px-3.5 py-3;
         }
     }
 

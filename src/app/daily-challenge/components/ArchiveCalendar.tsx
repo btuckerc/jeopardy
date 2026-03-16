@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { formatDailyChallengeDate, getDailyChallengeDateKey } from '@/lib/daily-challenge-utils'
 
 interface ArchiveDay {
     id: string
@@ -28,19 +29,16 @@ interface ArchiveCalendarProps {
 
 // Helper to format date for display
 function formatDate(dateStr: string): string {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', {
+    return formatDailyChallengeDate(dateStr, {
         weekday: 'short',
         month: 'short',
-        day: 'numeric'
+        day: 'numeric',
     })
 }
 
 // Helper to check if date is today
 function isToday(dateStr: string, activeDateStr: string): boolean {
-    const date = new Date(dateStr)
-    const activeDate = new Date(activeDateStr)
-    return date.toDateString() === activeDate.toDateString()
+    return getDailyChallengeDateKey(dateStr) === getDailyChallengeDateKey(activeDateStr)
 }
 
 export default function ArchiveCalendar({ challenges, activeDate, onSelectDay }: ArchiveCalendarProps) {

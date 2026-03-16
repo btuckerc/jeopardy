@@ -56,6 +56,25 @@ interface GameConfig {
     friendChallengeBoardCategoryIds?: string[]
 }
 
+interface FriendChallengeSummary {
+    id: string
+    status: string
+    challengerUserId: string
+    opponentUserId: string
+    winnerUserId: string | null
+    challengerScore: number | null
+    opponentScore: number | null
+    challenger: {
+        displayName: string | null
+    }
+    opponent: {
+        displayName: string | null
+    }
+    winner: {
+        displayName: string | null
+    } | null
+}
+
 // Helper functions defined before the component
 const normalizeQuestionValue = (value: number, isDoubleJeopardy: boolean): number => {
     const singleJeopardyMap = new Map([
@@ -143,6 +162,14 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     )
     const [showRoundComplete, setShowRoundComplete] = useState(false)
     const [isFinalizingChallengeCompletion, setIsFinalizingChallengeCompletion] = useState(false)
+    const [challengeSummary, setChallengeSummary] = useState<FriendChallengeSummary | null>(null)
+    const [challengeSummaryLoading, setChallengeSummaryLoading] = useState(false)
+    const [showChallengeReviewSplash, setShowChallengeReviewSplash] = useState(
+        Boolean(
+            initialGameData?.status === 'COMPLETED'
+            && (initialGameData?.config as GameConfig | undefined)?.friendChallengeId,
+        ),
+    )
     const challengeCompletionRequestedRef = useRef(false)
     const hasInitialized = useRef(false)
     const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
@@ -263,6 +290,52 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
     const isFriendChallengeGame = Boolean(gameConfig?.friendChallengeId)
     const exitRoute = isFriendChallengeGame ? '/friends?tab=challenges' : '/game'
+    const challengeViewerId = user?.id || initialGameData?.owner.id || null
+
+    useEffect(() => {
+        if (!isCompletedGame || !gameConfig?.friendChallengeId) {
+            setShowChallengeReviewSplash(false)
+            return
+        }
+
+        let cancelled = false
+        setChallengeSummaryLoading(true)
+
+        void fetch(
+            `/api/challenges/friends?status=all&includeExpired=true&challengeId=${encodeURIComponent(gameConfig.friendChallengeId)}&limit=1`,
+            { cache: 'no-store' },
+        )
+            .then(async (response) => {
+                if (!response.ok) {
+                    throw new Error('Failed to load challenge summary')
+                }
+
+                const payload = await response.json() as { challenges?: FriendChallengeSummary[] }
+                const summary = payload.challenges?.[0] ?? null
+
+                if (cancelled) {
+                    return
+                }
+
+                setChallengeSummary(summary)
+                setShowChallengeReviewSplash(summary?.status === 'COMPLETED')
+            })
+            .catch((error) => {
+                console.error('Error loading challenge summary:', error)
+                if (!cancelled) {
+                    setShowChallengeReviewSplash(false)
+                }
+            })
+            .finally(() => {
+                if (!cancelled) {
+                    setChallengeSummaryLoading(false)
+                }
+            })
+
+        return () => {
+            cancelled = true
+        }
+    }, [gameConfig?.friendChallengeId, isCompletedGame])
 
     const getRoundCompletionState = useCallback(() => {
         if (!gameConfig) {
@@ -546,7 +619,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
     // Check for round completion
     useEffect(() => {
-        if (!isCompletedGame && !loading && categories.length > 0 && !showFinalJeopardy && gameConfig) {
+        if (!isCompletedGame && !loading && categories.length > 0 && !showFinalJeopardy && gameConfig && !selectedQuestion) {
             const allAnswered = categories.every(category =>
                 category.questions.every(q => !q || answeredQuestions.has(q.id))
             )
@@ -561,7 +634,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 }
             }
         }
-    }, [isCompletedGame, categories, answeredQuestions, currentRound, loading, showFinalJeopardy, gameConfig, loadFinalJeopardy])
+    }, [isCompletedGame, categories, answeredQuestions, currentRound, loading, showFinalJeopardy, gameConfig, loadFinalJeopardy, selectedQuestion])
 
     // Initialize game from server - runs only once, or use initial data if provided
     useEffect(() => {
@@ -1012,6 +1085,67 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     >
                         {isFriendChallengeGame ? 'Back to Friends' : 'Back to Game Setup'}
                     </button>
+                </div>
+            </div>
+        )
+    }
+
+    if (showChallengeReviewSplash) {
+        const winnerName = challengeSummary?.winner?.displayName
+            || (challengeSummary?.winnerUserId === challengeSummary?.challengerUserId
+                ? challengeSummary?.challenger.displayName
+                : challengeSummary?.winnerUserId === challengeSummary?.opponentUserId
+                    ? challengeSummary?.opponent.displayName
+                    : null)
+            || 'No one'
+        const challengerName = challengeSummary?.challenger.displayName || 'Challenger'
+        const opponentName = challengeSummary?.opponent.displayName || 'Opponent'
+        const resultHeadline = challengeSummaryLoading
+            ? 'Loading challenge result...'
+            : challengeSummary?.winnerUserId === null
+                ? 'Challenge finished in a tie'
+                : challengeSummary?.winnerUserId === challengeViewerId
+                    ? 'You won the challenge'
+                    : `${winnerName} won the challenge`
+
+        return (
+            <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 px-4">
+                <div className="card max-w-2xl w-full p-8 text-center">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                        <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 21h8M12 17v4M7 4h10l-1 7a4 4 0 01-4 3H12a4 4 0 01-4-3L7 4z" />
+                        </svg>
+                    </div>
+                    <h1 className="text-3xl font-bold text-gray-900">{resultHeadline}</h1>
+                    {challengeSummaryLoading ? (
+                        <p className="mt-3 text-gray-600">Pulling the latest scores before review.</p>
+                    ) : (
+                        <>
+                            <p className="mt-3 text-gray-600">
+                                {challengerName} scored {challengeSummary?.challengerScore ?? '—'} and {opponentName} scored {challengeSummary?.opponentScore ?? '—'}.
+                            </p>
+                            <p className="mt-2 text-sm text-gray-500">
+                                Review the board to see every clue and answer from the challenge round.
+                            </p>
+                        </>
+                    )}
+                    <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                        <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => setShowChallengeReviewSplash(false)}
+                            disabled={challengeSummaryLoading}
+                        >
+                            Review Questions
+                        </button>
+                        <button
+                            type="button"
+                            className="btn-outline"
+                            onClick={() => router.push(exitRoute)}
+                        >
+                            Back to Friends
+                        </button>
+                    </div>
                 </div>
             </div>
         )

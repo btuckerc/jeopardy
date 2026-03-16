@@ -58,27 +58,44 @@ export default function ArchiveClient() {
         setSelectedDay(null)
     }
     
-    const handleParticipationUpdate = (challengeId: string, participation: {
+    const handleParticipationUpdate = (challengeId: string, update: {
         correct: boolean
         completedAt: string
         userAnswerText: string | null
+        answer?: string | null
     }) => {
         // Update the challenges list with new participation data
         setChallenges(prev => prev.map(challenge => {
             if (challenge.id === challengeId) {
                 return {
                     ...challenge,
-                    participation
+                    question: {
+                        ...challenge.question,
+                        answer: update.answer ?? challenge.question.answer,
+                    },
+                    participation: {
+                        correct: update.correct,
+                        completedAt: update.completedAt,
+                        userAnswerText: update.userAnswerText,
+                    },
                 }
             }
             return challenge
         }))
-        
+
         // Update selected day if it's the one being modified
         if (selectedDay && selectedDay.id === challengeId) {
             setSelectedDay({
                 ...selectedDay,
-                participation
+                question: {
+                    ...selectedDay.question,
+                    answer: update.answer ?? selectedDay.question.answer,
+                },
+                participation: {
+                    correct: update.correct,
+                    completedAt: update.completedAt,
+                    userAnswerText: update.userAnswerText,
+                },
             })
         }
     }

@@ -1,17 +1,71 @@
 import Link from 'next/link'
-import { getAppUser } from '@/lib/clerk-auth'
-import FriendsClient from './FriendsClient'
 import { Metadata } from 'next'
+import { getAppUser } from '@/lib/clerk-auth'
+import { getFriendInviteByToken } from '@/lib/friends'
+import FriendsClient from './FriendsClient'
 
-export const metadata: Metadata = {
-    title: 'Friends | Social Features - trivrdy',
-    description: 'Challenge friends and compare trivia progress together.',
+type SearchParams = Record<string, string | string[] | undefined>
+
+function getInviteToken(value: string | string[] | undefined): string | null {
+    if (typeof value === 'string' && value.trim()) {
+        return value.trim()
+    }
+
+    return null
+}
+
+export async function generateMetadata({
+    searchParams,
+}: {
+    searchParams?: Promise<SearchParams> | SearchParams
+}): Promise<Metadata> {
+    const resolvedSearchParams = searchParams ? await searchParams : {}
+    const inviteToken = getInviteToken(resolvedSearchParams.invite)
+
+    if (!inviteToken) {
+        return {
+            title: 'Friends | Social Features - trivrdy',
+            description: 'Add friends, compare daily challenge results, and send head-to-head Jeopardy boards.',
+            openGraph: {
+                title: 'Friends | Social Features - trivrdy',
+                description: 'Add friends, compare daily challenge results, and send head-to-head Jeopardy boards.',
+                url: 'https://trivrdy.com/friends',
+                type: 'website',
+            },
+            twitter: {
+                card: 'summary_large_image',
+                title: 'Friends | Social Features - trivrdy',
+                description: 'Add friends, compare daily challenge results, and send head-to-head Jeopardy boards.',
+            },
+        }
+    }
+
+    const inviter = await getFriendInviteByToken(inviteToken)
+    const inviterName = inviter?.displayName || 'A friend'
+    const title = `${inviterName} invited you to trivrdy`
+    const description = `Open ${inviterName}'s invite to connect on trivrdy, compare daily challenge results, and trade head-to-head boards.`
+
+    return {
+        title,
+        description,
+        openGraph: {
+            title,
+            description,
+            url: `https://trivrdy.com/friends?invite=${encodeURIComponent(inviteToken)}`,
+            type: 'website',
+        },
+        twitter: {
+            card: 'summary_large_image',
+            title,
+            description,
+        },
+    }
 }
 
 export default async function FriendsPage({
     searchParams,
 }: {
-    searchParams?: Promise<Record<string, string | string[] | undefined>> | Record<string, string | string[] | undefined>
+    searchParams?: Promise<SearchParams> | SearchParams
 }) {
     const user = await getAppUser()
     const resolvedSearchParams = searchParams ? await searchParams : {}
@@ -20,9 +74,9 @@ export default async function FriendsPage({
         const redirectParams = new URLSearchParams()
         redirectParams.set('tab', 'connect')
 
-        const inviteParam = resolvedSearchParams.invite
-        if (typeof inviteParam === 'string' && inviteParam.trim()) {
-            redirectParams.set('invite', inviteParam.trim())
+        const inviteParam = getInviteToken(resolvedSearchParams.invite)
+        if (inviteParam) {
+            redirectParams.set('invite', inviteParam)
         }
 
         return (

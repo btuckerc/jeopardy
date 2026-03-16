@@ -1,11 +1,15 @@
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
-import { FriendChallengeStatus } from '@prisma/client'
+import { FriendChallengeMode, FriendChallengeStatus } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { badRequestResponse, jsonResponse, parseSearchParams, requireAuth, serverErrorResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { getFriendshipBetweenUsers, isFriend } from '@/lib/friends'
 import { DEFAULT_STATS_CLUE_VALUE, FINAL_STATS_CLUE_VALUE } from '@/lib/scoring'
+import {
+    findChallengeGameStateForUser,
+    reconcileGameChallengeState,
+} from '@/lib/friend-challenge-state'
 
 const compareSchema = z.object({
     friendId: z.string().trim().min(1, 'friendId is required'),
@@ -264,15 +268,18 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             `,
             prisma.friendChallenge.findMany({
                 where: {
-                    status: FriendChallengeStatus.COMPLETED,
                     OR: [
                         { challengerUserId: user.id, opponentUserId: friendId },
                         { challengerUserId: friendId, opponentUserId: user.id },
                     ],
                 },
                 select: {
+                    id: true,
+                    status: true,
+                    mode: true,
                     winnerUserId: true,
                     challengerUserId: true,
+                    opponentUserId: true,
                     challengerScore: true,
                     opponentScore: true,
                     completedAt: true,
@@ -301,6 +308,50 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             }
         })
 
+        const resolvedHeadToHeadChallenges = await Promise.all(
+            headToHeadChallenges.map(async (challenge) => {
+                if (challenge.mode !== FriendChallengeMode.GAME) {
+                    return challenge.status === FriendChallengeStatus.COMPLETED ? challenge : null
+                }
+
+                if (
+                    challenge.status !== FriendChallengeStatus.ACCEPTED
+                    && challenge.status !== FriendChallengeStatus.COMPLETED
+                ) {
+                    return null
+                }
+
+                const [challengerGame, opponentGame] = await Promise.all([
+                    findChallengeGameStateForUser(prisma, {
+                        userId: challenge.challengerUserId,
+                        challengeId: challenge.id,
+                    }),
+                    findChallengeGameStateForUser(prisma, {
+                        userId: challenge.opponentUserId,
+                        challengeId: challenge.id,
+                    }),
+                ])
+                const reconciled = reconcileGameChallengeState(challenge, challengerGame, opponentGame)
+
+                if (reconciled.status !== FriendChallengeStatus.COMPLETED) {
+                    return null
+                }
+
+                return {
+                    ...challenge,
+                    status: reconciled.status,
+                    winnerUserId: reconciled.winnerUserId,
+                    challengerScore: reconciled.challengerScore,
+                    opponentScore: reconciled.opponentScore,
+                    completedAt: challenge.completedAt,
+                }
+            }),
+        )
+
+        const completedHeadToHeadChallenges = resolvedHeadToHeadChallenges
+            .filter((challenge): challenge is NonNullable<typeof challenge> => Boolean(challenge))
+            .sort((a, b) => (b.completedAt?.getTime() ?? 0) - (a.completedAt?.getTime() ?? 0))
+
         let viewerWins = 0
         let friendWins = 0
         let ties = 0
@@ -313,7 +364,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         let friendBestScore = 0
         const recentMatches: HeadToHeadMatch[] = []
 
-        for (const challenge of headToHeadChallenges) {
+        for (const challenge of completedHeadToHeadChallenges) {
             const winner: CompareWinner = challenge.winnerUserId === user.id
                 ? 'VIEWER'
                 : challenge.winnerUserId === friendId
@@ -388,7 +439,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             },
         ]
 
-        if (headToHeadChallenges.length > 0) {
+        if (completedHeadToHeadChallenges.length > 0) {
             matchupStats.splice(4, 0, {
                 id: 'head-to-head',
                 label: 'Head-to-head',
@@ -416,7 +467,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             insights.push(`${leaderName} is landing more consistently overall: ${formatPercent(leaderAccuracy)} vs ${formatPercent(trailingAccuracy)}.`)
         }
 
-        if (headToHeadChallenges.length > 0) {
+        if (completedHeadToHeadChallenges.length > 0) {
             if (viewerWins === friendWins) {
                 insights.push(`Your direct challenge record is even at ${viewerWins}-${friendWins}${ties > 0 ? ` with ${ties} tie${ties === 1 ? '' : 's'}` : ''}.`)
                 headToHeadInsights.push(`The rivalry is dead even at ${viewerWins}-${friendWins}${ties > 0 ? ` with ${ties} tie${ties === 1 ? '' : 's'}` : ''}.`)
@@ -511,7 +562,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 insights,
                 headToHeadInsights,
                 headToHead: {
-                    completedCount: headToHeadChallenges.length,
+                    completedCount: completedHeadToHeadChallenges.length,
                     viewerWins,
                     friendWins,
                     ties,
@@ -520,11 +571,11 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                     friendAverageScore: scoreSamples > 0 ? Number((friendScoreSum / scoreSamples).toFixed(1)) : null,
                     viewerBestScore: scoreSamples > 0 ? viewerBestScore : null,
                     friendBestScore: scoreSamples > 0 ? friendBestScore : null,
-                    lastCompletedAt: headToHeadChallenges[0]?.completedAt ?? null,
-                    lastResult: headToHeadChallenges[0]
-                        ? headToHeadChallenges[0].winnerUserId === user.id
+                    lastCompletedAt: completedHeadToHeadChallenges[0]?.completedAt ?? null,
+                    lastResult: completedHeadToHeadChallenges[0]
+                        ? completedHeadToHeadChallenges[0].winnerUserId === user.id
                             ? 'VIEWER'
-                            : headToHeadChallenges[0].winnerUserId === friendId
+                            : completedHeadToHeadChallenges[0].winnerUserId === friendId
                                 ? 'FRIEND'
                                 : 'TIE'
                         : null,
