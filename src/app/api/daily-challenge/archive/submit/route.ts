@@ -5,7 +5,7 @@ import { withInstrumentation } from '@/lib/api-instrumentation'
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
-import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
+import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
 import { getGuestConfig, createGuestSession } from '@/lib/guest-sessions'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
@@ -94,11 +94,12 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         
         // Grade the answer
         const overrides = await getQuestionOverrides(challenge.question.id)
-        const isCorrect = await isAnswerAcceptedWithOverrides(
+        const grading = await evaluateAnswerWithOverridesAsync(
             answer.trim(),
             challenge.question.answer,
             overrides
         )
+        const isCorrect = grading.accepted
         
         // Save participation
         let guestSessionId: string | undefined
@@ -123,6 +124,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             
             return jsonResponse({
                 correct: isCorrect,
+                grading,
                 unlockedAchievements,
                 ...(revealAnswer ? { answer: challenge.question.answer } : {})
             })
@@ -135,6 +137,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             
             return jsonResponse({
                 correct: isCorrect,
+                grading,
                 guestSessionId,
                 ...(revealAnswer ? { answer: challenge.question.answer } : {})
             })

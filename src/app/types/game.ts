@@ -1,3 +1,5 @@
+import type { CustomCategorySelection } from '@/lib/custom-category-selections'
+
 export type GameQuestion = {
     id: string
     question: string
@@ -57,6 +59,7 @@ export type GameConfig = {
     mode: 'random' | 'knowledge' | 'custom' | 'date'
     categories?: string[]      // Knowledge category names
     categoryIds?: string[]     // Custom category UUIDs
+    categorySelections?: CustomCategorySelection[] // Custom category board variants
     date?: string              // Air date (YYYY-MM-DD)
     rounds: {
         single: boolean

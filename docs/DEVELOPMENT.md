@@ -46,6 +46,29 @@ npm run dev:docker:down
 
 **Note:** Docker development mounts your source code, so changes are reflected immediately. Only database migrations require a rebuild.
 
+### Production-Style Docker Verification
+
+When validating shipped behavior, prefer the production-style image instead of the local Node.js environment. This is the standard workflow for Codex sessions and for final verification of UI and API changes.
+
+```bash
+# Rebuild and restart the production-style web container
+'/Applications/Docker.app/Contents/Resources/bin/docker' compose up -d --build web
+
+# Run validation against the built image
+'/Applications/Docker.app/Contents/Resources/bin/docker' run --rm --entrypoint sh jeopardy-web -lc 'cd /app && npm run lint'
+'/Applications/Docker.app/Contents/Resources/bin/docker' run --rm --entrypoint sh jeopardy-web -lc 'cd /app && npm run typecheck'
+'/Applications/Docker.app/Contents/Resources/bin/docker' run --rm --entrypoint sh jeopardy-web -lc 'cd /app && npm run test:run'
+```
+
+Use the explicit Docker Desktop binary because some Codex shells do not expose `docker` on `PATH`.
+
+For quick inspection after a rebuild:
+
+```bash
+'/Applications/Docker.app/Contents/Resources/bin/docker' compose ps
+'/Applications/Docker.app/Contents/Resources/bin/docker' logs --tail 200 jeopardy-web-1
+```
+
 ## Environment Variables
 
 Create `.env.local` for local development:

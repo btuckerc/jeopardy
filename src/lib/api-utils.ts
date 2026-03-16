@@ -10,7 +10,7 @@
 
 import { NextResponse } from 'next/server'
 import { z, ZodError, ZodType, ZodTypeDef } from 'zod'
-import { getAppUser } from './clerk-auth'
+import { canUserAccessAdmin, getAppUser, getCurrentClerkPrimaryEmail } from './clerk-auth'
 import { UserRole } from '@prisma/client'
 
 // =============================================================================
@@ -188,15 +188,18 @@ export function parseSearchParams<T, Input = unknown>(
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
     try {
         const appUser = await getAppUser()
-        
+
         if (!appUser) {
             return null
         }
-        
+
+        const currentAuthEmail = await getCurrentClerkPrimaryEmail()
+        const role: UserRole = canUserAccessAdmin(appUser, { currentAuthEmail }) ? 'ADMIN' : 'USER'
+
         return {
             id: appUser.id,
             email: appUser.email || '',
-            role: appUser.role || 'USER'
+            role
         }
     } catch (error) {
         console.error('Error getting authenticated user:', error)
@@ -228,15 +231,15 @@ export async function requireAdmin(): Promise<
     { user: AuthenticatedUser; error: null } | { user: null; error: NextResponse<ApiError> }
 > {
     const { user, error } = await requireAuth()
-    
+
     if (error) {
         return { user: null, error }
     }
-    
+
     if (user!.role !== 'ADMIN') {
         return { user: null, error: forbiddenResponse('Admin access required') }
     }
-    
+
     return { user: user!, error: null }
 }
 

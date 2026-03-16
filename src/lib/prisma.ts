@@ -27,6 +27,9 @@ const globalForPrisma = globalThis as unknown as {
 
 // Track if middleware is already added (prevents duplicate registration)
 let middlewareAdded = false
+const isBuildPhase =
+    process.env.npm_lifecycle_event === 'build'
+    || process.env.NEXT_PHASE === 'phase-production-build'
 
 /**
  * Set the request context getter for correlating queries with API requests
@@ -46,8 +49,8 @@ function createPrismaClient(): PrismaClient {
             : ['error'],
     })
 
-    // Add query timing middleware (only once)
-    if (!middlewareAdded) {
+    // Build-time route analysis runs without a live database; skip DB telemetry there.
+    if (!isBuildPhase && !middlewareAdded) {
         addQueryMiddleware(client)
         middlewareAdded = true
     }

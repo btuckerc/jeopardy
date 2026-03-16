@@ -4,9 +4,13 @@ import * as clerkAuth from './clerk-auth'
 
 vi.mock('./clerk-auth', () => ({
     getAppUser: vi.fn(),
+    getCurrentClerkPrimaryEmail: vi.fn(),
+    canUserAccessAdmin: vi.fn(),
 }))
 
 const mockedGetAppUser = vi.mocked(clerkAuth.getAppUser)
+const mockedGetCurrentClerkPrimaryEmail = vi.mocked(clerkAuth.getCurrentClerkPrimaryEmail)
+const mockedCanUserAccessAdmin = vi.mocked(clerkAuth.canUserAccessAdmin)
 
 function makeClerkUser(overrides: { role?: 'USER' | 'ADMIN'; email?: string } = {}) {
     return {
@@ -29,6 +33,8 @@ function makeClerkUser(overrides: { role?: 'USER' | 'ADMIN'; email?: string } = 
 describe('api-utils', () => {
     beforeEach(() => {
         vi.clearAllMocks()
+        mockedGetCurrentClerkPrimaryEmail.mockResolvedValue(null)
+        mockedCanUserAccessAdmin.mockImplementation((user) => user.role === 'ADMIN')
     })
 
     it('returns null when no authenticated user is present', async () => {
@@ -62,5 +68,19 @@ describe('api-utils', () => {
         expect(adminApproved.error).toBeNull()
         expect(adminApproved.user?.id).toBe('usr_123')
         expect(adminApproved.user?.role).toBe('ADMIN')
+    })
+
+    it('uses the authoritative admin helper when building the authenticated user', async () => {
+        mockedGetAppUser.mockResolvedValue(makeClerkUser({ role: 'USER', email: 'not-admin@example.com' }))
+        mockedGetCurrentClerkPrimaryEmail.mockResolvedValue('admin@example.com')
+        mockedCanUserAccessAdmin.mockReturnValue(true)
+
+        const user = await getAuthenticatedUser()
+
+        expect(user?.role).toBe('ADMIN')
+        expect(mockedCanUserAccessAdmin).toHaveBeenCalledWith(
+            expect.objectContaining({ email: 'not-admin@example.com', role: 'USER' }),
+            { currentAuthEmail: 'admin@example.com' },
+        )
     })
 })

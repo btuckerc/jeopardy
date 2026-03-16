@@ -1,41 +1,18 @@
 'use client'
 
-import { useState } from 'react'
 import { MetricCard, MetricGrid } from '../MetricCard'
-import { TimeSeriesChart, StackedAreaChart } from '../Charts'
+import { DonutChart, HorizontalBarChart, TimeSeriesChart, StackedAreaChart } from '../Charts'
 import { DataTable, StatusBadge, getStatusVariant } from '../DataTable'
 import { useUsageMetrics, useOpsMetrics, useGuestStats } from '../../hooks/useAdminQueries'
+import { getAdminReportingWindowLabel, type AdminReportingWindow } from '../../lib/reporting'
 
-type TimeWindow = '24h' | '7d' | '14d' | '30d'
-
-interface WindowButtonProps {
-    active: boolean
-    onClick: () => void
-    children: React.ReactNode
+interface MetricsOverviewTabProps {
+    window: AdminReportingWindow
 }
 
-function WindowButton({ active, onClick, children }: WindowButtonProps) {
-    return (
-        <button
-            onClick={onClick}
-            className={`
-                px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
-                ${active
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-600 border border-gray-300 hover:border-blue-400'
-                }
-            `}
-        >
-            {children}
-        </button>
-    )
-}
-
-export function MetricsOverviewTab() {
-    const [window, setWindow] = useState<TimeWindow>('7d')
-
+export function MetricsOverviewTab({ window }: MetricsOverviewTabProps) {
     const { data: usageMetrics, isLoading: usageLoading } = useUsageMetrics(window)
-    const { data: opsMetrics, isLoading: opsLoading } = useOpsMetrics(window === '14d' || window === '30d' ? '24h' : window)
+    const { data: opsMetrics, isLoading: opsLoading } = useOpsMetrics(window)
     const { data: guestStats, isLoading: guestLoading } = useGuestStats()
 
     // Transform usage time series for charts
@@ -54,22 +31,6 @@ export function MetricsOverviewTab() {
 
     return (
         <div className="space-y-8">
-            {/* Time Window Selector */}
-            <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-gray-900">System Overview</h2>
-                <div className="flex gap-2">
-                    {(['24h', '7d', '14d', '30d'] as const).map(w => (
-                        <WindowButton
-                            key={w}
-                            active={window === w}
-                            onClick={() => setWindow(w)}
-                        >
-                            {w}
-                        </WindowButton>
-                    ))}
-                </div>
-            </div>
-
             {/* Users & Activity Section */}
             <section>
                 <h3 className="text-base font-semibold text-gray-900 mb-3">Users</h3>
@@ -138,12 +99,12 @@ export function MetricsOverviewTab() {
                     loading={opsLoading}
                 />
                 <MetricCard
-                    title="New Users"
-                    value={usageMetrics?.userbase?.newUsersInWindow ?? 0}
-                    subtitle={`in ${window}`}
-                    color="green"
-                    loading={usageLoading}
-                />
+                        title="New Users"
+                        value={usageMetrics?.userbase?.newUsersInWindow ?? 0}
+                        subtitle={`in ${getAdminReportingWindowLabel(window)}`}
+                        color="green"
+                        loading={usageLoading}
+                    />
                 <MetricCard
                     title="Guest Sessions"
                     value={guestStats?.totalSessions ?? 0}
@@ -219,6 +180,50 @@ export function MetricsOverviewTab() {
                     height={250}
                 />
             </div>
+
+            {/* Audience Segments */}
+            <section>
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-base font-semibold text-gray-900">Audience Segments</h3>
+                    <p className="text-xs text-gray-500">
+                        Active users in the last 30 days
+                    </p>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <HorizontalBarChart
+                        title="Top Countries"
+                        subtitle="Coarse location only"
+                        data={usageMetrics?.audience?.countries ?? []}
+                        loading={usageLoading}
+                        height={260}
+                    />
+                    <DonutChart
+                        title="Device Mix"
+                        subtitle="Last known device family"
+                        data={usageMetrics?.audience?.devices ?? []}
+                        loading={usageLoading}
+                        height={260}
+                        centerLabel="active users"
+                        centerValue={usageMetrics?.audience?.activeUsers30d ?? 0}
+                    />
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                    <HorizontalBarChart
+                        title="Top Referrers"
+                        subtitle="First external referrer we captured"
+                        data={usageMetrics?.audience?.referrers ?? []}
+                        loading={usageLoading}
+                        height={260}
+                    />
+                    <HorizontalBarChart
+                        title="Top Browsers"
+                        subtitle="Last known browser family"
+                        data={usageMetrics?.audience?.browsers ?? []}
+                        loading={usageLoading}
+                        height={260}
+                    />
+                </div>
+            </section>
 
             {/* API Errors Section */}
             <section>
@@ -342,4 +347,3 @@ export function MetricsOverviewTab() {
         </div>
     )
 }
-

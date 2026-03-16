@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useAuth } from '../../lib/auth'
-import { getKnowledgeCategoryDetails, getRandomQuestion, saveAnswer, getCategoryQuestions } from '../../actions/practice'
+import { getKnowledgeCategoryDetails, getRandomQuestion, saveAnswer, getCategoryQuestions, getCategoryStudyContext } from '../../actions/practice'
 import { checkAnswer } from '../../lib/answer-checker'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import { AnswerExplanationPanel } from '../components/PracticeAnswerExplanation'
+import { StudyActionButton, StudyBackButton, StudyBackLink, StudyToggle, showPracticeAnswerTipsToast } from '../components/PracticeControls'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import type { RawCategory, RawQuestion } from '@/types/practice'
@@ -296,6 +296,49 @@ const transformQuestions = (questions: RawQuestion[]): Question[] => {
     }));
 };
 
+const sortQuestionsByValue = (questionList: Question[]): Question[] => {
+    return [...questionList].sort((a, b) => (a.value || 200) - (b.value || 200))
+}
+
+const getNextQuestionInSequence = (questionList: Question[], currentQuestionId: string): Question | null => {
+    const orderedQuestions = sortQuestionsByValue(questionList)
+    const currentIndex = orderedQuestions.findIndex(question => question.id === currentQuestionId)
+
+    if (currentIndex === -1) {
+        return orderedQuestions[0] || null
+    }
+
+    return orderedQuestions[currentIndex + 1] || null
+}
+
+const getRandomQuestionFromList = (questionList: Question[], excludeQuestionId?: string | null): Question | null => {
+    if (!questionList.length) return null
+
+    const eligibleQuestions = excludeQuestionId
+        ? questionList.filter(question => question.id !== excludeQuestionId)
+        : questionList
+
+    const pool = eligibleQuestions.length > 0 ? eligibleQuestions : questionList
+    const randomIndex = Math.floor(Math.random() * pool.length)
+    return pool[randomIndex] || null
+}
+
+const getNextCategoryInSequence = (categoryList: Category[], currentCategoryId?: string | null): string | null => {
+    const categoriesWithQuestions = categoryList.filter(category => category.totalQuestions > 0)
+    if (!categoriesWithQuestions.length) return null
+
+    const currentIndex = categoriesWithQuestions.findIndex(category => category.id === currentCategoryId)
+    if (currentIndex === -1) {
+        return categoriesWithQuestions[0]?.id || null
+    }
+
+    if (categoriesWithQuestions.length === 1) {
+        return null
+    }
+
+    return categoriesWithQuestions[(currentIndex + 1) % categoriesWithQuestions.length]?.id || null
+}
+
 const calculateCategoryInterleaveWeight = (category: Category, retention?: InterleaveCategoryStats): number => {
     const totalAttempts = Math.max(category.totalQuestions, 1)
     const retentionAttempts = Math.max(retention?.attempts ?? 0, 0)
@@ -386,6 +429,7 @@ function FreePracticeContent() {
     const initialKnowledgeCategory = searchParams.get('knowledgeCategory')
     const initialCategory = searchParams.get('category')
     const initialQuestion = searchParams.get('question')
+    const initialMixMode = searchParams.get('mix') === '1' || searchParams.get('mix') === 'true'
 
     const [knowledgeCategories, setKnowledgeCategories] = useState<Category[]>([])
     // Initialize selected states from URL params to prevent flash
@@ -399,10 +443,11 @@ function FreePracticeContent() {
     const isRestoringFromUrl = useRef(false)
     // Track the last URL we set (to detect browser navigation)
     // Initialize to null so the first restoration always runs
-    const lastUrlState = useRef<{ kc: string | null; c: string | null; q: string | null }>({
+    const lastUrlState = useRef<{ kc: string | null; c: string | null; q: string | null; m: string | null }>({
         kc: null,
         c: null,
-        q: null
+        q: null,
+        m: null
     })
     // Track if this is the initial URL restoration (needs to fetch data)
     const isInitialUrlRestore = useRef(true)
@@ -473,6 +518,9 @@ function FreePracticeContent() {
         return localStorage.getItem('practice_explanation_mode') === 'true'
     })
     const [interleaveMode, setInterleaveMode] = useState<boolean>(() => {
+        if (initialMixMode) {
+            return true
+        }
         if (typeof window === 'undefined') {
             return false
         }
@@ -490,6 +538,7 @@ function FreePracticeContent() {
     const [loading, setLoading] = useState(true)
     const [loadingQuestions, setLoadingQuestions] = useState(false)
     const [loadingMore, setLoadingMore] = useState(false)
+    const [activeQuestionNavigation, setActiveQuestionNavigation] = useState<'next' | 'random' | null>(null)
     const [questionStates, setQuestionStates] = useState<Record<string, QuestionState>>({})
     const [currentPage, setCurrentPage] = useState(1)
     const [hasMore, setHasMore] = useState(false)
@@ -802,14 +851,17 @@ function FreePracticeContent() {
             const knowledgeCategoryParam = searchParams.get('knowledgeCategory')
             const categoryParam = searchParams.get('category')
             const questionParam = searchParams.get('question')
+            const mixParam = searchParams.get('mix')
+            let resolvedKnowledgeCategoryParam = knowledgeCategoryParam
 
             // Check if the URL actually changed (not just a re-render)
-            const currentUrlState = { kc: knowledgeCategoryParam, c: categoryParam, q: questionParam }
+            const currentUrlState = { kc: knowledgeCategoryParam, c: categoryParam, q: questionParam, m: mixParam }
             const lastState = lastUrlState.current
 
             const urlChanged = lastState.kc !== currentUrlState.kc ||
                                lastState.c !== currentUrlState.c ||
-                               lastState.q !== currentUrlState.q
+                               lastState.q !== currentUrlState.q ||
+                               lastState.m !== currentUrlState.m
 
             // On initial load, we need to fetch data even if URL params are set
             // After that, only run if URL actually changed
@@ -832,8 +884,12 @@ function FreePracticeContent() {
             setUrlError(null)
 
             try {
-                // Case 1: Going back to root (no knowledge category)
-                if (!knowledgeCategoryParam) {
+                if (mixParam === '1' || mixParam === 'true') {
+                    setInterleaveMode(true)
+                }
+
+                // Case 1: Going back to root (no knowledge category or category deep-link)
+                if (!knowledgeCategoryParam && !categoryParam) {
                     // Batch state updates to minimize re-renders
                     setSelectedKnowledgeCategory(null)
                     setSelectedCategory(null)
@@ -845,18 +901,43 @@ function FreePracticeContent() {
                     return
                 }
 
+                if (!resolvedKnowledgeCategoryParam && categoryParam) {
+                    const categoryContext = await getCategoryStudyContext(categoryParam)
+
+                    if (!categoryContext?.knowledgeCategory) {
+                        setUrlError({
+                            type: 'category',
+                            message: `The category with ID "${categoryParam}" could not be opened because its study context is missing.`,
+                            invalidValue: categoryParam
+                        })
+                        setSelectedCategory(null)
+                        setSelectedQuestion(null)
+                        resetInterleaveBlock()
+                        setIsTransitioning(false)
+                        isRestoringFromUrl.current = false
+                        setUrlRestored(true)
+                        return
+                    }
+
+                    resolvedKnowledgeCategoryParam = categoryContext.knowledgeCategory
+
+                    const normalizedUrl = new URL(window.location.href)
+                    normalizedUrl.searchParams.set('knowledgeCategory', resolvedKnowledgeCategoryParam)
+                    router.replace(normalizedUrl.pathname + normalizedUrl.search, { scroll: false })
+                }
+
                 // Validate knowledge category exists
                 // Wait for knowledgeCategories to be loaded
                 if (knowledgeCategories.length > 0) {
                     const validKnowledgeCategory = knowledgeCategories.find(
-                        kc => kc.id === knowledgeCategoryParam || kc.name.replace(/ /g, '_').toUpperCase() === knowledgeCategoryParam
+                        kc => kc.id === resolvedKnowledgeCategoryParam || kc.name.replace(/ /g, '_').toUpperCase() === resolvedKnowledgeCategoryParam
                     )
 
                     if (!validKnowledgeCategory) {
                         setUrlError({
                             type: 'knowledgeCategory',
-                            message: `The knowledge category "${knowledgeCategoryParam}" doesn't exist. It may have been removed or the URL is incorrect.`,
-                            invalidValue: knowledgeCategoryParam
+                            message: `The knowledge category "${resolvedKnowledgeCategoryParam}" doesn't exist. It may have been removed or the URL is incorrect.`,
+                            invalidValue: resolvedKnowledgeCategoryParam || ''
                         })
                         setSelectedKnowledgeCategory(null)
                         setSelectedCategory(null)
@@ -870,28 +951,28 @@ function FreePracticeContent() {
                 }
 
                 // Case 2: Knowledge category changed or being restored
-                const knowledgeCategoryChanged = selectedKnowledgeCategory !== knowledgeCategoryParam
+                const knowledgeCategoryChanged = selectedKnowledgeCategory !== resolvedKnowledgeCategoryParam
                 if (knowledgeCategoryChanged) {
                     // Show transition overlay but DON'T change view state yet
                     setIsTransitioning(true)
                     isInitialCategoryMount.current = false
 
                     // Load categories FIRST before updating view state (exclude FINAL round)
-                    const result = await getKnowledgeCategoryDetails(knowledgeCategoryParam, user?.id, 1, 20, undefined, 'FINAL', sortByRef.current, sortDirectionRef.current)
+                    const result = await getKnowledgeCategoryDetails(resolvedKnowledgeCategoryParam!, user?.id, 1, 20, undefined, 'FINAL', sortByRef.current, sortDirectionRef.current)
                     const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
 
                     // Check if knowledge category returned any results
                     if (transformedCategories.length === 0 && knowledgeCategories.length > 0) {
                         // Double-check if this knowledge category exists
                         const validKnowledgeCategory = knowledgeCategories.find(
-                            kc => kc.id === knowledgeCategoryParam || kc.name.replace(/ /g, '_').toUpperCase() === knowledgeCategoryParam
+                            kc => kc.id === resolvedKnowledgeCategoryParam || kc.name.replace(/ /g, '_').toUpperCase() === resolvedKnowledgeCategoryParam
                         )
 
                         if (!validKnowledgeCategory) {
                             setUrlError({
                                 type: 'knowledgeCategory',
-                                message: `The knowledge category "${knowledgeCategoryParam}" doesn't exist. It may have been removed or the URL is incorrect.`,
-                                invalidValue: knowledgeCategoryParam
+                                message: `The knowledge category "${resolvedKnowledgeCategoryParam}" doesn't exist. It may have been removed or the URL is incorrect.`,
+                                invalidValue: resolvedKnowledgeCategoryParam || ''
                             })
                             resetInterleaveBlock()
                             setIsTransitioning(false)
@@ -902,7 +983,7 @@ function FreePracticeContent() {
                     }
 
                     // Atomically update ALL state together - prevents flash
-                    setSelectedKnowledgeCategory(knowledgeCategoryParam)
+                    setSelectedKnowledgeCategory(resolvedKnowledgeCategoryParam)
                     setSelectedCategory(null)
                     setSelectedQuestion(null)
                     setCurrentPage(1)
@@ -949,7 +1030,7 @@ function FreePracticeContent() {
                     setIsTransitioning(true)
 
                     // Load questions FIRST before updating view state (exclude FINAL round)
-                    const questionsData = await getCategoryQuestions(categoryParam, knowledgeCategoryParam, user?.id, 'FINAL')
+                    const questionsData = await getCategoryQuestions(categoryParam, resolvedKnowledgeCategoryParam || '', user?.id, 'FINAL')
                     const transformedQuestions = transformQuestions(questionsData as unknown as RawQuestion[])
 
                     // Check if category exists (has questions)
@@ -1098,7 +1179,8 @@ function FreePracticeContent() {
         selectedQuestion?.id,
         questions,
         knowledgeCategories,
-        resetInterleaveBlock
+        resetInterleaveBlock,
+        router
     ])
 
     // Intersection Observer for infinite scrolling
@@ -1243,6 +1325,69 @@ function FreePracticeContent() {
             }
         }
     }, [selectedKnowledgeCategory, user?.id, currentPage, updateUrlParams, sortBy, sortDirection, resetInterleaveBlock])
+
+    const resetQuestionInteractionState = useCallback(() => {
+        setUserAnswer('')
+        setIsCorrect(null)
+        setShowAnswer(false)
+        setDisputeContext(null)
+        setDisputeSubmitted(false)
+    }, [])
+
+    const openQuestionView = useCallback((question: Question, options?: {
+        categoryId?: string | null
+        questions?: Question[]
+        knowledgeCategory?: string | null
+    }) => {
+        const categoryId = options?.categoryId ?? question.categoryId
+
+        if (categoryId) {
+            setSelectedCategory(categoryId)
+        }
+        if (options?.questions) {
+            setQuestions(options.questions)
+        }
+
+        setSelectedQuestion(question)
+        resetQuestionInteractionState()
+        updateUrlParams({
+            knowledgeCategory: options?.knowledgeCategory,
+            category: categoryId,
+            question: question.id
+        })
+    }, [resetQuestionInteractionState, updateUrlParams])
+
+    const loadKnowledgeCategoryPool = useCallback(async () => {
+        if (!selectedKnowledgeCategory) return []
+
+        if (categories.length >= 20 && !hasMore) {
+            return categories
+        }
+
+        const result = await getKnowledgeCategoryDetails(
+            selectedKnowledgeCategory,
+            user?.id,
+            1,
+            1000,
+            undefined,
+            'FINAL',
+            sortByRef.current,
+            sortDirectionRef.current
+        )
+
+        return transformApiResponse(result.categories as unknown as RawCategory[])
+    }, [categories, hasMore, selectedKnowledgeCategory, user?.id])
+
+    const loadCategoryQuestionSet = useCallback(async (categoryId: string, knowledgeCategoryId?: string | null) => {
+        const questionsData = await getCategoryQuestions(
+            categoryId,
+            knowledgeCategoryId || selectedKnowledgeCategory || '',
+            user?.id,
+            'FINAL'
+        )
+
+        return transformQuestions(questionsData as unknown as RawQuestion[])
+    }, [selectedKnowledgeCategory, user?.id])
 
     const handleQuestionSelect = useCallback((question: Question) => {
         if (!question) return;
@@ -1446,39 +1591,15 @@ function FreePracticeContent() {
     };
 
     const handleShuffle = useCallback(async () => {
-        try {
-            const interleaveEnabled = interleaveMode && selectedKnowledgeCategory && !selectedCategory
+        setActiveQuestionNavigation('random')
 
+        try {
+            const interleaveEnabled = interleaveMode && !!selectedKnowledgeCategory
             let interleaveCategoryId: string | null = null
-            let shuffledQuestionPool: Category[] | null = null
 
             if (interleaveEnabled) {
                 const currentInterleaveState = interleaveStateRef.current
-                const allLoadedCategories = categories
-                const knowledgeCategoryId = selectedKnowledgeCategory
-
-                const loadCategoryPool = async () => {
-                    if (!knowledgeCategoryId) return []
-
-                    if (allLoadedCategories.length >= 20 && !hasMore) {
-                        return allLoadedCategories
-                    }
-
-                    const result = await getKnowledgeCategoryDetails(
-                        knowledgeCategoryId,
-                        user?.id,
-                        1,
-                        1000,
-                        undefined,
-                        'FINAL',
-                        sortByRef.current,
-                        sortDirectionRef.current
-                    )
-
-                    return transformApiResponse(result.categories as unknown as RawCategory[])
-                }
-
-                shuffledQuestionPool = await loadCategoryPool()
+                const shuffledQuestionPool = await loadKnowledgeCategoryPool()
                 const validPool = shuffledQuestionPool.filter(category => category.totalQuestions > 0)
 
                 if (currentInterleaveState.currentCategoryId && currentInterleaveState.remainingInBlock > 0) {
@@ -1491,9 +1612,29 @@ function FreePracticeContent() {
                     )
                 }
 
-                if (interleaveCategoryId && allLoadedCategories !== shuffledQuestionPool) {
+                if (shuffledQuestionPool !== categories) {
                     setCategories(shuffledQuestionPool)
                 }
+
+                if (!interleaveCategoryId) {
+                    toast.error('No more questions available')
+                    return
+                }
+
+                const categoryQuestions = await loadCategoryQuestionSet(interleaveCategoryId, selectedKnowledgeCategory)
+                const categoryQuestion = getRandomQuestionFromList(categoryQuestions, selectedQuestion?.id)
+
+                if (!categoryQuestion) {
+                    toast.error('No more questions available in selected category')
+                    return
+                }
+
+                consumeInterleaveBlock(interleaveCategoryId)
+                openQuestionView(categoryQuestion, {
+                    categoryId: interleaveCategoryId,
+                    questions: categoryQuestions
+                })
+                return
             }
 
             // Determine what level we're shuffling at
@@ -1516,74 +1657,18 @@ function FreePracticeContent() {
 
             // Case 1: Shuffling within a specific category
             if (selectedCategory) {
-                const questions = await getCategoryQuestions(
-                    randomQuestion.categoryId,
-                    randomQuestion.categoryName,
-                    user?.id,
-                    'FINAL'
-                );
-                setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
+                const nextQuestions = await loadCategoryQuestionSet(randomQuestion.categoryId, randomQuestion.categoryName);
+                const matchingQuestion = nextQuestions.find(question => question.id === randomQuestion.id)
 
-                // Update URL with the question (category stays the same)
-                updateUrlParams({ question: randomQuestion.id });
-                if (interleaveEnabled) {
-                    consumeInterleaveBlock(selectedCategory)
-                }
-            }
-            // Case 2: Shuffling within a knowledge category (but no specific category selected)
-            else if (selectedKnowledgeCategory) {
-                const selectedCategoryId = interleaveEnabled && interleaveCategoryId
-                    ? interleaveCategoryId
-                    : randomQuestion.categoryId
-
-                const questionCategory = selectedCategoryId || randomQuestion.categoryId
-
-                if (interleaveEnabled && interleaveCategoryId) {
-                    // Load all questions for the selected interleave category and pick one at random
-                    const categoryQuestions = await getCategoryQuestions(
-                        questionCategory,
-                        selectedKnowledgeCategory,
-                        user?.id,
-                        'FINAL'
-                    )
-                    const transformedCategoryQuestions = transformQuestions(categoryQuestions as unknown as RawQuestion[])
-                    if (transformedCategoryQuestions.length === 0) {
-                        toast.error('No more questions available in selected category')
-                        return
-                    }
-
-                    const unaskedQuestions = transformedCategoryQuestions.filter(q => q.id !== selectedQuestion?.id)
-                    const pool = unaskedQuestions.length > 0 ? unaskedQuestions : transformedCategoryQuestions
-                    const categoryQuestion = pool[Math.floor(Math.random() * pool.length)]
-
-                    // Update the category to match the selected interleave category
-                    setSelectedCategory(questionCategory);
-                    setQuestions(transformedCategoryQuestions);
-
-                    // Update URL with category and question
-                    updateUrlParams({ category: questionCategory, question: categoryQuestion.id });
-                    consumeInterleaveBlock(questionCategory)
-
-                    setSelectedQuestion(categoryQuestion)
-                    setUserAnswer('');
-                    setShowAnswer(false);
-                    setIsCorrect(null);
+                if (!matchingQuestion) {
+                    toast.error('Failed to load random question')
                     return
                 }
 
-                // Update the category to match the random question's category
-                setSelectedCategory(randomQuestion.categoryId);
-
-                const questions = await getCategoryQuestions(
-                    randomQuestion.categoryId,
-                    selectedKnowledgeCategory,
-                    user?.id,
-                    'FINAL'
-                );
-                setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
-
-                // Update URL with category and question
-                updateUrlParams({ category: randomQuestion.categoryId, question: randomQuestion.id });
+                openQuestionView(matchingQuestion, {
+                    categoryId: randomQuestion.categoryId,
+                    questions: nextQuestions
+                })
             }
             // Case 3: Shuffling ALL questions (no filters)
             else {
@@ -1598,37 +1683,28 @@ function FreePracticeContent() {
                 setCategories(transformedCategories);
 
                 // Load questions for the specific category (exclude FINAL round)
-                const questions = await getCategoryQuestions(
+                const nextQuestions = await loadCategoryQuestionSet(
                     randomQuestion.categoryId,
-                    knowledgeCategoryId,
-                    user?.id,
-                    'FINAL'
+                    knowledgeCategoryId
                 );
-                setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
+                const matchingQuestion = nextQuestions.find(question => question.id === randomQuestion.id)
 
-                // Update URL with all levels
-                updateUrlParams({
+                if (!matchingQuestion) {
+                    toast.error('Failed to load random question')
+                    return
+                }
+
+                openQuestionView(matchingQuestion, {
                     knowledgeCategory: knowledgeCategoryId,
-                    category: randomQuestion.categoryId,
-                    question: randomQuestion.id
+                    categoryId: randomQuestion.categoryId,
+                    questions: nextQuestions
                 });
             }
-
-            // Set the selected question and reset answer state
-            if (!interleaveEnabled || !selectedKnowledgeCategory || selectedCategory) {
-                setSelectedQuestion({
-                    ...randomQuestion,
-                    gameHistory: [],
-                    isLocked: false,
-                    hasIncorrectAttempts: false
-                });
-            }
-            setUserAnswer('');
-            setShowAnswer(false);
-            setIsCorrect(null);
         } catch (error) {
             console.error('Error shuffling question:', error);
             toast.error('Failed to load random question');
+        } finally {
+            setActiveQuestionNavigation(null)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
@@ -1640,9 +1716,78 @@ function FreePracticeContent() {
         interleaveMode,
         consumeInterleaveBlock,
         categories,
-        hasMore,
-        sortBy
+        loadKnowledgeCategoryPool,
+        loadCategoryQuestionSet,
+        openQuestionView
     ]);
+
+    const handleNextQuestion = useCallback(async () => {
+        if (!selectedQuestion) return
+
+        setActiveQuestionNavigation('next')
+
+        try {
+            const nextQuestionInCategory = getNextQuestionInSequence(questions, selectedQuestion.id)
+            const interleaveEnabled = interleaveMode && !!selectedKnowledgeCategory
+
+            if (nextQuestionInCategory) {
+                if (interleaveEnabled) {
+                    consumeInterleaveBlock(selectedQuestion.categoryId)
+                }
+
+                openQuestionView(nextQuestionInCategory, {
+                    categoryId: selectedQuestion.categoryId
+                })
+                return
+            }
+
+            if (!interleaveEnabled || !selectedKnowledgeCategory) {
+                toast('You reached the end of this category')
+                return
+            }
+
+            const categoryPool = await loadKnowledgeCategoryPool()
+            const nextCategoryId = getNextCategoryInSequence(categoryPool, selectedQuestion.categoryId)
+
+            if (!nextCategoryId) {
+                toast('No next question available')
+                return
+            }
+
+            const nextCategoryQuestions = await loadCategoryQuestionSet(nextCategoryId, selectedKnowledgeCategory)
+            const firstQuestionInNextCategory = sortQuestionsByValue(nextCategoryQuestions)[0]
+
+            if (!firstQuestionInNextCategory) {
+                toast.error('No more questions available')
+                return
+            }
+
+            if (categoryPool !== categories) {
+                setCategories(categoryPool)
+            }
+
+            consumeInterleaveBlock(nextCategoryId)
+            openQuestionView(firstQuestionInNextCategory, {
+                categoryId: nextCategoryId,
+                questions: nextCategoryQuestions
+            })
+        } catch (error) {
+            console.error('Error loading next question:', error)
+            toast.error('Failed to load the next question')
+        } finally {
+            setActiveQuestionNavigation(null)
+        }
+    }, [
+        categories,
+        consumeInterleaveBlock,
+        interleaveMode,
+        loadCategoryQuestionSet,
+        loadKnowledgeCategoryPool,
+        openQuestionView,
+        questions,
+        selectedKnowledgeCategory,
+        selectedQuestion
+    ])
 
     const getShuffleButtonText = () => {
         if (!selectedKnowledgeCategory) return 'Shuffle All Questions'
@@ -1669,26 +1814,22 @@ function FreePracticeContent() {
     }
 
     const interleaveStatus = useMemo(() => {
-        if (!interleaveMode) {
-            return 'Interleave mode is off'
-        }
-
-        if (!selectedKnowledgeCategory || selectedCategory) {
-            return 'Interleave mode applies only when shuffling at the knowledge-category level.'
+        if (!interleaveMode || !selectedKnowledgeCategory || selectedCategory) {
+            return null
         }
 
         const activeCategoryName = categories.find(category => category.id === interleaveState.currentCategoryId)?.name
             || knowledgeCategories.find(category => category.id === interleaveState.currentCategoryId)?.name
 
         if (!interleaveState.currentCategoryId) {
-            return 'Interleave mode: selecting next category by retention and retention-streak bias.'
+            return 'Mixed picks rotate categories based on what you have seen and missed most recently.'
         }
 
         if (interleaveState.remainingInBlock > 0) {
-            return `Interleave block: ${activeCategoryName || 'Current'} · ${interleaveState.remainingInBlock} remaining`
+            return `${activeCategoryName || 'Current category'} stays in the mix for ${interleaveState.remainingInBlock} more question${interleaveState.remainingInBlock === 1 ? '' : 's'}.`
         }
 
-        return `Interleave block complete for ${activeCategoryName || 'this category'}. Next shuffle will switch category.`
+        return `${activeCategoryName || 'This category'} is finished for now. The next mixed pick will switch categories.`
     }, [categories, interleaveMode, interleaveState.currentCategoryId, interleaveState.remainingInBlock, selectedCategory, selectedKnowledgeCategory, knowledgeCategories])
 
     const _isQuestionDisabled = (questionId: string) => {
@@ -1700,7 +1841,13 @@ function FreePracticeContent() {
     }
 
     // Sort questions by value when displaying
-    const sortedQuestions = [...questions].sort((a, b) => (a.value || 200) - (b.value || 200))
+    const sortedQuestions = sortQuestionsByValue(questions)
+    const canAdvanceToNextQuestion = Boolean(
+        selectedQuestion && (
+            getNextQuestionInSequence(questions, selectedQuestion.id) ||
+            (interleaveMode && selectedKnowledgeCategory && (hasMore || categories.some(category => category.id !== selectedQuestion.categoryId)))
+        )
+    )
 
     useEffect(() => {
         if (user?.id) {
@@ -1774,36 +1921,35 @@ function FreePracticeContent() {
                         )}
 
                         <div className="mb-6">
-                            <Link
-                                href="/practice"
-                                className="text-blue-600 hover:text-blue-800 flex items-center font-bold mb-4"
-                            >
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                </svg>
+                            <StudyBackLink href="/practice">
                                 Back to Study Modes
-                            </Link>
+                            </StudyBackLink>
                         </div>
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                            <h1 className="text-2xl font-bold text-gray-900">Study by Category</h1>
-                                <button
-                                    onClick={handleShuffle}
-                                    disabled={loadingQuestions || isTransitioning || !!urlError}
-                                    className="px-6 py-3 bg-purple-400 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 transition-colors font-bold text-lg shadow-lg hover:shadow-xl flex items-center gap-2"
-                                >
-                                    {loadingQuestions ? <LoadingSpinner /> : (
-                                        <>
-                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="mb-6 space-y-3">
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                <div className="space-y-1">
+                                    <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Study by Category</h1>
+                                    <p className="text-sm text-gray-600">
+                                        Move in order or jump around without leaving your current study track.
+                                    </p>
+                                </div>
+                                <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center xl:w-auto xl:justify-end">
+                                    <StudyActionButton
+                                        onClick={handleShuffle}
+                                        disabled={loadingQuestions || isTransitioning || !!urlError || activeQuestionNavigation !== null}
+                                        className="w-full bg-purple-400 text-white hover:bg-purple-500 sm:w-auto"
+                                        icon={(loadingQuestions || activeQuestionNavigation === 'random') ? (
+                                            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
+                                        ) : (
+                                            <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                             </svg>
-                                            {getShuffleButtonText()}
-                                        </>
-                                    )}
-                                </button>
-                                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-white text-sm font-medium text-gray-700 shadow-sm">
-                                    <input
-                                        type="checkbox"
+                                        )}
+                                    >
+                                        {getShuffleButtonText()}
+                                    </StudyActionButton>
+                                    <StudyToggle
+                                        label="Mix categories"
                                         checked={interleaveMode}
                                         onChange={(event) => {
                                             const enabled = event.target.checked
@@ -1812,13 +1958,15 @@ function FreePracticeContent() {
                                                 resetInterleaveBlock()
                                             }
                                         }}
+                                        className="w-full justify-between sm:w-auto"
                                     />
-                                    Mix categories
-                                </label>
+                                </div>
                             </div>
-                            <p className="text-sm text-blue-900/80 bg-blue-100 rounded-md px-3 py-2 border border-blue-200">
-                                {interleaveStatus}
-                            </p>
+                            {interleaveStatus && (
+                                <p className="max-w-2xl rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900/80">
+                                    {interleaveStatus}
+                                </p>
+                            )}
                         </div>
 
                         {/* URL Error Display */}
@@ -1874,7 +2022,7 @@ function FreePracticeContent() {
                             <div className={`transition-opacity duration-200 ${(isTransitioning || (selectedCategory && questions.length === 0)) ? 'opacity-50' : 'opacity-100'}`}>
                                 <div className="mb-6 space-y-4">
                                     <div className="flex items-center">
-                                        <button
+                                        <StudyBackButton
                                             onClick={() => {
                                                 // Immediately clear all state - React will batch these updates
                                                 setSelectedKnowledgeCategory(null)
@@ -1888,14 +2036,10 @@ function FreePracticeContent() {
                                                 // Update URL - this will trigger URL restoration effect which will see null and clear state again (idempotent)
                                                 updateUrlParams({ knowledgeCategory: null, category: null, question: null })
                                             }}
-                                            className="text-blue-600 hover:text-blue-800 flex items-center font-bold"
                                             disabled={isTransitioning}
                                         >
-                                            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                            </svg>
                                             Back to Knowledge Categories
-                                        </button>
+                                        </StudyBackButton>
                                     </div>
 
                                     {/* Search and Sort Controls */}
@@ -2089,7 +2233,7 @@ function FreePracticeContent() {
                         {!urlError && selectedCategory && !selectedQuestion && questions.length > 0 && (
                             <div className={`transition-opacity duration-200 ${isTransitioning ? 'opacity-50' : 'opacity-100'}`}>
                                 <div className="mb-6 flex items-center">
-                                    <button
+                                    <StudyBackButton
                                         onClick={() => {
                                             // Atomically clear category and question state
                                             setSelectedCategory(null)
@@ -2098,14 +2242,10 @@ function FreePracticeContent() {
                                             // Clear category and question from URL
                                             updateUrlParams({ category: null, question: null })
                                         }}
-                                        className="text-blue-600 hover:text-blue-800 flex items-center font-bold"
                                         disabled={isTransitioning}
                                     >
-                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                        </svg>
                                         Back to Categories
-                                    </button>
+                                    </StudyBackButton>
                                 </div>
 
                                 {loadingQuestions ? (
@@ -2129,14 +2269,14 @@ function FreePracticeContent() {
 
                         {/* Selected Question */}
                         {!urlError && selectedQuestion && (
-                            <div className="max-w-3xl mx-auto practice-question-area">
-                                <div className="bg-white shadow-lg rounded-lg p-6 relative">
-                                    <div className="flex justify-between items-center mb-4">
-                                        <div>
+                            <div className="mx-auto max-w-4xl practice-question-area">
+                                <div className="relative rounded-2xl bg-white p-5 shadow-lg sm:p-6 lg:p-8">
+                                    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                        <div className="space-y-2">
                                             <h2 className="text-xl font-bold text-gray-900">
                                                 {selectedQuestion.originalCategory}
                                             </h2>
-                                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
                                                 <span>${selectedQuestion.value}</span>
                                                 <span>•</span>
                                                 <span>
@@ -2147,16 +2287,15 @@ function FreePracticeContent() {
                                                 </span>
                                             </div>
                                         </div>
-                                        <button
+                                        <StudyBackButton
                                             onClick={handleBackToQuestions}
-                                            className="text-blue-600 hover:text-blue-800 font-bold"
                                         >
                                             Back to Questions
-                                        </button>
+                                        </StudyBackButton>
                                     </div>
 
-                                    <div className="flex justify-center items-center min-h-[200px] mb-6">
-                                        <p className="text-2xl text-gray-900 text-center leading-relaxed">
+                                    <div className="mb-8 flex min-h-[180px] items-center justify-center sm:min-h-[220px]">
+                                        <p className="text-center text-2xl leading-relaxed text-gray-900 sm:text-3xl">
                                             {selectedQuestion.question}
                                         </p>
                                     </div>
@@ -2165,16 +2304,18 @@ function FreePracticeContent() {
                                         <div className="space-y-4">
                                             {selectedQuestion.correct ? (
                                                 <div className="flex justify-start">
-                                                    <button
+                                                    <StudyActionButton
                                                         onClick={() => setShowAnswer(true)}
-                                                        className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold flex items-center gap-2"
+                                                        className="bg-gray-600 text-white hover:bg-gray-700"
+                                                        icon={(
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                        )}
                                                     >
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
                                                         View Answer
-                                                    </button>
+                                                    </StudyActionButton>
                                                 </div>
                                             ) : (
                                                 <>
@@ -2190,7 +2331,7 @@ function FreePracticeContent() {
                                                                 }
                                                             }}
                                                             onFocus={() => scrollInputIntoView(answerInputRef.current)}
-                                                            className="w-full p-3 border rounded-lg text-black text-base"
+                                                            className="w-full rounded-xl border border-gray-200 px-4 py-4 text-base text-black shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                                                             placeholder="What is..."
                                                             autoComplete="off"
                                                             autoCapitalize="off"
@@ -2199,67 +2340,73 @@ function FreePracticeContent() {
                                                             enterKeyHint="send"
                                                         />
                                                     </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <div className="flex flex-wrap items-center gap-4">
-                                                            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={explanationMode}
-                                                                    onChange={(event) => setExplanationMode(event.target.checked)}
-                                                                />
-                                                                Explanation mode
-                                                            </label>
-                                                            <button
+                                                    <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+                                                        <div className="flex flex-col gap-4">
+                                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                                <div className="flex flex-wrap items-center gap-3">
+                                                                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={explanationMode}
+                                                                            onChange={(event) => setExplanationMode(event.target.checked)}
+                                                                        />
+                                                                        Explanation mode
+                                                                    </label>
+                                                                    <button
+                                                                        onClick={showPracticeAnswerTipsToast}
+                                                                        className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+                                                                        aria-label="Show answer tips"
+                                                                    >
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                        </svg>
+                                                                        Answer tips
+                                                                    </button>
+                                                                </div>
+                                                                <StudyActionButton
+                                                                    onClick={handleShowAnswer}
+                                                                    className="w-full bg-gray-600 text-white hover:bg-gray-700 sm:w-auto"
+                                                                    icon={(
+                                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                        </svg>
+                                                                    )}
+                                                                >
+                                                                    Show Answer
+                                                                </StudyActionButton>
+                                                            </div>
+                                                            <StudyActionButton
                                                                 onClick={handleAnswerSubmit}
-                                                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                                                                className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
                                                             >
                                                                 Submit
-                                                            </button>
-                                                            <button
-                                                                onClick={() => toast.error('Tips for answering:\n\n• You don\'t need to type "What is" - it\'s optional\n• Articles like "a", "an", "the" are ignored\n• Punctuation is ignored\n• Capitalization doesn\'t matter\n• Close answers may be accepted')}
-                                                                className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
-                                                                aria-label="Show answer tips"
-                                                            >
-                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                </svg>
-                                                                Help
-                                                            </button>
+                                                            </StudyActionButton>
                                                         </div>
-                                                        <button
-                                                            onClick={handleShowAnswer}
-                                                            className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold flex items-center gap-2"
-                                                        >
-                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                            </svg>
-                                                            Show Answer
-                                                        </button>
                                                     </div>
                                                 </>
                                             )}
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
-                                            <div className={`p-4 rounded-lg ${isCorrect || selectedQuestion.correct ? 'bg-green-100' : 'bg-red-100'}`}>
-                                                <div className="flex items-center gap-2 mb-1">
+                                            <div className={`rounded-xl p-4 ${isCorrect || selectedQuestion.correct ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                <div className="mb-1 flex items-center gap-2">
                                                     {isCorrect || selectedQuestion.correct ? (
-                                                        <span className="text-green-600 text-lg">✓</span>
+                                                        <span className="text-lg text-green-600">✓</span>
                                                     ) : (
-                                                        <span className="text-red-600 text-lg">✗</span>
+                                                        <span className="text-lg text-red-600">✗</span>
                                                     )}
                                                     <span className={`text-sm font-bold ${isCorrect || selectedQuestion.correct ? 'text-green-700' : 'text-red-700'}`}>
                                                         {isCorrect || selectedQuestion.correct ? 'Correct!' : 'Incorrect'}
                                                     </span>
                                                 </div>
-                                                <p className="font-medium text-gray-900 text-center">
+                                                <p className="text-center font-medium text-gray-900">
                                                     {selectedQuestion.answer}
                                                 </p>
                                                 {isCorrect === false && disputeContext && user?.id && (
                                                     <div className="mt-3 flex justify-end">
                                                         {disputeSubmitted ? (
-                                                            <span className="text-sm text-gray-500 flex items-center gap-1">
+                                                            <span className="flex items-center gap-1 text-sm text-gray-500">
                                                                 <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                                                 </svg>
@@ -2269,14 +2416,14 @@ function FreePracticeContent() {
                                                             <span className="inline-flex items-center gap-1">
                                                                 <button
                                                                     onClick={handleDispute}
-                                                                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                                    className="text-sm text-gray-500 underline hover:text-gray-700"
                                                                 >
                                                                     Dispute this answer
                                                                 </button>
-                                                                <span className="relative group">
-                                                                    <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
-                                                                    <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                                                                        An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                                <span className="group relative">
+                                                                    <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-xs text-gray-500 hover:text-gray-700">i</span>
+                                                                    <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 whitespace-nowrap rounded-lg bg-gray-800 px-3 py-2 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                                                                        An admin will review your answer.<br />If approved, you&apos;ll be retroactively credited.
                                                                     </span>
                                                                 </span>
                                                             </span>
@@ -2290,22 +2437,41 @@ function FreePracticeContent() {
                                                 explanationMode={explanationMode}
                                                 visible={isCorrect === false}
                                             />
-                                            <div className="flex space-x-4">
-                                                <button
+                                            <div className="grid gap-3 sm:grid-cols-3">
+                                                <StudyActionButton
                                                     onClick={handleBackToQuestions}
-                                                    className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
+                                                    className="bg-gray-600 text-white hover:bg-gray-700"
                                                 >
                                                     Back to Questions
-                                                </button>
-                                                <button
-                                                    onClick={handleShuffle}
-                                                    className="px-6 py-2 bg-purple-400 text-white rounded-lg hover:bg-purple-500 font-bold flex items-center gap-2"
+                                                </StudyActionButton>
+                                                <StudyActionButton
+                                                    onClick={handleNextQuestion}
+                                                    disabled={!canAdvanceToNextQuestion || activeQuestionNavigation !== null}
+                                                    className="bg-blue-600 text-white hover:bg-blue-700"
+                                                    icon={activeQuestionNavigation === 'next' ? (
+                                                        <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
+                                                    ) : (
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    )}
                                                 >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                    </svg>
-                                                    Next Random Question
-                                                </button>
+                                                    Next Question
+                                                </StudyActionButton>
+                                                <StudyActionButton
+                                                    onClick={handleShuffle}
+                                                    disabled={activeQuestionNavigation !== null}
+                                                    className="bg-purple-400 text-white hover:bg-purple-500"
+                                                    icon={activeQuestionNavigation === 'random' ? (
+                                                        <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
+                                                    ) : (
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                        </svg>
+                                                    )}
+                                                >
+                                                    Random Next
+                                                </StudyActionButton>
                                             </div>
                                         </div>
                                     )}

@@ -4,10 +4,6 @@ import PracticeRecommendationsPanel from './PracticeRecommendationsPanel'
 export default function PracticeLanding() {
     return (
         <div className="container mx-auto px-4 py-8">
-            <div className="mb-8 max-w-6xl">
-                <PracticeRecommendationsPanel />
-            </div>
-
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Study Mode</h1>
             <p className="text-gray-600 mb-8 text-lg">
                 Study mode games still count toward your stats and streaks.
@@ -85,6 +81,10 @@ export default function PracticeLanding() {
                         </svg>
                     </div>
                 </Link>
+            </div>
+
+            <div className="mt-10 max-w-6xl">
+                <PracticeRecommendationsPanel />
             </div>
         </div>
     )

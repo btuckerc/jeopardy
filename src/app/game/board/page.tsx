@@ -7,6 +7,7 @@ import { checkAnswer } from '../../lib/answer-checker'
 import { useMobileKeyboard } from '@/app/hooks/useMobileKeyboard'
 import type { Player } from '@/components/Scoreboard'
 import type { GameConfig } from '@/types/game'
+import { serializeCustomCategorySelections } from '@/lib/custom-category-selections'
 
 interface Question {
     id: string
@@ -156,6 +157,10 @@ export default function GameBoard() {
             if (config.categoryIds) {
                 params.append('categoryIds', config.categoryIds.join(','))
             }
+            const categorySelections = Array.isArray(config.categorySelections) ? config.categorySelections : []
+            if (categorySelections.length > 0) {
+                params.append('categorySelections', serializeCustomCategorySelections(categorySelections))
+            }
             if (config.date) {
                 params.append('date', config.date)
             }
@@ -215,6 +220,10 @@ export default function GameBoard() {
             }
             if (config.categoryIds) {
                 params.append('categoryIds', config.categoryIds.join(','))
+            }
+            const categorySelections = Array.isArray(config.categorySelections) ? config.categorySelections : []
+            if (categorySelections.length > 0) {
+                params.append('categorySelections', serializeCustomCategorySelections(categorySelections))
             }
             if (config.date) {
                 params.append('date', config.date)

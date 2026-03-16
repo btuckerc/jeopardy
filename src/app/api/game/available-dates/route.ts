@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
     try {
         // Get distinct air dates
@@ -28,4 +30,4 @@ export async function GET() {
         console.error('Error fetching available dates:', error)
         return NextResponse.json({ error: 'Failed to fetch available dates' }, { status: 500 })
     }
-} 
+}

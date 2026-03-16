@@ -93,6 +93,10 @@ export default function GameHubClient({
     // Use server-provided user data directly - no client fetch needed!
     const user = initialUser
 
+    const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<'games' | 'new'>(() => (
+        initialUser && (initialResumableGames.length + initialCompletedGames.length) === 0 ? 'new' : 'games'
+    ))
+
     // Games tab state
     const [activeGamesTab, setActiveGamesTab] = useState<'inProgress' | 'completed'>('inProgress')
 
@@ -206,6 +210,12 @@ export default function GameHubClient({
         window.addEventListener('focus', handleFocus)
         return () => window.removeEventListener('focus', handleFocus)
     }, [user?.id, refreshGames])
+
+    useEffect(() => {
+        if (user && resumableGames.length === 0 && completedGames.length === 0) {
+            setActiveWorkspaceTab('new')
+        }
+    }, [completedGames.length, resumableGames.length, user])
 
     const handleDateChange = (date: Date | null) => {
         setSelectedDateObj(date)
@@ -628,309 +638,531 @@ export default function GameHubClient({
         }
     }
 
+    const workspaceTabs = [
+        {
+            id: 'games' as const,
+            label: 'Your Games',
+            description: user
+                ? 'Resume active boards or revisit completed runs.'
+                : 'Sign in to save and resume your boards.',
+            badge: user && (resumableGames.length + completedGames.length) > 0
+                ? (resumableGames.length + completedGames.length).toString()
+                : undefined,
+        },
+        {
+            id: 'new' as const,
+            label: 'Start New Game',
+            description: 'Build a board or jump in with a shared code.',
+        },
+    ]
+    const selectedRoundLabels = [
+        rounds.single ? 'Single Jeopardy' : null,
+        rounds.double ? 'Double Jeopardy' : null,
+        rounds.final ? 'Final Jeopardy' : null,
+    ].filter((value): value is string => Boolean(value))
+    const hasSavedGames = resumableGames.length + completedGames.length > 0
+    const startGameDisabled = (
+        isStartingGame ||
+        (selectedMode === 'knowledge' && selectedCategories.length === 0) ||
+        (selectedMode === 'custom' && customCategories.length === 0) ||
+        (selectedMode === 'date' && !selectedDate) ||
+        (!rounds.single && !rounds.double && !rounds.final)
+    )
+    const selectedModeSummary = (
+        selectedMode === 'date'
+            ? (selectedDateObj
+                ? selectedDateObj.toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                })
+                : 'Pick an air date')
+            : selectedMode === 'knowledge'
+                ? `${selectedCategories.length || 'No'} knowledge area${selectedCategories.length === 1 ? '' : 's'}`
+                : selectedMode === 'custom'
+                    ? `${customCategories.length || 'No'} custom categor${customCategories.length === 1 ? 'y' : 'ies'}`
+                    : 'Random board'
+    )
+    const finalRoundSummary = rounds.final
+        ? (finalCategoryMode === 'byDate' ? 'Match air date' : 'Random category')
+        : 'Final Jeopardy off'
+
 
     return (
-        <div className="min-h-screen w-full bg-gray-100 py-8 px-4" style={{ scrollbarGutter: 'stable' }}>
-            <div className="w-full max-w-4xl mx-auto">
-                {/* Page Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-2">Play Game</h1>
-                    <p className="text-gray-600">Start a new game or continue where you left off.</p>
-                </div>
-
-                {/* Quick Play Cards */}
-                <div className="mb-8">
-                    <QuickPlayCards
-                        onGameCreated={() => {
-                            // Refresh games list when a new game is created
-                            refreshGames()
-                        }}
-                    />
-                </div>
-
-                {/* Resumable Games Section */}
-                {!user ? (
-                    // Show sign-in prompt if not authenticated
-                    <div className="mb-8">
-                        <div className="card p-6 text-center bg-gray-50 border-dashed">
-                            <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                            </div>
-                            <h2 className="text-xl font-bold text-gray-900 mb-2">Sign in to Play</h2>
-                            <p className="text-gray-600 mb-4">Sign in to start a new game or resume where you left off.</p>
-                            <Link href="/sign-in?redirect_url=/game" className="btn-primary inline-flex items-center gap-2">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                                </svg>
-                                Sign In to Play
-                            </Link>
-                        </div>
-                    </div>
-                ) : (
-                    // Show games section if authenticated
-                    <div className="w-full mb-8">
-                        {/* Header with tabs */}
-                        <div className="flex items-center justify-between mb-4 w-full">
-                            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                Your Games
-                            </h2>
-
-                            {/* Tabs */}
-                            <div className="flex bg-gray-100 rounded-lg p-0.5">
-                                <button
-                                    onClick={() => setActiveGamesTab('inProgress')}
-                                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                        activeGamesTab === 'inProgress'
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'
-                                    }`}
-                                >
-                                    In Progress
-                                    {resumableGames.length > 0 && (
-                                        <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${
-                                            activeGamesTab === 'inProgress'
-                                                ? 'bg-blue-100 text-blue-700'
-                                                : 'bg-gray-200 text-gray-600'
-                                        }`}>
-                                            {resumableGames.length}
-                                        </span>
-                                    )}
-                                </button>
-                                <button
-                                    onClick={() => setActiveGamesTab('completed')}
-                                    className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                        activeGamesTab === 'completed'
-                                            ? 'bg-white text-gray-900 shadow-sm'
-                                            : 'text-gray-600 hover:text-gray-900'
-                                    }`}
-                                >
-                                    Completed
-                                    {completedGames.length > 0 && (
-                                        <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full ${
-                                            activeGamesTab === 'completed'
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-gray-200 text-gray-600'
-                                        }`}>
-                                            {completedGames.length}
-                                        </span>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Tab content - contain layout prevents content from affecting container width */}
-                        <div className="w-full overflow-hidden" style={{ contain: 'inline-size' }}>
-                            {activeGamesTab === 'inProgress' ? (
-                                <GameResumableList
-                                    games={resumableGames}
-                                    loading={loadingGames}
-                                    onEndGame={handleEndGame}
-                                />
-                            ) : (
-                                <GameCompletedList
-                                    games={completedGames}
-                                    loading={loadingGames}
-                                />
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* New Game Section */}
-                <div className="card p-6">
-                    <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Start New Game
-                    </h2>
-
-                    <div className="space-y-6">
-                        {/* Mode Selection */}
-                        <GameModeSelector
-                            selectedMode={selectedMode}
-                            onModeChange={setSelectedMode}
-                        />
-
-                        {/* Mode-specific options */}
-                        {selectedMode === 'knowledge' && (
-                            <div className="bg-gray-50 rounded-lg p-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Select Knowledge Categories</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    {KNOWLEDGE_CATEGORIES.map((category) => (
-                                        <label key={category} className="flex items-center space-x-2 text-gray-900 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedCategories.includes(category)}
-                                                onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                        setSelectedCategories([...selectedCategories, category])
-                                                    } else {
-                                                        setSelectedCategories(selectedCategories.filter(c => c !== category))
-                                                    }
-                                                }}
-                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span className="text-sm">{category.replace(/_/g, ' ')}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {selectedMode === 'custom' && (
-                            <CustomCategoryPicker
-                                selectedCategories={customCategories}
-                                onCategoriesChange={setCustomCategories}
-                                maxCategories={5}
-                            />
-                        )}
-
-                        {selectedMode === 'date' && (
-                            <DateModeSection
-                                selectedDate={selectedDate}
-                                selectedDateObj={selectedDateObj}
-                                onDateChange={handleDateChange}
-                            />
-                        )}
-
-                        {/* Rounds Selection */}
+        <div className="workspace-page" style={{ scrollbarGutter: 'stable' }}>
+            <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+                <section className="rounded-3xl border border-blue-200 bg-gradient-to-r from-white via-blue-50 to-slate-50 p-6 shadow-sm sm:p-7">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Rounds</label>
-                            <div className="flex flex-wrap gap-4">
-                                <label className="flex items-center space-x-2 text-gray-900 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={rounds.single}
-                                        onChange={(e) => setRounds({ ...rounds, single: e.target.checked })}
-                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm">Single Jeopardy</span>
-                                </label>
-                                <label className="flex items-center space-x-2 text-gray-900 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={rounds.double}
-                                        onChange={(e) => setRounds({ ...rounds, double: e.target.checked })}
-                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm">Double Jeopardy</span>
-                                </label>
-                                <label className="flex items-center space-x-2 text-gray-900 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={rounds.final}
-                                        onChange={(e) => setRounds({ ...rounds, final: e.target.checked })}
-                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm">Final Jeopardy</span>
-                                </label>
-                            </div>
+                            <h1 className="text-3xl font-bold text-gray-900">Play Game</h1>
+                            <p className="mt-1 max-w-3xl text-sm text-gray-600">
+                                Jump into a fast preset first, then switch into saved games or a custom board setup below.
+                            </p>
                         </div>
+                        <div className="inline-flex rounded-full border border-blue-200 bg-white/90 px-4 py-2 text-sm font-semibold text-blue-800 shadow-sm">
+                            Quick selections
+                        </div>
+                    </div>
 
-                        {/* Final Jeopardy Configuration */}
-                        {rounds.final && (
-                            <div className="bg-gray-50 rounded-lg p-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">Final Jeopardy Category</label>
-                                <div className="space-y-2">
-                                    <label className="flex items-center space-x-2 text-gray-900 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="finalCategoryMode"
-                                            checked={finalCategoryMode === 'shuffle'}
-                                            onChange={() => setFinalCategoryMode('shuffle')}
-                                            className="border-gray-300 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span className="text-sm">Random category</span>
-                                    </label>
-                                    {selectedMode === 'date' && (
-                                        <label className="flex items-center space-x-2 text-gray-900 cursor-pointer">
-                                            <input
-                                                type="radio"
-                                                name="finalCategoryMode"
-                                                checked={finalCategoryMode === 'byDate'}
-                                                onChange={() => setFinalCategoryMode('byDate')}
-                                                className="border-gray-300 text-blue-600 focus:ring-blue-500"
-                                            />
-                                            <span className="text-sm">Match air date</span>
-                                        </label>
-                                    )}
+                    <div className="mt-5">
+                        <QuickPlayCards
+                            onGameCreated={() => {
+                                refreshGames()
+                            }}
+                        />
+                    </div>
+                </section>
+
+                <section className="workspace-surface overflow-hidden">
+                    <div className="border-b border-slate-200 px-5 py-5 md:px-6">
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                                <div className="min-w-0">
+                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
+                                        Next move
+                                    </div>
+                                    <h2 className="mt-2 text-2xl font-semibold text-slate-900">
+                                        Start a new board or jump back into one you already opened
+                                    </h2>
+                                    <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                                        New game setup stays one tap away, and players without any saved boards land there automatically.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3">
+                                    {hasSavedGames && activeWorkspaceTab !== 'new' ? (
+                                        <button
+                                            type="button"
+                                            className="btn-primary btn-sm"
+                                            onClick={() => setActiveWorkspaceTab('new')}
+                                        >
+                                            Start New Game
+                                        </button>
+                                    ) : null}
+                                    {hasSavedGames && activeWorkspaceTab === 'new' ? (
+                                        <button
+                                            type="button"
+                                            className="btn-outline btn-sm"
+                                            onClick={() => setActiveWorkspaceTab('games')}
+                                        >
+                                            View Existing Games
+                                        </button>
+                                    ) : null}
                                 </div>
                             </div>
-                        )}
 
-                        {/* Start Game Button */}
-                        <div className="flex justify-end pt-4">
-                            <button
-                                onClick={handleStartGame}
-                                disabled={
-                                    isStartingGame ||
-                                    (selectedMode === 'knowledge' && selectedCategories.length === 0) ||
-                                    (selectedMode === 'custom' && customCategories.length === 0) ||
-                                    (selectedMode === 'date' && !selectedDate) ||
-                                    (!rounds.single && !rounds.double && !rounds.final)
-                                }
-                                className={`btn-primary px-8 py-3 text-lg ${isStartingGame ? 'opacity-50 cursor-wait' : ''}`}
+                            <div
+                                role="tablist"
+                                aria-label="Game workspace sections"
+                                className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:min-w-[30rem]"
                             >
-                                {isStartingGame ? (
-                                    <>
-                                        <span className="spinner mr-2"></span>
-                                        Starting...
-                                    </>
+                                {workspaceTabs.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        role="tab"
+                                        id={`game-workspace-tab-${tab.id}`}
+                                        aria-controls={`game-workspace-panel-${tab.id}`}
+                                        aria-selected={activeWorkspaceTab === tab.id}
+                                        onClick={() => setActiveWorkspaceTab(tab.id)}
+                                        className={`flex min-h-[4.5rem] items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-all duration-200 ${
+                                            activeWorkspaceTab === tab.id
+                                                ? 'border-blue-200 bg-blue-50 text-blue-900 shadow-sm'
+                                                : tab.id === 'new'
+                                                    ? 'border-emerald-200 bg-emerald-50/70 text-emerald-950 hover:border-emerald-300 hover:bg-white'
+                                                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300 hover:bg-white'
+                                        }`}
+                                    >
+                                        <div className="min-w-0">
+                                            <div className="font-semibold">{tab.label}</div>
+                                            <div className={`mt-1 text-xs ${
+                                                activeWorkspaceTab === tab.id
+                                                    ? 'text-blue-700'
+                                                    : tab.id === 'new'
+                                                        ? 'text-emerald-800'
+                                                        : 'text-slate-500'
+                                            }`}>
+                                                {tab.description}
+                                            </div>
+                                        </div>
+                                        {tab.badge ? (
+                                            <span className={`inline-flex min-w-[1.75rem] items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                                activeWorkspaceTab === tab.id ? 'bg-white text-blue-700' : 'bg-white text-slate-600'
+                                            }`}>
+                                                {tab.badge}
+                                            </span>
+                                        ) : null}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-5 md:p-6">
+                        {activeWorkspaceTab === 'games' ? (
+                            <div
+                                role="tabpanel"
+                                id="game-workspace-panel-games"
+                                aria-labelledby="game-workspace-tab-games"
+                                className="space-y-5"
+                            >
+                                {!user ? (
+                                    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100">
+                                            <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="text-xl font-semibold text-slate-900">Sign in to keep your games in motion</h3>
+                                        <p className="mt-2 text-sm text-slate-600">
+                                            Save unfinished boards, track completed runs, and pick back up without rebuilding the setup.
+                                        </p>
+                                        <Link href="/sign-in?redirect_url=/game" className="btn-primary mt-5 inline-flex items-center gap-2">
+                                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                                            </svg>
+                                            Sign In to Play
+                                        </Link>
+                                    </div>
                                 ) : (
-                                    'Start Game'
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                                    <>
+                                        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                                            <div>
+                                                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Saved boards</div>
+                                                <h3 className="mt-2 text-lg font-semibold text-slate-900">Resume active runs or review finished ones</h3>
+                                                <p className="mt-1 text-sm text-slate-600">
+                                                    Keep current games close and switch to completed boards only when you need the archive.
+                                                </p>
+                                            </div>
 
-                {/* Play Shared Game (Seed Entry) - Subtle section at the bottom */}
-                <div className="mt-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
-                    <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
-                        <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                        </svg>
-                        <div className="flex-1 flex items-center gap-2 flex-wrap sm:flex-nowrap">
-                            <span className="text-sm text-gray-600 whitespace-nowrap">Have a game code?</span>
-                            <input
-                                type="text"
-                                placeholder="Enter seed..."
-                                value={seedInput}
-                                onChange={(e) => {
-                                    setSeedInput(e.target.value)
-                                    setSeedLookupError(null)
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && seedInput.trim()) {
-                                        handleSeedLookup()
-                                    }
-                                }}
-                                className="w-32 sm:w-36 rounded border border-gray-300 py-1.5 px-2 text-sm text-gray-900 placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                            />
-                            <button
-                                onClick={handleSeedLookup}
-                                disabled={!seedInput.trim() || seedLookupLoading}
-                                className={`text-sm font-medium px-3 py-1.5 rounded transition-colors ${
-                                    !seedInput.trim() || seedLookupLoading
-                                        ? 'text-gray-400 cursor-not-allowed'
-                                        : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
-                                }`}
+                                            <div className="flex flex-wrap rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveGamesTab('inProgress')}
+                                                    className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                                                        activeGamesTab === 'inProgress'
+                                                            ? 'bg-blue-50 text-blue-900'
+                                                            : 'text-slate-600 hover:text-slate-900'
+                                                    }`}
+                                                >
+                                                    In Progress
+                                                    {resumableGames.length > 0 ? (
+                                                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                                            activeGamesTab === 'inProgress'
+                                                                ? 'bg-white text-blue-700'
+                                                                : 'bg-slate-100 text-slate-600'
+                                                        }`}>
+                                                            {resumableGames.length}
+                                                        </span>
+                                                    ) : null}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setActiveGamesTab('completed')}
+                                                    className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                                                        activeGamesTab === 'completed'
+                                                            ? 'bg-blue-50 text-blue-900'
+                                                            : 'text-slate-600 hover:text-slate-900'
+                                                    }`}
+                                                >
+                                                    Completed
+                                                    {completedGames.length > 0 ? (
+                                                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                                            activeGamesTab === 'completed'
+                                                                ? 'bg-white text-blue-700'
+                                                                : 'bg-slate-100 text-slate-600'
+                                                        }`}>
+                                                            {completedGames.length}
+                                                        </span>
+                                                    ) : null}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="w-full overflow-hidden" style={{ contain: 'inline-size' }}>
+                                            {activeGamesTab === 'inProgress' ? (
+                                                <GameResumableList
+                                                    games={resumableGames}
+                                                    loading={loadingGames}
+                                                    onEndGame={handleEndGame}
+                                                />
+                                            ) : (
+                                                <GameCompletedList
+                                                    games={completedGames}
+                                                    loading={loadingGames}
+                                                />
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            <div
+                                role="tabpanel"
+                                id="game-workspace-panel-new"
+                                aria-labelledby="game-workspace-tab-new"
                             >
-                                {seedLookupLoading ? 'Looking up...' : 'Play →'}
-                            </button>
-                        </div>
+                                {!user ? (
+                                    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+                                            <svg className="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                            </svg>
+                                        </div>
+                                        <h3 className="text-xl font-semibold text-slate-900">Sign in to start a new board</h3>
+                                        <p className="mt-2 text-sm text-slate-600">
+                                            Custom games and shared codes both start here once your account is active.
+                                        </p>
+                                        <Link href="/sign-in?redirect_url=/game" className="btn-primary mt-5 inline-flex items-center gap-2">
+                                            Sign In to Continue
+                                        </Link>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(20rem,0.86fr)]">
+                                        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                <div>
+                                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">
+                                                        New board setup
+                                                    </div>
+                                                    <h3 className="mt-2 text-xl font-semibold text-slate-900">Choose how you want to play</h3>
+                                                    <p className="mt-1 text-sm text-slate-600">
+                                                        The builder stays on one side while shared-game entry and setup context stay visible alongside it.
+                                                    </p>
+                                                </div>
+                                                <div className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                                                    Customizable
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-6 space-y-6">
+                                                <GameModeSelector
+                                                    selectedMode={selectedMode}
+                                                    onModeChange={setSelectedMode}
+                                                />
+
+                                                {selectedMode === 'knowledge' && (
+                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                        <label className="mb-3 block text-sm font-medium text-gray-700">Select Knowledge Categories</label>
+                                                        <div className="grid gap-2 sm:grid-cols-2">
+                                                            {KNOWLEDGE_CATEGORIES.map((category) => (
+                                                                <label key={category} className="flex cursor-pointer items-center space-x-2 rounded-xl bg-white px-3 py-2 text-gray-900 shadow-sm">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={selectedCategories.includes(category)}
+                                                                        onChange={(e) => {
+                                                                            if (e.target.checked) {
+                                                                                setSelectedCategories([...selectedCategories, category])
+                                                                            } else {
+                                                                                setSelectedCategories(selectedCategories.filter(c => c !== category))
+                                                                            }
+                                                                        }}
+                                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                    />
+                                                                    <span className="text-sm">{category.replace(/_/g, ' ')}</span>
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {selectedMode === 'custom' && (
+                                                    <CustomCategoryPicker
+                                                        selectedCategories={customCategories}
+                                                        onCategoriesChange={setCustomCategories}
+                                                        maxCategories={5}
+                                                    />
+                                                )}
+
+                                                {selectedMode === 'date' && (
+                                                    <DateModeSection
+                                                        selectedDate={selectedDate}
+                                                        selectedDateObj={selectedDateObj}
+                                                        onDateChange={handleDateChange}
+                                                    />
+                                                )}
+
+                                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                    <label className="mb-3 block text-sm font-medium text-gray-700">Rounds</label>
+                                                    <div className="flex flex-wrap gap-3">
+                                                        <label className="flex cursor-pointer items-center space-x-2 rounded-xl bg-white px-3 py-2 text-gray-900 shadow-sm">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={rounds.single}
+                                                                onChange={(e) => setRounds({ ...rounds, single: e.target.checked })}
+                                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            <span className="text-sm">Single Jeopardy</span>
+                                                        </label>
+                                                        <label className="flex cursor-pointer items-center space-x-2 rounded-xl bg-white px-3 py-2 text-gray-900 shadow-sm">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={rounds.double}
+                                                                onChange={(e) => setRounds({ ...rounds, double: e.target.checked })}
+                                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            <span className="text-sm">Double Jeopardy</span>
+                                                        </label>
+                                                        <label className="flex cursor-pointer items-center space-x-2 rounded-xl bg-white px-3 py-2 text-gray-900 shadow-sm">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={rounds.final}
+                                                                onChange={(e) => setRounds({ ...rounds, final: e.target.checked })}
+                                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                            />
+                                                            <span className="text-sm">Final Jeopardy</span>
+                                                        </label>
+                                                    </div>
+                                                </div>
+
+                                                {rounds.final && (
+                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                        <label className="mb-3 block text-sm font-medium text-gray-700">Final Jeopardy Category</label>
+                                                        <div className="space-y-2">
+                                                            <label className="flex cursor-pointer items-center space-x-2 rounded-xl bg-white px-3 py-2 text-gray-900 shadow-sm">
+                                                                <input
+                                                                    type="radio"
+                                                                    name="finalCategoryMode"
+                                                                    checked={finalCategoryMode === 'shuffle'}
+                                                                    onChange={() => setFinalCategoryMode('shuffle')}
+                                                                    className="border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                />
+                                                                <span className="text-sm">Random category</span>
+                                                            </label>
+                                                            {selectedMode === 'date' && (
+                                                                <label className="flex cursor-pointer items-center space-x-2 rounded-xl bg-white px-3 py-2 text-gray-900 shadow-sm">
+                                                                    <input
+                                                                        type="radio"
+                                                                        name="finalCategoryMode"
+                                                                        checked={finalCategoryMode === 'byDate'}
+                                                                        onChange={() => setFinalCategoryMode('byDate')}
+                                                                        className="border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                                    />
+                                                                    <span className="text-sm">Match air date</span>
+                                                                </label>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex justify-end border-t border-slate-200 pt-4">
+                                                    <button
+                                                        onClick={handleStartGame}
+                                                        disabled={startGameDisabled}
+                                                        className={`btn-primary px-8 py-3 text-lg ${isStartingGame ? 'cursor-wait opacity-50' : ''}`}
+                                                    >
+                                                        {isStartingGame ? (
+                                                            <>
+                                                                <span className="spinner mr-2"></span>
+                                                                Starting...
+                                                            </>
+                                                        ) : (
+                                                            'Start Game'
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-5">
+                                            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-white via-blue-50 to-slate-50 p-5 shadow-sm">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-blue-600 shadow-sm">
+                                                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                                        </svg>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">Have a game code?</div>
+                                                        <h3 className="mt-2 text-xl font-semibold text-slate-900">Play a shared board</h3>
+                                                        <p className="mt-1 text-sm text-slate-600">
+                                                            Enter a seed to preview the shared setup before you start the board.
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-5 space-y-3">
+                                                    <label className="grid gap-1.5">
+                                                        <span className="text-sm font-medium text-slate-800">Game code</span>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Enter seed..."
+                                                            value={seedInput}
+                                                            onChange={(e) => {
+                                                                setSeedInput(e.target.value)
+                                                                setSeedLookupError(null)
+                                                            }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' && seedInput.trim()) {
+                                                                    handleSeedLookup()
+                                                                }
+                                                            }}
+                                                            className="form-input bg-white text-gray-900 placeholder:text-gray-500"
+                                                        />
+                                                    </label>
+
+                                                    <button
+                                                        onClick={handleSeedLookup}
+                                                        disabled={!seedInput.trim() || seedLookupLoading}
+                                                        className={`btn-primary w-full justify-center ${!seedInput.trim() || seedLookupLoading ? 'cursor-not-allowed opacity-50' : ''}`}
+                                                    >
+                                                        {seedLookupLoading ? 'Looking up...' : 'Preview Shared Game'}
+                                                    </button>
+
+                                                    {seedLookupError ? (
+                                                        <p className="text-sm text-red-600">{seedLookupError}</p>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <div>
+                                                        <h3 className="text-lg font-semibold text-slate-900">Setup snapshot</h3>
+                                                        <p className="mt-1 text-sm text-slate-600">
+                                                            Keep the current build visible while you adjust the board.
+                                                        </p>
+                                                    </div>
+                                                    <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                                                        Live
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 space-y-3">
+                                                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                                                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Mode</div>
+                                                        <div className="mt-1 text-sm font-medium text-slate-900">
+                                                            {selectedMode === 'date'
+                                                                ? 'By Air Date'
+                                                                : selectedMode === 'knowledge'
+                                                                    ? 'Knowledge Areas'
+                                                                    : selectedMode === 'custom'
+                                                                        ? 'Custom'
+                                                                        : 'Random'}
+                                                        </div>
+                                                        <div className="mt-1 text-sm text-slate-600">{selectedModeSummary}</div>
+                                                    </div>
+
+                                                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                                                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Rounds</div>
+                                                        <div className="mt-1 text-sm font-medium text-slate-900">
+                                                            {selectedRoundLabels.length > 0 ? selectedRoundLabels.join(' • ') : 'Choose at least one round'}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                                                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Final Jeopardy</div>
+                                                        <div className="mt-1 text-sm font-medium text-slate-900">{finalRoundSummary}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                    {seedLookupError && (
-                        <p className="mt-2 text-sm text-red-600">{seedLookupError}</p>
-                    )}
-                </div>
+                </section>
             </div>
 
             {/* Seed Preview Modal */}

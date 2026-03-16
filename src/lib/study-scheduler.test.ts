@@ -36,6 +36,7 @@ describe('study scheduler', () => {
                 totalQuestions: 20,
                 correctAnswers: 10,
                 lastAttemptedAt: toDate('2025-12-27T00:00:00.000Z'), // 5 days ago
+                knowledgeCategoryId: 'GEOGRAPHY_AND_HISTORY',
             },
             {
                 categoryId: 'cat-b',
@@ -43,6 +44,7 @@ describe('study scheduler', () => {
                 totalQuestions: 12,
                 correctAnswers: 1,
                 lastAttemptedAt: toDate('2025-12-31T00:00:00.000Z'), // 1 day ago
+                knowledgeCategoryId: 'SCIENCE_AND_NATURE',
             },
             {
                 categoryId: 'cat-c',
@@ -50,13 +52,15 @@ describe('study scheduler', () => {
                 totalQuestions: 4,
                 correctAnswers: 4,
                 lastAttemptedAt: null,
+                knowledgeCategoryId: 'ENTERTAINMENT',
             },
             {
                 categoryId: 'cat-d',
                 categoryName: 'Art',
                 totalQuestions: 30,
                 correctAnswers: 29,
-                lastAttemptedAt: toDate('2025-12-10T00:00:00.000Z'), // not yet due (high accuracy, older)
+                lastAttemptedAt: toDate('2025-12-22T00:00:00.000Z'), // 10 days ago, still inside the review window
+                knowledgeCategoryId: 'ARTS_AND_LITERATURE',
             },
         ], {
             now,
@@ -65,14 +69,17 @@ describe('study scheduler', () => {
         })
 
         expect(recommendations.totalAttemptedCategories).toBe(4)
-        expect(recommendations.quickSession.categories).toEqual(['cat-b', 'cat-c'])
+        expect(recommendations.quickSession.categories).toEqual(['cat-b', 'cat-a'])
         expect(recommendations.recommendations).toHaveLength(3)
         expect(recommendations.recommendations[0].categoryId).toBe('cat-b')
         expect(recommendations.recommendations[0].priority).toBe('HIGH')
-        expect(recommendations.recommendations[1].priority).toBe('MEDIUM')
+        expect(recommendations.recommendations[1].priority).toBe('HIGH')
+        expect(recommendations.recommendations[1].isDue).toBe(true)
         expect(['LOW', 'MEDIUM']).toContain(recommendations.recommendations[2].priority)
         expect(recommendations.focusNow?.categoryId).toBe('cat-b')
-        expect(recommendations.quickSession.summary).toContain('2 focused')
+        expect(recommendations.quickSession.summary).toContain('2 categories')
+        expect(recommendations.quickSession.items[0]?.actionLabel).toBe('Rebuild')
+        expect(recommendations.quickSession.totalTargetQuestions).toBeGreaterThan(0)
     })
 
     it('clamps summary size and minimum recommendation count safely', () => {
@@ -84,6 +91,44 @@ describe('study scheduler', () => {
 
         expect(result.recommendations).toHaveLength(0)
         expect(result.quickSession.categories).toEqual([])
+        expect(result.quickSession.items).toEqual([])
+        expect(result.quickSession.mixedReview).toBeNull()
         expect(result.focusNow).toBeNull()
+    })
+
+    it('suggests a mixed review when multiple top categories share a knowledge category', () => {
+        const result = buildStudyRecommendations([
+            {
+                categoryId: 'cat-a',
+                categoryName: 'Physics',
+                totalQuestions: 15,
+                correctAnswers: 4,
+                lastAttemptedAt: toDate('2025-12-20T00:00:00.000Z'),
+                knowledgeCategoryId: 'SCIENCE_AND_NATURE',
+            },
+            {
+                categoryId: 'cat-b',
+                categoryName: 'Biology',
+                totalQuestions: 10,
+                correctAnswers: 3,
+                lastAttemptedAt: toDate('2025-12-24T00:00:00.000Z'),
+                knowledgeCategoryId: 'SCIENCE_AND_NATURE',
+            },
+            {
+                categoryId: 'cat-c',
+                categoryName: 'Opera',
+                totalQuestions: 12,
+                correctAnswers: 8,
+                lastAttemptedAt: toDate('2025-12-30T00:00:00.000Z'),
+                knowledgeCategoryId: 'ARTS_AND_LITERATURE',
+            },
+        ], {
+            now: toDate('2026-01-01T00:00:00.000Z'),
+            maxRecommendations: 3,
+            maxSessionSize: 3,
+        })
+
+        expect(result.quickSession.mixedReview?.knowledgeCategoryId).toBe('SCIENCE_AND_NATURE')
+        expect(result.quickSession.mixedReview?.categoryCount).toBe(2)
     })
 })

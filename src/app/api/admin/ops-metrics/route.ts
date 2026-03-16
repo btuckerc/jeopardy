@@ -8,8 +8,33 @@ import { getErrorCountsByBucket, getErrorCountsByStatus } from '@/lib/api-instru
 export const dynamic = 'force-dynamic'
 
 const opsMetricsParamsSchema = z.object({
-    window: z.enum(['24h', '7d', '14d', '30d']).optional().default('24h')
+    window: z.enum(['24h', '7d', '14d', '30d', '90d', 'all']).optional().default('30d')
 })
+
+async function getOpsMetricsStartTime(now: Date): Promise<Date> {
+    const [firstApiEvent, firstCronExecution, firstDispute] = await Promise.all([
+        prisma.apiRequestEvent.findFirst({
+            orderBy: { timestamp: 'asc' },
+            select: { timestamp: true },
+        }),
+        prisma.cronJobExecution.findFirst({
+            orderBy: { startedAt: 'asc' },
+            select: { startedAt: true },
+        }),
+        prisma.answerDispute.findFirst({
+            orderBy: { createdAt: 'asc' },
+            select: { createdAt: true },
+        }),
+    ])
+
+    const candidates = [
+        firstApiEvent?.timestamp,
+        firstCronExecution?.startedAt,
+        firstDispute?.createdAt,
+    ].filter((value): value is Date => value instanceof Date)
+
+    return candidates.sort((left, right) => left.getTime() - right.getTime())[0] || now
+}
 
 /**
  * GET /api/admin/ops-metrics
@@ -44,6 +69,14 @@ export async function GET(request: Request) {
             case '30d':
                 startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
                 bucketMs = 24 * 60 * 60 * 1000 // 1 day buckets
+                break
+            case '90d':
+                startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+                bucketMs = 24 * 60 * 60 * 1000
+                break
+            case 'all':
+                startTime = await getOpsMetricsStartTime(now)
+                bucketMs = 7 * 24 * 60 * 60 * 1000 // weekly buckets for long-range views
                 break
             case '24h':
             default:
@@ -235,4 +268,3 @@ export async function GET(request: Request) {
         return serverErrorResponse('Error fetching operational metrics', error)
     }
 }
-

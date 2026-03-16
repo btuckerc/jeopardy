@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import type { AdminGame, AdminDispute, AdminIssue, AdminUser, UserDailyChallengeEntry, AdminAchievement, CronExecution } from '@/types/admin'
+import type { AdminReportingWindow } from '../lib/reporting'
 
 // Query keys for cache management
 export const adminQueryKeys = {
@@ -9,7 +10,7 @@ export const adminQueryKeys = {
     dbMetrics: (window: string, model?: string) => ['admin', 'db-metrics', window, model],
     usageMetrics: (window: string) => ['admin', 'usage-metrics', window],
     opsMetrics: (window: string) => ['admin', 'ops-metrics', window],
-    contentMetrics: () => ['admin', 'content-metrics'],
+    contentMetrics: (window: string) => ['admin', 'content-metrics', window],
     abuseMetrics: (window: string) => ['admin', 'abuse-metrics', window],
     perfMetrics: (window: string) => ['admin', 'perf-metrics', window],
     userDebug: (userId: string) => ['admin', 'user-debug', userId],
@@ -34,7 +35,7 @@ async function fetchAdmin<T>(url: string): Promise<T> {
 }
 
 // API Metrics hook
-export function useApiMetrics(window: string = '24h') {
+export function useApiMetrics(window: AdminReportingWindow = '30d') {
     return useQuery({
         queryKey: adminQueryKeys.apiMetrics(window),
         queryFn: () => fetchAdmin<ApiMetricsResponse>(`/api/admin/api-metrics?window=${window}`),
@@ -44,7 +45,7 @@ export function useApiMetrics(window: string = '24h') {
 }
 
 // DB Metrics hook
-export function useDbMetrics(window: string = '24h', model?: string) {
+export function useDbMetrics(window: AdminReportingWindow = '30d', model?: string) {
     const params = new URLSearchParams({ window })
     if (model) params.append('model', model)
     
@@ -57,7 +58,7 @@ export function useDbMetrics(window: string = '24h', model?: string) {
 }
 
 // Usage Metrics hook
-export function useUsageMetrics(window: string = '7d') {
+export function useUsageMetrics(window: AdminReportingWindow = '30d') {
     const bucket = window === '24h' ? 'hour' : 'day'
     return useQuery({
         queryKey: adminQueryKeys.usageMetrics(window),
@@ -67,7 +68,7 @@ export function useUsageMetrics(window: string = '7d') {
 }
 
 // Ops Metrics hook
-export function useOpsMetrics(window: string = '24h') {
+export function useOpsMetrics(window: AdminReportingWindow = '30d') {
     return useQuery({
         queryKey: adminQueryKeys.opsMetrics(window),
         queryFn: () => fetchAdmin<OpsMetricsResponse>(`/api/admin/ops-metrics?window=${window}`),
@@ -77,10 +78,10 @@ export function useOpsMetrics(window: string = '24h') {
 }
 
 // Content Metrics hook
-export function useContentMetrics() {
+export function useContentMetrics(window: AdminReportingWindow = '30d') {
     return useQuery({
-        queryKey: adminQueryKeys.contentMetrics(),
-        queryFn: () => fetchAdmin<ContentMetricsResponse>('/api/admin/content-metrics'),
+        queryKey: adminQueryKeys.contentMetrics(window),
+        queryFn: () => fetchAdmin<ContentMetricsResponse>(`/api/admin/content-metrics?window=${window}`),
         staleTime: 5 * 60 * 1000, // 5 minutes - content doesn't change often
     })
 }
@@ -381,6 +382,17 @@ interface UsageMetricsResponse {
         activeLastMonth: number
         dormant: number
     }
+    audience: {
+        activeUsers30d: number
+        countries: Array<{ name: string; value: number }>
+        devices: Array<{ name: string; value: number }>
+        locales: Array<{ name: string; value: number }>
+        timezones: Array<{ name: string; value: number }>
+        browsers: Array<{ name: string; value: number }>
+        operatingSystems: Array<{ name: string; value: number }>
+        referrers: Array<{ name: string; value: number }>
+        acquisitionSources: Array<{ name: string; value: number }>
+    }
 }
 
 interface OpsMetricsResponse {
@@ -443,6 +455,7 @@ interface OpsMetricsResponse {
 }
 
 interface ContentMetricsResponse {
+    window?: string
     overview: {
         totalQuestions: number
         totalCategories: number
@@ -570,6 +583,17 @@ interface UserDebugResponse {
         updatedAt: string
         lastOnlineAt: string | null
         lastSeenPath: string | null
+        locale: string | null
+        timezone: string | null
+        countryCode: string | null
+        regionCode: string | null
+        deviceType: string | null
+        browserFamily: string | null
+        osFamily: string | null
+        referrerHost: string | null
+        acquisitionSource: string | null
+        acquisitionMedium: string | null
+        acquisitionCampaign: string | null
         currentStreak: number
         longestStreak: number
         lastGameDate: string | null
@@ -693,7 +717,7 @@ interface PerfMetricsResponse {
 }
 
 // Performance Metrics hook (database-backed historical metrics)
-export function usePerfMetrics(window: string = '24h') {
+export function usePerfMetrics(window: AdminReportingWindow = '30d') {
     return useQuery({
         queryKey: adminQueryKeys.perfMetrics(window),
         queryFn: () => fetchAdmin<PerfMetricsResponse>(`/api/admin/perf-metrics?window=${window}`),

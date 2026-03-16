@@ -306,6 +306,36 @@ export function UserDebugTab() {
                                         </p>
                                     </div>
                                 </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+                                    <div>
+                                        <p className="text-xs text-gray-500">Location</p>
+                                        <p className="text-sm font-medium text-gray-900">
+                                            {[userDebug.user.countryCode, userDebug.user.regionCode].filter(Boolean).join('-') || 'Unknown'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Locale / Timezone</p>
+                                        <p className="text-sm font-medium text-gray-900 break-words">
+                                            {userDebug.user.locale || 'Unknown'}
+                                            {userDebug.user.timezone ? ` · ${userDebug.user.timezone}` : ''}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Device / Browser / OS</p>
+                                        <p className="text-sm font-medium text-gray-900 break-words">
+                                            {[userDebug.user.deviceType, userDebug.user.browserFamily, userDebug.user.osFamily].filter(Boolean).join(' · ') || 'Unknown'}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500">Acquisition</p>
+                                        <p className="text-sm font-medium text-gray-900 break-words">
+                                            {[userDebug.user.acquisitionSource, userDebug.user.acquisitionMedium, userDebug.user.acquisitionCampaign].filter(Boolean).join(' / ')
+                                                || userDebug.user.referrerHost
+                                                || 'Direct / unknown'}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Stats Section */}

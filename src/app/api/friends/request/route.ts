@@ -11,12 +11,12 @@ import {
 } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import {
-    canonicalFriendPair,
     findFriendTarget,
     getFriendshipBetweenUsers,
     getRequestBetweenUsers,
     hasBlockedRelationship,
 } from '@/lib/friends'
+import { isFriendCodeCandidate, normalizeFriendCode } from '@/lib/friend-invite'
 
 const friendRequestSchema = z.object({
     target: z.string().trim().min(1, 'Target is required').max(320, 'Target is too long'),
@@ -32,9 +32,13 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
     const { target, message } = parseResult.data
 
     try {
-        const targetUser = await findFriendTarget(target)
+        const targetUser = await findFriendTarget(target, { allowUserIdLookup: true })
         if (!targetUser) {
-            return badRequestResponse('User not found')
+            return badRequestResponse(
+                isFriendCodeCandidate(normalizeFriendCode(target))
+                    ? 'Friend code not found'
+                    : 'User not found',
+            )
         }
 
         if (targetUser.id === user.id) {
@@ -55,30 +59,9 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         }
 
         const existingRequest = await getRequestBetweenUsers(user.id, targetUser.id, {
-            status: [FriendRequestStatus.PENDING, FriendRequestStatus.ACCEPTED]
+            status: [FriendRequestStatus.PENDING]
         })
         if (existingRequest) {
-            if (existingRequest.status === FriendRequestStatus.ACCEPTED) {
-                const [userId1, userId2] = canonicalFriendPair(user.id, targetUser.id)
-
-                const friendship = await prisma.friendship.findFirst({
-                    where: { userId1, userId2 },
-                    select: { id: true },
-                })
-
-                if (!friendship) {
-                    try {
-                        await prisma.friendship.create({
-                            data: { userId1, userId2 },
-                        })
-                    } catch {
-                        // Ignore race where another request creates the canonical friendship first.
-                    }
-                }
-
-                return badRequestResponse('These users are already friends')
-            }
-
             return badRequestResponse(
                 existingRequest.fromUserId === user.id
                     ? 'You already sent a pending request to this user'

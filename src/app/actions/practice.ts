@@ -561,6 +561,38 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
     }
 }
 
+export async function getCategoryStudyContext(categoryId: string) {
+    try {
+        const category = await prisma.category.findUnique({
+            where: { id: categoryId },
+            select: {
+                id: true,
+                name: true,
+                knowledgeCategory: true,
+                questions: {
+                    select: {
+                        knowledgeCategory: true
+                    },
+                    take: 1
+                }
+            }
+        })
+
+        if (!category) {
+            return null
+        }
+
+        return {
+            categoryId: category.id,
+            categoryName: category.name,
+            knowledgeCategory: category.knowledgeCategory || category.questions[0]?.knowledgeCategory || null
+        }
+    } catch (error) {
+        console.error('Error resolving category study context:', error)
+        throw error
+    }
+}
+
 export async function getRoundCategories(
     round: 'SINGLE' | 'DOUBLE' | 'FINAL',
     userId?: string,
@@ -1052,4 +1084,4 @@ export async function getRandomTripleStumper(
         console.error('Error fetching random triple stumper:', error)
         throw error
     }
-} 
+}

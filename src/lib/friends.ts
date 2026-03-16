@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { FriendActivityType, FriendRequestStatus, FriendVisibility } from '@prisma/client'
 import { Prisma } from '@prisma/client'
+import crypto from 'crypto'
+import { FRIEND_CODE_ALPHABET, FRIEND_CODE_LENGTH, isFriendCodeCandidate, normalizeFriendCode } from '@/lib/friend-invite'
 
 const PUBLIC_PROFILE_SELECT = Prisma.validator<Prisma.UserSelect>()({
     id: true,
@@ -14,6 +16,7 @@ const LOOKUP_PROFILE_SELECT = Prisma.validator<Prisma.UserSelect>()({
     ...PUBLIC_PROFILE_SELECT,
     allowFriendRequests: true,
     friendVisibility: true,
+    friendCode: true,
 })
 
 const FRIEND_PROFILE_SELECT = Prisma.validator<Prisma.UserSelect>()({
@@ -36,6 +39,17 @@ const FRIEND_SETTINGS_SELECT = Prisma.validator<Prisma.UserSelect>()({
     allowFriendRequests: true,
 })
 
+const FRIEND_INVITE_SELECT = Prisma.validator<Prisma.UserSelect>()({
+    id: true,
+    displayName: true,
+    selectedIcon: true,
+    avatarBackground: true,
+    allowFriendRequests: true,
+    friendCode: true,
+    friendInviteToken: true,
+    friendInviteTokenCreatedAt: true,
+})
+
 type LookupUser = Prisma.UserGetPayload<{ select: typeof LOOKUP_PROFILE_SELECT }>
 
 interface BlockedProfile {
@@ -55,6 +69,8 @@ export type FriendSettings = {
     friendVisibility: FriendVisibility
     allowFriendRequests: boolean
 }
+
+export type FriendInviteIdentity = Prisma.UserGetPayload<{ select: typeof FRIEND_INVITE_SELECT }>
 
 type FriendRequestWithUsers = Prisma.FriendRequestGetPayload<{
     include: {
@@ -102,19 +118,36 @@ export function canonicalFriendPair(a: string, b: string): [string, string] {
 /**
  * Search for a user by id, email, or unique display name.
  */
-export async function findFriendTarget(input: string): Promise<LookupUser | null> {
+export async function findFriendTarget(
+    input: string,
+    options: { allowUserIdLookup?: boolean } = {},
+): Promise<LookupUser | null> {
     const trimmed = input.trim()
     if (!trimmed) {
         return null
     }
 
-    const idResult = await prisma.user.findUnique({
-        where: { id: trimmed },
-        select: LOOKUP_PROFILE_SELECT,
-    })
+    const normalizedFriendCode = normalizeFriendCode(trimmed)
+    if (isFriendCodeCandidate(normalizedFriendCode)) {
+        const friendCodeResult = await prisma.user.findUnique({
+            where: { friendCode: normalizedFriendCode },
+            select: LOOKUP_PROFILE_SELECT,
+        })
 
-    if (idResult) {
-        return maskSocialProfile(idResult)
+        if (friendCodeResult) {
+            return maskSocialProfile(friendCodeResult)
+        }
+    }
+
+    if (options.allowUserIdLookup) {
+        const idResult = await prisma.user.findUnique({
+            where: { id: trimmed },
+            select: LOOKUP_PROFILE_SELECT,
+        })
+
+        if (idResult) {
+            return maskSocialProfile(idResult)
+        }
     }
 
     const emailOrDisplayNameResult = await prisma.user.findFirst({
@@ -138,17 +171,27 @@ export async function findFriendTarget(input: string): Promise<LookupUser | null
  * Check if a friendship already exists between two users.
  */
 export async function isFriend(userAId: string, userBId: string): Promise<boolean> {
-    const [userId1, userId2] = canonicalFriendPair(userAId, userBId)
-
     const existing = await prisma.friendship.findFirst({
         where: {
-            userId1,
-            userId2,
+            OR: [
+                {
+                    userId1: userAId,
+                    userId2: userBId,
+                },
+                {
+                    userId1: userBId,
+                    userId2: userAId,
+                },
+            ],
         },
         select: { id: true },
     })
 
-    return !!existing
+    if (!existing) {
+        return false
+    }
+
+    return !(await hasBlockedRelationship(userAId, userBId))
 }
 
 /**
@@ -168,9 +211,40 @@ export async function listFriendIds(userId: string): Promise<string[]> {
         },
     })
 
-    return friendships.map((friendship) =>
+    const friendIds = friendships.map((friendship) =>
         friendship.userId1 === userId ? friendship.userId2 : friendship.userId1,
     )
+
+    if (friendIds.length === 0) {
+        return []
+    }
+
+    const blockedRelationships = await prisma.friendBlock.findMany({
+        where: {
+            OR: [
+                {
+                    blockerUserId: userId,
+                    blockedUserId: { in: friendIds },
+                },
+                {
+                    blockedUserId: userId,
+                    blockerUserId: { in: friendIds },
+                },
+            ],
+        },
+        select: {
+            blockerUserId: true,
+            blockedUserId: true,
+        },
+    })
+
+    const hiddenFriendIds = new Set(
+        blockedRelationships.map((block) => (
+            block.blockerUserId === userId ? block.blockedUserId : block.blockerUserId
+        )),
+    )
+
+    return friendIds.filter((friendId) => !hiddenFriendIds.has(friendId))
 }
 
 /**
@@ -279,12 +353,18 @@ export async function getRequestBetweenUsersWithUsers(
  * Get a friendship between two users if it exists.
  */
 export async function getFriendshipBetweenUsers(userAId: string, userBId: string) {
-    const [userId1, userId2] = canonicalFriendPair(userAId, userBId)
-
     return prisma.friendship.findFirst({
         where: {
-            userId1,
-            userId2,
+            OR: [
+                {
+                    userId1: userAId,
+                    userId2: userBId,
+                },
+                {
+                    userId1: userBId,
+                    userId2: userAId,
+                },
+            ],
         },
     })
 }
@@ -350,12 +430,47 @@ export async function getFriendsForUser(userId: string) {
         orderBy: { createdAt: 'desc' },
     })
 
+    const friendIdsInOrder = friendships.flatMap((friendship) => (
+        friendship.userId1 === userId ? [friendship.userId2] : [friendship.userId1]
+    ))
+
+    if (friendIdsInOrder.length === 0) {
+        return []
+    }
+
+    const blockedRelationships = await prisma.friendBlock.findMany({
+        where: {
+            OR: [
+                {
+                    blockerUserId: userId,
+                    blockedUserId: { in: friendIdsInOrder },
+                },
+                {
+                    blockedUserId: userId,
+                    blockerUserId: { in: friendIdsInOrder },
+                },
+            ],
+        },
+        select: {
+            blockerUserId: true,
+            blockedUserId: true,
+        },
+    })
+
+    const hiddenFriendIds = new Set(
+        blockedRelationships.map((block) => (
+            block.blockerUserId === userId ? block.blockedUserId : block.blockerUserId
+        )),
+    )
+    const visibleFriendIds = friendIdsInOrder.filter((friendId) => !hiddenFriendIds.has(friendId))
+    if (visibleFriendIds.length === 0) {
+        return []
+    }
+
     const friendRows: FriendProfile[] = await prisma.user.findMany({
         where: {
             id: {
-                in: friendships.flatMap((friendship) => {
-                    return friendship.userId1 === userId ? [friendship.userId2] : [friendship.userId1]
-                }),
+                in: visibleFriendIds,
             },
         },
         select: {
@@ -363,7 +478,10 @@ export async function getFriendsForUser(userId: string) {
         },
     })
 
-    return friendRows.map((friend) => maskSocialProfile(friend))
+    const friendMap = new Map(friendRows.map((friend) => [friend.id, maskSocialProfile(friend)]))
+    return visibleFriendIds
+        .map((friendId) => friendMap.get(friendId))
+        .filter((friend): friend is FriendProfile => !!friend)
 }
 
 export async function getFriendSettings(userId: string): Promise<FriendSettings> {
@@ -448,13 +566,13 @@ export async function getBlockedUsersForUser(userId: string): Promise<BlockedPro
 }
 
 export async function clearFriendshipAndRequests(userAId: string, userBId: string): Promise<void> {
-    const [userId1, userId2] = canonicalFriendPair(userAId, userBId)
-
     await prisma.$transaction([
         prisma.friendship.deleteMany({
             where: {
-                userId1,
-                userId2,
+                OR: [
+                    { userId1: userAId, userId2: userBId },
+                    { userId1: userBId, userId2: userAId },
+                ],
             },
         }),
         prisma.friendRequest.deleteMany({
@@ -466,4 +584,127 @@ export async function clearFriendshipAndRequests(userAId: string, userBId: strin
             },
         }),
     ])
+}
+
+export async function clearFriendRequestsBetweenUsers(userAId: string, userBId: string): Promise<void> {
+    await prisma.friendRequest.deleteMany({
+        where: {
+            OR: [
+                { fromUserId: userAId, toUserId: userBId },
+                { fromUserId: userBId, toUserId: userAId },
+            ],
+        },
+    })
+}
+
+function generateFriendCode(): string {
+    let nextCode = ''
+    while (nextCode.length < FRIEND_CODE_LENGTH) {
+        const index = crypto.randomInt(0, FRIEND_CODE_ALPHABET.length)
+        nextCode += FRIEND_CODE_ALPHABET[index]
+    }
+
+    return nextCode
+}
+
+function generateFriendInviteToken(): string {
+    return crypto.randomBytes(24).toString('base64url')
+}
+
+async function updateUserInviteIdentity(
+    userId: string,
+    fields: { friendCode?: string; friendInviteToken?: string; friendInviteTokenCreatedAt?: Date },
+): Promise<FriendInviteIdentity> {
+    return prisma.user.update({
+        where: { id: userId },
+        data: fields,
+        select: FRIEND_INVITE_SELECT,
+    })
+}
+
+export async function ensureFriendInviteIdentity(userId: string): Promise<FriendInviteIdentity> {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+        const current = await prisma.user.findUnique({
+            where: { id: userId },
+            select: FRIEND_INVITE_SELECT,
+        })
+
+        if (!current) {
+            throw new Error('User not found')
+        }
+
+        if (current.friendCode && current.friendInviteToken) {
+            return current
+        }
+
+        try {
+            return await updateUserInviteIdentity(userId, {
+                ...(current.friendCode ? {} : { friendCode: generateFriendCode() }),
+                ...(current.friendInviteToken
+                    ? {}
+                    : {
+                          friendInviteToken: generateFriendInviteToken(),
+                          friendInviteTokenCreatedAt: new Date(),
+                      }),
+            })
+        } catch (error) {
+            if (
+                error instanceof Prisma.PrismaClientKnownRequestError
+                && error.code === 'P2002'
+            ) {
+                continue
+            }
+
+            throw error
+        }
+    }
+
+    throw new Error('Unable to generate a unique friend invite')
+}
+
+export async function rotateFriendInviteIdentity(userId: string): Promise<FriendInviteIdentity> {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+        try {
+            return await updateUserInviteIdentity(userId, {
+                friendCode: generateFriendCode(),
+                friendInviteToken: generateFriendInviteToken(),
+                friendInviteTokenCreatedAt: new Date(),
+            })
+        } catch (error) {
+            if (
+                error instanceof Prisma.PrismaClientKnownRequestError
+                && error.code === 'P2002'
+            ) {
+                continue
+            }
+
+            throw error
+        }
+    }
+
+    throw new Error('Unable to rotate the friend invite')
+}
+
+export async function getFriendInviteByToken(token: string): Promise<FriendInviteIdentity | null> {
+    const trimmed = token.trim()
+    if (!trimmed) {
+        return null
+    }
+
+    return prisma.user.findUnique({
+        where: { friendInviteToken: trimmed },
+        select: FRIEND_INVITE_SELECT,
+    })
+}
+
+export async function getFriendInviteByCode(code: string): Promise<FriendInviteIdentity | null> {
+    const normalizedCode = normalizeFriendCode(code)
+    if (!isFriendCodeCandidate(normalizedCode)) {
+        return null
+    }
+
+    return prisma.user.findUnique({
+        where: { friendCode: normalizedCode },
+        select: FRIEND_INVITE_SELECT,
+    })
 }

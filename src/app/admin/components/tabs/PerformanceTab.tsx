@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { usePerfMetrics, type RouteStats, type RouteMetric } from '../../hooks/useAdminQueries'
 import { MetricCard, MetricGrid } from '../MetricCard'
+import { getAdminReportingWindowLabel, type AdminReportingWindow } from '../../lib/reporting'
 
 function formatMs(ms: number): string {
     if (ms < 1000) return `${ms}ms`
@@ -142,15 +143,11 @@ function ErrorRow({ metric }: { metric: RouteMetric }) {
     )
 }
 
-const TIME_WINDOWS = [
-    { value: '1h', label: '1 Hour' },
-    { value: '24h', label: '24 Hours' },
-    { value: '7d', label: '7 Days' },
-    { value: '30d', label: '30 Days' },
-]
+interface PerformanceTabProps {
+    window: AdminReportingWindow
+}
 
-export function PerformanceTab() {
-    const [window, setWindow] = useState('24h')
+export function PerformanceTab({ window }: PerformanceTabProps) {
     const { data: perfMetrics, isLoading, error, refetch } = usePerfMetrics(window)
     
     if (isLoading) {
@@ -188,20 +185,8 @@ export function PerformanceTab() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="flex bg-gray-100 rounded-lg p-1">
-                        {TIME_WINDOWS.map(tw => (
-                            <button
-                                key={tw.value}
-                                onClick={() => setWindow(tw.value)}
-                                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                                    window === tw.value 
-                                        ? 'bg-white text-gray-900 shadow-sm' 
-                                        : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                            >
-                                {tw.label}
-                            </button>
-                        ))}
+                    <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600">
+                        {getAdminReportingWindowLabel(window)}
                     </div>
                     <button
                         onClick={() => refetch()}
@@ -222,7 +207,7 @@ export function PerformanceTab() {
                 <MetricCard
                     title="Total Requests"
                     value={perfMetrics.totalRequests.toLocaleString()}
-                    subtitle={`in ${TIME_WINDOWS.find(t => t.value === window)?.label}`}
+                    subtitle={`in ${getAdminReportingWindowLabel(window)}`}
                     color="blue"
                 />
                 <MetricCard
@@ -327,7 +312,7 @@ export function PerformanceTab() {
             
             {/* Timestamp */}
             <div className="text-xs text-gray-400 text-center">
-                Data from: {new Date(perfMetrics.timestamp).toLocaleString()} • Window: {TIME_WINDOWS.find(t => t.value === window)?.label}
+                Data from: {new Date(perfMetrics.timestamp).toLocaleString()} • Window: {getAdminReportingWindowLabel(window)}
             </div>
         </div>
     )

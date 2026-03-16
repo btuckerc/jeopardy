@@ -19,7 +19,7 @@ export async function GET(request: Request) {
         if (authError) return authError
 
         const { searchParams } = new URL(request.url)
-        const window = searchParams.get('window') || '24h'
+        const window = searchParams.get('window') || '30d'
         const routeFilter = searchParams.get('route')
         const minDuration = searchParams.get('minDuration')
 
@@ -36,6 +36,20 @@ export async function GET(request: Request) {
             case '30d':
                 startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
                 break
+            case '14d':
+                startTime = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+                break
+            case '90d':
+                startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+                break
+            case 'all': {
+                const firstRequest = await prisma.apiRequestEvent.findFirst({
+                    orderBy: { timestamp: 'asc' },
+                    select: { timestamp: true },
+                })
+                startTime = firstRequest?.timestamp || now
+                break
+            }
             case '24h':
             default:
                 startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)

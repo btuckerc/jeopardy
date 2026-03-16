@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { jsonResponse, serverErrorResponse, parseBody, notFoundResponse } from '@/lib/api-utils'
 import { z } from 'zod'
 import { checkGuestLimit, getGuestConfig } from '@/lib/guest-sessions'
-import { checkAnswer } from '@/app/lib/answer-checker'
+import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
 
 export const dynamic = 'force-dynamic'
 
@@ -125,7 +125,13 @@ export async function POST(request: Request, { params }: RouteParams) {
         }
 
         // Check answer
-        const correct = checkAnswer(body.answer, question.answer)
+        const overrides = await getQuestionOverrides(question.id)
+        const grading = await evaluateAnswerWithOverridesAsync(
+            body.answer,
+            question.answer,
+            overrides
+        )
+        const correct = grading.accepted
         const points = correct ? (question.value || 0) : -(question.value || 0)
         const newScore = guestGame.currentScore + points
 
@@ -165,6 +171,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
         return jsonResponse({
             correct,
+            grading,
             ...(revealAnswer ? { answer: question.answer } : {}),
             points,
             currentScore: newScore,

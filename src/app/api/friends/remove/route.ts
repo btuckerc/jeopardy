@@ -9,7 +9,7 @@ import {
     serverErrorResponse,
 } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
-import { canonicalFriendPair } from '@/lib/friends'
+import { getFriendshipBetweenUsers } from '@/lib/friends'
 
 const friendRemoveSchema = z.object({
     friendId: z.string().trim().min(1, 'friendId is required'),
@@ -29,13 +29,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
     }
 
     try {
-        const [userId1, userId2] = canonicalFriendPair(user.id, friendId)
-        const friendship = await prisma.friendship.findFirst({
-            where: {
-                userId1,
-                userId2,
-            },
-        })
+        const friendship = await getFriendshipBetweenUsers(user.id, friendId)
 
         if (!friendship) {
             return badRequestResponse('These users are not friends')

@@ -6,7 +6,7 @@ import type { Prisma } from '@prisma/client'
 export const dynamic = 'force-dynamic'
 
 const apiMetricsParamsSchema = z.object({
-    window: z.enum(['1h', '24h', '7d', '30d']).optional().default('24h'),
+    window: z.enum(['1h', '24h', '7d', '14d', '30d', '90d', 'all']).optional().default('30d'),
     route: z.string().optional(), // Filter by specific route
 })
 
@@ -43,6 +43,23 @@ export async function GET(request: Request) {
                 startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
                 bucketMs = 24 * 60 * 60 * 1000 // 1-day buckets
                 break
+            case '14d':
+                startTime = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+                bucketMs = 24 * 60 * 60 * 1000
+                break
+            case '90d':
+                startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+                bucketMs = 24 * 60 * 60 * 1000
+                break
+            case 'all': {
+                const firstEvent = await prisma.apiRequestEvent.findFirst({
+                    orderBy: { timestamp: 'asc' },
+                    select: { timestamp: true },
+                })
+                startTime = firstEvent?.timestamp || now
+                bucketMs = 24 * 60 * 60 * 1000
+                break
+            }
             case '24h':
             default:
                 startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
@@ -214,4 +231,3 @@ export async function GET(request: Request) {
         return serverErrorResponse('Error fetching API metrics', error)
     }
 }
-

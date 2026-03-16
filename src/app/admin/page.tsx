@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { Metadata } from 'next'
-import { getAppUser } from '@/lib/clerk-auth'
+import { canUserAccessAdmin, getAppUser, getCurrentClerkPrimaryEmail } from '@/lib/clerk-auth'
 import AdminClient from './AdminClient'
 
 export const metadata: Metadata = {
@@ -14,12 +14,13 @@ export const metadata: Metadata = {
 
 export default async function AdminPage() {
     const user = await getAppUser()
-    
+
     if (!user) {
         redirect('/sign-in?redirect_url=/admin')
     }
-    
-    if (user.role !== 'ADMIN') {
+
+    const currentAuthEmail = await getCurrentClerkPrimaryEmail()
+    if (!canUserAccessAdmin(user, { currentAuthEmail })) {
         return (
             <div className="container mx-auto p-4">
                 <div className="text-center p-8">

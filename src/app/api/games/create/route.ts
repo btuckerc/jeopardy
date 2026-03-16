@@ -8,11 +8,18 @@ import { z } from 'zod'
 import { nanoid } from 'nanoid'
 import { computeUserEffectiveCutoff, toStoredPolicy, type StoredSpoilerPolicy } from '@/lib/spoiler-utils'
 
+const customCategorySelectionSchema = z.object({
+    categoryId: z.string(),
+    airDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    round: z.enum(['SINGLE', 'DOUBLE']),
+})
+
 // Schema for game configuration
 const gameConfigSchema = z.object({
     mode: z.enum(['random', 'knowledge', 'custom', 'date']),
     categories: z.array(z.string()).optional(), // Knowledge categories
     categoryIds: z.array(z.string()).optional(), // Custom category IDs
+    categorySelections: z.array(customCategorySelectionSchema).optional(),
     date: z.string().optional(), // Air date for date mode
     rounds: z.object({
         single: z.boolean().default(true),
@@ -51,7 +58,8 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             config.categoryFilter !== 'TRIPLE_STUMPER') {
             return badRequestResponse('Knowledge mode requires at least one knowledge category')
         }
-        if (config.mode === 'custom' && (!config.categoryIds || config.categoryIds.length === 0)) {
+        const categoryIds = config.categoryIds || config.categorySelections?.map((selection) => selection.categoryId)
+        if (config.mode === 'custom' && (!categoryIds || categoryIds.length === 0)) {
             return badRequestResponse('Custom mode requires at least one category')
         }
         if (config.mode === 'date' && !config.date) {
@@ -92,7 +100,8 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         const gameConfigToStore = {
             mode: config.mode,
             categories: config.categories,
-            categoryIds: config.categoryIds,
+            categoryIds,
+            categorySelections: config.categorySelections,
             date: config.date,
             rounds,
             finalCategoryMode: config.finalCategoryMode,

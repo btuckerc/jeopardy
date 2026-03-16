@@ -3,6 +3,35 @@
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { useUser } from '@clerk/nextjs'
+import {
+    ATTRIBUTION_STORAGE_KEY,
+    buildStoredAttribution,
+    normalizeLocale,
+    normalizeTimezone,
+    parseStoredAttribution,
+} from '@/lib/user-telemetry'
+
+function buildActivityPayload(path: string) {
+    const timezone = typeof window !== 'undefined'
+        ? normalizeTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
+        : undefined
+    const locale = typeof navigator !== 'undefined'
+        ? normalizeLocale(navigator.languages?.[0] || navigator.language)
+        : undefined
+    const attribution = typeof window !== 'undefined'
+        ? parseStoredAttribution(localStorage.getItem(ATTRIBUTION_STORAGE_KEY))
+        : null
+
+    return {
+        path,
+        locale,
+        timezone,
+        referrerHost: attribution?.referrerHost,
+        acquisitionSource: attribution?.acquisitionSource,
+        acquisitionMedium: attribution?.acquisitionMedium,
+        acquisitionCampaign: attribution?.acquisitionCampaign,
+    }
+}
 
 /**
  * ActivityTracker component
@@ -16,6 +45,27 @@ export function ActivityTracker() {
     const lastPathRef = useRef<string | null>(null)
     const isTrackingRef = useRef(false)
     const timeoutRef = useRef<NodeJS.Timeout>()
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        const existingAttribution = parseStoredAttribution(localStorage.getItem(ATTRIBUTION_STORAGE_KEY))
+        if (existingAttribution) {
+            return
+        }
+
+        const attribution = buildStoredAttribution({
+            search: window.location.search,
+            referrer: document.referrer,
+            currentHost: window.location.host,
+        })
+
+        if (attribution) {
+            localStorage.setItem(ATTRIBUTION_STORAGE_KEY, JSON.stringify(attribution))
+        }
+    }, [])
 
     useEffect(() => {
         // Only track for authenticated users
@@ -49,7 +99,7 @@ export function ActivityTracker() {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ path: pathname }),
+                body: JSON.stringify(buildActivityPayload(pathname)),
             })
                 .catch(() => {
                     // Silently fail - activity tracking shouldn't break the app
@@ -83,7 +133,7 @@ export function ActivityTracker() {
         const handleUnload = () => {
             // Use sendBeacon for reliable delivery on page unload
             if (navigator.sendBeacon && pathname) {
-                const data = JSON.stringify({ path: pathname })
+                const data = JSON.stringify(buildActivityPayload(pathname))
                 const blob = new Blob([data], { type: 'application/json' })
                 navigator.sendBeacon('/api/user/activity', blob)
             }
@@ -96,4 +146,3 @@ export function ActivityTracker() {
     // Component doesn't render anything
     return null
 }
-

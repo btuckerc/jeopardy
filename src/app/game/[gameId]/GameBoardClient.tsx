@@ -12,6 +12,10 @@ import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
 import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt'
 import type { UnlockedAchievement } from '@/types/admin'
 import { useGuestProgress } from '@/app/components/GuestProgressBanner'
+import {
+    serializeCustomCategorySelections,
+    type CustomCategorySelection,
+} from '@/lib/custom-category-selections'
 
 interface Question {
     id: string
@@ -33,6 +37,7 @@ interface GameConfig {
     mode: 'random' | 'knowledge' | 'custom' | 'date'
     categories?: string[]
     categoryIds?: string[]
+    categorySelections?: CustomCategorySelection[]
     date?: string
     rounds: {
         single: boolean
@@ -318,6 +323,9 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         if (config.categoryIds) {
             params.append('categoryIds', config.categoryIds.join(','))
         }
+        if (config.categorySelections && config.categorySelections.length > 0) {
+            params.append('categorySelections', serializeCustomCategorySelections(config.categorySelections))
+        }
         if (config.date) {
             params.append('date', config.date)
         }
@@ -381,6 +389,9 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             }
             if (config.categoryIds) {
                 params.append('categoryIds', config.categoryIds.join(','))
+            }
+            if (config.categorySelections && config.categorySelections.length > 0) {
+                params.append('categorySelections', serializeCustomCategorySelections(config.categorySelections))
             }
             if (config.date) {
                 params.append('date', config.date)

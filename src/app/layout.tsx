@@ -97,8 +97,14 @@ export default async function RootLayout({
 }: {
         children: React.ReactNode
     }) {
-    // Sync admin roles on app startup based on ADMIN_EMAILS env var
-    await syncAdminRoles()
+    const isBuildPhase =
+        process.env.npm_lifecycle_event === 'build'
+        || process.env.NEXT_PHASE === 'phase-production-build'
+
+    // Avoid build-time DB traffic during `next build`; sync happens at runtime.
+    if (!isBuildPhase) {
+        await syncAdminRoles()
+    }
     
     // Get the app user (synced from Clerk to Prisma)
     // This replaces the old NextAuth session fetch
@@ -177,7 +183,7 @@ export default async function RootLayout({
                             </a>
                             <div className="min-h-screen bg-gray-100 flex flex-col">
                                 <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
-                                <main id="main-content" className="flex-1 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
+                                <main id="main-content" className="flex-1 w-full min-w-0 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
                                     {children}
                                 </main>
 

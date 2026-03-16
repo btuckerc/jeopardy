@@ -33,6 +33,17 @@ export async function GET(
                 updatedAt: true,
                 lastOnlineAt: true,
                 lastSeenPath: true,
+                locale: true,
+                timezone: true,
+                countryCode: true,
+                regionCode: true,
+                deviceType: true,
+                browserFamily: true,
+                osFamily: true,
+                referrerHost: true,
+                acquisitionSource: true,
+                acquisitionMedium: true,
+                acquisitionCampaign: true,
                 currentStreak: true,
                 longestStreak: true,
                 lastGameDate: true,
@@ -257,4 +268,3 @@ export async function GET(
         return serverErrorResponse('Error fetching user debug info', error)
     }
 }
-

@@ -88,47 +88,9 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         }
 
         if (action === 'accept' && requestRecord.status === FriendRequestStatus.ACCEPTED) {
-            const reconciledAccepted = await prisma.$transaction(async (tx) => {
-                const [userId1, userId2] = canonicalFriendPair(requestRecord.fromUserId, requestRecord.toUserId)
-
-                const existingFriendship = await tx.friendship.findFirst({
-                    where: { userId1, userId2 },
-                })
-
-                if (!existingFriendship) {
-                    try {
-                        await tx.friendship.create({
-                            data: { userId1, userId2 },
-                        })
-                    } catch {
-                        // Ignore duplicate-create races against another acceptance request.
-                    }
-                }
-
-                // Ensure no stale pending duplicate remains after an accepted request.
-                await tx.friendRequest.updateMany({
-                    where: {
-                        id: { not: requestRecord.id },
-                        status: FriendRequestStatus.PENDING,
-                        OR: [
-                            { fromUserId: requestRecord.fromUserId, toUserId: requestRecord.toUserId },
-                            { fromUserId: requestRecord.toUserId, toUserId: requestRecord.fromUserId },
-                        ],
-                    },
-                    data: {
-                        status: FriendRequestStatus.ACCEPTED,
-                        respondedAt: new Date(),
-                    },
-                })
-
-                return tx.friendRequest.findUnique({
-                    where: { id: requestRecord.id },
-                })
-            })
-
             return jsonResponse({
                 request: {
-                    ...(reconciledAccepted || requestRecord),
+                    ...requestRecord,
                     response: 'accepted',
                 },
             })

@@ -1,19 +1,59 @@
-import { jsonResponse, serverErrorResponse, requireAdmin } from '@/lib/api-utils'
+import { jsonResponse, serverErrorResponse, requireAdmin, parseSearchParams } from '@/lib/api-utils'
 import { prisma } from '@/lib/prisma'
+import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
+
+const contentMetricsParamsSchema = z.object({
+    window: z.enum(['24h', '7d', '14d', '30d', '90d', 'all']).optional().default('30d'),
+})
+
+async function getContentMetricsWindowStart(now: Date, window: '24h' | '7d' | '14d' | '30d' | '90d' | 'all'): Promise<Date> {
+    switch (window) {
+        case '24h':
+            return new Date(now.getTime() - 24 * 60 * 60 * 1000)
+        case '7d':
+            return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        case '14d':
+            return new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+        case '90d':
+            return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+        case 'all': {
+            const [firstDispute, firstIssue] = await Promise.all([
+                prisma.answerDispute.findFirst({
+                    orderBy: { createdAt: 'asc' },
+                    select: { createdAt: true },
+                }),
+                prisma.issueReport.findFirst({
+                    orderBy: { createdAt: 'asc' },
+                    select: { createdAt: true },
+                }),
+            ])
+
+            const candidates = [firstDispute?.createdAt, firstIssue?.createdAt].filter((value): value is Date => value instanceof Date)
+            return candidates.sort((left, right) => left.getTime() - right.getTime())[0] || now
+        }
+        case '30d':
+        default:
+            return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    }
+}
 
 /**
  * GET /api/admin/content-metrics
  * Get content quality metrics: question coverage, category distribution, issues, etc.
  */
-export async function GET(_request: Request) {
+export async function GET(request: Request) {
     try {
         const { error: authError } = await requireAdmin()
         if (authError) return authError
 
+        const { searchParams } = new URL(request.url)
+        const { data: params, error } = parseSearchParams(searchParams, contentMetricsParamsSchema)
+        if (error) return error
+
         const now = new Date()
-        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        const activityWindowStart = await getContentMetricsWindowStart(now, params.window)
 
         // Run all queries in parallel
         const [
@@ -79,8 +119,8 @@ export async function GET(_request: Request) {
             prisma.question.findMany({
                 where: {
                     OR: [
-                        { disputes: { some: { createdAt: { gte: thirtyDaysAgo } } } },
-                        { issueReports: { some: { createdAt: { gte: thirtyDaysAgo } } } },
+                        { disputes: { some: { createdAt: { gte: activityWindowStart } } } },
+                        { issueReports: { some: { createdAt: { gte: activityWindowStart } } } },
                     ],
                 },
                 select: {
@@ -106,7 +146,7 @@ export async function GET(_request: Request) {
             // Recent disputes by question
             prisma.answerDispute.groupBy({
                 by: ['questionId'],
-                where: { createdAt: { gte: thirtyDaysAgo } },
+                where: { createdAt: { gte: activityWindowStart } },
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
                 take: 10,
@@ -116,7 +156,7 @@ export async function GET(_request: Request) {
             prisma.issueReport.groupBy({
                 by: ['questionId'],
                 where: {
-                    createdAt: { gte: thirtyDaysAgo },
+                    createdAt: { gte: activityWindowStart },
                     questionId: { not: null },
                 },
                 _count: { id: true },
@@ -165,6 +205,7 @@ export async function GET(_request: Request) {
             .sort((a, b) => b.totalIssues - a.totalIssues)
 
         return jsonResponse({
+            window: params.window,
             overview: {
                 totalQuestions,
                 totalCategories: categoryCount,
@@ -282,4 +323,3 @@ async function calculateAirDateCoverage() {
         }
     }
 }
-

@@ -4,10 +4,51 @@ import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
+interface SegmentDatum {
+    name: string
+    value: number
+}
+
+interface GroupByCountRow {
+    _count: {
+        id: number
+    }
+}
+
 const usageMetricsParamsSchema = z.object({
-    window: z.enum(['24h', '7d', '14d', '30d']).optional().default('7d'),
+    window: z.enum(['24h', '7d', '14d', '30d', '90d', 'all']).optional().default('30d'),
     bucket: z.enum(['hour', 'day']).optional().default('day')
 })
+
+async function getUsageMetricsStartTime(now: Date): Promise<Date> {
+    const [firstUser, firstGuestSession, firstGame, firstDailyChallenge] = await Promise.all([
+        prisma.user.findFirst({
+            orderBy: { createdAt: 'asc' },
+            select: { createdAt: true },
+        }),
+        prisma.guestSession.findFirst({
+            orderBy: { createdAt: 'asc' },
+            select: { createdAt: true },
+        }),
+        prisma.game.findFirst({
+            orderBy: { createdAt: 'asc' },
+            select: { createdAt: true },
+        }),
+        prisma.userDailyChallenge.findFirst({
+            orderBy: { completedAt: 'asc' },
+            select: { completedAt: true },
+        }),
+    ])
+
+    const candidates = [
+        firstUser?.createdAt,
+        firstGuestSession?.createdAt,
+        firstGame?.createdAt,
+        firstDailyChallenge?.completedAt,
+    ].filter((value): value is Date => value instanceof Date)
+
+    return candidates.sort((left, right) => left.getTime() - right.getTime())[0] || now
+}
 
 /**
  * GET /api/admin/usage-metrics
@@ -25,6 +66,7 @@ export async function GET(request: Request) {
 
         const { window, bucket } = params
         const now = new Date()
+        const active30dDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
         
         // Calculate start time based on window
         let startTime: Date
@@ -43,6 +85,14 @@ export async function GET(request: Request) {
                 startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
                 bucketMs = 24 * 60 * 60 * 1000 // Always use day buckets for 30d
                 break
+            case '90d':
+                startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000)
+                bucketMs = 24 * 60 * 60 * 1000
+                break
+            case 'all':
+                startTime = await getUsageMetricsStartTime(now)
+                bucketMs = 7 * 24 * 60 * 60 * 1000 // weekly buckets to keep payload bounded
+                break
             case '24h':
             default:
                 startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
@@ -54,6 +104,9 @@ export async function GET(request: Request) {
         const getBucketKey = (date: Date): string => {
             if (bucket === 'hour' && window !== '30d' && window !== '14d') {
                 return `${date.toISOString().slice(0, 13)}:00:00`
+            }
+            if (window === 'all') {
+                return new Date(Math.floor(date.getTime() / bucketMs) * bucketMs).toISOString().slice(0, 10)
             }
             return date.toISOString().slice(0, 10)
         }
@@ -169,7 +222,7 @@ export async function GET(request: Request) {
             prisma.user.count({
                 where: {
                     lastOnlineAt: {
-                        gte: new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) // Active in last 30 days
+                        gte: active30dDate // Active in last 30 days
                     }
                 }
             }),
@@ -178,6 +231,129 @@ export async function GET(request: Request) {
                     createdAt: { gte: startTime }
                 }
             })
+        ])
+
+        const [
+            activeUsersInWindow,
+            activeNewUsersInWindow,
+            engagedUsersInWindow,
+            playersInWindow,
+            completedGamePlayersInWindow,
+            dailyParticipantsInWindow,
+            newUsersWithDisplayNameInWindow,
+            newUsersWithGamesInWindow,
+            newUsersWithDailyChallengesInWindow,
+            newUsersWithAchievementsInWindow,
+            activatedUsersInWindow,
+            totalFriendships,
+            usersWithFriends,
+            activeUsersWithFriendsInWindow,
+            friendChallengesCreatedInWindow,
+            friendChallengesAcceptedInWindow,
+            friendChallengesCompletedInWindow,
+        ] = await Promise.all([
+            prisma.user.count({
+                where: {
+                    lastOnlineAt: { gte: startTime },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    createdAt: { gte: startTime },
+                    lastOnlineAt: { gte: startTime },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    OR: [
+                        { games: { some: { createdAt: { gte: startTime } } } },
+                        { dailyChallenges: { some: { completedAt: { gte: startTime } } } },
+                    ],
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    games: { some: { createdAt: { gte: startTime } } },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    games: { some: { completed: true, updatedAt: { gte: startTime } } },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    dailyChallenges: { some: { completedAt: { gte: startTime } } },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    createdAt: { gte: startTime },
+                    displayName: { not: null },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    createdAt: { gte: startTime },
+                    games: { some: {} },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    createdAt: { gte: startTime },
+                    dailyChallenges: { some: {} },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    createdAt: { gte: startTime },
+                    achievements: { some: {} },
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    createdAt: { gte: startTime },
+                    OR: [
+                        { displayName: { not: null } },
+                        { games: { some: {} } },
+                        { dailyChallenges: { some: {} } },
+                        { achievements: { some: {} } },
+                        { tourCompleted: true },
+                    ],
+                },
+            }),
+            prisma.friendship.count(),
+            prisma.user.count({
+                where: {
+                    OR: [
+                        { friendshipsAsUserOne: { some: {} } },
+                        { friendshipsAsUserTwo: { some: {} } },
+                    ],
+                },
+            }),
+            prisma.user.count({
+                where: {
+                    lastOnlineAt: { gte: startTime },
+                    OR: [
+                        { friendshipsAsUserOne: { some: {} } },
+                        { friendshipsAsUserTwo: { some: {} } },
+                    ],
+                },
+            }),
+            prisma.friendChallenge.count({
+                where: { createdAt: { gte: startTime } },
+            }),
+            prisma.friendChallenge.count({
+                where: {
+                    createdAt: { gte: startTime },
+                    status: { in: ['ACCEPTED', 'COMPLETED'] },
+                },
+            }),
+            prisma.friendChallenge.count({
+                where: {
+                    completedAt: { gte: startTime },
+                },
+            }),
         ])
 
         // Onboarding status breakdown
@@ -209,6 +385,100 @@ export async function GET(request: Request) {
             })
         ])
 
+        const segmentWhere = {
+            lastOnlineAt: {
+                gte: active30dDate,
+            },
+        }
+
+        const toSegments = <K extends string>(
+            rows: Array<GroupByCountRow & Record<K, string | null>>,
+            key: K
+        ): SegmentDatum[] =>
+            rows
+                .map(row => ({
+                    name: row[key] || 'unknown',
+                    value: row._count.id,
+                }))
+                .sort((left, right) => right.value - left.value)
+                .slice(0, 10)
+
+        const [
+            countries,
+            devices,
+            locales,
+            timezones,
+            browsers,
+            operatingSystems,
+            referrers,
+            acquisitionSources,
+        ] = await Promise.all([
+            prisma.user.groupBy({
+                by: ['countryCode'],
+                where: {
+                    ...segmentWhere,
+                    countryCode: { not: null },
+                },
+                _count: { id: true },
+            }),
+            prisma.user.groupBy({
+                by: ['deviceType'],
+                where: {
+                    ...segmentWhere,
+                    deviceType: { not: null },
+                },
+                _count: { id: true },
+            }),
+            prisma.user.groupBy({
+                by: ['locale'],
+                where: {
+                    ...segmentWhere,
+                    locale: { not: null },
+                },
+                _count: { id: true },
+            }),
+            prisma.user.groupBy({
+                by: ['timezone'],
+                where: {
+                    ...segmentWhere,
+                    timezone: { not: null },
+                },
+                _count: { id: true },
+            }),
+            prisma.user.groupBy({
+                by: ['browserFamily'],
+                where: {
+                    ...segmentWhere,
+                    browserFamily: { not: null },
+                },
+                _count: { id: true },
+            }),
+            prisma.user.groupBy({
+                by: ['osFamily'],
+                where: {
+                    ...segmentWhere,
+                    osFamily: { not: null },
+                },
+                _count: { id: true },
+            }),
+            prisma.user.groupBy({
+                by: ['referrerHost'],
+                where: {
+                    ...segmentWhere,
+                    referrerHost: { not: null },
+                },
+                _count: { id: true },
+            }),
+            prisma.user.groupBy({
+                by: ['acquisitionSource'],
+                where: {
+                    ...segmentWhere,
+                    acquisitionSource: { not: null },
+                },
+                _count: { id: true },
+            }),
+        ])
+
         // Calculate onboarding funnel
         const onboarding = {
             total: totalUsers,
@@ -229,6 +499,56 @@ export async function GET(request: Request) {
             activeLastWeek,
             activeLastMonth: activeUsers,
             dormant: totalUsers - activeUsers, // Not active in 30 days
+        }
+
+        const activation = {
+            newUsers: totals.newUsers,
+            activatedUsers: activatedUsersInWindow,
+            activationRate: totals.newUsers > 0 ? (activatedUsersInWindow / totals.newUsers) * 100 : 0,
+            withDisplayName: newUsersWithDisplayNameInWindow,
+            withGames: newUsersWithGamesInWindow,
+            withDailyChallenges: newUsersWithDailyChallengesInWindow,
+            withAchievements: newUsersWithAchievementsInWindow,
+        }
+
+        const windowSummary = {
+            activeUsers: activeUsersInWindow,
+            activeNewUsers: activeNewUsersInWindow,
+            returningUsers: Math.max(activeUsersInWindow - activeNewUsersInWindow, 0),
+            returningShare: activeUsersInWindow > 0
+                ? (Math.max(activeUsersInWindow - activeNewUsersInWindow, 0) / activeUsersInWindow) * 100
+                : 0,
+            engagedUsers: engagedUsersInWindow,
+            engagementRate: activeUsersInWindow > 0 ? (engagedUsersInWindow / activeUsersInWindow) * 100 : 0,
+        }
+
+        const valueMetrics = {
+            dauMauStickiness: activeUsers > 0 ? (activeLastDay / activeUsers) * 100 : 0,
+            wauMauStickiness: activeUsers > 0 ? (activeLastWeek / activeUsers) * 100 : 0,
+            gameCompletionRate: totals.gamesStarted > 0 ? (totals.gamesCompleted / totals.gamesStarted) * 100 : 0,
+            avgGamesPerPlayer: playersInWindow > 0 ? totals.gamesStarted / playersInWindow : 0,
+            avgCompletedGamesPerPlayer: completedGamePlayersInWindow > 0 ? totals.gamesCompleted / completedGamePlayersInWindow : 0,
+            dailyParticipationRate: activeUsersInWindow > 0 ? (dailyParticipantsInWindow / activeUsersInWindow) * 100 : 0,
+            avgDailyChallengesPerParticipant: dailyParticipantsInWindow > 0
+                ? totals.dailyChallengeSubmissions / dailyParticipantsInWindow
+                : 0,
+            guestClaimRate: conversionRate,
+        }
+
+        const social = {
+            totalFriendships,
+            usersWithFriends,
+            activeUsersWithFriends: activeUsersWithFriendsInWindow,
+            socialAdoptionRate: activeUsersInWindow > 0 ? (activeUsersWithFriendsInWindow / activeUsersInWindow) * 100 : 0,
+            challengesCreated: friendChallengesCreatedInWindow,
+            challengesAccepted: friendChallengesAcceptedInWindow,
+            challengesCompleted: friendChallengesCompletedInWindow,
+            challengeAcceptanceRate: friendChallengesCreatedInWindow > 0
+                ? (friendChallengesAcceptedInWindow / friendChallengesCreatedInWindow) * 100
+                : 0,
+            challengeCompletionRate: friendChallengesCreatedInWindow > 0
+                ? (friendChallengesCompletedInWindow / friendChallengesCreatedInWindow) * 100
+                : 0,
         }
 
         // Get user activity by bucket
@@ -316,10 +636,24 @@ export async function GET(request: Request) {
                 newUsersInWindow: totals.newUsers
             },
             onboarding,
-            activity
+            activity,
+            activation,
+            windowSummary,
+            valueMetrics,
+            social,
+            audience: {
+                activeUsers30d: activeUsers,
+                countries: toSegments(countries, 'countryCode'),
+                devices: toSegments(devices, 'deviceType'),
+                locales: toSegments(locales, 'locale'),
+                timezones: toSegments(timezones, 'timezone'),
+                browsers: toSegments(browsers, 'browserFamily'),
+                operatingSystems: toSegments(operatingSystems, 'osFamily'),
+                referrers: toSegments(referrers, 'referrerHost'),
+                acquisitionSources: toSegments(acquisitionSources, 'acquisitionSource'),
+            }
         })
     } catch (error) {
         return serverErrorResponse('Error fetching usage metrics', error)
     }
 }
-

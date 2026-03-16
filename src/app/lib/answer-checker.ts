@@ -26,6 +26,78 @@ const KNOWN_EQUIVALENCE_GROUPS: Array<Set<string>> = [
     new Set(['mao tse tung', 'mao zedong']),
 ];
 
+const SPOKEN_LETTER_NAMES: Record<string, string[]> = {
+    b: ['b', 'bee'],
+    c: ['c', 'cee'],
+    d: ['d', 'dee'],
+    e: ['e', 'ee'],
+    f: ['f', 'ef'],
+    g: ['g', 'gee'],
+    h: ['h', 'aitch'],
+    j: ['j', 'jay'],
+    k: ['k', 'kay'],
+    l: ['l', 'el'],
+    m: ['m', 'em'],
+    n: ['n', 'en'],
+    o: ['o', 'oh'],
+    p: ['p', 'pee'],
+    q: ['q', 'cue'],
+    s: ['s', 'ess'],
+    t: ['t', 'tee'],
+    v: ['v', 'vee'],
+    x: ['x', 'ex'],
+    z: ['z', 'zee', 'zed'],
+};
+
+export type AnswerMatchReason =
+    | 'exact'
+    | 'known_equivalent'
+    | 'punctuation_title_normalization'
+    | 'common_noun_plural'
+    | 'minor_typo'
+    | 'person_last_name'
+    | 'semantic'
+    | 'override'
+    | 'manual_override'
+    | 'no_match';
+
+type DirectAnswerMatchReason = Exclude<AnswerMatchReason, 'override' | 'manual_override' | 'no_match'>
+
+export interface AnswerMatchResult {
+    accepted: boolean
+    reason: AnswerMatchReason
+    matchedAnswer?: string
+    matchReason?: DirectAnswerMatchReason
+    similarity?: number
+    overrideSource?: 'ADMIN' | 'DISPUTE'
+}
+
+function buildRegularPluralVariants(word: string): string[] {
+    const variants = new Set<string>([`${word}s`, `${word}es`]);
+    if (/[bcdfghjklmnpqrstvwxyz]y$/.test(word)) {
+        variants.add(`${word.slice(0, -1)}ies`);
+    }
+    return Array.from(variants);
+}
+
+const SPOKEN_LETTER_TOKEN_MAP = (() => {
+    const entries = new Map<string, string>();
+
+    for (const [letter, variants] of Object.entries(SPOKEN_LETTER_NAMES)) {
+        const singularKey = `letter:${letter}`;
+        const pluralKey = `letter:${letter}:plural`;
+
+        for (const variant of variants) {
+            entries.set(variant, singularKey);
+            for (const pluralVariant of buildRegularPluralVariants(variant)) {
+                entries.set(pluralVariant, pluralKey);
+            }
+        }
+    }
+
+    return entries;
+})();
+
 // =============================================================================
 // AI SEMANTIC MATCHING - Primary mechanism
 // =============================================================================
@@ -269,7 +341,87 @@ function isMinorTokenTypo(a: string, b: string): boolean {
 
 function isPluralVariant(a: string, b: string): boolean {
     if (!a || !b || a === b) return false;
-    return a === `${b}s` || b === `${a}s` || a === `${b}es` || b === `${a}es`;
+    const pluralA = buildRegularPluralVariants(a)
+    const pluralB = buildRegularPluralVariants(b)
+    return pluralA.includes(b) || pluralB.includes(a)
+}
+
+function isLikelyLowercaseCommonNounPhrase(text: string): boolean {
+    const stripped = stripQuestionPhrase(text)
+        .replace(/\([^)]*\)/g, ' ')
+        .replace(/^(a|an|the)\s+/i, '')
+        .trim();
+
+    const lettersOnly = stripped.replace(/[^A-Za-z]/g, '');
+    if (!lettersOnly) return false;
+
+    return lettersOnly === lettersOnly.toLowerCase();
+}
+
+function hasCommonNounSingularPluralMatch(userText: string, correctText: string): boolean {
+    const userWords = splitWords(stripArticles(userText));
+    const correctWords = splitWords(stripArticles(correctText));
+    if (userWords.length !== correctWords.length || userWords.length === 0) return false;
+    if (!isLikelyLowercaseCommonNounPhrase(correctText)) return false;
+
+    let pluralDiffs = 0;
+    for (let i = 0; i < userWords.length; i++) {
+        if (userWords[i] === correctWords[i]) continue;
+        if (!isPluralVariant(userWords[i], correctWords[i])) return false;
+        pluralDiffs += 1;
+        if (pluralDiffs > 1) return false;
+    }
+
+    return pluralDiffs === 1;
+}
+
+function isSingularPluralNearMiss(userText: string, correctText: string): boolean {
+    const userWords = splitWords(stripArticles(userText));
+    const correctWords = splitWords(stripArticles(correctText));
+    if (userWords.length !== correctWords.length || userWords.length === 0) return false;
+    if (!hasCommonNounSingularPluralMatch(userText, correctText)) {
+        let pluralDiffs = 0;
+        for (let i = 0; i < userWords.length; i++) {
+            if (userWords[i] === correctWords[i]) continue;
+            if (!isPluralVariant(userWords[i], correctWords[i])) return false;
+            pluralDiffs += 1;
+            if (pluralDiffs > 1) return false;
+        }
+
+        return pluralDiffs === 1;
+    }
+
+    return false;
+}
+
+function normalizeSpokenLetterToken(token: string): string | null {
+    return SPOKEN_LETTER_TOKEN_MAP.get(token) ?? null;
+}
+
+function areEquivalentTitleTokens(userToken: string, correctToken: string): boolean {
+    if (userToken === correctToken) return true;
+    if ((userToken === 'n' && correctToken === 'and') || (userToken === 'and' && correctToken === 'n')) {
+        return true;
+    }
+
+    const normalizedUser = normalizeSpokenLetterToken(userToken);
+    const normalizedCorrect = normalizeSpokenLetterToken(correctToken);
+    return Boolean(normalizedUser && normalizedUser === normalizedCorrect);
+}
+
+function hasEquivalentTitleOrthography(normU: string, normC: string): boolean {
+    const wordsU = splitWords(normU);
+    const wordsC = splitWords(normC);
+    if (wordsU.length !== wordsC.length || wordsU.length === 0) return false;
+
+    let differences = 0;
+    for (let i = 0; i < wordsU.length; i++) {
+        if (wordsU[i] === wordsC[i]) continue;
+        if (!areEquivalentTitleTokens(wordsU[i], wordsC[i])) return false;
+        differences += 1;
+    }
+
+    return differences > 0;
 }
 
 function hasMinorTypoMatch(normU: string, normC: string): boolean {
@@ -371,11 +523,39 @@ function isLikelyPluralEntityNearMiss(userText: string, correctText: string): bo
 // RULE-BASED MATCHING - Only for exact/normalized matches
 // =============================================================================
 
-function exactMatch(userAnswer: string, correctAnswer: string): boolean {
+function acceptedResult(
+    reason: DirectAnswerMatchReason,
+    matchedAnswer?: string,
+    similarity?: number
+): AnswerMatchResult {
+    return {
+        accepted: true,
+        reason,
+        matchedAnswer,
+        similarity
+    }
+}
+
+function rejectedResult(): AnswerMatchResult {
+    return {
+        accepted: false,
+        reason: 'no_match'
+    }
+}
+
+function toDirectMatchReason(reason: AnswerMatchReason): DirectAnswerMatchReason | undefined {
+    if (reason === 'override' || reason === 'manual_override' || reason === 'no_match') {
+        return undefined
+    }
+
+    return reason
+}
+
+function getRuleBasedMatch(userAnswer: string, correctAnswer: string): AnswerMatchResult {
     const user = stripQuestionPhrase(userAnswer);
     const correct = stripQuestionPhrase(correctAnswer);
     
-    if (!user || !correct) return false;
+    if (!user || !correct) return rejectedResult();
     
     // Get all parenthetical variants
     const userVariants = extractParentheticalVariants(user);
@@ -390,30 +570,49 @@ function exactMatch(userAnswer: string, correctAnswer: string): boolean {
                     const normU = stripArticles(u);
                     const normC = stripArticles(c);
                     
-                    // Exact match
-                    if (areKnownEquivalent(normU, normC)) return true;
-                    if (areDepartmentWordOrderVariants(normU, normC)) return true;
+                    if (normU === normC) return acceptedResult('exact', correctAnswer);
+                    if (areKnownEquivalent(normU, normC)) return acceptedResult('known_equivalent', correctAnswer);
+                    if (areDepartmentWordOrderVariants(normU, normC)) return acceptedResult('known_equivalent', correctAnswer);
+                    if (hasCommonNounSingularPluralMatch(u, c)) return acceptedResult('common_noun_plural', correctAnswer);
+                    if (hasEquivalentTitleOrthography(normU, normC)) {
+                        return acceptedResult('punctuation_title_normalization', correctAnswer);
+                    }
                     
                     // No-space match (handles hyphen/space variations)
                     const compU = normU.replace(/\s+/g, '');
                     const compC = normC.replace(/\s+/g, '');
-                    if (compU === compC) return true;
+                    if (compU === compC) return acceptedResult('punctuation_title_normalization', correctAnswer);
                     
                     // Typo tolerance for single words and short two-word phrases only.
-                    if (hasMinorTypoMatch(normU, normC)) return true;
+                    if (hasMinorTypoMatch(normU, normC)) return acceptedResult('minor_typo', correctAnswer);
                 }
             }
         }
     }
 
-    if (hasLikelyPersonLastNameMatch(userAnswer, correctAnswer)) return true;
+    if (hasLikelyPersonLastNameMatch(userAnswer, correctAnswer)) {
+        return acceptedResult('person_last_name', correctAnswer);
+    }
 
-    return false;
+    return rejectedResult();
 }
 
-function hasExactOverrideMatch(userAnswer: string, overrideAnswers?: string[]): boolean {
-    if (!overrideAnswers?.length) return false;
-    return overrideAnswers.some(override => exactMatch(userAnswer, override));
+function findRuleBasedOverrideMatch(userAnswer: string, overrideAnswers?: string[]): AnswerMatchResult {
+    if (!overrideAnswers?.length) return rejectedResult();
+
+    for (const override of overrideAnswers) {
+        const match = getRuleBasedMatch(userAnswer, override);
+        if (match.accepted) {
+            return {
+                accepted: true,
+                reason: 'override',
+                matchedAnswer: override,
+                matchReason: toDirectMatchReason(match.reason)
+            };
+        }
+    }
+
+    return rejectedResult();
 }
 
 // =============================================================================
@@ -428,27 +627,27 @@ const AI_THRESHOLD = 0.82;
  * @param correctAnswer - The correct answer to compare against
  * @param overrideAnswers - Optional additional acceptable answers
  */
-export async function checkAnswerAsync(
+export async function checkAnswerDetailedAsync(
     userAnswer: string, 
     correctAnswer: string, 
     overrideAnswers?: string[]
-): Promise<boolean> {
+): Promise<AnswerMatchResult> {
     const user = stripQuestionPhrase(userAnswer).trim();
     const correct = stripQuestionPhrase(correctAnswer).trim();
-    if (!user || !correct) return false;
+    if (!user || !correct) return rejectedResult();
     
-    // FAST PATH: Exact/normalized matches don't need AI
-    if (exactMatch(userAnswer, correctAnswer)) return true;
+    const directMatch = getRuleBasedMatch(userAnswer, correctAnswer);
+    if (directMatch.accepted) return directMatch;
 
-    // Check overrides with exact matching
-    if (hasExactOverrideMatch(userAnswer, overrideAnswers)) return true;
+    const overrideMatch = findRuleBasedOverrideMatch(userAnswer, overrideAnswers);
+    if (overrideMatch.accepted) return overrideMatch;
 
-    // AI SEMANTIC MATCHING - The primary mechanism
     const similarity = await getSemanticSimilarity(user, correct);
     
     if (similarity >= 0) {
-        if (isLikelyLongTitleNearMiss(user, correct)) return false;
-        if (isLikelyPluralEntityNearMiss(user, correct)) return false;
+        if (isLikelyLongTitleNearMiss(user, correct)) return rejectedResult();
+        if (isLikelyPluralEntityNearMiss(user, correct)) return rejectedResult();
+        if (isSingularPluralNearMiss(user, correct)) return rejectedResult();
 
         // Detect partial answer trap: user's words are subset of correct's words
         // This catches "Canterbury" vs "Canterbury Tales", "Salt Lake" vs "Salt Lake City"
@@ -461,70 +660,65 @@ export async function checkAnswerAsync(
             if (allUserWordsInCorrect) {
                 // User gave a subset of words - this is likely a partial answer
                 // Be very strict - require near-exact similarity
-                if (similarity >= 0.95) return true;
-                return false;
+                if (similarity >= 0.95) return acceptedResult('semantic', correctAnswer, similarity);
+                return rejectedResult();
         }
     }
 
         // Standard threshold check
-        if (similarity >= AI_THRESHOLD) return true;
-        
-        return false;
-            }
-            
-    // AI UNAVAILABLE - Fall back to lenient rule-based matching
-    return fallbackMatch(userAnswer, correctAnswer, overrideAnswers);
-            }
-            
-/**
- * Fallback matching when AI is unavailable
- * More lenient to compensate for lack of semantic understanding
- */
-function fallbackMatch(
-    userAnswer: string, 
-    correctAnswer: string,
-    _overrideAnswers?: string[]
-): boolean {
-    const user = stripQuestionPhrase(userAnswer);
-    const correct = stripQuestionPhrase(correctAnswer);
-    
-    // Extract variants
-    const userVariants = extractParentheticalVariants(user).flatMap(v => [v, stripTitlePrefix(v)]);
-    const correctVariants = extractParentheticalVariants(correct).flatMap(v => [v, stripTitlePrefix(v)]);
-    
-    for (const uv of userVariants) {
-        for (const cv of correctVariants) {
-            const normU = stripArticles(uv);
-            const normC = stripArticles(cv);
-            
-            if (normU === normC) return true;
-            if (areKnownEquivalent(normU, normC)) return true;
-            if (areDepartmentWordOrderVariants(normU, normC)) return true;
-            
-            if (hasLikelyPersonLastNameMatch(uv, cv)) return true;
+        if (similarity >= AI_THRESHOLD) return acceptedResult('semantic', correctAnswer, similarity);
 
-            // Keep fallback typo handling conservative to avoid long-title near misses.
-            if (hasMinorTypoMatch(normU, normC)) return true;
+        if (overrideAnswers?.length) {
+            for (const override of overrideAnswers) {
+                const overrideSimilarity = await getSemanticSimilarity(user, stripQuestionPhrase(override).trim());
+                if (overrideSimilarity >= AI_THRESHOLD) {
+                    return {
+                        accepted: true,
+                        reason: 'override',
+                        matchedAnswer: override,
+                        matchReason: 'semantic',
+                        similarity: overrideSimilarity
+                    };
+                }
+            }
         }
+
+        return rejectedResult();
     }
-    
-    return false;
-        }
-        
+
+    return rejectedResult();
+}
+
+export async function checkAnswerAsync(
+    userAnswer: string,
+    correctAnswer: string,
+    overrideAnswers?: string[]
+): Promise<boolean> {
+    const result = await checkAnswerDetailedAsync(userAnswer, correctAnswer, overrideAnswers);
+    return result.accepted;
+}
+
 /**
  * Synchronous answer checking - rule-based only
  * @deprecated Use checkAnswerAsync for AI-powered matching
  */
-export function checkAnswer(userAnswer: string, correctAnswer: string, overrideAnswers?: string[]): boolean {
+export function checkAnswerDetailed(
+    userAnswer: string,
+    correctAnswer: string,
+    overrideAnswers?: string[]
+): AnswerMatchResult {
     const user = stripQuestionPhrase(userAnswer).trim();
     const correct = stripQuestionPhrase(correctAnswer).trim();
-    if (!user || !correct) return false;
-    
-    if (exactMatch(userAnswer, correctAnswer)) return true;
-    
-    if (hasExactOverrideMatch(userAnswer, overrideAnswers)) return true;
+    if (!user || !correct) return rejectedResult();
 
-    return fallbackMatch(userAnswer, correctAnswer, overrideAnswers);
+    const directMatch = getRuleBasedMatch(userAnswer, correctAnswer);
+    if (directMatch.accepted) return directMatch;
+
+    return findRuleBasedOverrideMatch(userAnswer, overrideAnswers);
+}
+
+export function checkAnswer(userAnswer: string, correctAnswer: string, overrideAnswers?: string[]): boolean {
+    return checkAnswerDetailed(userAnswer, correctAnswer, overrideAnswers).accepted;
 }
 
 /**

@@ -1,10 +1,12 @@
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
+import type { CustomCategorySelection } from '@/lib/custom-category-selections'
 
 export interface GameConfig {
     mode: 'random' | 'knowledge' | 'custom' | 'date'
     categories?: string[]
     categoryIds?: string[]
+    categorySelections?: CustomCategorySelection[]
     date?: string
     rounds: {
         single: boolean
@@ -151,4 +153,3 @@ export async function getGameData(gameId: string): Promise<GameData> {
         updatedAt: game.updatedAt
     }
 }
-

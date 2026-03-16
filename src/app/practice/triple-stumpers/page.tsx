@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useAuth } from '../../lib/auth'
 import { getTripleStumperCategories, getTripleStumperCategoryQuestions, getRandomTripleStumper, saveAnswer } from '../../actions/practice'
 import { checkAnswer } from '../../lib/answer-checker'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import { AnswerExplanationPanel } from '../components/PracticeAnswerExplanation'
+import { StudyActionButton, StudyBackButton, StudyBackLink } from '../components/PracticeControls'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 
@@ -799,32 +799,30 @@ function TripleStumpersContent() {
                 )}
                 
                 <div className="mb-6">
-                    <Link
-                        href="/practice"
-                        className="text-blue-600 hover:text-blue-800 flex items-center font-bold mb-4"
-                    >
-                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
+                    <StudyBackLink href="/practice">
                         Back to Study Modes
-                    </Link>
+                    </StudyBackLink>
                 </div>
 
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Triple Stumpers</h1>
+                        <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Triple Stumpers</h1>
                         <p className="text-gray-600 mt-1">Questions that stumped all original Jeopardy! contestants</p>
                     </div>
-                    <button
+                    <StudyActionButton
                         onClick={handleShuffle}
                         disabled={loadingQuestions || isTransitioning}
-                        className="px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-50 transition-colors font-bold text-lg shadow-lg hover:shadow-xl flex items-center gap-2"
+                        className="w-full bg-yellow-500 text-white hover:bg-yellow-600 sm:w-auto"
+                        icon={loadingQuestions ? (
+                            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
+                        ) : (
+                            <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        )}
                     >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
                         {getShuffleButtonText()}
-                    </button>
+                    </StudyActionButton>
                 </div>
 
                 {/* Stats Banner */}
@@ -952,16 +950,12 @@ function TripleStumpersContent() {
                 {selectedCategory && !selectedQuestion && questions.length > 0 && (
                     <div className={`transition-opacity duration-200 ${isTransitioning ? 'opacity-50' : 'opacity-100'}`}>
                         <div className="mb-6 flex items-center">
-                            <button
+                            <StudyBackButton
                                 onClick={handleBackToCategories}
-                                className="text-blue-600 hover:text-blue-800 flex items-center font-bold"
                                 disabled={isTransitioning}
                             >
-                                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                </svg>
                                 Back to Categories
-                            </button>
+                            </StudyBackButton>
                         </div>
 
                         <h2 className="text-xl font-bold text-gray-900 mb-4">
@@ -989,17 +983,17 @@ function TripleStumpersContent() {
 
                 {/* Question View */}
                 {selectedQuestion && (
-                    <div className="max-w-3xl mx-auto practice-question-area">
-                        <div className="bg-white shadow-lg rounded-lg p-6 relative border-4 border-yellow-400">
+                    <div className="mx-auto max-w-4xl practice-question-area">
+                        <div className="relative rounded-2xl border-4 border-yellow-400 bg-white p-5 shadow-lg sm:p-6 lg:p-8">
                             <div className="absolute -top-3 left-4 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-bold">
                                 Triple Stumper
                             </div>
-                            <div className="flex justify-between items-center mb-4 mt-2">
-                                <div>
+                            <div className="mb-6 mt-2 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="space-y-2">
                                     <h2 className="text-xl font-bold text-gray-900">
                                         {selectedQuestion.originalCategory}
                                     </h2>
-                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
                                         <span>${selectedQuestion.value}</span>
                                         <span>•</span>
                                         <span>
@@ -1010,16 +1004,15 @@ function TripleStumpersContent() {
                                         </span>
                                     </div>
                                 </div>
-                                <button
+                                <StudyBackButton
                                     onClick={handleBackToQuestions}
-                                    className="text-blue-600 hover:text-blue-800 font-bold"
                                 >
                                     Back to Questions
-                                </button>
+                                </StudyBackButton>
                             </div>
 
-                            <div className="flex justify-center items-center min-h-[200px] mb-6">
-                                <p className="text-2xl text-gray-900 text-center leading-relaxed">
+                            <div className="mb-8 flex min-h-[180px] items-center justify-center sm:min-h-[220px]">
+                                <p className="text-center text-2xl leading-relaxed text-gray-900 sm:text-3xl">
                                     {selectedQuestion.question}
                                 </p>
                             </div>
@@ -1028,16 +1021,18 @@ function TripleStumpersContent() {
                                 <div className="space-y-4">
                                     {selectedQuestion.correct ? (
                                         <div className="flex justify-start">
-                                            <button
+                                            <StudyActionButton
                                                 onClick={() => setShowAnswer(true)}
-                                                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold flex items-center gap-2"
+                                                className="bg-gray-600 text-white hover:bg-gray-700"
+                                                icon={(
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                    </svg>
+                                                )}
                                             >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
                                                 View Answer
-                                            </button>
+                                            </StudyActionButton>
                                         </div>
                                     ) : (
                                         <>
@@ -1050,7 +1045,7 @@ function TripleStumpersContent() {
                                                     if (e.key === 'Enter') handleAnswerSubmit()
                                                 }}
                                                 onFocus={() => scrollInputIntoView(answerInputRef.current)}
-                                                className="w-full p-3 border rounded-lg text-black text-base"
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-4 text-base text-black shadow-sm outline-none transition focus:border-yellow-300 focus:ring-2 focus:ring-yellow-100"
                                                 placeholder="What is..."
                                                 autoComplete="off"
                                                 autoCapitalize="off"
@@ -1058,33 +1053,37 @@ function TripleStumpersContent() {
                                                 spellCheck="false"
                                                 enterKeyHint="send"
                                             />
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex flex-wrap items-center gap-4">
-                                                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={explanationMode}
-                                                            onChange={(event) => setExplanationMode(event.target.checked)}
-                                                        />
-                                                        Explanation mode
-                                                    </label>
-                                                    <button
+                                            <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+                                                <div className="flex flex-col gap-4">
+                                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={explanationMode}
+                                                                onChange={(event) => setExplanationMode(event.target.checked)}
+                                                            />
+                                                            Explanation mode
+                                                        </label>
+                                                        <StudyActionButton
+                                                            onClick={handleShowAnswer}
+                                                            className="w-full bg-gray-600 text-white hover:bg-gray-700 sm:w-auto"
+                                                            icon={(
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                </svg>
+                                                            )}
+                                                        >
+                                                            Show Answer
+                                                        </StudyActionButton>
+                                                    </div>
+                                                    <StudyActionButton
                                                         onClick={handleAnswerSubmit}
-                                                        className="px-6 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-bold"
+                                                        className="w-full bg-yellow-500 text-white hover:bg-yellow-600 sm:w-auto"
                                                     >
                                                         Submit
-                                                    </button>
+                                                    </StudyActionButton>
                                                 </div>
-                                                <button
-                                                    onClick={handleShowAnswer}
-                                                    className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold flex items-center gap-2"
-                                                >
-                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                    </svg>
-                                                    Show Answer
-                                                </button>
                                             </div>
                                         </>
                                     )}
@@ -1144,22 +1143,24 @@ function TripleStumpersContent() {
                                         explanationMode={explanationMode}
                                         visible={isCorrect === false}
                                     />
-                                    <div className="flex space-x-4">
-                                        <button
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <StudyActionButton
                                             onClick={handleBackToQuestions}
-                                            className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
+                                            className="bg-gray-600 text-white hover:bg-gray-700"
                                         >
                                             Back to Questions
-                                        </button>
-                                        <button
+                                        </StudyActionButton>
+                                        <StudyActionButton
                                             onClick={handleShuffle}
-                                            className="px-6 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-bold flex items-center gap-2"
+                                            className="bg-yellow-500 text-white hover:bg-yellow-600"
+                                            icon={(
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                </svg>
+                                            )}
                                         >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                            </svg>
                                             Next Random Triple Stumper
-                                        </button>
+                                        </StudyActionButton>
                                     </div>
                                 </div>
                             )}

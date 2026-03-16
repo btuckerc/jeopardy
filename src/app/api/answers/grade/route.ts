@@ -4,7 +4,7 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
-import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
+import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import { FriendChallengeMode, FriendChallengeStatus } from '@prisma/client'
 import crypto from 'crypto'
@@ -73,11 +73,12 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         const _overrideTexts = overrides.map(o => o.text)
 
         // Grade the answer using canonical answer + overrides
-        const correct = await isAnswerAcceptedWithOverrides(
+        const grading = await evaluateAnswerWithOverridesAsync(
             userAnswer,
             question.answer,
             overrides
         )
+        const correct = grading.accepted
 
         // Calculate points based on mode and round
         let storedPoints = 0
@@ -272,6 +273,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         return jsonResponse({
             correct,
             storedPoints,
+            grading,
             canDispute,
             disputeContext,
             unlockedAchievements: unlockedAchievements.length > 0 ? unlockedAchievements : undefined

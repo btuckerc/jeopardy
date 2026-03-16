@@ -9,6 +9,8 @@ import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 const fredoka = Fredoka({ weight: '300', subsets: ['latin'] })
 
+export const dynamic = 'force-dynamic'
+
 async function getDailyChallenge(userId: string | null) {
     try {
         // Get the active challenge date (based on 9AM ET boundary)

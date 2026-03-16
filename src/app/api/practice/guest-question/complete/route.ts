@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { jsonResponse, serverErrorResponse, parseBody, notFoundResponse } from '@/lib/api-utils'
 import { z } from 'zod'
 import { createGuestSession, checkGuestLimit } from '@/lib/guest-sessions'
-import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
+import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
 
 export const dynamic = 'force-dynamic'
 
@@ -80,11 +80,12 @@ export async function POST(request: Request) {
         }
 
         const overrides = await getQuestionOverrides(questionId)
-        const isCorrect = await isAnswerAcceptedWithOverrides(
+        const grading = await evaluateAnswerWithOverridesAsync(
             answerText,
             questionDetails.answer,
             overrides
         )
+        const isCorrect = grading.accepted
         const computedPoints = isCorrect
             ? (questionDetails.value || 0)
             : -(questionDetails.value || 0)
@@ -162,6 +163,7 @@ export async function POST(request: Request) {
             guestSessionId: sessionId,
             expiresAt: expiresAt.toISOString(),
             correct: isCorrect,
+            grading,
             points: computedPoints,
             limitReached,
             ...(revealAnswer ? { answer: questionDetails.answer } : {})

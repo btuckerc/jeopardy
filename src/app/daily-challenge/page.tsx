@@ -7,6 +7,8 @@ import { setupDailyChallenge } from '../api/daily-challenge/route'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 import { JsonLd } from '@/components/JsonLd'
 
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = {
     title: 'Daily Trivia Challenge | New Jeopardy Question - trivrdy',
     description: 'Test your knowledge with today\'s Daily Challenge - a new Final Jeopardy question every day. Compete with others and track your streak.',

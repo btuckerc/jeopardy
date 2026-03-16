@@ -52,6 +52,14 @@ export const CRON_JOBS = {
         timeoutMs: 10 * 60 * 1000, // 10 minutes (fetches multiple games)
         maxResultBytes: 8192,
     },
+    'observability-retention': {
+        name: 'Observability Retention',
+        description: 'Deletes stale API and DB observability events to keep telemetry bounded',
+        schedule: '0 4 * * *',
+        endpoint: '/api/cron/observability-retention',
+        timeoutMs: 2 * 60 * 1000,
+        maxResultBytes: 2048,
+    },
 } as const
 
 export type CronJobName = keyof typeof CRON_JOBS

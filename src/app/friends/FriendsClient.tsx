@@ -4,6 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import UserAvatar from '@/components/UserAvatar'
 import { AppUser } from '@/lib/clerk-auth'
+import {
+    getCustomCategorySelectionKey,
+    type CustomCategorySelection,
+} from '@/lib/custom-category-selections'
+import {
+    clampFriendChallengeCategoryCount,
+    FriendChallengeCategorySelection,
+    getFriendChallengeSelectionProgress,
+} from '@/lib/friend-challenge-categories'
+import { extractInviteTokenFromInput } from '@/lib/friend-invite'
 
 interface FriendProfile {
     id: string
@@ -65,18 +75,29 @@ interface ChallengeRecord {
 
 interface CategorySearchResult {
     id: string
+    categoryId: string
     name: string
+    airDate?: string | null
+    round?: 'SINGLE' | 'DOUBLE'
+    answeredCount?: number
     _count?: {
         questions?: number
     }
 }
 
+interface ChallengeCategoryChoice extends CustomCategorySelection {
+    id: string
+    name: string
+    questionCount?: number
+    answeredCount?: number
+}
+
 interface ChallengeComposerDraft {
     opponentId: string
     mode: 'PRACTICE' | 'GAME'
-    categorySelection: 'RANDOM' | 'CHOSEN'
+    categorySelection: FriendChallengeCategorySelection
     categoryCount: number
-    categoryChoices: Array<{ id: string; name: string }>
+    categoryChoices: ChallengeCategoryChoice[]
 }
 
 interface FriendActivity {
@@ -108,6 +129,113 @@ interface FriendsClientProps {
 interface FriendSettings {
     friendVisibility: 'FULL_PROFILE' | 'STREAK_ONLY'
     allowFriendRequests: boolean
+}
+
+interface OwnFriendInvite {
+    code: string
+    rawCode: string | null
+    inviteToken: string | null
+    allowFriendRequests: boolean
+}
+
+type InviteState =
+    | 'ready'
+    | 'self'
+    | 'already_friends'
+    | 'incoming_pending'
+    | 'outgoing_pending'
+    | 'blocked'
+    | 'requests_disabled'
+
+interface InvitePreview {
+    state: InviteState
+    canSendRequest: boolean
+    inviter: Pick<FriendProfile, 'id' | 'displayName' | 'selectedIcon' | 'avatarBackground'>
+    code: string | null
+}
+
+type CompareWinner = 'VIEWER' | 'FRIEND' | 'TIE'
+type ComparisonView = 'profile' | 'head-to-head'
+type ComparisonRound = 'SINGLE' | 'DOUBLE' | 'FINAL'
+
+interface ComparisonRoundStat {
+    round: ComparisonRound
+    roundName: string
+    totalAnswered: number
+    correctAnswers: number
+    totalPoints: number
+    accuracy: number
+}
+
+interface FriendComparisonProfile {
+    id: string
+    displayName: string | null
+    selectedIcon: string | null
+    avatarBackground: string | null
+    currentStreak: number
+    longestStreak: number
+    createdAt: string
+    stats: {
+        answeredCount: number
+        correctCount: number
+        accuracy: number
+        totalPoints: number
+        tripleStumpersAnswered: number
+        roundStats: ComparisonRoundStat[]
+        dailyCompletedCount: number
+        dailyCorrectCount: number
+        dailyAccuracy: number
+        recentDailyCorrectCount: number
+        recentDailySampleSize: number
+        recentDailyAccuracy: number
+    }
+}
+
+interface FriendComparisonPayload {
+    viewer: FriendComparisonProfile
+    friend: FriendComparisonProfile
+    comparison: {
+        currentStreakDelta: number
+        longestStreakDelta: number
+        overallAccuracyDelta: number
+        dailyAccuracyDelta: number
+        answeredCountDelta: number
+        friendshipSince: string | null
+        summary: string
+        matchupStats: Array<{
+            id: string
+            label: string
+            winner: CompareWinner
+            detail: string
+        }>
+        roundMatchups: Array<{
+            round: ComparisonRound
+            roundName: string
+            winner: CompareWinner
+            detail: string
+        }>
+        insights: string[]
+        headToHeadInsights: string[]
+        headToHead: {
+            completedCount: number
+            viewerWins: number
+            friendWins: number
+            ties: number
+            averageMargin: number | null
+            viewerAverageScore: number | null
+            friendAverageScore: number | null
+            viewerBestScore: number | null
+            friendBestScore: number | null
+            lastCompletedAt: string | null
+            lastResult: CompareWinner | null
+            recentMatches: Array<{
+                completedAt: string
+                viewerScore: number | null
+                friendScore: number | null
+                winner: CompareWinner
+            }>
+        }
+    }
 }
 
 interface ChallengeCompletionInput {
@@ -153,22 +281,42 @@ interface ChallengeComposerAlert {
     message: string
 }
 
-type FriendSection = 'friends' | 'requests' | 'challenges' | 'activity' | 'compare' | 'settings'
+interface BlockConfirmationState {
+    blockedUserId: string
+    displayName: string
+}
 
-type ActivityFilter = 'all' | FriendActivityType
+interface RemoveFriendConfirmationState {
+    friendId: string
+    displayName: string
+}
+
+type FriendSection = 'friends' | 'connect' | 'requests' | 'challenges' | 'activity' | 'compare' | 'settings'
+
+type ActivityFilter = 'all' | 'requests' | 'challenges' | 'completed'
 
 const ACTIVITY_FILTER_OPTIONS: { value: ActivityFilter; label: string }[] = [
     { value: 'all', label: 'All' },
-    { value: 'FRIEND_REQUEST_SENT', label: 'Requests sent' },
-    { value: 'FRIEND_REQUEST_ACCEPTED', label: 'Requests accepted' },
-    { value: 'FRIEND_REQUEST_DECLINED', label: 'Requests declined' },
-    { value: 'FRIEND_REQUEST_BLOCKED', label: 'Requests blocked' },
-    { value: 'CHALLENGE_CREATED', label: 'Challenges created' },
-    { value: 'CHALLENGE_ACCEPTED', label: 'Challenges accepted' },
-    { value: 'CHALLENGE_DECLINED', label: 'Challenges declined' },
-    { value: 'CHALLENGE_CANCELLED', label: 'Challenges cancelled' },
-    { value: 'CHALLENGE_COMPLETED', label: 'Challenges completed' },
+    { value: 'requests', label: 'Requests' },
+    { value: 'challenges', label: 'Challenges' },
+    { value: 'completed', label: 'Completed' },
 ]
+
+function matchesActivityFilter(activity: FriendActivity, filter: ActivityFilter): boolean {
+    if (filter === 'all') {
+        return true
+    }
+
+    if (filter === 'requests') {
+        return activity.activityType.startsWith('FRIEND_REQUEST_')
+    }
+
+    if (filter === 'challenges') {
+        return activity.activityType !== 'CHALLENGE_COMPLETED' && activity.activityType.startsWith('CHALLENGE_')
+    }
+
+    return activity.activityType === 'CHALLENGE_COMPLETED'
+}
 
 function toInteger(value: unknown): number | null {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -183,6 +331,26 @@ function toInteger(value: unknown): number | null {
 
 function formatUserLabel(user: { displayName: string | null; email?: string | null } | null | undefined): string {
     return user?.displayName || user?.email || 'someone'
+}
+
+function inviteStateMessage(invite: InvitePreview): string {
+    switch (invite.state) {
+        case 'self':
+            return 'This is your invite.'
+        case 'already_friends':
+            return 'You are already friends.'
+        case 'incoming_pending':
+            return 'They already sent you a request. Accept it below.'
+        case 'outgoing_pending':
+            return 'Friend request already sent.'
+        case 'blocked':
+            return 'You cannot connect with this account.'
+        case 'requests_disabled':
+            return 'This user is not accepting friend requests right now.'
+        case 'ready':
+        default:
+            return 'Ready to send a friend request.'
+    }
 }
 
 function formatModeLabel(mode: string | undefined): string {
@@ -378,6 +546,130 @@ function formatActivityTime(createdAt: string): string {
     return value.toLocaleString()
 }
 
+function formatPercent(value: number): string {
+    return `${value.toFixed(1).replace(/\.0$/, '')}%`
+}
+
+function formatCalendarDate(value: string | null | undefined): string | null {
+    if (!value) {
+        return null
+    }
+
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+        return null
+    }
+
+    return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    })
+}
+
+function formatChallengeCategoryAirDate(value: string | null | undefined): string {
+    if (!value) {
+        return 'Undated set'
+    }
+
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+    if (!match) {
+        return value
+    }
+
+    const date = new Date(Number.parseInt(match[1], 10), Number.parseInt(match[2], 10) - 1, Number.parseInt(match[3], 10))
+    return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    })
+}
+
+function formatChallengeCategoryVariantMeta(choice: {
+    round?: 'SINGLE' | 'DOUBLE'
+    airDate?: string | null
+}): string {
+    const roundLabel = choice.round === 'DOUBLE' ? 'Double Jeopardy' : 'Single Jeopardy'
+    return `${roundLabel} • ${formatChallengeCategoryAirDate(choice.airDate)}`
+}
+
+function toChallengeCategoryChoice(category: CategorySearchResult): ChallengeCategoryChoice {
+    return {
+        id: category.id || getCustomCategorySelectionKey({
+            categoryId: category.categoryId,
+            airDate: category.airDate || '',
+            round: category.round || 'SINGLE',
+        }),
+        categoryId: category.categoryId,
+        airDate: category.airDate || '',
+        round: category.round || 'SINGLE',
+        name: category.name,
+        questionCount: category._count?.questions,
+        answeredCount: category.answeredCount,
+    }
+}
+
+function matchupToneClasses(winner: CompareWinner): string {
+    switch (winner) {
+        case 'VIEWER':
+            return 'border-blue-200 bg-blue-50 text-blue-900'
+        case 'FRIEND':
+            return 'border-amber-200 bg-amber-50 text-amber-900'
+        case 'TIE':
+        default:
+            return 'border-slate-200 bg-slate-50 text-slate-700'
+    }
+}
+
+function comparisonToggleClasses(isActive: boolean): string {
+    return isActive ? 'btn-primary' : 'btn-outline'
+}
+
+function formatMatchScore(value: number | null): string {
+    return value === null ? '—' : value.toLocaleString()
+}
+
+function roundAccentClasses(round: ComparisonRound): {
+    badge: string
+    progress: string
+} {
+    switch (round) {
+        case 'DOUBLE':
+            return {
+                badge: 'bg-violet-100 text-violet-700',
+                progress: 'bg-violet-500',
+            }
+        case 'FINAL':
+            return {
+                badge: 'bg-amber-100 text-amber-700',
+                progress: 'bg-amber-500',
+            }
+        case 'SINGLE':
+        default:
+            return {
+                badge: 'bg-blue-100 text-blue-700',
+                progress: 'bg-blue-500',
+            }
+    }
+}
+
+function bestRoundLabel(roundStats: ComparisonRoundStat[]): string {
+    const roundsWithAnswers = roundStats.filter((round) => round.totalAnswered > 0)
+    if (roundsWithAnswers.length === 0) {
+        return 'No round history yet'
+    }
+
+    const bestRound = roundsWithAnswers.reduce((best, round) => {
+        if (round.accuracy === best.accuracy) {
+            return round.totalPoints > best.totalPoints ? round : best
+        }
+
+        return round.accuracy > best.accuracy ? round : best
+    })
+
+    return `${bestRound.roundName} (${formatPercent(bestRound.accuracy)})`
+}
+
 export default function FriendsClient({ user }: FriendsClientProps) {
     const router = useRouter()
     const searchParams = useSearchParams()
@@ -391,7 +683,11 @@ export default function FriendsClient({ user }: FriendsClientProps) {
     const [errorMessage, setErrorMessage] = useState('')
     const [isLoading, setIsLoading] = useState(true)
     const [targetInput, setTargetInput] = useState('')
-    const [requestMessage, setRequestMessage] = useState('')
+    const [ownInvite, setOwnInvite] = useState<OwnFriendInvite | null>(null)
+    const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null)
+    const [inviteLoading, setInviteLoading] = useState(false)
+    const [inviteActionMessage, setInviteActionMessage] = useState('')
+    const [inviteCodeCopied, setInviteCodeCopied] = useState(false)
     const [blockedUsers, setBlockedUsers] = useState<FriendProfile[]>([])
     const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all')
     const [activeSection, setActiveSection] = useState<FriendSection>('friends')
@@ -403,29 +699,82 @@ export default function FriendsClient({ user }: FriendsClientProps) {
     const [challengeComposer, setChallengeComposer] = useState<ChallengeComposerDraft | null>(null)
     const [categorySearchQuery, setCategorySearchQuery] = useState('')
     const [categorySearchResults, setCategorySearchResults] = useState<CategorySearchResult[]>([])
+    const [categoryQuickPicks, setCategoryQuickPicks] = useState<CategorySearchResult[]>([])
     const [categorySearchLoading, setCategorySearchLoading] = useState(false)
     const [creatingChallenge, setCreatingChallenge] = useState(false)
-    const [comparison, setComparison] = useState<{
-        viewer: FriendProfile
-        friend: FriendProfile
-        comparison: { currentStreakDelta: number; longestStreakDelta: number }
-    } | null>(null)
+    const [comparison, setComparison] = useState<FriendComparisonPayload | null>(null)
+    const [comparisonView, setComparisonView] = useState<ComparisonView>('profile')
     const [comparisonLoading, setComparisonLoading] = useState(false)
     const [activeChallengeConflict, setActiveChallengeConflict] = useState<ActiveChallengeConflict | null>(null)
     const [challengeComposerAlert, setChallengeComposerAlert] = useState<ChallengeComposerAlert | null>(null)
     const [endChallengeModal, setEndChallengeModal] = useState<EndChallengeModalState | null>(null)
     const [processingEndChallenge, setProcessingEndChallenge] = useState(false)
+    const [blockConfirmation, setBlockConfirmation] = useState<BlockConfirmationState | null>(null)
+    const [processingBlockConfirmation, setProcessingBlockConfirmation] = useState(false)
+    const [removeFriendConfirmation, setRemoveFriendConfirmation] = useState<RemoveFriendConfirmationState | null>(null)
+    const [processingRemoveFriendConfirmation, setProcessingRemoveFriendConfirmation] = useState(false)
+    const [isRefreshInviteConfirmationOpen, setIsRefreshInviteConfirmationOpen] = useState(false)
+    const [isMobileSectionMenuOpen, setIsMobileSectionMenuOpen] = useState(false)
+    const [isFeaturedBoardsExpanded, setIsFeaturedBoardsExpanded] = useState(false)
     const refreshInFlightRef = useRef(false)
+    const inviteCodeCopiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const appliedQueryTabRef = useRef<string | null>(null)
+    const processedInviteTokenRef = useRef<string | null>(null)
+    const customCategorySearchInputRef = useRef<HTMLInputElement | null>(null)
 
-    const goToChallengesTab = useCallback(() => {
-        appliedQueryTabRef.current = 'challenges'
-        setActiveSection('challenges')
-        router.replace('/friends?tab=challenges')
+    useEffect(() => {
+        return () => {
+            if (inviteCodeCopiedTimeoutRef.current) {
+                clearTimeout(inviteCodeCopiedTimeoutRef.current)
+            }
+        }
+    }, [])
+
+    useEffect(() => {
+        setInviteCodeCopied(false)
+        if (inviteCodeCopiedTimeoutRef.current) {
+            clearTimeout(inviteCodeCopiedTimeoutRef.current)
+            inviteCodeCopiedTimeoutRef.current = null
+        }
+    }, [ownInvite?.code])
+
+    const activateSection = useCallback((section: FriendSection) => {
+        appliedQueryTabRef.current = section
+        setActiveSection(section)
+        router.replace(`/friends?tab=${section}`, { scroll: false })
     }, [router])
 
+    const goToChallengesTab = useCallback(() => {
+        activateSection('challenges')
+    }, [activateSection])
+
+    const loadInvitePreview = useCallback(async (params: { token?: string; code?: string }) => {
+        const query = new URLSearchParams()
+        if (params.token) {
+            query.set('token', params.token)
+        }
+        if (params.code) {
+            query.set('code', params.code)
+        }
+
+        setInviteLoading(true)
+        try {
+            const response = await fetch(`/api/friends/invite?${query.toString()}`)
+            if (!response.ok) {
+                const payload = await response.json()
+                throw new Error(payload?.error || 'Unable to load this invite')
+            }
+
+            const payload = await response.json() as { invite?: InvitePreview }
+            setInvitePreview(payload.invite || null)
+            activateSection('connect')
+            setInviteActionMessage('')
+        } finally {
+            setInviteLoading(false)
+        }
+    }, [activateSection])
+
     const loadFriendData = useCallback(async (
-        activityTypeFilter: ActivityFilter = activityFilter,
         options: { silent?: boolean } = {},
     ) => {
         if (refreshInFlightRef.current) {
@@ -439,24 +788,21 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         }
 
         try {
-            const activityParams = new URLSearchParams({ limit: '30' })
-            if (activityTypeFilter !== 'all') {
-                activityParams.set('activityType', activityTypeFilter)
-            }
-
-            const [friendsResponse, challengeResponse, activityResponse] = await Promise.all([
+            const [friendsResponse, challengeResponse, activityResponse, inviteResponse] = await Promise.all([
                 fetch('/api/friends?status=pending'),
                 fetch('/api/challenges/friends?status=all&includeExpired=true'),
-                fetch(`/api/friends/activity?${activityParams.toString()}`),
+                fetch('/api/friends/activity?limit=40'),
+                fetch('/api/friends/invite'),
             ])
 
-            if (!friendsResponse.ok || !challengeResponse.ok || !activityResponse.ok) {
+            if (!friendsResponse.ok || !challengeResponse.ok || !activityResponse.ok || !inviteResponse.ok) {
                 throw new Error('Unable to load friend data')
             }
 
             const friendsPayload = await friendsResponse.json() as FriendDataPayload
             const challengePayload = await challengeResponse.json() as { challenges: ChallengeRecord[] }
             const activityPayload = await activityResponse.json() as { activities: FriendActivity[] }
+            const invitePayload = await inviteResponse.json() as { invite?: OwnFriendInvite }
             const fetchedChallenges = challengePayload.challenges || []
             const incomingPending = (friendsPayload.incomingRequests || []).filter(
                 (request) => request.status === 'PENDING',
@@ -475,6 +821,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             setBlockedUsers(friendsPayload.blockedUsers || [])
             setChallenges(fetchedChallenges)
             setActivities(activityPayload.activities || [])
+            setOwnInvite(invitePayload.invite || null)
 
             // Clear stale challenge score entry state for removed/finished challenges.
             setChallengeScores((previous) => {
@@ -497,9 +844,9 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             }
             refreshInFlightRef.current = false
         }
-    }, [activityFilter])
+    }, [])
 
-    const loadComparison = async (friendId: string) => {
+    const loadComparison = useCallback(async (friendId: string) => {
         if (!friendId) return
         setErrorMessage('')
         setComparisonLoading(true)
@@ -509,7 +856,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                 const body = await response.json()
                 throw new Error(body?.error || 'Unable to compare with this friend')
             }
-            const payload = await response.json()
+            const payload = await response.json() as FriendComparisonPayload
             setComparison(payload)
         } catch (error) {
             const typed = error as Error
@@ -518,11 +865,11 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         } finally {
             setComparisonLoading(false)
         }
-    }
+    }, [])
 
     useEffect(() => {
-        void loadFriendData(activityFilter)
-    }, [activityFilter, loadFriendData])
+        void loadFriendData()
+    }, [loadFriendData])
 
     useEffect(() => {
         const tabParam = searchParams.get('tab')
@@ -533,6 +880,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         const section = tabParam as FriendSection
         if (
             section === 'friends'
+            || section === 'connect'
             || section === 'requests'
             || section === 'challenges'
             || section === 'activity'
@@ -545,13 +893,33 @@ export default function FriendsClient({ user }: FriendsClientProps) {
     }, [searchParams])
 
     useEffect(() => {
+        const inviteToken = searchParams.get('invite')
+        if (!inviteToken || processedInviteTokenRef.current === inviteToken) {
+            return
+        }
+
+        processedInviteTokenRef.current = inviteToken
+        appliedQueryTabRef.current = 'connect'
+        setActiveSection('connect')
+
+        const nextParams = new URLSearchParams(searchParams.toString())
+        nextParams.delete('invite')
+        if (!nextParams.get('tab')) {
+            nextParams.set('tab', 'connect')
+        }
+
+        router.replace(`/friends?${nextParams.toString()}`, { scroll: false })
+        void loadInvitePreview({ token: inviteToken }).catch(markError)
+    }, [loadInvitePreview, router, searchParams])
+
+    useEffect(() => {
         const pollId = window.setInterval(() => {
-            void loadFriendData(activityFilter, { silent: true })
+            void loadFriendData({ silent: true })
         }, 5000)
 
         const handleVisibilityRefresh = () => {
             if (!document.hidden) {
-                void loadFriendData(activityFilter, { silent: true })
+                void loadFriendData({ silent: true })
             }
         }
 
@@ -563,17 +931,119 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             window.removeEventListener('focus', handleVisibilityRefresh)
             document.removeEventListener('visibilitychange', handleVisibilityRefresh)
         }
-    }, [activityFilter, loadFriendData])
+    }, [loadFriendData])
 
     useEffect(() => {
-        if (!selectedFriendId || friends.length === 0) {
+        if (!selectedFriendId) {
+            setComparison(null)
             return
         }
+
         void loadComparison(selectedFriendId)
-    }, [selectedFriendId, friends])
+    }, [loadComparison, selectedFriendId])
 
     useEffect(() => {
-        if (challengeComposer?.categorySelection !== 'CHOSEN') {
+        if (!selectedFriendId) {
+            return
+        }
+
+        if (!friends.some((friend) => friend.id === selectedFriendId)) {
+            setSelectedFriendId('')
+            setComparison(null)
+        }
+    }, [friends, selectedFriendId])
+
+    useEffect(() => {
+        if (!challengeComposer) {
+            return
+        }
+
+        if (friends.length === 0 || !friends.some((friend) => friend.id === challengeComposer.opponentId)) {
+            setChallengeComposer(null)
+            setActiveChallengeConflict(null)
+            setChallengeComposerAlert(null)
+            setCategorySearchQuery('')
+            setCategorySearchResults([])
+            setCategoryQuickPicks([])
+            setCategorySearchLoading(false)
+            setCreatingChallenge(false)
+            activateSection('connect')
+        }
+    }, [activateSection, challengeComposer, friends])
+
+    useEffect(() => {
+        if (activeSection !== 'compare') {
+            return
+        }
+
+        if (friends.length === 0) {
+            activateSection('connect')
+        }
+    }, [activeSection, activateSection, friends.length])
+
+    useEffect(() => {
+        if (!isMobileSectionMenuOpen) {
+            return
+        }
+
+        const previousOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+
+        return () => {
+            document.body.style.overflow = previousOverflow
+        }
+    }, [isMobileSectionMenuOpen])
+
+    useEffect(() => {
+        if (challengeComposer?.categorySelection !== 'CUSTOM') {
+            setCategoryQuickPicks([])
+            setIsFeaturedBoardsExpanded(false)
+            return
+        }
+
+        const selectedCategoryIdsQuery = challengeComposer.categoryChoices
+            .map((choice) => choice.categoryId)
+            .join(',')
+        let cancelled = false
+
+        void (async () => {
+            try {
+                const params = new URLSearchParams({
+                    suggested: 'true',
+                    variantMode: 'episode',
+                    round: 'SINGLE',
+                    minQuestions: '5',
+                    limit: '8',
+                })
+                if (selectedCategoryIdsQuery) {
+                    params.set('excludeIds', selectedCategoryIdsQuery)
+                }
+
+                const response = await fetch(
+                    `/api/categories/search?${params.toString()}`,
+                )
+                if (!response.ok) {
+                    throw new Error('Unable to load quick picks')
+                }
+
+                const payload = await response.json() as CategorySearchResult[]
+                if (!cancelled) {
+                    setCategoryQuickPicks(payload)
+                }
+            } catch {
+                if (!cancelled) {
+                    setCategoryQuickPicks([])
+                }
+            }
+        })()
+
+        return () => {
+            cancelled = true
+        }
+    }, [challengeComposer?.categoryChoices, challengeComposer?.categorySelection])
+
+    useEffect(() => {
+        if (challengeComposer?.categorySelection !== 'CUSTOM') {
             setCategorySearchResults([])
             setCategorySearchLoading(false)
             return
@@ -590,7 +1060,9 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         const timer = window.setTimeout(async () => {
             setCategorySearchLoading(true)
             try {
-                const response = await fetch(`/api/categories/search?q=${encodeURIComponent(query)}&page=1`)
+                const response = await fetch(
+                    `/api/categories/search?q=${encodeURIComponent(query)}&page=1&variantMode=episode&round=SINGLE&minQuestions=5&limit=12`,
+                )
                 if (!response.ok) {
                     throw new Error('Unable to search categories')
                 }
@@ -607,7 +1079,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                     setCategorySearchLoading(false)
                 }
             }
-        }, 250)
+        }, 200)
 
         return () => {
             cancelled = true
@@ -615,15 +1087,27 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         }
     }, [categorySearchQuery, challengeComposer?.categorySelection])
 
-    const sendFriendRequest = async () => {
-        if (!targetInput.trim()) return
+    useEffect(() => {
+        if (challengeComposer?.categorySelection !== 'CUSTOM') {
+            return
+        }
+
+        const timer = window.setTimeout(() => {
+            customCategorySearchInputRef.current?.focus()
+        }, 40)
+
+        return () => window.clearTimeout(timer)
+    }, [challengeComposer?.categorySelection])
+
+    const sendFriendRequest = async (targetOverride?: string) => {
+        const target = (targetOverride || targetInput).trim()
+        if (!target) return
 
         const response = await fetch('/api/friends/request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                target: targetInput.trim(),
-                message: requestMessage.trim() || undefined,
+                target,
             }),
         })
 
@@ -633,8 +1117,125 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         }
 
         setTargetInput('')
-        setRequestMessage('')
+        setInviteActionMessage('Friend request sent.')
+        setInvitePreview((previous) => (
+            previous && previous.inviter.id === target
+                ? { ...previous, state: 'outgoing_pending', canSendRequest: false }
+                : previous
+        ))
         await loadFriendData()
+    }
+
+    const submitTargetInput = async () => {
+        const trimmed = targetInput.trim()
+        if (!trimmed) {
+            return
+        }
+
+        const inviteToken = extractInviteTokenFromInput(trimmed)
+        if (inviteToken) {
+            await loadInvitePreview({ token: inviteToken })
+            setTargetInput('')
+            return
+        }
+
+        await sendFriendRequest(trimmed)
+    }
+
+    const sendRequestFromPreview = async () => {
+        if (!invitePreview?.canSendRequest) {
+            return
+        }
+
+        await sendFriendRequest(invitePreview.inviter.id)
+    }
+
+    const buildInviteUrl = () => {
+        if (!ownInvite?.inviteToken || typeof window === 'undefined') {
+            return ''
+        }
+
+        return `${window.location.origin}/friends?invite=${encodeURIComponent(ownInvite.inviteToken)}`
+    }
+
+    const copyInviteText = async (value: string, successMessage?: string) => {
+        if (!value) {
+            throw new Error('Invite is not ready yet')
+        }
+        await navigator.clipboard.writeText(value)
+        if (successMessage) {
+            setInviteActionMessage(successMessage)
+        }
+    }
+
+    const showInviteCodeCopiedState = () => {
+        setInviteCodeCopied(true)
+        if (inviteCodeCopiedTimeoutRef.current) {
+            clearTimeout(inviteCodeCopiedTimeoutRef.current)
+        }
+        inviteCodeCopiedTimeoutRef.current = setTimeout(() => {
+            setInviteCodeCopied(false)
+            inviteCodeCopiedTimeoutRef.current = null
+        }, 1800)
+    }
+
+    const shareInviteNatively = async () => {
+        const inviteUrl = buildInviteUrl()
+        const shareTitle = 'Add me on trivrdy'
+        const shareText = `${user.displayName || 'Join me'} on trivrdy and compare trivia streaks.`
+
+        if (typeof navigator !== 'undefined' && navigator.share) {
+            await navigator.share({
+                title: shareTitle,
+                text: shareText,
+                url: inviteUrl,
+            })
+            setInviteActionMessage('Invite shared.')
+            return
+        }
+
+        await copyInviteText(inviteUrl, 'Invite link copied.')
+    }
+
+    const openRefreshInviteConfirmation = () => {
+        setIsRefreshInviteConfirmationOpen(true)
+    }
+
+    const closeRefreshInviteConfirmation = () => {
+        if (inviteLoading) {
+            return
+        }
+        setIsRefreshInviteConfirmationOpen(false)
+    }
+
+    const confirmRefreshInvite = async () => {
+        if (inviteLoading) {
+            return
+        }
+
+        try {
+            await rotateInvite()
+            setIsRefreshInviteConfirmationOpen(false)
+        } catch (error) {
+            markError(error)
+        }
+    }
+
+    const rotateInvite = async () => {
+        const response = await fetch('/api/friends/invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'rotate' }),
+        })
+
+        if (!response.ok) {
+            const payload = await response.json()
+            throw new Error(payload?.error || 'Unable to refresh your invite')
+        }
+
+        const payload = await response.json() as { invite?: OwnFriendInvite }
+        setOwnInvite(payload.invite || null)
+        setInviteActionMessage('Invite link and code refreshed.')
     }
 
     const respondToRequest = async (requestId: string, action: 'accept' | 'decline' | 'cancel') => {
@@ -653,18 +1254,24 @@ export default function FriendsClient({ user }: FriendsClientProps) {
     }
 
     const openChallengeComposer = (opponentId?: string) => {
+        if (friends.length === 0 && !opponentId) {
+            activateSection('connect')
+            return
+        }
+
         const nextOpponentId = opponentId || friends[0]?.id || ''
         setChallengeComposer({
             opponentId: nextOpponentId,
             mode: 'GAME',
             categorySelection: 'RANDOM',
-            categoryCount: 1,
+            categoryCount: 6,
             categoryChoices: [],
         })
         setActiveChallengeConflict(null)
         setChallengeComposerAlert(null)
         setCategorySearchQuery('')
         setCategorySearchResults([])
+        setCategoryQuickPicks([])
     }
 
     const closeChallengeComposer = () => {
@@ -673,11 +1280,18 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         setChallengeComposerAlert(null)
         setCategorySearchQuery('')
         setCategorySearchResults([])
+        setCategoryQuickPicks([])
         setCategorySearchLoading(false)
         setCreatingChallenge(false)
     }
 
     const setChallengeOpponent = (opponentId: string) => {
+        if (!opponentId) {
+            closeChallengeComposer()
+            activateSection('connect')
+            return
+        }
+
         setChallengeComposer((previous) => {
             if (!previous) {
                 return previous
@@ -691,7 +1305,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         setChallengeComposerAlert(null)
     }
 
-    const setChallengeComposerSelection = (selection: 'RANDOM' | 'CHOSEN') => {
+    const setChallengeComposerSelection = (selection: FriendChallengeCategorySelection) => {
         setChallengeComposer((previous) => {
             if (!previous) {
                 return previous
@@ -701,6 +1315,9 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                 categorySelection: selection,
             }
         })
+        setCategorySearchQuery('')
+        setCategorySearchResults([])
+        setChallengeComposerAlert(null)
     }
 
     const setChallengeCategoryCount = (nextCount: number) => {
@@ -708,7 +1325,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             if (!previous) {
                 return previous
             }
-            const bounded = Math.min(Math.max(nextCount, 1), 6)
+            const bounded = clampFriendChallengeCategoryCount(nextCount)
             return {
                 ...previous,
                 categoryCount: bounded,
@@ -717,17 +1334,31 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         })
     }
 
-    const toggleChallengeCategoryChoice = (category: { id: string; name: string }) => {
+    const toggleChallengeCategoryChoice = (category: CategorySearchResult | ChallengeCategoryChoice) => {
         setChallengeComposer((previous) => {
-            if (!previous || previous.categorySelection !== 'CHOSEN') {
+            if (!previous || previous.categorySelection !== 'CUSTOM') {
                 return previous
             }
 
-            const exists = previous.categoryChoices.some((choice) => choice.id === category.id)
-            if (exists) {
+            const nextChoice = 'categoryId' in category
+                ? toChallengeCategoryChoice(category)
+                : category
+
+            const exactIndex = previous.categoryChoices.findIndex((choice) => choice.id === nextChoice.id)
+            if (exactIndex !== -1) {
                 return {
                     ...previous,
-                    categoryChoices: previous.categoryChoices.filter((choice) => choice.id !== category.id),
+                    categoryChoices: previous.categoryChoices.filter((choice) => choice.id !== nextChoice.id),
+                }
+            }
+
+            const sameCategoryIndex = previous.categoryChoices.findIndex((choice) => choice.categoryId === nextChoice.categoryId)
+            if (sameCategoryIndex !== -1) {
+                return {
+                    ...previous,
+                    categoryChoices: previous.categoryChoices.map((choice, index) => (
+                        index === sameCategoryIndex ? nextChoice : choice
+                    )),
                 }
             }
 
@@ -737,9 +1368,56 @@ export default function FriendsClient({ user }: FriendsClientProps) {
 
             return {
                 ...previous,
-                categoryChoices: [...previous.categoryChoices, { id: category.id, name: category.name }],
+                categoryChoices: [...previous.categoryChoices, nextChoice],
             }
         })
+    }
+
+    const addQuickPickCategoriesToChallenge = () => {
+        setChallengeComposer((previous) => {
+            if (!previous || previous.categorySelection !== 'CUSTOM') {
+                return previous
+            }
+
+            const selectedCategoryIds = new Set(previous.categoryChoices.map((choice) => choice.categoryId))
+            const needed = previous.categoryCount - previous.categoryChoices.length
+            if (needed <= 0) {
+                return previous
+            }
+
+            const additions = categoryQuickPicks
+                .filter((category) => !selectedCategoryIds.has(category.categoryId))
+                .slice(0, needed)
+                .map(toChallengeCategoryChoice)
+
+            if (additions.length === 0) {
+                return previous
+            }
+
+            return {
+                ...previous,
+                categoryChoices: [...previous.categoryChoices, ...additions],
+            }
+        })
+    }
+
+    const handleChallengeCategorySearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key !== 'Enter') {
+            return
+        }
+
+        event.preventDefault()
+        if (!challengeComposer || challengeComposer.categorySelection !== 'CUSTOM') {
+            return
+        }
+
+        const firstAvailable = categorySearchResults.find((category) => (
+            !challengeComposer.categoryChoices.some((choice) => choice.categoryId === category.categoryId)
+        ))
+
+        if (firstAvailable) {
+            toggleChallengeCategoryChoice(firstAvailable)
+        }
     }
 
     const submitChallengeComposer = async () => {
@@ -756,10 +1434,10 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             })
             return
         }
-        if (categorySelection === 'CHOSEN' && categoryChoices.length !== categoryCount) {
+        if (categorySelection === 'CUSTOM' && categoryChoices.length === 0) {
             setChallengeComposerAlert({
                 tone: 'warning',
-                message: `Select exactly ${categoryCount} ${categoryCount === 1 ? 'category' : 'categories'}.`,
+                message: 'Pick at least one category for a custom board.',
             })
             return
         }
@@ -775,7 +1453,14 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                     mode,
                     categorySelection,
                     categoryCount,
-                    categoryIds: categorySelection === 'CHOSEN' ? categoryChoices.map((choice) => choice.id) : undefined,
+                    categoryIds: categorySelection === 'CUSTOM' ? categoryChoices.map((choice) => choice.categoryId) : undefined,
+                    categorySelections: categorySelection === 'CUSTOM'
+                        ? categoryChoices.map((choice) => ({
+                            categoryId: choice.categoryId,
+                            airDate: choice.airDate,
+                            round: choice.round,
+                        }))
+                        : undefined,
                 }),
             })
 
@@ -847,7 +1532,14 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                     mode,
                     categorySelection,
                     categoryCount,
-                    categoryIds: categorySelection === 'CHOSEN' ? categoryChoices.map((choice) => choice.id) : undefined,
+                    categoryIds: categorySelection === 'CUSTOM' ? categoryChoices.map((choice) => choice.categoryId) : undefined,
+                    categorySelections: categorySelection === 'CUSTOM'
+                        ? categoryChoices.map((choice) => ({
+                            categoryId: choice.categoryId,
+                            airDate: choice.airDate,
+                            round: choice.round,
+                        }))
+                        : undefined,
                 }),
             })
 
@@ -987,14 +1679,58 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         await loadFriendData()
     }
 
-    const setRequestBlock = async (request: FriendRequestPayload, action: 'block' | 'unblock' = 'block') => {
+    const openBlockConfirmation = (blockedUserId: string, displayName: string) => {
+        setBlockConfirmation({
+            blockedUserId,
+            displayName,
+        })
+    }
+
+    const closeBlockConfirmation = () => {
+        if (processingBlockConfirmation) {
+            return
+        }
+        setBlockConfirmation(null)
+    }
+
+    const confirmBlockAction = async () => {
+        if (!blockConfirmation || processingBlockConfirmation) {
+            return
+        }
+
+        setProcessingBlockConfirmation(true)
+        try {
+            await setFriendBlock(blockConfirmation.blockedUserId, 'block')
+            setBlockConfirmation(null)
+        } catch (error) {
+            markError(error)
+        } finally {
+            setProcessingBlockConfirmation(false)
+        }
+    }
+
+    const openRemoveFriendConfirmation = (friendId: string, displayName: string) => {
+        setRemoveFriendConfirmation({
+            friendId,
+            displayName,
+        })
+    }
+
+    const closeRemoveFriendConfirmation = () => {
+        if (processingRemoveFriendConfirmation) {
+            return
+        }
+        setRemoveFriendConfirmation(null)
+    }
+
+    const setRequestBlock = async (request: FriendRequestPayload) => {
         const blockedUserId = request.fromUserId === user.id ? request.toUserId : request.fromUserId
         if (!blockedUserId) {
             setErrorMessage('Could not identify user to block')
             return
         }
 
-        await setFriendBlock(blockedUserId, action)
+        openBlockConfirmation(blockedUserId, friendlyName(request))
     }
 
     const updateChallenge = async (challengeId: string, action: 'accept' | 'decline' | 'cancel' | 'end') => {
@@ -1104,10 +1840,6 @@ export default function FriendsClient({ user }: FriendsClientProps) {
     }
 
     const removeFriend = async (friendId: string) => {
-        if (!window.confirm('Remove this friend?')) {
-            return
-        }
-
         const response = await fetch('/api/friends/remove', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1127,7 +1859,24 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         await loadFriendData()
     }
 
+    const confirmRemoveFriendAction = async () => {
+        if (!removeFriendConfirmation || processingRemoveFriendConfirmation) {
+            return
+        }
+
+        setProcessingRemoveFriendConfirmation(true)
+        try {
+            await removeFriend(removeFriendConfirmation.friendId)
+            setRemoveFriendConfirmation(null)
+        } catch (error) {
+            markError(error)
+        } finally {
+            setProcessingRemoveFriendConfirmation(false)
+        }
+    }
+
     const markError = (error: unknown) => {
+        setInviteActionMessage('')
         if (error instanceof Error) {
             setErrorMessage(error.message)
         } else {
@@ -1139,6 +1888,10 @@ export default function FriendsClient({ user }: FriendsClientProps) {
     const pendingChallengeCount = useMemo(
         () => challenges.filter((challenge) => challenge.status === 'PENDING').length,
         [challenges],
+    )
+    const filteredActivities = useMemo(
+        () => activities.filter((activity) => matchesActivityFilter(activity, activityFilter)),
+        [activities, activityFilter],
     )
     const challengeComposerOpponent = useMemo(
         () => friends.find((friend) => friend.id === challengeComposer?.opponentId) || null,
@@ -1231,289 +1984,706 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             return 'Comparison active'
         }
 
-        const delta = comparison.comparison.currentStreakDelta
-        if (delta === 0) {
-            return 'Current streaks tied'
+        const topEdge = comparison.comparison.matchupStats.find((stat) => stat.winner !== 'TIE')
+        if (!topEdge) {
+            return 'Very even matchup'
         }
-        return delta > 0
-            ? `You lead by ${delta}`
-            : `You trail by ${Math.abs(delta)}`
+
+        return topEdge.winner === 'VIEWER'
+            ? `You lead in ${topEdge.label.toLowerCase()}`
+            : `${comparisonFriendName} leads in ${topEdge.label.toLowerCase()}`
     }
+
+    const comparisonProfileMatchups = comparison?.comparison.matchupStats.filter((stat) => stat.id !== 'head-to-head') || []
+    const comparisonFriendName = comparison?.friend.displayName || 'Friend'
+    const pendingRequestsCount = incomingRequests.length + outgoingRequests.length
+    const activeChallenges = useMemo(
+        () => challenges.filter((challenge) => challenge.status === 'PENDING' || challenge.status === 'ACCEPTED'),
+        [challenges],
+    )
+    const resolvedChallenges = useMemo(
+        () => challenges.filter((challenge) => challenge.status !== 'PENDING' && challenge.status !== 'ACCEPTED'),
+        [challenges],
+    )
+    const friendNavGroups: Array<{
+        label: string
+        items: Array<{
+            id: FriendSection
+            label: string
+            description: string
+            badge?: string
+        }>
+    }> = [
+        {
+            label: 'Connections',
+            items: [
+                {
+                    id: 'connect',
+                    label: 'Add Friend',
+                    description: 'Share your code or use an invite link',
+                },
+                {
+                    id: 'friends',
+                    label: 'Friends',
+                    description: `${friends.length} people in your circle`,
+                    badge: friends.length.toString(),
+                },
+                {
+                    id: 'requests',
+                    label: 'Requests',
+                    description: 'Pending incoming and outgoing invites',
+                    badge: pendingRequestsCount > 0 ? pendingRequestsCount.toString() : undefined,
+                },
+            ],
+        },
+        {
+            label: 'Play',
+            items: [
+                {
+                    id: 'challenges',
+                    label: 'Challenges',
+                    description: 'Create and resolve direct matchups',
+                    badge: pendingChallengeCount > 0 ? pendingChallengeCount.toString() : undefined,
+                },
+                {
+                    id: 'compare',
+                    label: 'Compare',
+                    description: 'Profile stats and rivalry history',
+                },
+                {
+                    id: 'activity',
+                    label: 'Activity',
+                    description: 'Recent social and challenge events',
+                },
+            ],
+        },
+        {
+            label: 'Controls',
+            items: [
+                {
+                    id: 'settings',
+                    label: 'Privacy & Blocking',
+                    description: 'Control visibility and incoming requests',
+                },
+            ],
+        },
+    ]
+    const activeFriendNavItem = friendNavGroups
+        .flatMap((group) => group.items)
+        .find((item) => item.id === activeSection)
+    const activeFriendNavGroupLabel = friendNavGroups.find((group) =>
+        group.items.some((item) => item.id === activeSection),
+    )?.label || 'Friends'
+    const friendSectionDetails: Record<FriendSection, { title: string; subtitle: string }> = {
+        connect: {
+            title: 'Add a friend',
+            subtitle: 'Share your code, paste theirs, and keep request controls close without extra noise.',
+        },
+        friends: {
+            title: 'Your friends',
+            subtitle: 'Keep your circle tidy, start a challenge, or open a deeper comparison in one step.',
+        },
+        requests: {
+            title: 'Requests',
+            subtitle: 'Approve incoming requests and keep track of the invites you already sent.',
+        },
+        challenges: {
+            title: 'Challenges',
+            subtitle: 'Create direct matchups, finish live rounds, and keep open games moving.',
+        },
+        compare: {
+            title: 'Compare',
+            subtitle: 'Start with overall profile strength, then switch into head-to-head history when you need it.',
+        },
+        activity: {
+            title: 'Activity',
+            subtitle: 'A simple feed for recent friend, request, and challenge updates.',
+        },
+        settings: {
+            title: 'Privacy & blocking',
+            subtitle: 'Keep profile visibility, request access, and blocked users in one calm place.',
+        },
+    }
+    const currentFriendSection = friendSectionDetails[activeSection]
+    const comparisonRoundMatchups = comparison?.comparison.roundMatchups || []
+    const customSelectionProgress = challengeComposer && challengeComposer.categorySelection === 'CUSTOM'
+        ? getFriendChallengeSelectionProgress(
+            challengeComposer.categoryChoices.length,
+            challengeComposer.categoryCount,
+        )
+        : null
+    const categoryQuickPickOptions = useMemo(() => {
+        if (!challengeComposer || challengeComposer.categorySelection !== 'CUSTOM') {
+            return []
+        }
+
+        const selectedCategoryIds = new Set(challengeComposer.categoryChoices.map((choice) => choice.categoryId))
+        return categoryQuickPicks.filter((category) => !selectedCategoryIds.has(category.categoryId))
+    }, [categoryQuickPicks, challengeComposer])
+    const canSubmitChallengeComposer = Boolean(
+        challengeComposer
+        && challengeComposer.opponentId
+        && (
+            challengeComposer.categorySelection !== 'CUSTOM'
+            || challengeComposer.categoryChoices.length > 0
+        ),
+    )
+    const showChallengeComposerSubmitAction = Boolean(
+        challengeComposer
+        && (
+            challengeComposer.categorySelection !== 'CUSTOM'
+            || challengeComposer.categoryChoices.length > 0
+        ),
+    )
+    const challengeComposerSubmitLabel = customSelectionProgress?.willAutoFill
+        ? `Create Challenge + fill ${customSelectionProgress.remainingCount}`
+        : 'Create Challenge'
 
     if (isLoading) {
         return <div className="container mx-auto px-4 py-8">Loading friends...</div>
     }
 
     return (
-        <div className="friends-hub container mx-auto px-4 py-6">
-            <div className="mb-6">
-                <h1 className="text-3xl font-bold text-gray-900">Friends Hub</h1>
-                <p className="text-gray-600">Connect, challenge, and compare with your friends.</p>
-            </div>
-
+        <div className="friends-hub workspace-page">
             {errorMessage && (
-                <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
                     {errorMessage}
                 </div>
             )}
 
-            <div className="flex flex-wrap gap-2 mb-6">
-                {(['friends', 'requests', 'challenges', 'activity', 'compare', 'settings'] as const).map((section) => (
-                    <button
-                        key={section}
-                        type="button"
-                        onClick={() => setActiveSection(section)}
-                        className={`rounded border px-4 py-2 text-sm font-medium ${
-                            activeSection === section
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'bg-white text-gray-700 border-gray-200'
-                        }`}
-                    >
-                        {section === 'friends'
-                            ? 'Friends'
-                            : section === 'requests'
-                                ? 'Requests'
-                                : section === 'challenges'
-                                    ? `Challenges (${pendingChallengeCount})`
-                                    : section === 'activity'
-                                        ? 'Activity'
-                                        : section === 'settings'
-                                            ? 'Privacy & Blocking'
-                                            : 'Compare'}
-                    </button>
-                ))}
-            </div>
-
-            {activeSection === 'requests' && (
-                <section className="card p-5">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Add Friend</h2>
-                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                        <label className="grid gap-1.5">
-                            <span className="text-sm font-medium text-slate-800">Friend Search</span>
-                            <input
-                                value={targetInput}
-                                onChange={(event) => setTargetInput(event.target.value)}
-                                className="form-input bg-white text-gray-900 placeholder:text-gray-500"
-                                placeholder="Search by username, email, or id"
-                            />
-                        </label>
-                        <label className="grid gap-1.5">
-                            <span className="text-sm font-medium text-slate-800">
-                                Optional Message <span className="text-slate-600 font-normal">(optional)</span>
-                            </span>
-                            <input
-                                value={requestMessage}
-                                onChange={(event) => setRequestMessage(event.target.value)}
-                                className="form-input bg-white text-gray-900 placeholder:text-gray-500"
-                                placeholder="Optional message"
-                            />
-                        </label>
+            <div className="workspace-mobile-nav">
+                <div className="workspace-mobile-nav-card">
+                    <div className="workspace-mobile-nav-row">
+                        <div className="workspace-mobile-nav-copy">
+                            <div className="workspace-mobile-nav-kicker">{activeFriendNavGroupLabel}</div>
+                            <div className="workspace-mobile-nav-title">{currentFriendSection.title}</div>
+                            <div className="workspace-mobile-nav-subtitle">
+                                {activeFriendNavItem?.description || currentFriendSection.subtitle}
+                            </div>
+                        </div>
                         <button
                             type="button"
-                            onClick={() => void sendFriendRequest().catch(markError)}
-                            className="btn-primary btn-sm md:col-span-2"
+                            className="workspace-mobile-nav-trigger"
+                            onClick={() => setIsMobileSectionMenuOpen(true)}
+                            aria-expanded={isMobileSectionMenuOpen}
+                            aria-haspopup="dialog"
                         >
-                            Send Request
+                            Sections
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
                         </button>
                     </div>
-                </section>
-            )}
+                    {activeSection !== 'connect' ? (
+                        <button
+                            type="button"
+                            className="workspace-mobile-nav-secondary w-full"
+                            onClick={() => activateSection('connect')}
+                        >
+                            Add Friend
+                        </button>
+                    ) : null}
+                </div>
+            </div>
 
-            {activeSection === 'friends' && (
-                <section className="card p-5 mt-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Friends ({friends.length})</h2>
-                    {friends.length === 0 ? (
-                        <p className="text-gray-600 text-sm">No friends yet. Send a request to get started.</p>
-                    ) : (
-                        <div className="grid gap-3">
-                            {friends.map((friend) => (
-                                <div key={friend.id} className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-100 p-3">
-                                    <div className="flex items-center gap-3">
-                                        <UserAvatar
-                                            displayName={friend.displayName || friend.email || ''}
-                                            selectedIcon={friend.selectedIcon}
-                                            avatarBackground={friend.avatarBackground}
-                                            size="md"
-                                        />
-                                        <div>
-                                            <div className="font-medium text-gray-900">
-                                                {friend.displayName || friend.email || 'Unknown'}
-                                            </div>
-                                            <div className="text-sm text-gray-500">
-                                                Current streak: {friend.currentStreak} · Best streak: {friend.longestStreak}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="text-sm text-gray-500">
-                                        {comparisonStatusLabel(friend.id)}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button
-                                            type="button"
-                                            className="btn-primary btn-sm"
-                                            onClick={() => {
-                                                setActiveSection('challenges')
-                                                openChallengeComposer(friend.id)
-                                            }}
-                                        >
-                                            Challenge
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-outline btn-sm"
-                                            onClick={() => {
-                                                setSelectedFriendId(friend.id)
-                                                setActiveSection('compare')
-                                                void loadComparison(friend.id)
-                                            }}
-                                        >
-                                            Compare
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-outline btn-sm"
-                                            disabled={isBlockedById(friend.id)}
-                                            onClick={() => void setFriendBlock(friend.id, isBlockedById(friend.id) ? 'unblock' : 'block').catch(markError)}
-                                        >
-                                            {isBlockedById(friend.id) ? 'Unblock' : 'Block'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            className="btn-outline btn-sm ml-3"
-                                            onClick={() => void removeFriend(friend.id).catch(markError)}
-                                        >
-                                            Remove
-                                        </button>
+            <div className="workspace-shell">
+                <aside className="workspace-sidebar">
+                    <div className="workspace-sidebar-card overflow-hidden">
+                        <div className="workspace-sidebar-scroll">
+                            {friendNavGroups.map((group) => (
+                                <div key={group.label} className="workspace-nav-group">
+                                    <div className="workspace-nav-label">{group.label}</div>
+                                    <div className="space-y-2">
+                                        {group.items.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => activateSection(item.id)}
+                                                className={`workspace-nav-button ${activeSection === item.id ? 'active' : ''}`}
+                                                aria-current={activeSection === item.id ? 'page' : undefined}
+                                            >
+                                                <div className="min-w-0">
+                                                    <div className="font-semibold">{item.label}</div>
+                                                    <div className="mt-1 text-xs text-slate-500">{item.description}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {item.badge ? <span className="workspace-nav-badge">{item.badge}</span> : null}
+                                                    <svg className="h-4 w-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </div>
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    )}
-                </section>
-            )}
+                    </div>
+                </aside>
 
-            {activeSection === 'requests' && (
-                <section className="card p-5 mt-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Pending Requests</h2>
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                            <h3 className="font-medium text-sm text-gray-700 mb-2">Incoming</h3>
-                            {incomingRequests.length === 0 ? (
-                                <p className="text-sm text-gray-500">No incoming requests.</p>
-                            ) : (
-                                incomingRequests.map((request) => (
-                                    <div key={request.id} className="rounded border border-gray-100 p-3 mb-3 last:mb-0">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <UserAvatar
-                                                displayName={request.fromUser.displayName || 'Unknown'}
-                                                selectedIcon={request.fromUser.selectedIcon}
-                                                avatarBackground={request.fromUser.avatarBackground}
-                                                size="sm"
-                                            />
-                                            <span className="text-sm font-medium text-gray-900">{friendlyName(request)} wants to connect</span>
+                <div className="workspace-main">
+                    <section className="workspace-main-header">
+                        <div className="workspace-main-header-layout">
+                            <div className="min-w-0">
+                                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
+                                    {activeFriendNavItem?.label || 'Friends'}
+                                </div>
+                                <h1 className="workspace-main-title mt-2">{currentFriendSection.title}</h1>
+                                <p className="workspace-main-subtitle max-w-3xl">{currentFriendSection.subtitle}</p>
+                            </div>
+                            {activeSection !== 'connect' ? (
+                                <div className="workspace-main-header-action">
+                                    <button
+                                        type="button"
+                                        className="btn-primary btn-sm"
+                                        onClick={() => activateSection('connect')}
+                                    >
+                                        Add Friend
+                                    </button>
+                                </div>
+                            ) : null}
+                        </div>
+                    </section>
+
+                    {activeSection === 'connect' && (
+                        <section className="workspace-surface p-5 md:p-6">
+                            <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">Share your code</div>
+                                            <h2 className="mt-2 text-xl font-semibold text-slate-900">Invite a friend</h2>
                                         </div>
-                                        {request.message && (
-                                            <p className="text-sm text-gray-700">“{request.message}”</p>
-                                        )}
-                                        <div className="mt-2 flex gap-2">
+                                        <button
+                                            type="button"
+                                            className="btn-outline btn-sm"
+                                            onClick={openRefreshInviteConfirmation}
+                                            disabled={inviteLoading}
+                                        >
+                                            Refresh
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-4">
+                                        <div className="flex items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-white px-4 py-4 shadow-sm">
+                                            <div className="min-w-0">
+                                                <div className="text-2xl font-semibold tracking-[0.18em] text-slate-900">
+                                                    {ownInvite?.code || 'Loading...'}
+                                                </div>
+                                                <div
+                                                    className={`mt-1 text-xs font-medium transition-all duration-200 ${
+                                                        inviteCodeCopied ? 'text-emerald-600' : 'text-blue-700'
+                                                    }`}
+                                                    aria-live="polite"
+                                                >
+                                                    {inviteCodeCopied ? 'Code copied' : 'Friend code'}
+                                                </div>
+                                            </div>
                                             <button
                                                 type="button"
-                                                className="btn-outline btn-sm"
-                                                onClick={() => void setRequestBlock(request, 'block').catch(markError)}
+                                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition ${
+                                                    inviteCodeCopied
+                                                        ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+                                                        : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700'
+                                                }`}
+                                                onClick={() => void copyInviteText(ownInvite?.code || '')
+                                                    .then(showInviteCodeCopiedState)
+                                                    .catch(markError)}
+                                                disabled={!ownInvite?.code}
+                                                aria-label={inviteCodeCopied ? 'Friend code copied' : 'Copy friend code'}
                                             >
-                                                Block {friendlyName(request)}
+                                                {inviteCodeCopied ? (
+                                                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 10.5 8 14l7.5-8" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                                        <rect x="7" y="3.5" width="9" height="11" rx="2" />
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 7H5A2.5 2.5 0 0 0 2.5 9.5V14A2.5 2.5 0 0 0 5 16.5h4.5" />
+                                                    </svg>
+                                                )}
+                                                <span className="sr-only">{inviteCodeCopied ? 'Friend code copied' : 'Copy friend code'}</span>
                                             </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-4 flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            className="btn-primary btn-sm"
+                                            onClick={() => void shareInviteNatively().catch(markError)}
+                                            disabled={!ownInvite?.inviteToken || !friendSettings.allowFriendRequests}
+                                        >
+                                            Share invite
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="btn-outline btn-sm"
+                                            onClick={() => void copyInviteText(buildInviteUrl(), 'Invite link copied.').catch(markError)}
+                                            disabled={!ownInvite?.inviteToken || !friendSettings.allowFriendRequests}
+                                        >
+                                            Copy link
+                                        </button>
+                                    </div>
+
+                                    {inviteActionMessage ? (
+                                        <p className="mt-3 text-sm text-blue-700">{inviteActionMessage}</p>
+                                    ) : null}
+
+                                    <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                        <div className="min-w-0">
+                                            <div className="text-sm font-medium text-slate-900">Allow incoming requests</div>
+                                            <div className="text-sm text-slate-500">
+                                                {friendSettings.allowFriendRequests ? 'On' : 'Off'}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={friendSettings.allowFriendRequests}
+                                                onChange={(event) => void handleAllowRequestsChange(event.target.checked).catch(markError)}
+                                                aria-label="Allow incoming friend requests"
+                                            />
+                                            <button
+                                                type="button"
+                                                className="text-sm font-medium text-blue-700 hover:text-blue-800"
+                                                onClick={() => activateSection('settings')}
+                                            >
+                                                Privacy settings
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 bg-white p-5">
+                                    <h2 className="text-xl font-semibold text-slate-900">Use a code or invite link</h2>
+                                    <p className="mt-1 text-sm text-slate-600">
+                                        Paste what your friend sent you and keep going.
+                                    </p>
+                                    <label className="mt-4 grid gap-1.5">
+                                        <span className="text-sm font-medium text-slate-800">Friend code or invite link</span>
+                                        <input
+                                            value={targetInput}
+                                            onChange={(event) => setTargetInput(event.target.value)}
+                                            className="form-input bg-white text-gray-900 placeholder:text-gray-500"
+                                            placeholder="ABCDE-FGHIJ or invite link"
+                                        />
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => void submitTargetInput().catch(markError)}
+                                        className="btn-primary mt-3 w-full"
+                                        disabled={targetInput.trim().length === 0}
+                                    >
+                                        Continue
+                                    </button>
+
+                                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                                        <span>
+                                            {pendingRequestsCount > 0
+                                                ? `${incomingRequests.length} incoming • ${outgoingRequests.length} outgoing`
+                                                : 'No pending requests right now'}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            className="font-medium text-blue-700 hover:text-blue-800"
+                                            onClick={() => activateSection('requests')}
+                                        >
+                                            Review requests
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {invitePreview ? (
+                                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="flex flex-wrap items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <UserAvatar
+                                                displayName={invitePreview.inviter.displayName || 'Friend'}
+                                                selectedIcon={invitePreview.inviter.selectedIcon}
+                                                avatarBackground={invitePreview.inviter.avatarBackground}
+                                                size="md"
+                                            />
+                                            <div>
+                                                <div className="font-medium text-slate-900">
+                                                    {invitePreview.inviter.displayName || 'A friend'}
+                                                </div>
+                                                <div className="mt-1 text-sm text-slate-600">{inviteStateMessage(invitePreview)}</div>
+                                                {invitePreview.code ? (
+                                                    <div className="mt-1 text-xs text-slate-500">Code: {invitePreview.code}</div>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                        {invitePreview.canSendRequest ? (
                                             <button
                                                 type="button"
                                                 className="btn-primary btn-sm"
-                                                onClick={() => void respondToRequest(request.id, 'accept').catch(markError)}
+                                                onClick={() => void sendRequestFromPreview().catch(markError)}
+                                                disabled={inviteLoading}
                                             >
-                                                Accept
+                                                Send friend request
                                             </button>
-                                            <button
-                                                type="button"
-                                                className="btn-outline btn-sm"
-                                                onClick={() => void respondToRequest(request.id, 'decline').catch(markError)}
-                                            >
-                                                Decline
-                                            </button>
-                                        </div>
+                                        ) : null}
                                     </div>
-                                ))
-                            )}
-                        </div>
-                        <div>
-                            <h3 className="font-medium text-sm text-gray-700 mb-2">Outgoing</h3>
-                            {outgoingRequests.length === 0 ? (
-                                <p className="text-sm text-gray-500">No outgoing requests.</p>
-                            ) : (
-                                outgoingRequests.map((request) => (
-                                    <div key={request.id} className="rounded border border-gray-100 p-3 mb-3 last:mb-0">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <UserAvatar
-                                                displayName={request.toUser.displayName || 'Unknown'}
-                                                selectedIcon={request.toUser.selectedIcon}
-                                                avatarBackground={request.toUser.avatarBackground}
-                                                size="sm"
-                                            />
-                                            <span className="text-sm font-medium text-gray-900">
-                                                Sent to {request.toUser.displayName || request.toUser.email || 'Unknown'}
-                                            </span>
-                                        </div>
-                                        {request.message && (
-                                            <p className="text-sm text-gray-700">“{request.message}”</p>
-                                        )}
-                                        <div className="mt-2 flex gap-2">
-                                            <button
-                                                type="button"
-                                                className="btn-outline btn-sm"
-                                                onClick={() => void setRequestBlock(request, 'block').catch(markError)}
-                                            >
-                                                Block {friendlyName(request)}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className="btn-outline btn-sm"
-                                                onClick={() => void respondToRequest(request.id, 'cancel').catch(markError)}
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
-                </section>
-            )}
+                                </div>
+                            ) : null}
+                        </section>
+                    )}
 
-            {activeSection === 'challenges' && (
-                <section className="card p-5 mt-6">
-                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h2 className="text-xl font-semibold text-gray-900">Challenges</h2>
-                            <p className="mt-1 text-sm text-gray-600">
-                                Start a live round challenge with one focused setup flow.
+                    {activeSection === 'friends' && (
+                        <section className="workspace-surface p-5 md:p-6">
+                            {friends.length === 0 ? (
+                                <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
+                                    <p className="text-sm text-slate-600">No friends yet. Open Add Friend to share your invite or paste a code.</p>
+                                    <button
+                                        type="button"
+                                        className="btn-primary btn-sm mt-4"
+                                        onClick={() => activateSection('connect')}
+                                    >
+                                        Open Add Friend
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="mt-5 grid gap-4">
+                                    {friends.map((friend) => (
+                                        <div key={friend.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+                                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <UserAvatar
+                                                        displayName={friend.displayName || friend.email || ''}
+                                                        selectedIcon={friend.selectedIcon}
+                                                        avatarBackground={friend.avatarBackground}
+                                                        size="md"
+                                                    />
+                                                    <div>
+                                                        <div className="font-medium text-slate-900">
+                                                            {friend.displayName || friend.email || 'Unknown'}
+                                                        </div>
+                                                        <div className="mt-1 text-sm text-slate-500">
+                                                            {comparisonStatusLabel(friend.id)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col gap-3 xl:min-w-[16rem] xl:items-end">
+                                                    <div className="flex w-full flex-wrap items-center justify-between gap-3 xl:justify-end">
+                                                        <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                                                            {isBlockedById(friend.id) ? 'Blocked' : 'Friend'}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        type="button"
+                                                        className="btn-primary btn-sm"
+                                                        onClick={() => {
+                                                            activateSection('challenges')
+                                                            openChallengeComposer(friend.id)
+                                                        }}
+                                                    >
+                                                        Challenge
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="btn-outline btn-sm"
+                                                        onClick={() => {
+                                                            setComparisonView('profile')
+                                                            setSelectedFriendId(friend.id)
+                                                            activateSection('compare')
+                                                            void loadComparison(friend.id)
+                                                        }}
+                                                    >
+                                                        Compare
+                                                    </button>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2 sm:justify-end">
+                                                    <button
+                                                        type="button"
+                                                        className="btn-outline btn-sm"
+                                                        onClick={() => {
+                                                            if (isBlockedById(friend.id)) {
+                                                                void setFriendBlock(friend.id, 'unblock').catch(markError)
+                                                                return
+                                                            }
+
+                                                            openBlockConfirmation(friend.id, friend.displayName || friend.email || 'this friend')
+                                                        }}
+                                                    >
+                                                        {isBlockedById(friend.id) ? 'Unblock' : 'Block'}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        className="btn-outline btn-sm"
+                                                        onClick={() =>
+                                                            openRemoveFriendConfirmation(
+                                                                friend.id,
+                                                                friend.displayName || friend.email || 'this friend',
+                                                            )
+                                                        }
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    {activeSection === 'requests' && (
+                        <section className="workspace-surface p-5 md:p-6">
+                            <div className="grid gap-4 xl:grid-cols-2">
+                                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <h3 className="text-lg font-semibold text-slate-900">Incoming</h3>
+                                        <span className="workspace-nav-badge">{incomingRequests.length}</span>
+                                    </div>
+                                    <div className="mt-4 space-y-3">
+                                        {incomingRequests.length === 0 ? (
+                                            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                                                No incoming requests.
+                                            </div>
+                                        ) : (
+                                            incomingRequests.map((request) => (
+                                                <div key={request.id} className="rounded-2xl border border-slate-200 p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <UserAvatar
+                                                            displayName={request.fromUser.displayName || 'Unknown'}
+                                                            selectedIcon={request.fromUser.selectedIcon}
+                                                            avatarBackground={request.fromUser.avatarBackground}
+                                                            size="sm"
+                                                        />
+                                                        <div>
+                                                            <div className="text-sm font-medium text-slate-900">{friendlyName(request)} wants to connect</div>
+                                                            {request.message ? (
+                                                                <p className="mt-1 text-sm text-slate-600">“{request.message}”</p>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            className="btn-primary btn-sm"
+                                                            onClick={() => void respondToRequest(request.id, 'accept').catch(markError)}
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-outline btn-sm"
+                                                            onClick={() => void respondToRequest(request.id, 'decline').catch(markError)}
+                                                        >
+                                                            Decline
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-outline btn-sm"
+                                                            onClick={() => void setRequestBlock(request).catch(markError)}
+                                                        >
+                                                            Block {friendlyName(request)}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <h3 className="text-lg font-semibold text-slate-900">Outgoing</h3>
+                                        <span className="workspace-nav-badge">{outgoingRequests.length}</span>
+                                    </div>
+                                    <div className="mt-4 space-y-3">
+                                        {outgoingRequests.length === 0 ? (
+                                            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                                                No outgoing requests.
+                                            </div>
+                                        ) : (
+                                            outgoingRequests.map((request) => (
+                                                <div key={request.id} className="rounded-2xl border border-slate-200 p-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <UserAvatar
+                                                            displayName={request.toUser.displayName || 'Unknown'}
+                                                            selectedIcon={request.toUser.selectedIcon}
+                                                            avatarBackground={request.toUser.avatarBackground}
+                                                            size="sm"
+                                                        />
+                                                        <div>
+                                                            <div className="text-sm font-medium text-slate-900">
+                                                                Sent to {request.toUser.displayName || request.toUser.email || 'Unknown'}
+                                                            </div>
+                                                            {request.message ? (
+                                                                <p className="mt-1 text-sm text-slate-600">“{request.message}”</p>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-4 flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            className="btn-outline btn-sm"
+                                                            onClick={() => void respondToRequest(request.id, 'cancel').catch(markError)}
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            className="btn-outline btn-sm"
+                                                            onClick={() => void setRequestBlock(request).catch(markError)}
+                                                        >
+                                                            Block {friendlyName(request)}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
+                    {activeSection === 'challenges' && (
+                <section className="workspace-surface p-5 mt-0 md:p-6">
+                    {friends.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center">
+                            <p className="text-sm text-slate-600">
+                                Add friends first so you can start direct challenges.
                             </p>
-                        </div>
-                        {friends.length > 0 ? (
                             <button
                                 type="button"
-                                className="btn-primary btn-sm"
-                                onClick={() => openChallengeComposer()}
+                                className="btn-primary btn-sm mt-4"
+                                onClick={() => activateSection('connect')}
                             >
-                                New Challenge
+                                Open Add Friend
                             </button>
-                        ) : null}
-                    </div>
-                    {friends.length === 0 ? (
-                        <p className="text-sm text-gray-600">
-                            Add friends to start creating challenges.
-                        </p>
+                        </div>
                     ) : (
                         <>
+                            <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div className="text-sm text-slate-600">
+                                    {activeChallenges.length > 0
+                                        ? `${activeChallenges.length} open challenge${activeChallenges.length === 1 ? '' : 's'}`
+                                        : 'No open challenges'}{' '}
+                                    · {resolvedChallenges.length} recent result{resolvedChallenges.length === 1 ? '' : 's'}
+                                </div>
+                                <button
+                                    type="button"
+                                    className="btn-primary btn-sm"
+                                    onClick={() => openChallengeComposer()}
+                                >
+                                    New Challenge
+                                </button>
+                            </div>
                             {challenges.length === 0 ? (
-                                <p className="text-sm text-gray-600">No challenges yet.</p>
+                                <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-600">
+                                    No challenges yet. Start one when you want a direct matchup.
+                                </div>
                             ) : (
                                 <div className="grid gap-3">
                                     {challenges.map((challenge) => {
@@ -1527,13 +2697,13 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                         const opponentName = formatUserLabel(challenge.opponent)
                                         const boardCategories = challenge.boardCategories || []
                                         return (
-                                            <div key={challenge.id} className="rounded border border-gray-100 p-3">
-                                                <div className="flex items-start justify-between gap-3">
+                                            <div key={challenge.id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                                                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                                                     <div>
                                                         <div className="font-medium text-gray-900">
                                                             {challenge.challenger.displayName || 'Unknown'} vs {challenge.opponent.displayName || 'Unknown'}
                                                         </div>
-                                                        <div className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${challengeStatusBadge(challenge)}`}>
+                                                        <div className={`mt-2 inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${challengeStatusBadge(challenge)}`}>
                                                             {challenge.mode} · {challenge.status}
                                                         </div>
                                                         {challenge.targetValue !== null ? (
@@ -1562,7 +2732,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                                             </div>
                                                         ) : null}
                                                     </div>
-                                                    <div className="flex gap-2">
+                                                    <div className="flex flex-wrap gap-2">
                                                         {challenge.status === 'PENDING' && challenge.opponentUserId === user.id ? (
                                                             <>
                                                                 <button
@@ -1602,8 +2772,8 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                                     </div>
                                                 </div>
                                                 {(challenge.status === 'ACCEPTED' || challenge.status === 'PENDING') && challenge.mode !== 'GAME' && (
-                                                    <div className="mt-3 rounded border border-gray-100 p-2 md:p-3">
-                                                        <p className="text-sm text-gray-700 mb-2">
+                                                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:p-4">
+                                                        <p className="mb-2 text-sm text-gray-700">
                                                             {challenge.status === 'ACCEPTED'
                                                                 ? 'Log your final scores to complete this challenge'
                                     : 'Scores can be entered once the challenge is accepted'}
@@ -1661,7 +2831,7 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                                     </div>
                                                 )}
                                                 {challenge.mode === 'GAME' && (challenge.status === 'ACCEPTED' || challenge.status === 'COMPLETED') && (
-                                                    <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-blue-100 bg-blue-50/60 px-2.5 py-2 text-xs text-blue-700">
+                                                    <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-blue-100 bg-blue-50/60 px-3 py-3 text-xs text-blue-700">
                                                         <span className="font-semibold text-blue-900">Live round</span>
                                                         <span>•</span>
                                                         <span>Auto-scored</span>
@@ -1693,17 +2863,20 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             )}
 
             {activeSection === 'activity' && (
-                <section className="card p-5 mt-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Friend Activity Feed</h2>
-                    <div className="mb-4 flex flex-wrap gap-2">
+                <section className="workspace-surface p-5 mt-0 md:p-6">
+                    <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div className="text-sm text-slate-500">
+                            Keep the feed simple: requests, challenge movement, or completed results.
+                        </div>
+                        <div className="flex flex-wrap gap-2">
                         {ACTIVITY_FILTER_OPTIONS.map((option) => (
                             <button
                                 key={option.value}
                                 type="button"
-                                className={`rounded px-3 py-1.5 text-xs font-medium border ${
+                                className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
                                     activityFilter === option.value
-                                        ? 'bg-blue-600 text-white border-blue-600'
-                                        : 'bg-white text-gray-700 border-gray-200'
+                                        ? 'border-blue-600 bg-blue-600 text-white shadow-sm'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900'
                                 }`}
                                 onClick={() => {
                                     if (activityFilter === option.value) {
@@ -1715,17 +2888,20 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                 {option.label}
                             </button>
                         ))}
+                        </div>
                     </div>
-                    {activities.length === 0 ? (
-                        <p className="text-sm text-gray-600">No recent activity.</p>
+                    {filteredActivities.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-600">
+                            No activity in this view right now.
+                        </div>
                     ) : (
-                        <div className="grid gap-2">
-                            {activities.map((activity) => {
+                        <div className="grid gap-3">
+                            {filteredActivities.map((activity) => {
                                 const copy = formatActivity(activity)
                                 const actorName = formatUserLabel(activity.actorUser)
                                 const relatedName = formatUserLabel(activity.relatedUser)
                                 return (
-                                    <div key={activity.id} className={`rounded border p-3 ${getActivityToneClass(copy.tone)}`}>
+                                    <div key={activity.id} className={`rounded-2xl border p-4 shadow-sm ${getActivityToneClass(copy.tone)}`}>
                                         <div className="flex items-start gap-3">
                                             <div className="text-xl leading-none mt-0.5" aria-hidden>
                                                 {copy.icon}
@@ -1772,143 +2948,764 @@ export default function FriendsClient({ user }: FriendsClientProps) {
             )}
 
             {activeSection === 'compare' && (
-                <section className="card p-5 mt-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Streak Comparison</h2>
-                    <div className="mb-4">
-                        <label className="text-sm text-gray-700 block mb-2">Pick a friend</label>
-                        <select
-                            value={selectedFriendId}
-                            onChange={(event) => setSelectedFriendId(event.target.value)}
-                            className="form-input w-full"
-                        >
-                            <option value="">Choose friend</option>
-                            {friends.map((friend) => (
-                                <option key={`compare-${friend.id}`} value={friend.id}>
-                                    {friend.displayName || friend.email}
-                                </option>
-                            ))}
-                        </select>
+                <section className="workspace-surface p-5 mt-0 md:p-6">
+                    <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="w-full max-w-sm">
+                            <label className="mb-2 block text-sm font-medium text-slate-700">Pick a friend</label>
+                            <select
+                                value={selectedFriendId}
+                                onChange={(event) => {
+                                    setComparisonView('profile')
+                                    if (!event.target.value) {
+                                        setSelectedFriendId('')
+                                        setComparison(null)
+                                        activateSection('connect')
+                                        return
+                                    }
+                                    setSelectedFriendId(event.target.value)
+                                }}
+                                className="form-input w-full"
+                            >
+                                <option value="">Choose friend</option>
+                                {friends.map((friend) => (
+                                    <option key={`compare-${friend.id}`} value={friend.id}>
+                                        {friend.displayName || friend.email}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="flex gap-2" role="tablist" aria-label="Comparison view">
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={comparisonView === 'profile'}
+                                className={`btn-sm rounded-full border ${comparisonToggleClasses(comparisonView === 'profile')}`}
+                                onClick={() => setComparisonView('profile')}
+                            >
+                                Profile stats
+                            </button>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected={comparisonView === 'head-to-head'}
+                                className={`btn-sm rounded-full border ${comparisonToggleClasses(comparisonView === 'head-to-head')}`}
+                                onClick={() => setComparisonView('head-to-head')}
+                            >
+                                Head-to-head
+                            </button>
+                        </div>
                     </div>
+
                     {comparisonLoading && selectedFriendId ? (
-                        <p className="text-sm text-gray-600">Loading comparison...</p>
+                        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-600">
+                            Loading comparison...
+                        </div>
                     ) : comparison ? (
-                        <div className="grid gap-3 md:grid-cols-2">
-                            <div className="rounded border border-gray-100 p-3">
-                                <div className="font-medium text-gray-900">{comparison.viewer.displayName}</div>
-                                <div className="text-sm text-gray-600">
-                                    Current streak: {comparison.viewer.currentStreak}
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                    Best streak: {comparison.viewer.longestStreak}
+                        <div className="mt-5 space-y-5">
+                            <div className="rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-white p-5 shadow-sm">
+                                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                                    <div>
+                                        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">Matchup Summary</div>
+                                        <p className="mt-3 text-2xl font-semibold leading-tight text-slate-900">
+                                            {comparison.comparison.summary}
+                                        </p>
+                                        <p className="mt-3 max-w-2xl text-sm text-slate-600">
+                                            {comparison.comparison.friendshipSince
+                                                ? `Friends since ${formatCalendarDate(comparison.comparison.friendshipSince)}. `
+                                                : ''}
+                                            {comparison.comparison.headToHead.completedCount > 0
+                                                ? `Completed challenges: ${comparison.comparison.headToHead.viewerWins}-${comparison.comparison.headToHead.friendWins}${comparison.comparison.headToHead.ties > 0 ? ` with ${comparison.comparison.headToHead.ties} tie${comparison.comparison.headToHead.ties === 1 ? '' : 's'}` : ''}.`
+                                                : 'No completed head-to-head challenges yet.'}
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-3 sm:grid-cols-2">
+                                        <div className="rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm text-slate-600">
+                                            <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Average margin</div>
+                                            <div className="mt-1 text-2xl font-semibold text-slate-900">
+                                                {comparison.comparison.headToHead.averageMargin ?? '—'}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl border border-blue-200 bg-white px-4 py-3 text-sm text-slate-600">
+                                            <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Best recent form</div>
+                                            <div className="mt-1 text-base font-semibold text-slate-900">
+                                                {comparison.viewer.stats.recentDailyAccuracy === comparison.friend.stats.recentDailyAccuracy
+                                                    ? 'Even'
+                                                    : comparison.viewer.stats.recentDailyAccuracy > comparison.friend.stats.recentDailyAccuracy
+                                                        ? 'You'
+                                                        : comparisonFriendName}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="rounded border border-gray-100 p-3">
-                                <div className="font-medium text-gray-900">{comparison.friend.displayName}</div>
-                                <div className="text-sm text-gray-600">
-                                    Current streak: {comparison.friend.currentStreak}
+
+                            {comparisonView === 'profile' ? (
+                                <>
+                                    <div className="grid gap-4 xl:grid-cols-2">
+                                        {[
+                                            {
+                                                label: 'You',
+                                                profile: comparison.viewer,
+                                            },
+                                            {
+                                                label: comparisonFriendName,
+                                                profile: comparison.friend,
+                                            },
+                                        ].map(({ label, profile }) => (
+                                            <div key={`${label}-${profile.id}`} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <UserAvatar
+                                                        displayName={profile.displayName || label}
+                                                        selectedIcon={profile.selectedIcon}
+                                                        avatarBackground={profile.avatarBackground}
+                                                        size="md"
+                                                    />
+                                                    <div className="min-w-0">
+                                                        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</div>
+                                                        <div className="text-xl font-semibold text-slate-900">
+                                                            {profile.displayName || label}
+                                                        </div>
+                                                        <div className="text-sm text-slate-500">
+                                                            Joined {formatCalendarDate(profile.createdAt)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                                                    <div className="stat-card p-4 shadow-none">
+                                                        <div className="stat-label">Total points</div>
+                                                        <div className="stat-value">{profile.stats.totalPoints.toLocaleString()}</div>
+                                                    </div>
+                                                    <div className="stat-card p-4 shadow-none">
+                                                        <div className="stat-label">Accuracy</div>
+                                                        <div className="stat-value text-green-600">{formatPercent(profile.stats.accuracy)}</div>
+                                                        <div className="mt-1 text-xs text-slate-500">
+                                                            {profile.stats.correctCount}/{profile.stats.answeredCount}
+                                                        </div>
+                                                    </div>
+                                                    <div className="stat-card p-4 shadow-none">
+                                                        <div className="stat-label">Questions answered</div>
+                                                        <div className="stat-value text-slate-900">{profile.stats.answeredCount.toLocaleString()}</div>
+                                                    </div>
+                                                    <div className="stat-card p-4 shadow-none bg-gradient-to-br from-amber-50 to-white">
+                                                        <div className="stat-label">Triple stumpers</div>
+                                                        <div className="stat-value text-amber-600">{profile.stats.tripleStumpersAnswered.toLocaleString()}</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                                    <div className="workspace-muted-card px-4 py-3">
+                                                        <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Daily challenge</div>
+                                                        <div className="mt-1 text-xl font-semibold text-slate-900">
+                                                            {formatPercent(profile.stats.dailyAccuracy)}
+                                                        </div>
+                                                        <div className="mt-1 text-sm text-slate-500">
+                                                            {profile.stats.dailyCorrectCount}/{profile.stats.dailyCompletedCount} correct
+                                                        </div>
+                                                    </div>
+                                                    <div className="workspace-muted-card px-4 py-3">
+                                                        <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Best round</div>
+                                                        <div className="mt-1 text-base font-semibold text-slate-900">
+                                                            {bestRoundLabel(profile.stats.roundStats)}
+                                                        </div>
+                                                        <div className="mt-1 text-sm text-slate-500">
+                                                            Current streak {profile.currentStreak} · Best streak {profile.longestStreak}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-4 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-600">
+                                                    Recent daily form:{' '}
+                                                    {profile.stats.recentDailySampleSize > 0
+                                                        ? `${profile.stats.recentDailyCorrectCount}/${profile.stats.recentDailySampleSize} (${formatPercent(profile.stats.recentDailyAccuracy)})`
+                                                        : 'No recent daily plays'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                        {comparisonProfileMatchups.map((stat) => (
+                                            <div
+                                                key={stat.id}
+                                                className={`rounded-2xl border p-4 shadow-sm ${matchupToneClasses(stat.winner)}`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <div className="text-xs font-semibold uppercase tracking-[0.24em] opacity-70">
+                                                            {stat.label}
+                                                        </div>
+                                                        <div className="mt-2 text-lg font-semibold">
+                                                            {stat.winner === 'VIEWER'
+                                                                ? 'You'
+                                                                : stat.winner === 'FRIEND'
+                                                                    ? comparisonFriendName
+                                                                    : 'Even'}
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-full bg-white px-2.5 py-1 text-xs font-medium shadow-sm">
+                                                        {stat.winner === 'TIE' ? 'Tie' : 'Edge'}
+                                                    </div>
+                                                </div>
+                                                <p className="mt-3 text-sm leading-6">{stat.detail}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                                        <div className="flex items-start gap-3">
+                                            <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
+                                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h3 className="text-lg font-semibold text-slate-900">Round-by-round profile</h3>
+                                                <p className="mt-1 text-sm text-slate-600">
+                                                    The stats page breaks progress out by round. This view mirrors that so you can see where each player is strongest.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                                            {comparisonRoundMatchups.map((matchup) => {
+                                                const viewerRound = comparison.viewer.stats.roundStats.find((round) => round.round === matchup.round)
+                                                const friendRound = comparison.friend.stats.roundStats.find((round) => round.round === matchup.round)
+                                                const accent = roundAccentClasses(matchup.round)
+
+                                                return (
+                                                    <div key={matchup.round} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <span className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${accent.badge}`}>
+                                                                {matchup.roundName}
+                                                            </span>
+                                                            <span className="text-sm font-medium text-slate-600">
+                                                                {matchup.winner === 'TIE'
+                                                                    ? 'Even'
+                                                                    : matchup.winner === 'VIEWER'
+                                                                        ? 'You lead'
+                                                                        : `${comparisonFriendName} leads`}
+                                                            </span>
+                                                        </div>
+
+                                                        {[
+                                                            {
+                                                                name: 'You',
+                                                                stats: viewerRound,
+                                                            },
+                                                            {
+                                                                name: comparisonFriendName,
+                                                                stats: friendRound,
+                                                            },
+                                                        ].map((entry) => (
+                                                            <div key={`${matchup.round}-${entry.name}`} className="mt-4">
+                                                                <div className="flex items-center justify-between text-sm">
+                                                                    <span className="font-medium text-slate-800">{entry.name}</span>
+                                                                    <span className="text-slate-500">
+                                                                        {formatPercent(entry.stats?.accuracy ?? 0)} · {(entry.stats?.totalPoints ?? 0).toLocaleString()} pts
+                                                                    </span>
+                                                                </div>
+                                                                <div className="progress-bar mt-2">
+                                                                    <div
+                                                                        className={`progress-fill ${accent.progress}`}
+                                                                        style={{ width: `${entry.stats?.accuracy ?? 0}%` }}
+                                                                    />
+                                                                </div>
+                                                                <div className="mt-1 text-xs text-slate-500">
+                                                                    {entry.stats?.correctAnswers ?? 0}/{entry.stats?.totalAnswered ?? 0} correct
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                                        <h3 className="text-lg font-semibold text-slate-900">Key takeaways</h3>
+                                        <div className="mt-4 space-y-3">
+                                            {comparison.comparison.insights.map((insight) => (
+                                                <div key={insight} className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                                    {insight}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            ) : comparison.comparison.headToHead.completedCount === 0 ? (
+                                <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+                                    <h3 className="text-lg font-semibold text-slate-900">No direct challenge history yet</h3>
+                                    <p className="mt-2 text-sm text-slate-600">
+                                        Finish a friend challenge to unlock head-to-head scoring, recent results, and direct rivalry trends.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className="btn-primary btn-sm mt-4"
+                                        onClick={() => {
+                                            activateSection('challenges')
+                                            openChallengeComposer(comparison.friend.id)
+                                        }}
+                                    >
+                                        Start a Challenge
+                                    </button>
                                 </div>
-                                <div className="text-sm text-gray-600">
-                                    Best streak: {comparison.friend.longestStreak}
-                                </div>
-                            </div>
-                            <div className="rounded border border-gray-100 p-3 md:col-span-2">
-                                <p className="text-sm text-gray-700">
-                                    {comparison.comparison.currentStreakDelta === 0
-                                        ? 'Current streaks are tied.'
-                                        : comparison.comparison.currentStreakDelta > 0
-                                            ? `You are ahead by ${comparison.comparison.currentStreakDelta} streaks.`
-                                            : `You are behind by ${Math.abs(comparison.comparison.currentStreakDelta)} streaks.`}
-                                </p>
-                                <p className="text-sm text-gray-700 mt-1">
-                                    {comparison.comparison.longestStreakDelta === 0
-                                        ? 'Best streaks are tied.'
-                                        : comparison.comparison.longestStreakDelta > 0
-                                            ? `Your best streak is better by ${comparison.comparison.longestStreakDelta}.`
-                                            : `Their best streak is better by ${Math.abs(comparison.comparison.longestStreakDelta)}.`}
-                                </p>
-                            </div>
+                            ) : (
+                                <>
+                                    <div className="grid gap-4 xl:grid-cols-2">
+                                        {[
+                                            {
+                                                label: 'You',
+                                                profile: comparison.viewer,
+                                                wins: comparison.comparison.headToHead.viewerWins,
+                                                averageScore: comparison.comparison.headToHead.viewerAverageScore,
+                                                bestScore: comparison.comparison.headToHead.viewerBestScore,
+                                            },
+                                            {
+                                                label: comparisonFriendName,
+                                                profile: comparison.friend,
+                                                wins: comparison.comparison.headToHead.friendWins,
+                                                averageScore: comparison.comparison.headToHead.friendAverageScore,
+                                                bestScore: comparison.comparison.headToHead.friendBestScore,
+                                            },
+                                        ].map(({ label, profile, wins, averageScore, bestScore }) => (
+                                            <div key={`head-to-head-${profile.id}`} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                                                <div className="flex items-center gap-3">
+                                                    <UserAvatar
+                                                        displayName={profile.displayName || label}
+                                                        selectedIcon={profile.selectedIcon}
+                                                        avatarBackground={profile.avatarBackground}
+                                                        size="md"
+                                                    />
+                                                    <div>
+                                                        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">{label}</div>
+                                                        <div className="text-xl font-semibold text-slate-900">
+                                                            {profile.displayName || label}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                                                    <div className="rounded-2xl bg-slate-50 p-3">
+                                                        <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Wins</div>
+                                                        <div className="mt-1 text-2xl font-semibold text-slate-900">{wins}</div>
+                                                    </div>
+                                                    <div className="rounded-2xl bg-slate-50 p-3">
+                                                        <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Avg score</div>
+                                                        <div className="mt-1 text-2xl font-semibold text-slate-900">
+                                                            {averageScore === null ? '—' : averageScore.toLocaleString()}
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-2xl bg-slate-50 p-3">
+                                                        <div className="text-xs uppercase tracking-[0.24em] text-slate-500">Best score</div>
+                                                        <div className="mt-1 text-2xl font-semibold text-slate-900">
+                                                            {bestScore === null ? '—' : bestScore.toLocaleString()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                                        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                                            <h3 className="text-lg font-semibold text-slate-900">Head-to-head snapshot</h3>
+                                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Completed challenges</div>
+                                                    <div className="mt-1 text-xl font-semibold text-slate-900">
+                                                        {comparison.comparison.headToHead.completedCount}
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Record</div>
+                                                    <div className="mt-1 text-xl font-semibold text-slate-900">
+                                                        {comparison.comparison.headToHead.viewerWins}-{comparison.comparison.headToHead.friendWins}
+                                                        {comparison.comparison.headToHead.ties > 0
+                                                            ? `-${comparison.comparison.headToHead.ties}`
+                                                            : ''}
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Average margin</div>
+                                                    <div className="mt-1 text-xl font-semibold text-slate-900">
+                                                        {comparison.comparison.headToHead.averageMargin ?? '—'}
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                                                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Latest result</div>
+                                                    <div className="mt-1 text-base font-semibold text-slate-900">
+                                                        {comparison.comparison.headToHead.lastResult === 'VIEWER'
+                                                            ? 'You won the latest match'
+                                                            : comparison.comparison.headToHead.lastResult === 'FRIEND'
+                                                                ? `${comparisonFriendName} won the latest match`
+                                                                : 'Latest match was a tie'}
+                                                    </div>
+                                                    {comparison.comparison.headToHead.lastCompletedAt ? (
+                                                        <div className="mt-1 text-sm text-slate-500">
+                                                            {formatCalendarDate(comparison.comparison.headToHead.lastCompletedAt)}
+                                                        </div>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                                            <h3 className="text-lg font-semibold text-slate-900">Head-to-head takeaways</h3>
+                                            <div className="mt-4 space-y-3">
+                                                {comparison.comparison.headToHeadInsights.map((insight) => (
+                                                    <div key={insight} className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                                        {insight}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                                        <h3 className="text-lg font-semibold text-slate-900">Recent completed matches</h3>
+                                        <div className="mt-4 space-y-3">
+                                            {comparison.comparison.headToHead.recentMatches.map((match) => (
+                                                <div key={`${match.completedAt}-${match.viewerScore}-${match.friendScore}`} className="flex flex-col gap-3 rounded-2xl border border-slate-200 p-4 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div>
+                                                        <div className="text-sm font-semibold text-slate-900">
+                                                            {match.winner === 'VIEWER'
+                                                                ? 'You won'
+                                                                : match.winner === 'FRIEND'
+                                                                    ? `${comparisonFriendName} won`
+                                                                    : 'Tie game'}
+                                                        </div>
+                                                        <div className="mt-1 text-sm text-slate-500">
+                                                            {formatCalendarDate(match.completedAt)}
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-xl bg-slate-50 px-4 py-2 text-sm font-medium text-slate-700">
+                                                        You {formatMatchScore(match.viewerScore)} · {comparisonFriendName} {formatMatchScore(match.friendScore)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     ) : (
-                        <p className="text-sm text-gray-600">Select a friend to compare streaks.</p>
+                        <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center text-sm text-slate-600">
+                            Select a friend to compare total points, accuracy, daily form, round performance, and head-to-head results.
+                        </div>
                     )}
                 </section>
             )}
 
             {activeSection === 'settings' && (
-                <section className="card p-5 mt-6">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Privacy & Block Settings</h2>
-                    <div className="grid gap-4 md:grid-cols-2">
-                        <label className="grid gap-2">
-                            <span className="text-sm font-medium text-gray-700">Who can see your profile in friend discovery?</span>
-                            <select
-                                value={friendSettings.friendVisibility}
-                                onChange={(event) =>
-                                    void handleVisibilityChange(event.target.value as FriendSettings['friendVisibility']).catch(markError)
-                                }
-                                className="form-input"
-                            >
-                                <option value="FULL_PROFILE">Full profile</option>
-                                <option value="STREAK_ONLY">Streaks only</option>
-                            </select>
-                        </label>
-                        <label className="grid gap-2">
-                            <span className="text-sm font-medium text-gray-700">Incoming friend requests</span>
-                            <label className="inline-flex items-center gap-2">
+                <section className="workspace-surface p-5 mt-0 md:p-6">
+                    <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        {friendSettings.allowFriendRequests
+                            ? 'Requests are open. People can send you an invite, but you still approve it manually.'
+                            : 'Requests are paused. People with your code or link cannot send a new request right now.'}
+                    </div>
+
+                    <div className="grid gap-4 xl:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Discovery</div>
+                            <h3 className="mt-2 text-lg font-semibold text-slate-900">Profile visibility</h3>
+                            <p className="mt-1 text-sm leading-6 text-slate-600">
+                                Choose how much of your profile appears when another player opens your invite or finds you through friend discovery.
+                            </p>
+                            <label className="mt-4 grid gap-2">
+                                <span className="text-sm font-medium text-slate-700">Visible profile mode</span>
+                                <select
+                                    value={friendSettings.friendVisibility}
+                                    onChange={(event) =>
+                                        void handleVisibilityChange(event.target.value as FriendSettings['friendVisibility']).catch(markError)
+                                    }
+                                    className="form-input"
+                                >
+                                    <option value="FULL_PROFILE">Full profile</option>
+                                    <option value="STREAK_ONLY">Streaks only</option>
+                                </select>
+                            </label>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Requests</div>
+                            <h3 className="mt-2 text-lg font-semibold text-slate-900">Incoming friend requests</h3>
+                            <p className="mt-1 text-sm leading-6 text-slate-600">
+                                Turning this off prevents new requests from being sent, even if someone already has your link or code. Existing friendships stay intact.
+                            </p>
+                            <label className="mt-4 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                <div>
+                                    <div className="text-sm font-medium text-slate-800">Allow requests</div>
+                                    <div className="mt-1 text-sm text-slate-500">
+                                        {friendSettings.allowFriendRequests
+                                            ? 'People can send you a request, but you still approve it manually.'
+                                            : 'New requests are blocked until you turn this back on.'}
+                                    </div>
+                                </div>
                                 <input
                                     type="checkbox"
                                     checked={friendSettings.allowFriendRequests}
                                     onChange={(event) => void handleAllowRequestsChange(event.target.checked).catch(markError)}
+                                    aria-label="Allow incoming friend requests"
                                 />
-                                <span className="text-sm text-gray-600">Allow requests</span>
                             </label>
-                        </label>
+                        </div>
                     </div>
 
-                    <h3 className="mt-6 mb-3 font-medium text-gray-900">Blocked Users</h3>
-                    {blockedUsers.length === 0 ? (
-                        <p className="text-sm text-gray-600">You have not blocked any users.</p>
-                    ) : (
-                        <div className="grid gap-2">
-                            {blockedUsers.map((blockedUser) => (
-                                <div
-                                    key={blockedUser.id}
-                                    className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-100 p-3"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <UserAvatar
-                                            displayName={blockedUser.displayName || blockedUser.email || ''}
-                                            selectedIcon={blockedUser.selectedIcon}
-                                            avatarBackground={blockedUser.avatarBackground}
-                                            size="sm"
-                                        />
-                                        <div>
-                                            <div className="font-medium text-gray-900">
-                                                {blockedUser.displayName || blockedUser.email || 'Unknown'}
-                                            </div>
-                                            <div className="text-sm text-gray-600">
-                                                {blockedUser.email}
+                    <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                            <div>
+                                <div className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Blocking</div>
+                                <h3 className="mt-2 text-lg font-semibold text-slate-900">Blocked users</h3>
+                                <p className="mt-1 text-sm leading-6 text-slate-600">
+                                    Blocked players cannot send requests or interact with you through the friends system until you remove the block.
+                                </p>
+                            </div>
+                            <div className="inline-flex min-h-[3rem] min-w-[7.25rem] items-center justify-center whitespace-nowrap rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600">
+                                {blockedUsers.length} blocked
+                            </div>
+                        </div>
+
+                        {blockedUsers.length === 0 ? (
+                            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                                You have not blocked any users.
+                            </div>
+                        ) : (
+                            <div className="mt-4 grid gap-3">
+                                {blockedUsers.map((blockedUser) => (
+                                    <div
+                                        key={blockedUser.id}
+                                        className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <UserAvatar
+                                                displayName={blockedUser.displayName || blockedUser.email || ''}
+                                                selectedIcon={blockedUser.selectedIcon}
+                                                avatarBackground={blockedUser.avatarBackground}
+                                                size="sm"
+                                            />
+                                            <div>
+                                                <div className="font-medium text-slate-900">
+                                                    {blockedUser.displayName || blockedUser.email || 'Unknown'}
+                                                </div>
+                                                <div className="text-sm text-slate-500">
+                                                    {blockedUser.email}
+                                                </div>
                                             </div>
                                         </div>
+                                        <button
+                                            type="button"
+                                            className="btn-outline btn-sm"
+                                            onClick={() => void setFriendBlock(blockedUser.id, 'unblock').catch(markError)}
+                                        >
+                                            Unblock
+                                        </button>
                                     </div>
-                                    <button
-                                        type="button"
-                                        className="btn-outline btn-sm"
-                                        onClick={() => void setFriendBlock(blockedUser.id, 'unblock').catch(markError)}
-                                    >
-                                        Unblock
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </section>
             )}
 
-            {challengeComposer ? (
-                <div className="fixed inset-0 z-[65] flex items-center justify-center p-4">
+                </div>
+            </div>
+
+            {isRefreshInviteConfirmationOpen ? (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <button
                         type="button"
                         className="absolute inset-0 bg-black/45"
+                        onClick={closeRefreshInviteConfirmation}
+                        aria-label="Close refresh invite confirmation dialog"
+                    />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="refresh-invite-confirmation-title"
+                        className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+                    >
+                        <h3 id="refresh-invite-confirmation-title" className="text-lg font-semibold text-slate-900">
+                            Refresh your invite?
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                            This creates a new friend code and invite link. Anyone using the old invite will need the new one.
+                        </p>
+                        <div className="mt-5 flex flex-wrap justify-end gap-2">
+                            <button
+                                type="button"
+                                className="btn-outline btn-sm"
+                                onClick={closeRefreshInviteConfirmation}
+                                disabled={inviteLoading}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary btn-sm"
+                                onClick={() => void confirmRefreshInvite()}
+                                disabled={inviteLoading}
+                            >
+                                {inviteLoading ? 'Refreshing...' : 'Refresh'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {blockConfirmation ? (
+                <div className="fixed inset-0 z-[62] flex items-center justify-center p-4">
+                    <button
+                        type="button"
+                        className="absolute inset-0 bg-black/45"
+                        onClick={closeBlockConfirmation}
+                        aria-label="Close block confirmation dialog"
+                    />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="block-confirmation-title"
+                        className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+                    >
+                        <h3 id="block-confirmation-title" className="text-lg font-semibold text-slate-900">
+                            Block {blockConfirmation.displayName}?
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                            This hides them from your friends workspace and stops requests while the block is active.
+                        </p>
+                        <div className="mt-5 flex flex-wrap justify-end gap-2">
+                            <button
+                                type="button"
+                                className="btn-outline btn-sm"
+                                onClick={closeBlockConfirmation}
+                                disabled={processingBlockConfirmation}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary btn-sm"
+                                onClick={() => void confirmBlockAction()}
+                                disabled={processingBlockConfirmation}
+                            >
+                                {processingBlockConfirmation ? 'Blocking...' : 'Block'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {removeFriendConfirmation ? (
+                <div className="fixed inset-0 z-[63] flex items-center justify-center p-4">
+                    <button
+                        type="button"
+                        className="absolute inset-0 bg-black/45"
+                        onClick={closeRemoveFriendConfirmation}
+                        aria-label="Close remove friend confirmation dialog"
+                    />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="remove-friend-confirmation-title"
+                        className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl"
+                    >
+                        <h3 id="remove-friend-confirmation-title" className="text-lg font-semibold text-slate-900">
+                            Remove {removeFriendConfirmation.displayName}?
+                        </h3>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">
+                            This removes the friendship and clears compare, challenge, and activity access between both accounts.
+                        </p>
+                        <div className="mt-5 flex flex-wrap justify-end gap-2">
+                            <button
+                                type="button"
+                                className="btn-outline btn-sm"
+                                onClick={closeRemoveFriendConfirmation}
+                                disabled={processingRemoveFriendConfirmation}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                className="btn-primary btn-sm"
+                                onClick={() => void confirmRemoveFriendAction()}
+                                disabled={processingRemoveFriendConfirmation}
+                            >
+                                {processingRemoveFriendConfirmation ? 'Removing...' : 'Remove'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {isMobileSectionMenuOpen ? (
+                <div className="workspace-mobile-sheet">
+                    <button
+                        type="button"
+                        className="workspace-mobile-sheet-backdrop"
+                        onClick={() => setIsMobileSectionMenuOpen(false)}
+                        aria-label="Close friends section menu"
+                    />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="friends-mobile-sections-title"
+                        className="workspace-mobile-sheet-panel"
+                    >
+                        <div className="workspace-mobile-sheet-header">
+                            <h2 id="friends-mobile-sections-title" className="text-base font-semibold text-slate-900">
+                                Sections
+                            </h2>
+                            <button
+                                type="button"
+                                className="workspace-mobile-sheet-close"
+                                onClick={() => setIsMobileSectionMenuOpen(false)}
+                                aria-label="Close friends section menu"
+                            >
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="workspace-mobile-sheet-body">
+                            {friendNavGroups.map((group) => (
+                                <div key={group.label} className="workspace-nav-group">
+                                    <div className="workspace-nav-label">{group.label}</div>
+                                    <div className="space-y-2">
+                                        {group.items.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsMobileSectionMenuOpen(false)
+                                                    activateSection(item.id)
+                                                }}
+                                                className={`workspace-nav-button ${activeSection === item.id ? 'active' : ''}`}
+                                                aria-current={activeSection === item.id ? 'page' : undefined}
+                                            >
+                                                <div className="min-w-0">
+                                                    <div className="font-semibold">{item.label}</div>
+                                                    <div className="mt-1 text-xs text-slate-500">{item.description}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {item.badge ? <span className="workspace-nav-badge">{item.badge}</span> : null}
+                                                    <svg className="h-4 w-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
+
+            {challengeComposer ? (
+                <div className="fixed inset-0 z-[65] overflow-y-auto overscroll-y-contain p-4 sm:p-6">
+                    <button
+                        type="button"
+                        className="absolute inset-0 bg-blue-950/55 backdrop-blur-[2px]"
                         onClick={closeChallengeComposer}
                         disabled={creatingChallenge}
                         aria-label="Close challenge composer"
@@ -1917,15 +3714,15 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="challenge-composer-title"
-                        className="relative w-full max-w-2xl rounded-xl border border-blue-200 bg-white p-5 shadow-xl"
+                        className="relative mx-auto my-4 max-h-[min(56rem,calc(100dvh-2rem))] w-full max-w-5xl overflow-y-auto overscroll-y-contain rounded-[2rem] border border-blue-300 bg-slate-50 p-5 pb-8 shadow-[0_24px_60px_rgba(15,23,42,0.28)] sm:p-6 sm:pb-10"
                     >
                         <div className="mb-4 flex items-start justify-between gap-3">
                             <div>
-                                <h3 id="challenge-composer-title" className="text-lg font-semibold text-gray-900">
+                                <h3 id="challenge-composer-title" className="text-xl font-semibold text-slate-900">
                                     Create Challenge
                                 </h3>
-                                <p className="mt-1 text-sm text-gray-600">
-                                    Build a live Single Jeopardy challenge with automatic scoring.
+                                <p className="mt-1 text-sm leading-6 text-slate-600">
+                                    Build a live Single Jeopardy board for a friend.
                                 </p>
                             </div>
                             <button
@@ -1980,9 +3777,9 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                             </div>
                         ) : null}
 
-                        <div className="grid gap-4">
-                            <label className="grid gap-1 text-sm">
-                                <span className="font-medium text-gray-800">Friend</span>
+                        <div className="grid gap-5">
+                            <label className="grid gap-2 text-sm">
+                                <span className="font-medium text-slate-800">Friend</span>
                                 <select
                                     className="form-input bg-white"
                                     value={challengeComposer.opponentId}
@@ -1998,144 +3795,376 @@ export default function FriendsClient({ user }: FriendsClientProps) {
                                 </select>
                             </label>
 
-                            <div className="rounded border border-blue-100 bg-blue-50/70 p-3">
-                                <p className="text-sm font-medium text-blue-900">Board Setup</p>
-                                <div className="mt-3 grid gap-3 md:grid-cols-2">
-                                    <label className="grid gap-1 text-sm">
-                                        <span className="text-blue-900">Category source</span>
-                                        <div className="flex gap-2">
-                                            <button
-                                                type="button"
-                                                className={`rounded-md border px-3 py-2 text-xs font-semibold ${
+                            <div className="rounded-[1.75rem] border border-blue-200 bg-white p-4 shadow-sm sm:p-5">
+                                <div className="grid gap-3 lg:grid-cols-2">
+                                    <button
+                                        type="button"
+                                        className={`h-full rounded-[1.5rem] border p-4 text-left transition-all ${
+                                            challengeComposer.categorySelection === 'RANDOM'
+                                                ? 'border-blue-800 bg-blue-800 text-white shadow-md'
+                                                : 'border-blue-200 bg-white text-slate-900 hover:border-blue-300 hover:bg-slate-50'
+                                        }`}
+                                        onClick={() => setChallengeComposerSelection('RANDOM')}
+                                        disabled={creatingChallenge}
+                                    >
+                                        <div className="flex h-full flex-col">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <p className="text-base font-semibold">Random</p>
+                                                <span className={`inline-flex min-w-[5.75rem] shrink-0 items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${
                                                     challengeComposer.categorySelection === 'RANDOM'
-                                                        ? 'border-blue-600 bg-blue-600 text-white'
-                                                        : 'border-blue-200 bg-white text-blue-800'
-                                                }`}
-                                                onClick={() => setChallengeComposerSelection('RANDOM')}
-                                                disabled={creatingChallenge}
-                                            >
-                                                Random
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className={`rounded-md border px-3 py-2 text-xs font-semibold ${
-                                                    challengeComposer.categorySelection === 'CHOSEN'
-                                                        ? 'border-blue-600 bg-blue-600 text-white'
-                                                        : 'border-blue-200 bg-white text-blue-800'
-                                                }`}
-                                                onClick={() => setChallengeComposerSelection('CHOSEN')}
-                                                disabled={creatingChallenge}
-                                            >
-                                                Chosen
-                                            </button>
+                                                        ? 'bg-amber-400 text-blue-950'
+                                                        : 'bg-blue-50 text-blue-700'
+                                                }`}>
+                                                    One tap
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <p className={`mt-1 text-sm leading-6 ${
+                                                    challengeComposer.categorySelection === 'RANDOM'
+                                                        ? 'text-blue-100'
+                                                        : 'text-slate-600'
+                                                }`}>
+                                                    Fastest option. We build a fresh board and avoid the most recent matchup when possible.
+                                                </p>
+                                            </div>
                                         </div>
-                                    </label>
-                                    <label className="grid gap-1 text-sm">
-                                        <span className="text-blue-900">Categories in round</span>
-                                        <select
-                                            className="form-input bg-white"
-                                            value={challengeComposer.categoryCount}
-                                            onChange={(event) => setChallengeCategoryCount(Number.parseInt(event.target.value, 10))}
-                                            disabled={creatingChallenge}
-                                        >
-                                            {[1, 2, 3, 4, 5, 6].map((count) => (
-                                                <option key={`challenge-category-count-${count}`} value={count}>
-                                                    {count}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-                                </div>
-                            </div>
+                                    </button>
 
-                            {challengeComposer.categorySelection === 'CHOSEN' ? (
-                                <div className="rounded border border-blue-200 bg-white p-3">
-                                    <label className="grid gap-1 text-sm">
-                                        <span className="text-blue-900">
-                                            Choose {challengeComposer.categoryCount} categories
-                                        </span>
-                                        <input
-                                            value={categorySearchQuery}
-                                            onChange={(event) => setCategorySearchQuery(event.target.value)}
-                                            className="form-input bg-white text-gray-900"
-                                            placeholder="Search categories (2+ characters)"
-                                            disabled={creatingChallenge}
-                                        />
-                                    </label>
-                                    <div className="mt-2 flex flex-wrap gap-2">
-                                        {challengeComposer.categoryChoices.length === 0 ? (
-                                            <span className="text-xs text-blue-700">
-                                                No categories selected yet.
-                                            </span>
-                                        ) : challengeComposer.categoryChoices.map((choice) => (
+                                    <button
+                                        type="button"
+                                        className={`h-full rounded-[1.5rem] border p-4 text-left transition-all ${
+                                            challengeComposer.categorySelection === 'CUSTOM'
+                                                ? 'border-blue-900 bg-blue-900 text-white shadow-md'
+                                                : 'border-blue-200 bg-white text-slate-900 hover:border-blue-300 hover:bg-slate-50'
+                                        }`}
+                                        onClick={() => setChallengeComposerSelection('CUSTOM')}
+                                        disabled={creatingChallenge}
+                                    >
+                                        <div className="flex h-full flex-col">
+                                            <div className="flex items-center justify-between gap-4">
+                                                <p className="text-base font-semibold">Custom</p>
+                                                <span className={`inline-flex min-w-[5.75rem] shrink-0 items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${
+                                                    challengeComposer.categorySelection === 'CUSTOM'
+                                                        ? 'bg-amber-400 text-blue-950'
+                                                        : 'bg-blue-50 text-blue-700'
+                                                }`}>
+                                                    Guided
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <p className={`mt-1 text-sm leading-6 ${
+                                                    challengeComposer.categorySelection === 'CUSTOM'
+                                                        ? 'text-slate-200'
+                                                        : 'text-slate-600'
+                                                }`}>
+                                                    Lock in the categories you care about. Each pick maps to one exact episode slice, then we fill the rest with complete single-episode boards.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </button>
+                                </div>
+
+                                <div className="mt-4 border-t border-blue-100 pt-4">
+                                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-blue-700">
+                                        Categories in round
+                                    </p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {[1, 2, 3, 4, 5, 6].map((count) => (
                                             <button
-                                                key={`challenge-choice-${choice.id}`}
+                                                key={`challenge-category-count-${count}`}
                                                 type="button"
-                                                className="rounded-full border border-blue-300 bg-blue-100 px-2 py-1 text-xs text-blue-900"
-                                                onClick={() => toggleChallengeCategoryChoice(choice)}
+                                                className={`inline-flex min-w-[2.75rem] items-center justify-center rounded-full border px-3 py-2 text-sm font-semibold transition ${
+                                                    challengeComposer.categoryCount === count
+                                                        ? 'border-blue-900 bg-blue-900 text-white shadow-sm'
+                                                        : 'border-blue-100 bg-white text-blue-900 hover:border-blue-300 hover:bg-blue-50'
+                                                }`}
+                                                onClick={() => setChallengeCategoryCount(count)}
                                                 disabled={creatingChallenge}
                                             >
-                                                {choice.name} ×
+                                                {count}
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="mt-2 max-h-48 overflow-auto rounded border border-blue-100">
-                                        {categorySearchLoading ? (
-                                            <p className="px-3 py-2 text-xs text-blue-700">Searching categories...</p>
-                                        ) : categorySearchResults.length === 0 ? (
-                                            <p className="px-3 py-2 text-xs text-blue-700">
-                                                {categorySearchQuery.trim().length < 2
-                                                    ? 'Type at least 2 characters to search.'
-                                                    : 'No categories found.'}
+                                </div>
+                            </div>
+
+                            {challengeComposer.categorySelection === 'CUSTOM' ? (
+                                <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.85fr)]">
+                                    <div className="rounded-[1.75rem] border border-blue-200 bg-white p-4 shadow-sm sm:p-5">
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-900">
+                                                Pick categories for this board
                                             </p>
-                                        ) : (
-                                            categorySearchResults.map((category) => {
-                                                const selected = challengeComposer.categoryChoices.some((choice) => choice.id === category.id)
-                                                const atLimit = challengeComposer.categoryChoices.length >= challengeComposer.categoryCount
-                                                return (
+                                            <p className="mt-1 text-sm leading-6 text-slate-600">
+                                                Lock in exact Single Jeopardy boards from one air date at a time.
+                                            </p>
+                                        </div>
+
+                                        {categoryQuickPickOptions.length > 0 ? (
+                                            <div className="mt-5 rounded-[1.5rem] border border-blue-200 bg-slate-50 p-4">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-700">
+                                                            Featured Boards
+                                                        </p>
+                                                        <p className="mt-1 text-sm text-slate-600">
+                                                            Starts with categories you have never answered in practice or game, then falls back to the ones you have answered the least.
+                                                        </p>
+                                                    </div>
                                                     <button
-                                                        key={`challenge-search-result-${category.id}`}
                                                         type="button"
-                                                        className="flex w-full items-center justify-between border-b border-blue-100 px-3 py-2 text-left text-xs last:border-b-0 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-70"
-                                                        onClick={() => toggleChallengeCategoryChoice(category)}
-                                                        disabled={creatingChallenge || (!selected && atLimit)}
+                                                        className="inline-flex items-center rounded-full border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-800 transition hover:border-blue-300 hover:bg-blue-50"
+                                                        onClick={() => setIsFeaturedBoardsExpanded((current) => !current)}
+                                                        disabled={creatingChallenge}
                                                     >
-                                                        <span className="font-medium text-blue-900">{category.name}</span>
-                                                        <span className="text-blue-700">
-                                                            {selected ? 'Selected' : category._count?.questions ? `${category._count.questions} clues` : 'Add'}
+                                                        {isFeaturedBoardsExpanded ? 'Hide featured boards' : `Show featured boards (${categoryQuickPickOptions.length})`}
+                                                    </button>
+                                                </div>
+
+                                                {isFeaturedBoardsExpanded ? (
+                                                    <>
+                                                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                                            {categoryQuickPickOptions.map((category) => {
+                                                                const sameCategorySelected = challengeComposer.categoryChoices.some(
+                                                                    (choice) => choice.categoryId === category.categoryId,
+                                                                )
+                                                                const atLimit = challengeComposer.categoryChoices.length >= challengeComposer.categoryCount
+                                                                return (
+                                                                    <button
+                                                                        key={`challenge-quick-pick-${category.id}`}
+                                                                        type="button"
+                                                                        className="rounded-2xl border border-blue-200 bg-white p-4 text-left text-sm transition hover:border-blue-400 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                        onClick={() => toggleChallengeCategoryChoice(category)}
+                                                                        disabled={creatingChallenge || (!sameCategorySelected && atLimit)}
+                                                                    >
+                                                                        <div className="flex items-start justify-between gap-3">
+                                                                            <div className="min-w-0">
+                                                                                <p className="truncate text-sm font-semibold text-slate-900">{category.name}</p>
+                                                                                <p className="mt-1 text-xs text-slate-500">
+                                                                                    {formatChallengeCategoryVariantMeta(category)} • {category._count?.questions || 0} clues
+                                                                                </p>
+                                                                            </div>
+                                                                            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
+                                                                                {typeof category.answeredCount === 'number' && category.answeredCount === 0 ? 'Fresh' : 'Featured'}
+                                                                            </span>
+                                                                        </div>
+                                                                    </button>
+                                                                )
+                                                            })}
+                                                        </div>
+
+                                                        {customSelectionProgress?.remainingCount ? (
+                                                            <button
+                                                                type="button"
+                                                                className="mt-3 inline-flex items-center rounded-full border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-800 transition hover:border-blue-300 hover:bg-blue-50"
+                                                                onClick={addQuickPickCategoriesToChallenge}
+                                                                disabled={creatingChallenge || categoryQuickPickOptions.length === 0}
+                                                            >
+                                                                Fill {Math.min(customSelectionProgress.remainingCount, categoryQuickPickOptions.length)} from featured boards
+                                                            </button>
+                                                        ) : null}
+                                                    </>
+                                                ) : null}
+                                            </div>
+                                        ) : null}
+
+                                        <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-blue-200 bg-slate-50">
+                                            <div className="border-b border-blue-200 px-4 py-3">
+                                                <p className="text-sm font-semibold text-slate-900">
+                                                    Search results
+                                                </p>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    Search by category name to see exact Single Jeopardy board matches.
+                                                </p>
+
+                                                <label className="mt-3 grid gap-2 text-sm">
+                                                    <span className="sr-only">Search categories</span>
+                                                    <div className="relative">
+                                                        <svg
+                                                            className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            viewBox="0 0 24 24"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.35-4.35m1.85-5.15a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
+                                                        </svg>
+                                                        <input
+                                                            ref={customCategorySearchInputRef}
+                                                            value={categorySearchQuery}
+                                                            onChange={(event) => setCategorySearchQuery(event.target.value)}
+                                                            onKeyDown={handleChallengeCategorySearchKeyDown}
+                                                            className="form-input rounded-2xl border-blue-200 bg-white pl-11 pr-11 text-slate-900"
+                                                            placeholder="Search category names"
+                                                            disabled={creatingChallenge}
+                                                        />
+                                                        {categorySearchQuery ? (
+                                                            <button
+                                                                type="button"
+                                                                className="absolute right-3 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-blue-100 hover:text-blue-900"
+                                                                onClick={() => setCategorySearchQuery('')}
+                                                                disabled={creatingChallenge}
+                                                                aria-label="Clear category search"
+                                                            >
+                                                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18 18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </button>
+                                                        ) : null}
+                                                    </div>
+                                                </label>
+                                            </div>
+
+                                            <div className="max-h-[22rem] overflow-auto">
+                                                {categorySearchLoading ? (
+                                                    <p className="px-4 py-4 text-sm text-slate-600">Searching categories...</p>
+                                                ) : categorySearchQuery.trim().length < 2 ? (
+                                                    <p className="px-4 py-4 text-sm text-slate-600">
+                                                        Search results will appear here after you type at least 2 characters.
+                                                    </p>
+                                                ) : categorySearchResults.length === 0 ? (
+                                                    <p className="px-4 py-4 text-sm text-slate-600">
+                                                        No playable categories matched that search.
+                                                    </p>
+                                                ) : (
+                                                    categorySearchResults.map((category) => {
+                                                        const selected = challengeComposer.categoryChoices.some((choice) => choice.id === category.id)
+                                                        const sameCategorySelected = challengeComposer.categoryChoices.some(
+                                                            (choice) => choice.categoryId === category.categoryId,
+                                                        )
+                                                        const atLimit = challengeComposer.categoryChoices.length >= challengeComposer.categoryCount
+                                                        return (
+                                                            <button
+                                                                key={`challenge-search-result-${category.id}`}
+                                                                type="button"
+                                                                className="flex w-full items-center justify-between gap-3 border-b border-blue-100 px-4 py-3 text-left last:border-b-0 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                                                                onClick={() => toggleChallengeCategoryChoice(category)}
+                                                                disabled={creatingChallenge || (!sameCategorySelected && !selected && atLimit)}
+                                                            >
+                                                                <div className="min-w-0">
+                                                                    <p className="truncate text-sm font-semibold text-slate-900">
+                                                                        {category.name}
+                                                                    </p>
+                                                                    <p className="mt-1 text-xs text-slate-500">
+                                                                        {formatChallengeCategoryVariantMeta(category)} • {category._count?.questions || 0} clues
+                                                                        {typeof category.answeredCount === 'number'
+                                                                            ? ` • ${category.answeredCount === 0 ? 'new to you' : `${category.answeredCount} answered`}`
+                                                                            : ''}
+                                                                    </p>
+                                                                </div>
+                                                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                                                                    selected
+                                                                        ? 'bg-amber-100 text-amber-800'
+                                                                        : sameCategorySelected
+                                                                            ? 'bg-slate-200 text-slate-700'
+                                                                            : 'bg-blue-100 text-blue-800'
+                                                                }`}>
+                                                                    {selected ? 'Selected' : sameCategorySelected ? 'Swap in' : 'Add'}
+                                                                </span>
+                                                            </button>
+                                                        )
+                                                    })
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-[1.75rem] border border-blue-800 bg-blue-950 p-4 text-white shadow-lg sm:p-5 xl:sticky xl:top-0 xl:self-start">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-sm font-semibold">Selected board</p>
+                                                <p className="mt-1 text-sm leading-6 text-blue-100/85">
+                                                    Your locked categories stay in order. Empty slots are finished automatically with other complete Single Jeopardy boards.
+                                                </p>
+                                            </div>
+                                            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-blue-50">
+                                                {challengeComposer.categoryChoices.length}/{challengeComposer.categoryCount}
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-4 grid gap-2">
+                                            {Array.from({ length: challengeComposer.categoryCount }, (_, index) => {
+                                                const choice = challengeComposer.categoryChoices[index]
+                                                return choice ? (
+                                                    <button
+                                                        key={`challenge-slot-${choice.id}`}
+                                                        type="button"
+                                                        className="flex items-center justify-between rounded-2xl border border-blue-800 bg-blue-900/60 px-4 py-3 text-left transition hover:bg-blue-900"
+                                                        onClick={() => toggleChallengeCategoryChoice(choice)}
+                                                        disabled={creatingChallenge}
+                                                    >
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-white">
+                                                                {choice.name}
+                                                            </p>
+                                                            <p className="mt-1 text-xs text-blue-100/75">
+                                                                {formatChallengeCategoryVariantMeta(choice)}
+                                                            </p>
+                                                        </div>
+                                                        <span className="text-xs font-semibold text-amber-200">
+                                                            Remove
                                                         </span>
                                                     </button>
+                                                ) : (
+                                                    <div
+                                                        key={`challenge-empty-slot-${index}`}
+                                                        className="rounded-2xl border border-dashed border-blue-800 bg-blue-900/30 px-4 py-3"
+                                                    >
+                                                        <p className="text-sm font-semibold text-slate-100">
+                                                            Slot {index + 1}
+                                                        </p>
+                                                        <p className="mt-1 text-xs text-slate-300">
+                                                            {customSelectionProgress?.selectedCount
+                                                                ? 'Filled with another full Single Jeopardy board on create'
+                                                                : 'Pick at least one board to unlock automatic fill'}
+                                                        </p>
+                                                    </div>
                                                 )
-                                            })
-                                        )}
+                                            })}
+                                        </div>
+
+                                        <div className="mt-4 rounded-2xl border border-blue-800 bg-blue-900/30 p-4">
+                                            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-100/75">
+                                                Create behavior
+                                            </p>
+                                            <p className="mt-2 text-sm leading-6 text-blue-50/90">
+                                                {customSelectionProgress?.selectedCount
+                                                    ? customSelectionProgress.isComplete
+                                                        ? 'This board is fully defined. We will use your selected order exactly as shown.'
+                                                        : `We will keep your ${customSelectionProgress.selectedCount} selected board${customSelectionProgress.selectedCount === 1 ? '' : 's'} and automatically fill the remaining ${customSelectionProgress.remainingCount} slot${customSelectionProgress.remainingCount === 1 ? '' : 's'} with other complete Single Jeopardy boards from specific air dates.`
+                                                    : 'Select one board and the rest of the challenge will be completed automatically with episode-specific boards.'}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
-                                <p className="text-xs text-gray-600">
-                                    Random mode will auto-select {challengeComposer.categoryCount} categories for this round.
-                                </p>
+                                <div className="rounded-[1.75rem] border border-blue-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+                                    <p className="text-sm font-semibold text-slate-900">Random board</p>
+                                    <p className="mt-1 text-sm leading-6 text-slate-600">
+                                        We will instantly build a {challengeComposer.categoryCount}-category board and keep it fresh by excluding the most recent categories for this matchup when possible.
+                                    </p>
+                                </div>
                             )}
                         </div>
 
-                        <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
-                            <p className="text-xs text-gray-600">
-                                The challenge appears immediately in the Challenges tab for both players.
-                            </p>
-                            <button
-                                type="button"
-                                className="btn-primary"
-                                onClick={() => void submitChallengeComposer()}
-                                disabled={
-                                    creatingChallenge
-                                    || !challengeComposer.opponentId
-                                    || (
-                                        challengeComposer.categorySelection === 'CHOSEN'
-                                        && challengeComposer.categoryChoices.length !== challengeComposer.categoryCount
-                                    )
-                                }
-                            >
-                                {creatingChallenge ? 'Creating...' : 'Create Challenge'}
-                            </button>
+                        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5">
+                            <div>
+                                <p className="text-sm font-medium text-slate-800">
+                                    The challenge appears immediately in the Challenges tab for both players.
+                                </p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                    Custom boards can be created as soon as one board variant is locked in.
+                                </p>
+                            </div>
+                            {showChallengeComposerSubmitAction ? (
+                                <button
+                                    type="button"
+                                    className="btn-gold"
+                                    onClick={() => void submitChallengeComposer()}
+                                    disabled={creatingChallenge || !canSubmitChallengeComposer}
+                                >
+                                    {creatingChallenge ? 'Creating...' : challengeComposerSubmitLabel}
+                                </button>
+                            ) : null}
                         </div>
                     </div>
                 </div>

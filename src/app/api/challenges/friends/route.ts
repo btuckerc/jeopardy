@@ -13,16 +13,33 @@ import {
     serverErrorResponse
 } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
+import {
+    clampFriendChallengeCategoryCount,
+    FRIEND_CHALLENGE_MAX_CATEGORY_COUNT,
+    FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT,
+    normalizeFriendChallengeCategorySelection,
+} from '@/lib/friend-challenge-categories'
+import {
+    getCustomCategorySelectionKey,
+    type CustomCategorySelection,
+} from '@/lib/custom-category-selections'
 import { hasBlockedRelationship, isFriend } from '@/lib/friends'
+
+const customCategorySelectionSchema = z.object({
+    categoryId: z.string(),
+    airDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    round: z.enum(['SINGLE', 'DOUBLE']),
+})
 
 const challengeSchema = z.object({
     action: z.enum(['create', 'accept', 'decline', 'complete', 'cancel', 'launch', 'end']).default('create'),
     opponentId: z.string().optional(),
     challengeId: z.string().optional(),
     mode: z.nativeEnum(FriendChallengeMode).default(FriendChallengeMode.PRACTICE),
-    categorySelection: z.enum(['RANDOM', 'CHOSEN']).default('RANDOM'),
-    categoryCount: z.number().int().min(1).max(6).optional(),
-    categoryIds: z.array(z.string()).max(6).optional(),
+    categorySelection: z.enum(['RANDOM', 'CHOSEN', 'CUSTOM']).default('RANDOM'),
+    categoryCount: z.number().int().min(1).max(FRIEND_CHALLENGE_MAX_CATEGORY_COUNT).optional(),
+    categoryIds: z.array(z.string()).max(FRIEND_CHALLENGE_MAX_CATEGORY_COUNT).optional(),
+    categorySelections: z.array(customCategorySelectionSchema).max(FRIEND_CHALLENGE_MAX_CATEGORY_COUNT).optional(),
     message: z.string().trim().max(500, 'Message is too long').optional().nullable(),
     targetValue: z.number().int().positive().max(100000).optional(),
     expiresAt: z.string().datetime().optional(),
@@ -98,6 +115,8 @@ type ChallengeGameConfig = {
     friendChallengeRole?: ChallengeRole
     friendChallengeBoardCategoryId?: string
     friendChallengeBoardCategoryIds?: string[]
+    friendChallengeBoardCategorySelections?: CustomCategorySelection[]
+    categorySelections?: CustomCategorySelection[]
 }
 
 function parseChallengeGameConfig(config: unknown): ChallengeGameConfig {
@@ -116,6 +135,26 @@ function parseChallengeGameConfig(config: unknown): ChallengeGameConfig {
             : undefined,
         friendChallengeBoardCategoryIds: Array.isArray(typed.friendChallengeBoardCategoryIds)
             ? typed.friendChallengeBoardCategoryIds.filter((value): value is string => typeof value === 'string')
+            : undefined,
+        friendChallengeBoardCategorySelections: Array.isArray(typed.friendChallengeBoardCategorySelections)
+            ? typed.friendChallengeBoardCategorySelections.filter((value): value is CustomCategorySelection => (
+                !!value
+                && typeof value === 'object'
+                && !Array.isArray(value)
+                && typeof (value as CustomCategorySelection).categoryId === 'string'
+                && typeof (value as CustomCategorySelection).airDate === 'string'
+                && ((value as CustomCategorySelection).round === 'SINGLE' || (value as CustomCategorySelection).round === 'DOUBLE')
+            ))
+            : undefined,
+        categorySelections: Array.isArray(typed.categorySelections)
+            ? typed.categorySelections.filter((value): value is CustomCategorySelection => (
+                !!value
+                && typeof value === 'object'
+                && !Array.isArray(value)
+                && typeof (value as CustomCategorySelection).categoryId === 'string'
+                && typeof (value as CustomCategorySelection).airDate === 'string'
+                && ((value as CustomCategorySelection).round === 'SINGLE' || (value as CustomCategorySelection).round === 'DOUBLE')
+            ))
             : undefined,
     }
 }
@@ -137,11 +176,38 @@ async function findChallengeGameIdForUser(params: {
     return rows[0]?.id ?? null
 }
 
+async function findPreviousBoardCategoryIdsForMatchup(params: {
+    challengerUserId: string
+    opponentUserId: string
+}) {
+    const previousGameChallenge = await prisma.friendChallenge.findFirst({
+        where: {
+            mode: FriendChallengeMode.GAME,
+            OR: [
+                { challengerUserId: params.challengerUserId, opponentUserId: params.opponentUserId },
+                { challengerUserId: params.opponentUserId, opponentUserId: params.challengerUserId },
+            ],
+        },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true },
+    })
+
+    if (!previousGameChallenge) {
+        return []
+    }
+
+    return (await getChallengeBoardMetadata(previousGameChallenge.id)).boardCategoryIds
+}
+
 async function selectBoardCategoryIds(
     count: number,
-    options: { excludeCategoryIds?: string[] } = {},
+    options: { excludeCategoryIds?: string[]; minQuestionCount?: number } = {},
 ): Promise<string[]> {
     const excluded = Array.from(new Set((options.excludeCategoryIds || []).filter(Boolean)))
+    const minQuestionCount = Math.max(
+        options.minQuestionCount ?? FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT,
+        FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT,
+    )
     const exclusionClause = excluded.length > 0
         ? Prisma.sql`WHERE e."categoryId" NOT IN (${Prisma.join(excluded)})`
         : Prisma.empty
@@ -152,7 +218,7 @@ async function selectBoardCategoryIds(
             FROM "Question" q
             WHERE q."round" = 'SINGLE'::"JeopardyRound"
             GROUP BY q."categoryId"
-            HAVING COUNT(*) >= 5
+            HAVING COUNT(*) >= ${minQuestionCount}
         )
         SELECT e."categoryId"
         FROM eligible e
@@ -171,7 +237,7 @@ async function selectBoardCategoryIds(
             FROM "Question" q
             WHERE q."round" = 'SINGLE'::"JeopardyRound"
             GROUP BY q."categoryId"
-            HAVING COUNT(*) >= 5
+            HAVING COUNT(*) >= ${minQuestionCount}
         )
         SELECT e."categoryId"
         FROM eligible e
@@ -182,7 +248,56 @@ async function selectBoardCategoryIds(
     return fallbackRows.map((row) => row.categoryId)
 }
 
-async function filterPlayableCategoryIds(categoryIds: string[]): Promise<string[]> {
+function normalizeBoardCategorySelections(selections: CustomCategorySelection[]): CustomCategorySelection[] {
+    const seen = new Set<string>()
+
+    return selections.filter((selection) => {
+        const key = getCustomCategorySelectionKey(selection)
+        if (seen.has(key)) {
+            return false
+        }
+
+        seen.add(key)
+        return true
+    })
+}
+
+async function selectBoardCategorySelections(
+    count: number,
+    options: { excludeCategoryIds?: string[] } = {},
+): Promise<CustomCategorySelection[]> {
+    const excludedCategoryIds = Array.from(new Set((options.excludeCategoryIds || []).filter(Boolean)))
+    const exclusionClause = excludedCategoryIds.length > 0
+        ? Prisma.sql`AND q."categoryId" NOT IN (${Prisma.join(excludedCategoryIds)})`
+        : Prisma.empty
+
+    const rows = await prisma.$queryRaw<Array<{
+        categoryId: string
+        airDate: Date
+        round: 'SINGLE' | 'DOUBLE'
+    }>>`
+        SELECT q."categoryId", q."airDate", q."round"
+        FROM "Question" q
+        WHERE q."round" = 'SINGLE'::"JeopardyRound"
+          AND q."airDate" IS NOT NULL
+          ${exclusionClause}
+        GROUP BY q."categoryId", q."airDate", q."round"
+        HAVING COUNT(*) >= ${FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT}
+        ORDER BY RANDOM()
+        LIMIT ${count}
+    `
+
+    return rows.map((row) => ({
+        categoryId: row.categoryId,
+        airDate: row.airDate.toISOString().slice(0, 10),
+        round: row.round,
+    }))
+}
+
+async function filterPlayableCategoryIds(
+    categoryIds: string[],
+    minQuestionCount: number = FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT,
+): Promise<string[]> {
     if (categoryIds.length === 0) {
         return []
     }
@@ -197,8 +312,46 @@ async function filterPlayableCategoryIds(categoryIds: string[]): Promise<string[
     })
 
     return grouped
-        .filter((row) => row._count.id >= 5)
+        .filter((row) => row._count.id >= Math.max(minQuestionCount, FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT))
         .map((row) => row.categoryId)
+}
+
+async function filterPlayableCategorySelections(
+    selections: CustomCategorySelection[],
+): Promise<CustomCategorySelection[]> {
+    if (selections.length === 0) {
+        return []
+    }
+
+    const pairs = Prisma.join(selections.map((selection) => Prisma.sql`(${selection.categoryId}, ${new Date(selection.airDate)}, ${selection.round}::"JeopardyRound")`))
+
+    const rows = await prisma.$queryRaw<Array<{
+        categoryId: string
+        airDate: Date
+        round: 'SINGLE' | 'DOUBLE'
+    }>>`
+        WITH requested("categoryId", "airDate", "round") AS (
+            VALUES ${pairs}
+        )
+        SELECT q."categoryId", q."airDate", q."round"
+        FROM "Question" q
+        INNER JOIN requested r
+            ON q."categoryId" = r."categoryId"
+           AND q."airDate" = r."airDate"
+           AND q."round" = r."round"
+        GROUP BY q."categoryId", q."airDate", q."round"
+        HAVING COUNT(*) >= ${FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT}
+    `
+
+    const playableKeys = new Set(
+        rows.map((row) => getCustomCategorySelectionKey({
+            categoryId: row.categoryId,
+            airDate: row.airDate.toISOString().slice(0, 10),
+            round: row.round,
+        })),
+    )
+
+    return selections.filter((selection) => playableKeys.has(getCustomCategorySelectionKey(selection)))
 }
 
 async function createChallengeGame(params: {
@@ -206,18 +359,21 @@ async function createChallengeGame(params: {
     challengeId: string
     role: ChallengeRole
     boardCategoryIds: string[]
+    boardCategorySelections?: CustomCategorySelection[]
 }) {
     const gameSeed = nanoid(10)
 
     const config = {
         mode: 'custom',
         categoryIds: params.boardCategoryIds,
+        categorySelections: params.boardCategorySelections,
         rounds: { single: true, double: false, final: false },
         preset: 'challenge',
         friendChallengeId: params.challengeId,
         friendChallengeRole: params.role,
         friendChallengeBoardCategoryIds: params.boardCategoryIds,
         friendChallengeBoardCategoryId: params.boardCategoryIds[0],
+        friendChallengeBoardCategorySelections: params.boardCategorySelections,
         spoilerProtection: {
             enabled: false,
             cutoffDate: null,
@@ -273,6 +429,9 @@ async function ensureChallengeGameForUser(params: {
         : templateConfig.friendChallengeBoardCategoryId
             ? [templateConfig.friendChallengeBoardCategoryId]
             : await selectBoardCategoryIds(1)
+    const boardCategorySelections = templateConfig.friendChallengeBoardCategorySelections
+        || templateConfig.categorySelections
+        || []
 
     if (!boardCategoryIds || boardCategoryIds.length === 0) {
         throw new Error('No eligible challenge category found for game mode')
@@ -283,6 +442,7 @@ async function ensureChallengeGameForUser(params: {
         challengeId: params.challengeId,
         role: params.role,
         boardCategoryIds,
+        boardCategorySelections,
     })
     return createdGame.id
 }
@@ -545,15 +705,17 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         opponentId,
         challengeId,
         mode,
-        categorySelection,
+        categorySelection: rawCategorySelection,
         categoryCount,
         categoryIds,
+        categorySelections,
         message,
         targetValue,
         expiresAt,
         challengerScore,
         opponentScore,
     } = parsed.data
+    const categorySelection = normalizeFriendChallengeCategorySelection(rawCategorySelection)
 
     try {
         if (action === 'create') {
@@ -592,44 +754,88 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             })
 
             let boardCategoryIds: string[] = []
+            let boardCategorySelections: CustomCategorySelection[] = []
             if (mode === FriendChallengeMode.GAME) {
-                if (categorySelection === 'CHOSEN') {
-                    const selected = Array.from(new Set((categoryIds || []).filter(Boolean))).slice(0, 6)
-                    if (selected.length === 0) {
-                        return badRequestResponse('Select at least one category for chosen mode')
-                    }
+                const desiredCount = clampFriendChallengeCategoryCount(categoryCount)
+                const previousBoardCategoryIds = await findPreviousBoardCategoryIdsForMatchup({
+                    challengerUserId: user.id,
+                    opponentUserId: opponentId,
+                })
 
-                    const requiredCount = Math.min(Math.max(categoryCount ?? selected.length, 1), 6)
-                    if (selected.length !== requiredCount) {
-                        return badRequestResponse(`Select exactly ${requiredCount} categories for chosen mode`)
-                    }
+                if (categorySelection === 'CUSTOM') {
+                    const normalizedSelections = normalizeBoardCategorySelections(
+                        (categorySelections || []).filter((selection) => selection.round === 'SINGLE'),
+                    ).slice(0, FRIEND_CHALLENGE_MAX_CATEGORY_COUNT)
 
-                    const playable = await filterPlayableCategoryIds(selected)
-                    if (playable.length !== selected.length) {
-                        return badRequestResponse('One or more selected categories do not have enough clues')
-                    }
-
-                    boardCategoryIds = selected
-                } else {
-                    const desiredCount = Math.min(Math.max(categoryCount ?? 1, 1), 6)
-                    const previousGameChallenge = await prisma.friendChallenge.findFirst({
-                        where: {
-                            mode: FriendChallengeMode.GAME,
-                            OR: [
-                                { challengerUserId: user.id, opponentUserId: opponentId },
-                                { challengerUserId: opponentId, opponentUserId: user.id },
-                            ],
-                        },
-                        orderBy: { updatedAt: 'desc' },
-                        select: { id: true },
-                    })
-                    const previousBoardCategoryIds = previousGameChallenge
-                        ? (await getChallengeBoardMetadata(previousGameChallenge.id)).boardCategoryIds
+                    const legacySelected = normalizedSelections.length === 0
+                        ? Array.from(new Set((categoryIds || []).filter(Boolean))).slice(
+                            0,
+                            FRIEND_CHALLENGE_MAX_CATEGORY_COUNT,
+                        )
                         : []
 
+                    if (normalizedSelections.length === 0 && legacySelected.length === 0) {
+                        return badRequestResponse('Select at least one category for custom mode')
+                    }
+
+                    if (normalizedSelections.length > desiredCount || legacySelected.length > desiredCount) {
+                        return badRequestResponse(`Select up to ${desiredCount} categories for custom mode`)
+                    }
+
+                    if (normalizedSelections.length > 0) {
+                        const playableSelections = await filterPlayableCategorySelections(normalizedSelections)
+                        if (playableSelections.length !== normalizedSelections.length) {
+                            return badRequestResponse('One or more selected board variants no longer have a full playable set')
+                        }
+
+                        const excludedForAutoFill = [
+                            ...normalizedSelections.map((selection) => selection.categoryId),
+                            ...previousBoardCategoryIds.filter((categoryId) => (
+                                !normalizedSelections.some((selection) => selection.categoryId === categoryId)
+                            )),
+                        ]
+
+                        const autoFillSelections = await selectBoardCategorySelections(
+                            Math.max(desiredCount - normalizedSelections.length, 0),
+                            {
+                                excludeCategoryIds: excludedForAutoFill,
+                            },
+                        )
+
+                        boardCategorySelections = [...normalizedSelections, ...autoFillSelections]
+                        boardCategoryIds = boardCategorySelections.map((selection) => selection.categoryId)
+                    } else {
+                        const playable = await filterPlayableCategoryIds(
+                            legacySelected,
+                            FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT,
+                        )
+                        if (playable.length !== legacySelected.length) {
+                            return badRequestResponse('One or more selected categories do not have enough clues')
+                        }
+
+                        const fallbackAutoFill = await selectBoardCategoryIds(
+                            Math.max(desiredCount - legacySelected.length, 0),
+                            {
+                                excludeCategoryIds: [
+                                    ...legacySelected,
+                                    ...previousBoardCategoryIds.filter((categoryId) => !legacySelected.includes(categoryId)),
+                                ],
+                                minQuestionCount: FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT,
+                            },
+                        )
+
+                        boardCategoryIds = [...legacySelected, ...fallbackAutoFill]
+                    }
+
+                    if (boardCategoryIds.length < desiredCount) {
+                        return badRequestResponse('Not enough eligible categories available to complete this custom board')
+                    }
+                } else {
                     boardCategoryIds = await selectBoardCategoryIds(desiredCount, {
                         excludeCategoryIds: previousBoardCategoryIds,
+                        minQuestionCount: FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT,
                     })
+                    boardCategorySelections = []
                     if (boardCategoryIds.length < desiredCount) {
                         return badRequestResponse('Not enough eligible categories available for this challenge')
                     }
@@ -698,12 +904,14 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                     const gameConfig = {
                         mode: 'custom',
                         categoryIds: boardCategoryIds,
+                        categorySelections: boardCategorySelections,
                         rounds: { single: true, double: false, final: false },
                         preset: 'challenge',
                         friendChallengeId: challenge.id,
                         friendChallengeRole: 'CHALLENGER',
                         friendChallengeBoardCategoryIds: boardCategoryIds,
                         friendChallengeBoardCategoryId: boardCategoryIds[0],
+                        friendChallengeBoardCategorySelections: boardCategorySelections,
                         friendChallengeCategorySelection: categorySelection,
                         spoilerProtection: {
                             enabled: false,

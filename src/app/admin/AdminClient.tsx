@@ -15,11 +15,12 @@ import type {
     GuestStats
 } from '@/types/admin'
 import toast from 'react-hot-toast'
+import { AdminRangeToolbar } from './components/AdminRangeToolbar'
+import type { AdminReportingWindow } from './lib/reporting'
 
 // Lazy load new observability tab components
 const ObservabilityTab = lazy(() => import('./components/tabs/ObservabilityTab').then(m => ({ default: m.ObservabilityTab })))
 const MetricsOverviewTab = lazy(() => import('./components/tabs/MetricsOverviewTab').then(m => ({ default: m.MetricsOverviewTab })))
-const PerformanceTab = lazy(() => import('./components/tabs/PerformanceTab').then(m => ({ default: m.PerformanceTab })))
 const UserDebugTab = lazy(() => import('./components/tabs/UserDebugTab').then(m => ({ default: m.UserDebugTab })))
 const ContentQualityTab = lazy(() => import('./components/tabs/ContentQualityTab').then(m => ({ default: m.ContentQualityTab })))
 
@@ -82,7 +83,7 @@ interface GameGroup {
 type JsonDictionary = Record<string, unknown>
 
 type PlayerGameStatusFilter = 'all' | 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'
-type CronJobFilter = 'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games' | 'dispute-summary' | 'issues-summary'
+type CronJobFilter = 'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games' | 'dispute-summary' | 'issues-summary' | 'observability-retention'
 type CronExecutionStatusFilter = 'all' | 'RUNNING' | 'SUCCESS' | 'FAILED'
 type EditGameRound = 'SINGLE' | 'DOUBLE' | 'FINAL'
 type EditGameStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'
@@ -90,6 +91,19 @@ type DisputeStatusFilter = '' | 'PENDING' | 'APPROVED' | 'REJECTED'
 type DisputeModeFilter = '' | 'GAME' | 'PRACTICE' | 'DAILY_CHALLENGE'
 type IssueStatusFilter = '' | 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED'
 type IssueCategoryFilter = '' | 'BUG' | 'CONTENT' | 'FEATURE_REQUEST' | 'ACCOUNT' | 'QUESTION' | 'OTHER'
+type AdminTab =
+    | 'manage'
+    | 'fetch'
+    | 'player-games'
+    | 'disputes'
+    | 'issues'
+    | 'daily-challenges'
+    | 'guest-config'
+    | 'cron'
+    | 'metrics-overview'
+    | 'observability'
+    | 'user-debug'
+    | 'content-quality'
 interface GuestConfigUpdatePayload {
     randomGameMaxQuestionsBeforeAuth?: number
     randomQuestionMaxQuestionsBeforeAuth?: number
@@ -223,7 +237,9 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
     const [pushing, setPushing] = useState(false)
     
     // Tab state - includes new observability tabs (removed legacy metrics and users tabs)
-    const [activeTab, setActiveTab] = useState<'manage' | 'fetch' | 'player-games' | 'disputes' | 'issues' | 'daily-challenges' | 'guest-config' | 'cron' | 'metrics-overview' | 'performance' | 'observability' | 'user-debug' | 'content-quality'>('metrics-overview')
+    const [activeTab, setActiveTab] = useState<AdminTab>('metrics-overview')
+    const [reportingWindow, setReportingWindow] = useState<AdminReportingWindow>('30d')
+    const [isMobileSectionMenuOpen, setIsMobileSectionMenuOpen] = useState(false)
     
     // Cron jobs state
     const [cronExecutions, setCronExecutions] = useState<CronExecution[]>([])
@@ -244,6 +260,8 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
     const [dailyChallenges, setDailyChallenges] = useState<DailyChallengeEntry[]>([])
     const [dailyChallengesStats, setDailyChallengesStats] = useState<DailyChallengesStats | null>(null)
     const [loadingDailyChallenges, setLoadingDailyChallenges] = useState(false)
+    const [dailyChallengesLoaded, setDailyChallengesLoaded] = useState(false)
+    const [dailyChallengesError, setDailyChallengesError] = useState<string | null>(null)
     const [generatingChallenges, setGeneratingChallenges] = useState(false)
     
     // Calendar state
@@ -331,6 +349,19 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
         window.addEventListener('scroll', handleScroll)
         return () => window.removeEventListener('scroll', handleScroll)
     }, [])
+
+    useEffect(() => {
+        if (!isMobileSectionMenuOpen) {
+            return
+        }
+
+        const previousOverflow = document.body.style.overflow
+        document.body.style.overflow = 'hidden'
+
+        return () => {
+            document.body.style.overflow = previousOverflow
+        }
+    }, [isMobileSectionMenuOpen])
 
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -868,28 +899,39 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
 
     // Fetch daily challenges
     const fetchDailyChallenges = useCallback(async () => {
+        if (loadingDailyChallenges) {
+            return
+        }
+
         setLoadingDailyChallenges(true)
+        setDailyChallengesError(null)
         try {
             const response = await fetch('/api/admin/daily-challenges')
             if (!response.ok) {
-                throw new Error('Failed to load daily challenges')
+                const errorPayload = await response.json().catch(() => null) as { error?: string; message?: string } | null
+                throw new Error(errorPayload?.error || errorPayload?.message || 'Failed to load daily challenges')
             }
             const data = await response.json()
             setDailyChallenges(data.challenges || [])
             setDailyChallengesStats(data.stats || null)
+            setDailyChallengesLoaded(true)
         } catch (error) {
             console.error('Error loading daily challenges:', error)
+            setDailyChallenges([])
+            setDailyChallengesStats(null)
+            setDailyChallengesLoaded(true)
+            setDailyChallengesError(error instanceof Error ? error.message : 'Failed to load daily challenges')
         } finally {
             setLoadingDailyChallenges(false)
         }
-    }, [])
+    }, [loadingDailyChallenges])
 
     // Load daily challenges when tab is active
     useEffect(() => {
-        if (activeTab === 'daily-challenges' && dailyChallenges.length === 0 && !loadingDailyChallenges) {
+        if (activeTab === 'daily-challenges' && !dailyChallengesLoaded && !loadingDailyChallenges) {
             fetchDailyChallenges()
         }
-    }, [activeTab, dailyChallenges.length, loadingDailyChallenges, fetchDailyChallenges])
+    }, [activeTab, dailyChallengesLoaded, loadingDailyChallenges, fetchDailyChallenges])
 
     // Track if we've ever loaded disputes (to avoid resetting on initial mount)
     const disputesEverLoadedRef = useRef(false)
@@ -1663,208 +1705,168 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
     const sortedGameGroups = Object.values(groupedGames).sort((a, b) => 
         b.airDate.localeCompare(a.airDate)
     )
+    const reportingTabs = new Set<AdminTab>([
+        'metrics-overview',
+        'observability',
+        'content-quality',
+    ])
+    const adminNavGroups: Array<{
+        label: string
+        items: Array<{
+            id: AdminTab
+            label: string
+            badge?: string
+        }>
+    }> = [
+        {
+            label: 'Reporting',
+            items: [
+                { id: 'metrics-overview', label: 'Overview' },
+                { id: 'observability', label: 'Traffic' },
+                { id: 'content-quality', label: 'Content' },
+            ],
+        },
+        {
+            label: 'People',
+            items: [
+                { id: 'user-debug', label: 'Users' },
+                {
+                    id: 'disputes',
+                    label: 'Disputes',
+                    badge: pendingDisputesCount !== null && pendingDisputesCount > 0 ? `${pendingDisputesCount > 9 ? '9+' : pendingDisputesCount}` : undefined,
+                },
+                {
+                    id: 'issues',
+                    label: 'Issues',
+                    badge: openIssuesCount !== null && openIssuesCount > 0 ? `${openIssuesCount > 9 ? '9+' : openIssuesCount}` : undefined,
+                },
+            ],
+        },
+        {
+            label: 'System',
+            items: [
+                { id: 'manage', label: 'Question DB' },
+                { id: 'fetch', label: 'Imports' },
+                { id: 'player-games', label: 'Games' },
+                { id: 'daily-challenges', label: 'Daily' },
+                { id: 'guest-config', label: 'Guests' },
+                { id: 'cron', label: 'Cron' },
+            ],
+        },
+    ]
+    const activeAdminNavItem = adminNavGroups
+        .flatMap((group) => group.items)
+        .find((item) => item.id === activeTab)
+    const activeAdminNavGroupLabel = adminNavGroups.find((group) =>
+        group.items.some((item) => item.id === activeTab),
+    )?.label || 'Admin'
+    const activeReportingTitle: Record<AdminTab, string> = {
+        'metrics-overview': 'System Overview',
+        observability: 'Traffic & Reliability',
+        'content-quality': 'Content Intelligence',
+        'user-debug': 'Users',
+        disputes: 'Disputes',
+        issues: 'Issues',
+        manage: 'Question DB',
+        fetch: 'Imports',
+        'player-games': 'Games',
+        'daily-challenges': 'Daily Challenges',
+        'guest-config': 'Guest Access',
+        cron: 'Cron Jobs',
+    }
+    const showReportingToolbar = reportingTabs.has(activeTab)
 
     return (
-        // Allow horizontal scrolling within the admin area so mid-width layouts
-        // (e.g., tablets, small laptops) never get content clipped even if a
-        // child component slightly overflows.
-        <div className="min-h-screen w-full overflow-x-auto">
-            <div className="container mx-auto px-4 pt-4">
-                <h1 className="text-2xl font-bold text-black mb-6">Admin Dashboard</h1>
-            </div>
-
-            {/* Tab Navigation - wraps on small screens, scrolls on very narrow widths */}
-            <div className="mb-6 border-b border-gray-200 bg-gray-50 relative">
-                <div className="pb-2 overflow-x-auto scrollbar-visible" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    <div className="flex flex-wrap gap-2 px-4 py-2">
-                        {/* New Observability Tabs */}
+        <div className="workspace-page">
+            <div className="workspace-mobile-nav">
+                <div className="workspace-mobile-nav-card">
+                    <div className="workspace-mobile-nav-row">
+                        <div className="workspace-mobile-nav-copy">
+                            <div className="workspace-mobile-nav-kicker">{activeAdminNavGroupLabel}</div>
+                            <div className="workspace-mobile-nav-title">{activeAdminNavItem?.label || 'Admin'}</div>
+                        </div>
                         <button
-                            onClick={() => setActiveTab('metrics-overview')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'metrics-overview'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
+                            type="button"
+                            className="workspace-mobile-nav-trigger"
+                            onClick={() => setIsMobileSectionMenuOpen(true)}
+                            aria-expanded={isMobileSectionMenuOpen}
+                            aria-haspopup="dialog"
                         >
-                            Overview
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('performance')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'performance'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            API Performance
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('observability')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'observability'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            DB Performance
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('user-debug')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'user-debug'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            User Debug
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('content-quality')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'content-quality'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Content
-                        </button>
-                        {/* Existing Tabs */}
-                        <button
-                            onClick={() => setActiveTab('manage')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'manage'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Question DB
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('fetch')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'fetch'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Fetch
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('player-games')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'player-games'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Games
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('disputes')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap relative ${
-                                activeTab === 'disputes'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Disputes
-                            {pendingDisputesCount !== null && pendingDisputesCount > 0 && (
-                                <span className={`absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full text-[0.7rem] font-bold flex items-center justify-center text-white shadow-md border-2 ${
-                                    activeTab === 'disputes'
-                                        ? 'bg-red-500 border-blue-600'
-                                        : 'bg-red-600 border-white'
-                                }`}>
-                                    {pendingDisputesCount > 9 ? '9+' : pendingDisputesCount}
-                                </span>
-                            )}
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('issues')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap relative ${
-                                activeTab === 'issues'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Issues
-                            {openIssuesCount !== null && openIssuesCount > 0 && (
-                                <span className={`absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full text-[0.7rem] font-bold flex items-center justify-center text-white shadow-md border-2 ${
-                                    activeTab === 'issues'
-                                        ? 'bg-red-500 border-blue-600'
-                                        : 'bg-red-600 border-white'
-                                }`}>
-                                    {openIssuesCount > 9 ? '9+' : openIssuesCount}
-                                </span>
-                            )}
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('daily-challenges')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'daily-challenges'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Daily
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('guest-config')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'guest-config'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Guests
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('cron')}
-                            className={`py-2.5 px-4 rounded-lg font-semibold text-sm transition-all border-2 whitespace-nowrap ${
-                                activeTab === 'cron'
-                                    ? 'bg-blue-600 text-white border-blue-600 shadow-lg'
-                                    : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:text-blue-600'
-                            }`}
-                        >
-                            Cron Jobs
+                            Sections
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
                         </button>
                     </div>
                 </div>
-                {/* Scroll indicator gradient */}
-                <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none md:hidden" />
             </div>
-            
-            {/* Main Content */}
-            <div className="container mx-auto px-4 pb-4">
 
-            {/* Message Display */}
-            {message && (
-                <div className={`mb-4 p-4 rounded whitespace-pre-wrap ${
-                    message.includes('Error') || message.includes('Failed') || message.includes('not working')
-                        ? 'bg-red-100 border border-red-400 text-red-700' 
-                        : message.includes('Successfully')
-                            ? 'bg-green-100 border border-green-400 text-green-700'
-                            : 'bg-blue-100 border border-blue-400 text-blue-700'
-                }`}>
-                    {message}
-                </div>
-            )}
+            <div className="workspace-shell">
+                <aside className="workspace-sidebar">
+                    <div className="workspace-sidebar-card overflow-hidden">
+                        <div className="workspace-sidebar-scroll">
+                            {adminNavGroups.map((group) => (
+                                <div key={group.label} className="workspace-nav-group">
+                                    <div className="workspace-nav-label">{group.label}</div>
+                                    <div className="space-y-2">
+                                        {group.items.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => setActiveTab(item.id)}
+                                                className={`workspace-nav-button ${activeTab === item.id ? 'active' : ''}`}
+                                                aria-current={activeTab === item.id ? 'page' : undefined}
+                                            >
+                                                <div className="min-w-0">
+                                                    <div className="font-semibold">{item.label}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {item.badge ? <span className="workspace-nav-badge">{item.badge}</span> : null}
+                                                    <svg className="h-4 w-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </aside>
+
+                <div className="workspace-main">
+                    {showReportingToolbar ? (
+                        <AdminRangeToolbar
+                            title={activeReportingTitle[activeTab]}
+                            value={reportingWindow}
+                            onChange={setReportingWindow}
+                        />
+                    ) : null}
+
+                    {/* Message Display */}
+                    {message && (
+                        <div className={`mb-4 p-4 rounded whitespace-pre-wrap ${
+                            message.includes('Error') || message.includes('Failed') || message.includes('not working')
+                                ? 'bg-red-100 border border-red-400 text-red-700'
+                                : message.includes('Successfully')
+                                    ? 'bg-green-100 border border-green-400 text-green-700'
+                                        : 'bg-blue-100 border border-blue-400 text-blue-700'
+                            }`}>
+                                {message}
+                            </div>
+                        )}
 
             {/* NEW OBSERVABILITY TABS */}
             {activeTab === 'metrics-overview' && (
                 <Suspense fallback={<TabLoader />}>
-                    <MetricsOverviewTab />
-                </Suspense>
-            )}
-
-            {activeTab === 'performance' && (
-                <Suspense fallback={<TabLoader />}>
-                    <PerformanceTab />
+                    <MetricsOverviewTab window={reportingWindow} />
                 </Suspense>
             )}
 
             {activeTab === 'observability' && (
                 <Suspense fallback={<TabLoader />}>
-                    <ObservabilityTab />
+                    <ObservabilityTab window={reportingWindow} />
                 </Suspense>
             )}
 
@@ -1876,7 +1878,7 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
 
             {activeTab === 'content-quality' && (
                 <Suspense fallback={<TabLoader />}>
-                    <ContentQualityTab />
+                    <ContentQualityTab window={reportingWindow} />
                 </Suspense>
             )}
 
@@ -2804,35 +2806,55 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
                                 Monitor and manage daily challenge generation. Challenges are automatically generated via cron job.
                             </p>
                         </div>
-                        <button
-                            onClick={async () => {
-                                setGeneratingChallenges(true)
-                                try {
-                                    const response = await fetch('/api/daily-challenge/pre-generate', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ days: 30 })
-                                    })
-                                    if (response.ok) {
-                                        const data = await response.json()
-                                        toast.success(`Generated ${data.created} challenges, ${data.skipped} already existed`)
-                                        fetchDailyChallenges()
-                                    } else {
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setDailyChallengesLoaded(false)
+                                    void fetchDailyChallenges()
+                                }}
+                                disabled={loadingDailyChallenges}
+                                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                {loadingDailyChallenges ? 'Refreshing...' : 'Refresh'}
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    setGeneratingChallenges(true)
+                                    try {
+                                        const response = await fetch('/api/daily-challenge/pre-generate', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ days: 30 })
+                                        })
+                                        if (response.ok) {
+                                            const data = await response.json()
+                                            toast.success(`Generated ${data.created} challenges, ${data.skipped} already existed`)
+                                            setDailyChallengesLoaded(false)
+                                            await fetchDailyChallenges()
+                                        } else {
+                                            toast.error('Failed to generate challenges')
+                                        }
+                                    } catch (error) {
+                                        console.error('Error generating challenges:', error)
                                         toast.error('Failed to generate challenges')
+                                    } finally {
+                                        setGeneratingChallenges(false)
                                     }
-                                } catch (error) {
-                                    console.error('Error generating challenges:', error)
-                                    toast.error('Failed to generate challenges')
-                                } finally {
-                                    setGeneratingChallenges(false)
-                                }
-                            }}
-                            disabled={generatingChallenges}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                        >
-                            {generatingChallenges ? 'Generating...' : 'Generate Next 30 Days'}
-                        </button>
+                                }}
+                                disabled={generatingChallenges}
+                                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {generatingChallenges ? 'Generating...' : 'Generate Next 30 Days'}
+                            </button>
+                        </div>
                     </div>
+
+                    {dailyChallengesError && (
+                        <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                            {dailyChallengesError}
+                        </div>
+                    )}
 
                     {/* Stats */}
                     {dailyChallengesStats && (
@@ -2943,7 +2965,7 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
                         </div>
                     )}
 
-                    {!loadingDailyChallenges && dailyChallenges.length === 0 && (
+                    {!loadingDailyChallenges && !dailyChallengesError && dailyChallenges.length === 0 && (
                         <div className="text-center py-8 text-gray-500">
                             No daily challenges found. Generate challenges to get started.
                         </div>
@@ -3317,6 +3339,7 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
                                     <option value="fetch-games">Fetch Games</option>
                                     <option value="dispute-summary">Dispute Summary</option>
                                     <option value="issues-summary">Issues Summary</option>
+                                    <option value="observability-retention">Observability Retention</option>
                                 </select>
                             </div>
                             <div>
@@ -4099,8 +4122,72 @@ export default function AdminClient({ user: _user, initialGames }: AdminClientPr
                     </div>
                 </div>
             )}
+                </div>
             </div>
-            {/* End Main Content Container */}
+
+            {isMobileSectionMenuOpen ? (
+                <div className="workspace-mobile-sheet">
+                    <button
+                        type="button"
+                        className="workspace-mobile-sheet-backdrop"
+                        onClick={() => setIsMobileSectionMenuOpen(false)}
+                        aria-label="Close admin section menu"
+                    />
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="admin-mobile-sections-title"
+                        className="workspace-mobile-sheet-panel"
+                    >
+                        <div className="workspace-mobile-sheet-header">
+                            <h2 id="admin-mobile-sections-title" className="text-base font-semibold text-slate-900">
+                                Sections
+                            </h2>
+                            <button
+                                type="button"
+                                className="workspace-mobile-sheet-close"
+                                onClick={() => setIsMobileSectionMenuOpen(false)}
+                                aria-label="Close admin section menu"
+                            >
+                                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="workspace-mobile-sheet-body">
+                            {adminNavGroups.map((group) => (
+                                <div key={group.label} className="workspace-nav-group">
+                                    <div className="workspace-nav-label">{group.label}</div>
+                                    <div className="space-y-2">
+                                        {group.items.map((item) => (
+                                            <button
+                                                key={item.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setIsMobileSectionMenuOpen(false)
+                                                    setActiveTab(item.id)
+                                                }}
+                                                className={`workspace-nav-button ${activeTab === item.id ? 'active' : ''}`}
+                                                aria-current={activeTab === item.id ? 'page' : undefined}
+                                            >
+                                                <div className="min-w-0">
+                                                    <div className="font-semibold">{item.label}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {item.badge ? <span className="workspace-nav-badge">{item.badge}</span> : null}
+                                                    <svg className="h-4 w-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                    </svg>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
 
             {/* Back to Top Button */}
             {showBackToTop && (

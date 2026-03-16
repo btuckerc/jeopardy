@@ -4,9 +4,14 @@ import { MetricCard, MetricGrid } from '../MetricCard'
 import { DonutChart, HorizontalBarChart } from '../Charts'
 import { DataTable, StatusBadge } from '../DataTable'
 import { useContentMetrics } from '../../hooks/useAdminQueries'
+import { getAdminReportingWindowLabel, type AdminReportingWindow } from '../../lib/reporting'
 
-export function ContentQualityTab() {
-    const { data: content, isLoading } = useContentMetrics()
+interface ContentQualityTabProps {
+    window: AdminReportingWindow
+}
+
+export function ContentQualityTab({ window }: ContentQualityTabProps) {
+    const { data: content, isLoading } = useContentMetrics(window)
 
     // Transform distribution data for charts
     const roundData = content?.distribution.byRound.map(r => ({
@@ -167,10 +172,12 @@ export function ContentQualityTab() {
 
             {/* Hot Questions (Most Disputed/Reported) */}
             <section>
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Hot Questions</h2>
-                <p className="text-sm text-gray-600 mb-4">
-                    Questions with the most disputes and issue reports in the last 30 days
-                </p>
+                <div className="mb-4 flex items-center justify-between gap-3">
+                    <h2 className="text-lg font-semibold text-gray-900">Hot Questions</h2>
+                    <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+                        {getAdminReportingWindowLabel(window)}
+                    </div>
+                </div>
                 <DataTable
                     data={content?.hotQuestions ?? []}
                     keyField="id"
@@ -251,4 +258,3 @@ export function ContentQualityTab() {
         </div>
     )
 }
-

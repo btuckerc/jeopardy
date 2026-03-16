@@ -1,5 +1,14 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import { checkAnswer, checkAnswerAsync, calculatePoints, preloadSemanticModel, isSemanticModelAvailable } from './answer-checker'
+import {
+    checkAnswer,
+    checkAnswerAsync,
+    checkAnswerDetailed,
+    checkAnswerDetailedAsync,
+    calculatePoints,
+    preloadSemanticModel,
+    isSemanticModelAvailable
+} from './answer-checker'
+import { DISPUTE_DERIVED_REGRESSIONS } from './answer-checker.dispute-regressions'
 
 // ============================================================================
 // COMPREHENSIVE ANSWER CHECKER TEST SUITE
@@ -125,6 +134,9 @@ describe('Basic normalization', () => {
         it('handles hyphens vs spaces', async () => {
             expect(await checkAnswerAsync('rock and roll', 'rock-and-roll')).toBe(true)
         })
+        it('handles rock n roll title shorthand', async () => {
+            expect(await checkAnswerAsync('rock n roll', 'rock-and-roll')).toBe(true)
+        })
         it('handles ampersand vs and', async () => {
             expect(await checkAnswerAsync('A and W', 'A&W')).toBe(true)
         })
@@ -139,6 +151,7 @@ describe('Basic normalization', () => {
         })
         it('handles apostrophes in titles', async () => {
             expect(await checkAnswerAsync('exes and os', "Ex's & Oh's")).toBe(true)
+            expect(checkAnswerDetailed('exes and os', "Ex's & Oh's").reason).toBe('punctuation_title_normalization')
         })
     })
 })
@@ -175,6 +188,58 @@ describe('Article handling', () => {
         })
         it('matches clamp', async () => {
             expect(await checkAnswerAsync('clamp', 'a clamp')).toBe(true)
+        })
+    })
+})
+
+// ============================================================================
+// SECTION 4: COMMON-NOUN INFLECTIONS
+// ============================================================================
+
+describe('Common-noun inflections', () => {
+    it('accepts a singular response for a lowercase plural common noun', async () => {
+        expect(await checkAnswerAsync('cloud', 'clouds')).toBe(true)
+        expect(checkAnswerDetailed('cloud', 'clouds').reason).toBe('common_noun_plural')
+    })
+    it('accepts regular y/ies variants for lowercase common nouns', async () => {
+        expect(await checkAnswerAsync('city', 'cities')).toBe(true)
+    })
+    it('accepts a single pluralized token within a lowercase noun phrase', async () => {
+        expect(await checkAnswerAsync('polar bear', 'polar bears')).toBe(true)
+    })
+    it('rejects singular/plural matches for title-like one-word answers', async () => {
+        expect(await checkAnswerAsync('car', 'Cars')).toBe(false)
+    })
+})
+
+describe('Dispute-derived regressions', () => {
+    for (const regression of DISPUTE_DERIVED_REGRESSIONS) {
+        it(`accepts ${regression.label}`, async () => {
+            const asyncResult = await checkAnswerDetailedAsync(regression.userAnswer, regression.correctAnswer)
+            const syncResult = checkAnswerDetailed(regression.userAnswer, regression.correctAnswer)
+
+            expect(asyncResult.accepted).toBe(true)
+            expect(asyncResult.reason).toBe(regression.expectedReason)
+            expect(syncResult.accepted).toBe(true)
+            expect(syncResult.reason).toBe(regression.expectedReason)
+        })
+    }
+
+    it('returns override reason metadata for curated alternate answers', async () => {
+        const asyncResult = await checkAnswerDetailedAsync('cloud', 'cloud formations', ['cloud'])
+        const syncResult = checkAnswerDetailed('cloud', 'cloud formations', ['cloud'])
+
+        expect(asyncResult).toMatchObject({
+            accepted: true,
+            reason: 'override',
+            matchReason: 'exact',
+            matchedAnswer: 'cloud'
+        })
+        expect(syncResult).toMatchObject({
+            accepted: true,
+            reason: 'override',
+            matchReason: 'exact',
+            matchedAnswer: 'cloud'
         })
     })
 })
@@ -491,6 +556,13 @@ describe('Synchronous checkAnswer', () => {
     })
     it('handles articles', () => {
         expect(checkAnswer('Beatles', 'The Beatles')).toBe(true)
+    })
+    it('accepts lowercase common-noun singular/plural variants', () => {
+        expect(checkAnswer('cloud', 'clouds')).toBe(true)
+        expect(checkAnswer('city', 'cities')).toBe(true)
+    })
+    it('rejects title-like singular/plural variants', () => {
+        expect(checkAnswer('car', 'Cars')).toBe(false)
     })
     it('accepts generic department word-order variants', () => {
         expect(checkAnswer('Labor Department', 'Department of Labor')).toBe(true)

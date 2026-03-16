@@ -119,6 +119,7 @@ export function getBoardCacheKey(params: {
     date?: string | null
     categories?: string | null
     categoryIds?: string | null
+    categorySelections?: string | null
     revealAnswers?: boolean
 }): string | null {
     // Only cache if we have a deterministic identifier (gameId or seed)
@@ -139,8 +140,12 @@ export function getBoardCacheKey(params: {
         parts.push(params.date)
     } else if (params.mode === 'knowledge' && params.categories) {
         parts.push(params.categories)
-    } else if (params.mode === 'custom' && params.categoryIds) {
-        parts.push(params.categoryIds)
+    } else if (params.mode === 'custom') {
+        if (params.categorySelections) {
+            parts.push(params.categorySelections)
+        } else if (params.categoryIds) {
+            parts.push(params.categoryIds)
+        }
     }
 
     return parts.join(':')

@@ -1,5 +1,11 @@
 import { prisma } from '@/lib/prisma'
-import { checkAnswer, normalizeAnswerText } from '@/app/lib/answer-checker'
+import {
+  checkAnswerDetailed,
+  checkAnswerDetailedAsync,
+  normalizeAnswerText,
+  type AnswerMatchReason,
+  type AnswerMatchResult
+} from '@/app/lib/answer-checker'
 
 export interface AnswerOverride {
   id: string
@@ -10,6 +16,19 @@ export interface AnswerOverride {
   notes?: string | null
   createdAt: Date
   updatedAt: Date
+}
+
+export interface OverrideAwareAnswerMatchResult extends AnswerMatchResult {
+  overrideId?: string
+  overrideText?: string
+}
+
+function toDirectMatchReason(reason: AnswerMatchReason): OverrideAwareAnswerMatchResult['matchReason'] {
+  if (reason === 'override' || reason === 'manual_override' || reason === 'no_match') {
+    return undefined
+  }
+
+  return reason
 }
 
 /**
@@ -41,8 +60,76 @@ export function isAnswerAcceptedWithOverrides(
   canonicalAnswer: string,
   overrides: AnswerOverride[]
 ): boolean {
-  return checkAnswer(userAnswer, canonicalAnswer)
-    || overrides.some((override) => checkAnswer(userAnswer, override.text))
+  return evaluateAnswerWithOverrides(userAnswer, canonicalAnswer, overrides).accepted
+}
+
+/**
+ * Async variant for server-side grading paths that can use semantic matching.
+ */
+export async function isAnswerAcceptedWithOverridesAsync(
+  userAnswer: string,
+  canonicalAnswer: string,
+  overrides: AnswerOverride[]
+): Promise<boolean> {
+  return (await evaluateAnswerWithOverridesAsync(userAnswer, canonicalAnswer, overrides)).accepted
+}
+
+export function evaluateAnswerWithOverrides(
+  userAnswer: string,
+  canonicalAnswer: string,
+  overrides: AnswerOverride[]
+): OverrideAwareAnswerMatchResult {
+  const canonicalResult = checkAnswerDetailed(userAnswer, canonicalAnswer)
+  if (canonicalResult.accepted) {
+    return canonicalResult
+  }
+
+  for (const override of overrides) {
+    const overrideResult = checkAnswerDetailed(userAnswer, override.text)
+    if (overrideResult.accepted) {
+      return {
+        accepted: true,
+        reason: 'manual_override',
+        matchedAnswer: override.text,
+        matchReason: toDirectMatchReason(overrideResult.reason),
+        similarity: overrideResult.similarity,
+        overrideId: override.id,
+        overrideText: override.text,
+        overrideSource: override.source
+      }
+    }
+  }
+
+  return canonicalResult
+}
+
+export async function evaluateAnswerWithOverridesAsync(
+  userAnswer: string,
+  canonicalAnswer: string,
+  overrides: AnswerOverride[]
+): Promise<OverrideAwareAnswerMatchResult> {
+  const canonicalResult = await checkAnswerDetailedAsync(userAnswer, canonicalAnswer)
+  if (canonicalResult.accepted) {
+    return canonicalResult
+  }
+
+  for (const override of overrides) {
+    const overrideResult = await checkAnswerDetailedAsync(userAnswer, override.text)
+    if (overrideResult.accepted) {
+      return {
+        accepted: true,
+        reason: 'manual_override',
+        matchedAnswer: override.text,
+        matchReason: toDirectMatchReason(overrideResult.reason),
+        similarity: overrideResult.similarity,
+        overrideId: override.id,
+        overrideText: override.text,
+        overrideSource: override.source
+      }
+    }
+  }
+
+  return canonicalResult
 }
 
 /**

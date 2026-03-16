@@ -14,15 +14,40 @@ import { prisma } from './prisma'
 import { generateUniqueDisplayName } from './display-name'
 import type { UserRole } from '@prisma/client'
 
-// Get admin emails from environment variable (comma-separated list)
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
+function getConfiguredAdminEmails(): string[] {
+    return (process.env.ADMIN_EMAILS || '')
+        .split(',')
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean)
+}
+
+function hasConfiguredAdminEmails(): boolean {
+    return getConfiguredAdminEmails().length > 0
+}
 
 /**
  * Check if an email should have admin role based on ADMIN_EMAILS env var
  */
 export function isAdminEmail(email: string | null | undefined): boolean {
     if (!email) return false
-    return ADMIN_EMAILS.includes(email.toLowerCase())
+    return getConfiguredAdminEmails().includes(email.toLowerCase())
+}
+
+export async function getCurrentClerkPrimaryEmail(): Promise<string | null> {
+    const clerkUser = await getClerkUser()
+    return clerkUser?.emailAddresses[0]?.emailAddress ?? null
+}
+
+export function canUserAccessAdmin(
+    user: Pick<AppUser, 'email' | 'role'>,
+    options: { currentAuthEmail?: string | null } = {},
+): boolean {
+    if (hasConfiguredAdminEmails()) {
+        const effectiveEmail = options.currentAuthEmail ?? user.email
+        return isAdminEmail(effectiveEmail)
+    }
+
+    return user.role === 'ADMIN'
 }
 
 /**
@@ -92,6 +117,7 @@ export async function syncClerkUserToPrisma(clerkUserId: string): Promise<AppUse
     
     // Determine role based on ADMIN_EMAILS
     const role: UserRole = isAdminEmail(email) ? 'ADMIN' : 'USER'
+    const syncRoleFromConfig = hasConfiguredAdminEmails()
     
     // Get Clerk user's name
     const clerkName = clerkUser.firstName 
@@ -138,17 +164,19 @@ export async function syncClerkUserToPrisma(clerkUserId: string): Promise<AppUse
         if (user) {
             // User found by clerkUserId - update if needed
             const updates: Record<string, unknown> = {}
-            
+
+            if (email !== user.email) {
+                updates.email = email
+            }
             if (clerkName && clerkName !== user.name) {
                 updates.name = clerkName
             }
             if (clerkUser.imageUrl && clerkUser.imageUrl !== user.image) {
                 updates.image = clerkUser.imageUrl
             }
-            // Auto-promote to admin if email is in ADMIN_EMAILS (never auto-demote)
-            if (role === 'ADMIN' && user.role !== 'ADMIN') {
-                updates.role = 'ADMIN'
-                console.log(`Auto-promoted ${email} to ADMIN role based on ADMIN_EMAILS config`)
+            if (syncRoleFromConfig && user.role !== role) {
+                updates.role = role
+                console.log(`[Admin Sync] Updated ${email} role to ${role} based on ADMIN_EMAILS config`)
             }
             
             if (Object.keys(updates).length > 0) {
@@ -186,16 +214,19 @@ export async function syncClerkUserToPrisma(clerkUserId: string): Promise<AppUse
         if (user) {
             // User exists by email but doesn't have clerkUserId - link them
             const updates: Record<string, unknown> = { clerkUserId }
-            
+
+            if (email !== user.email) {
+                updates.email = email
+            }
             if (clerkName && clerkName !== user.name) {
                 updates.name = clerkName
             }
             if (clerkUser.imageUrl && clerkUser.imageUrl !== user.image) {
                 updates.image = clerkUser.imageUrl
             }
-            if (role === 'ADMIN' && user.role !== 'ADMIN') {
-                updates.role = 'ADMIN'
-                console.log(`Auto-promoted ${email} to ADMIN role based on ADMIN_EMAILS config`)
+            if (syncRoleFromConfig && user.role !== role) {
+                updates.role = role
+                console.log(`[Admin Sync] Updated ${email} role to ${role} based on ADMIN_EMAILS config`)
             }
             
             user = await prisma.user.update({
@@ -352,7 +383,12 @@ export async function getAppUserId(): Promise<string | null> {
  */
 export async function isAdmin(): Promise<boolean> {
     const user = await getAppUser()
-    return user?.role === 'ADMIN'
+    if (!user) {
+        return false
+    }
+
+    const currentAuthEmail = await getCurrentClerkPrimaryEmail()
+    return canUserAccessAdmin(user, { currentAuthEmail })
 }
 
 /**
@@ -375,10 +411,11 @@ export async function requireAuth(): Promise<AppUser> {
  */
 export async function requireAdmin(): Promise<AppUser> {
     const user = await requireAuth()
-    
-    if (user.role !== 'ADMIN') {
+
+    const currentAuthEmail = await getCurrentClerkPrimaryEmail()
+    if (!canUserAccessAdmin(user, { currentAuthEmail })) {
         throw new Error('Forbidden: Admin access required')
     }
-    
+
     return user
 }

@@ -461,6 +461,219 @@
         line-height: 1.5;
     }
 
+    .workspace-page {
+        @apply box-border w-full overflow-x-hidden px-4 py-6 md:px-6 md:py-8;
+    }
+
+    .workspace-shell {
+        --workspace-sidebar-width: 18rem;
+        --workspace-gap: 1.75rem;
+        @apply grid w-full items-start gap-6;
+    }
+
+    .workspace-sidebar {
+        @apply hidden w-full self-start lg:block;
+    }
+
+    .workspace-sidebar-card {
+        @apply overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm;
+    }
+
+    .workspace-sidebar-scroll {
+        @apply h-full;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+        min-height: 0;
+        padding-bottom: 0.75rem;
+        scroll-padding-bottom: 1.5rem;
+    }
+
+    .workspace-sidebar-scroll::after {
+        content: '';
+        display: block;
+        height: 1rem;
+        flex-shrink: 0;
+    }
+
+    .workspace-main {
+        @apply min-w-0 w-full space-y-5;
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+    }
+
+    .workspace-main > * {
+        @apply w-full;
+    }
+
+    .workspace-main-header {
+        @apply w-full max-w-full rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm md:px-6;
+    }
+
+    .workspace-main-header-layout {
+        @apply flex flex-col gap-4 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center;
+    }
+
+    .workspace-main-header-action {
+        @apply flex items-center justify-start sm:justify-end;
+    }
+
+    .workspace-main-title {
+        @apply text-2xl font-semibold text-slate-900;
+    }
+
+    .workspace-main-subtitle {
+        @apply mt-1 text-sm leading-6 text-slate-600;
+    }
+
+    .workspace-nav-group {
+        @apply border-t border-slate-100 px-3 py-4 first:border-t-0;
+    }
+
+    .workspace-nav-group:last-child {
+        @apply pb-3;
+    }
+
+    .workspace-nav-label {
+        @apply mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400;
+    }
+
+    .workspace-nav-button {
+        @apply flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent px-4 py-3 text-left text-sm font-medium text-slate-600 transition-all duration-200 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900;
+    }
+
+    .workspace-nav-button.active {
+        @apply border-blue-200 bg-blue-50 text-blue-900 shadow-sm;
+    }
+
+    .workspace-nav-badge {
+        @apply inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600;
+    }
+
+    .workspace-nav-button.active .workspace-nav-badge {
+        @apply bg-white text-blue-700;
+    }
+
+    .workspace-surface {
+        @apply w-full max-w-full rounded-3xl border border-slate-200 bg-white shadow-sm;
+    }
+
+    .workspace-muted-card {
+        @apply rounded-2xl border border-slate-200 bg-slate-50;
+    }
+
+    .workspace-floating-action {
+        @apply fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700 hover:shadow-xl;
+    }
+
+    .workspace-mobile-nav {
+        @apply sticky top-3 z-20 mb-4 lg:hidden;
+    }
+
+    .workspace-mobile-nav-card {
+        @apply rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur;
+    }
+
+    .workspace-mobile-nav-row {
+        @apply flex items-center gap-3;
+    }
+
+    .workspace-mobile-nav-copy {
+        @apply min-w-0 flex-1;
+    }
+
+    .workspace-mobile-nav-kicker {
+        @apply text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400;
+    }
+
+    .workspace-mobile-nav-title {
+        @apply mt-1 truncate text-sm font-semibold text-slate-900;
+    }
+
+    .workspace-mobile-nav-subtitle {
+        @apply mt-0.5 truncate text-xs text-slate-500;
+    }
+
+    .workspace-mobile-nav-trigger {
+        @apply inline-flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition-colors duration-200 hover:bg-slate-100;
+    }
+
+    .workspace-mobile-nav-secondary {
+        @apply mt-3 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors duration-200 hover:bg-slate-50;
+    }
+
+    .workspace-mobile-sheet {
+        @apply fixed inset-0 z-[80] lg:hidden;
+    }
+
+    .workspace-mobile-sheet-backdrop {
+        @apply absolute inset-0 bg-slate-950/45 backdrop-blur-[2px];
+    }
+
+    .workspace-mobile-sheet-panel {
+        @apply absolute inset-x-3 bottom-3 max-h-[min(78svh,42rem)] overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl;
+    }
+
+    .workspace-mobile-sheet-header {
+        @apply flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-3;
+    }
+
+    .workspace-mobile-sheet-body {
+        @apply max-h-[calc(min(78svh,42rem)-4.75rem)] overflow-y-auto px-1 py-2 pb-4;
+        overscroll-behavior: contain;
+    }
+
+    .workspace-mobile-sheet-body .workspace-nav-group:last-child {
+        @apply pb-7;
+    }
+
+    .workspace-mobile-sheet-close {
+        @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition-colors duration-200 hover:bg-slate-100;
+    }
+
+    @media (min-width: 1024px) {
+        .workspace-page {
+            height: calc(100svh - 5.5rem);
+            padding-inline: clamp(1.5rem, 2.2vw, 2.5rem);
+            padding-block: 1.5rem;
+        }
+
+        .workspace-shell {
+            display: flex;
+            align-items: stretch;
+            gap: var(--workspace-gap);
+            max-width: 100%;
+            width: 100%;
+            height: 100%;
+            margin-inline: auto;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .workspace-sidebar {
+            align-self: stretch;
+            display: flex;
+            flex: 0 0 var(--workspace-sidebar-width);
+            width: var(--workspace-sidebar-width);
+            min-height: 0;
+        }
+
+        .workspace-sidebar-card {
+            @apply flex h-full min-h-0 w-full flex-1 flex-col;
+        }
+
+        .workspace-sidebar-scroll {
+            @apply flex-1 overflow-y-auto pr-1;
+        }
+
+        .workspace-main {
+            flex: 1 1 auto;
+            width: auto;
+            margin-left: 0;
+            @apply h-full overflow-y-auto pr-1;
+            min-height: 0;
+        }
+    }
+
     /* ==========================================================================
        Navigation
        ========================================================================== */

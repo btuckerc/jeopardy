@@ -2,12 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { useAuth } from '../../../lib/auth'
 import { getRoundCategories, getRandomQuestion, saveAnswer, getCategoryQuestions } from '../../../actions/practice'
 import { checkAnswer } from '../../../lib/answer-checker'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import { AnswerExplanationPanel } from '../../components/PracticeAnswerExplanation'
+import { StudyActionButton, StudyBackButton, StudyBackLink } from '../../components/PracticeControls'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 
@@ -431,29 +431,32 @@ function FinalPracticeContent() {
     return (
         <div className="container mx-auto px-4 py-8">
             <div className="mb-6">
-                <Link
-                    href="/practice/round"
-                    className="text-blue-600 hover:text-blue-800 flex items-center font-bold mb-4"
-                >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
+                <StudyBackLink href="/practice/round">
                     Back to Round Selection
-                </Link>
+                </StudyBackLink>
             </div>
 
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold text-gray-900">Final Jeopardy Study</h1>
-                <button
+            <div className="mb-8 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="space-y-1">
+                    <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">Final Jeopardy Study</h1>
+                    <p className="text-sm text-gray-600">
+                        Review final clues by category, then jump to another when you are ready.
+                    </p>
+                </div>
+                <StudyActionButton
                     onClick={handleShuffle}
                     disabled={loadingQuestion}
-                    className="px-6 py-3 bg-purple-400 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 transition-colors font-bold text-lg shadow-lg hover:shadow-xl flex items-center gap-2"
+                    className="w-full bg-purple-400 text-white hover:bg-purple-500 sm:w-auto"
+                    icon={loadingQuestion ? (
+                        <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
+                    ) : (
+                        <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    )}
                 >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
                     Shuffle Question
-                </button>
+                </StudyActionButton>
             </div>
 
             {!selectedQuestion ? (
@@ -558,7 +561,7 @@ function FinalPracticeContent() {
                                     </p>
                                 )}
                             </div>
-                            <button
+                            <StudyBackButton
                                 onClick={() => {
                                     setSelectedQuestion(null)
                                     setSelectedCategory(null)
@@ -566,10 +569,9 @@ function FinalPracticeContent() {
                                     setShowAnswer(false)
                                     setIsCorrect(null)
                                 }}
-                                className="text-blue-600 hover:text-blue-800 font-bold"
                             >
                                 Back to Categories
-                            </button>
+                            </StudyBackButton>
                         </div>
 
                         <div className="flex justify-center items-center min-h-[200px] mb-6">
@@ -582,16 +584,18 @@ function FinalPracticeContent() {
                             <div className="space-y-4">
                                 {selectedQuestion.correct ? (
                                     <div className="flex justify-start">
-                                        <button
+                                        <StudyActionButton
                                             onClick={() => setShowAnswer(true)}
-                                            className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold flex items-center gap-2"
+                                            className="bg-gray-600 text-white hover:bg-gray-700"
+                                            icon={(
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                </svg>
+                                            )}
                                         >
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
                                             View Answer
-                                        </button>
+                                        </StudyActionButton>
                                     </div>
                                 ) : (
                                     <>
@@ -607,7 +611,7 @@ function FinalPracticeContent() {
                                                     }
                                                 }}
                                                 onFocus={() => scrollInputIntoView(answerInputRef.current)}
-                                                className="w-full p-3 border rounded-lg text-black text-base"
+                                                className="w-full rounded-xl border border-gray-200 px-4 py-4 text-base text-black shadow-sm outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
                                                 placeholder="What is..."
                                                 autoComplete="off"
                                                 autoCapitalize="off"
@@ -616,46 +620,50 @@ function FinalPracticeContent() {
                                                 enterKeyHint="send"
                                             />
                                         </div>
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex space-x-4">
-                                                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={explanationMode}
-                                                        onChange={(event) => setExplanationMode(event.target.checked)}
-                                                    />
-                                                    Explanation mode
-                                                </label>
-                                                <button
+                                        <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4">
+                                            <div className="flex flex-col gap-4">
+                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={explanationMode}
+                                                            onChange={(event) => setExplanationMode(event.target.checked)}
+                                                        />
+                                                        Explanation mode
+                                                    </label>
+                                                    <StudyActionButton
+                                                        onClick={() => {
+                                                            setShowAnswer(true)
+                                                            if (user?.id && selectedQuestion.id) {
+                                                                saveAnswer(user.id, selectedQuestion.id, selectedQuestion.categoryId, false)
+                                                            }
+                                                        }}
+                                                        className="w-full bg-gray-600 text-white hover:bg-gray-700 sm:w-auto"
+                                                        icon={(
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                        )}
+                                                    >
+                                                        Show Answer
+                                                    </StudyActionButton>
+                                                </div>
+                                                <StudyActionButton
                                                     onClick={handleAnswerSubmit}
-                                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                                                    className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
                                                 >
                                                     Submit
-                                                </button>
+                                                </StudyActionButton>
                                             </div>
-                                            <button
-                                                onClick={() => {
-                                                    setShowAnswer(true)
-                                                    if (user?.id && selectedQuestion.id) {
-                                                        saveAnswer(user.id, selectedQuestion.id, selectedQuestion.categoryId, false)
-                                                    }
-                                                }}
-                                                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold flex items-center gap-2"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
-                                                Show Answer
-                                            </button>
                                         </div>
                                     </>
                                 )}
                             </div>
                         ) : (
-                                <div className="space-y-4">
-                                <div className={`p-4 rounded-lg ${isCorrect || selectedQuestion.correct ? 'bg-green-100' : 'bg-red-100'}`}>
-                                    <div className="flex items-center gap-2 mb-1">
+                            <div className="space-y-4">
+                                <div className={`rounded-xl p-4 ${isCorrect || selectedQuestion.correct ? 'bg-green-100' : 'bg-red-100'}`}>
+                                    <div className="mb-1 flex items-center gap-2">
                                         {isCorrect || selectedQuestion.correct ? (
                                             <span className="text-green-600 text-lg">✓</span>
                                         ) : (
@@ -665,13 +673,13 @@ function FinalPracticeContent() {
                                             {isCorrect || selectedQuestion.correct ? 'Correct!' : 'Incorrect'}
                                         </span>
                                     </div>
-                                    <p className="font-medium text-gray-900 text-center">
+                                    <p className="text-center font-medium text-gray-900">
                                         {selectedQuestion.answer}
                                     </p>
                                     {isCorrect === false && disputeContext && user?.id && (
                                         <div className="mt-3 flex justify-end">
                                             {disputeSubmitted ? (
-                                                <span className="text-sm text-gray-500 flex items-center gap-1">
+                                                <span className="flex items-center gap-1 text-sm text-gray-500">
                                                     <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                                     </svg>
@@ -681,14 +689,14 @@ function FinalPracticeContent() {
                                                 <span className="inline-flex items-center gap-1">
                                                     <button
                                                         onClick={handleDispute}
-                                                        className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                        className="text-sm text-gray-500 underline hover:text-gray-700"
                                                     >
                                                         Dispute this answer
                                                     </button>
-                                                    <span className="relative group">
-                                                        <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
-                                                        <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                                                            An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
+                                                    <span className="group relative">
+                                                        <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-400 text-xs text-gray-500 hover:text-gray-700">i</span>
+                                                        <span className="pointer-events-none absolute bottom-full right-0 z-10 mb-2 whitespace-nowrap rounded-lg bg-gray-800 px-3 py-2 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+                                                            An admin will review your answer.<br />If approved, you&apos;ll be retroactively credited.
                                                         </span>
                                                     </span>
                                                 </span>
@@ -702,8 +710,8 @@ function FinalPracticeContent() {
                                     explanationMode={explanationMode}
                                     visible={isCorrect === false}
                                 />
-                                <div className="flex space-x-4">
-                                    <button
+                                <div className="grid gap-3 sm:grid-cols-2">
+                                    <StudyActionButton
                                         onClick={() => {
                                             setSelectedQuestion(null)
                                             setSelectedCategory(null)
@@ -711,19 +719,21 @@ function FinalPracticeContent() {
                                             setShowAnswer(false)
                                             setIsCorrect(null)
                                         }}
-                                        className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
+                                        className="bg-gray-600 text-white hover:bg-gray-700"
                                     >
                                         Back to Categories
-                                    </button>
-                                    <button
+                                    </StudyActionButton>
+                                    <StudyActionButton
                                         onClick={handleShuffle}
-                                        className="px-6 py-2 bg-purple-400 text-white rounded-lg hover:bg-purple-500 font-bold flex items-center gap-2"
+                                        className="bg-purple-400 text-white hover:bg-purple-500"
+                                        icon={(
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                        )}
                                     >
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                        </svg>
                                         Next Random Question
-                                    </button>
+                                    </StudyActionButton>
                                 </div>
                             </div>
                         )}

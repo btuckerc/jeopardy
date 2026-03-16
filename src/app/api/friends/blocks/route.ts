@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { badRequestResponse, jsonResponse, parseBody, requireAuth, serverErrorResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import {
-    clearFriendshipAndRequests,
+    clearFriendRequestsBetweenUsers,
     getBlockedUserIdsForUser,
     getBlockedUsersForUser,
 } from '@/lib/friends'
@@ -51,7 +51,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                 return badRequestResponse('User not found')
             }
 
-            await clearFriendshipAndRequests(user.id, blockedUserId)
+            await clearFriendRequestsBetweenUsers(user.id, blockedUserId)
             await prisma.friendBlock.upsert({
                 where: {
                     blockerUserId_blockedUserId: {

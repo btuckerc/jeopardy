@@ -3,6 +3,8 @@ import { jsonResponse, serverErrorResponse, parseSearchParams } from '@/lib/api-
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
+
 const searchParamsSchema = z.object({
     date: z.string().optional() // ISO date string, defaults to today
 })
@@ -76,4 +78,3 @@ export async function GET(request: Request) {
         return serverErrorResponse('Error fetching leaderboard', error)
     }
 }
-

@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { parseGameById, getSeasonGames, type SeasonGame, type ParsedGame } from '@/lib/jarchive-scraper'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import { getGuestConfig, createGuestSession } from '@/lib/guest-sessions'
-import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
+import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 
 /**
@@ -164,11 +164,12 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
 
         // Check answer using override-aware checking
         const overrides = await getQuestionOverrides(challenge.questionId)
-        const correct = await isAnswerAcceptedWithOverrides(
+        const grading = await evaluateAnswerWithOverridesAsync(
             body.answer,
             challenge.question.answer,
             overrides
         )
+        const correct = grading.accepted
 
         // Handle guest vs authenticated user differently
         if (isGuest) {
@@ -183,6 +184,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
 
             return jsonResponse({
                 correct,
+                grading,
                 answer: challenge.question.answer,
                 guestSessionId: session.id,
                 expiresAt: session.expiresAt.toISOString(),
@@ -227,6 +229,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
 
         return jsonResponse({
             correct,
+            grading,
             answer: challenge.question.answer,
             unlockedAchievements: newlyUnlocked.length > 0 ? newlyUnlocked : undefined
         })

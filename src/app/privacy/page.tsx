@@ -77,8 +77,11 @@ export default function PrivacyPage() {
                         </ul>
 
                         <h3 className="text-lg font-medium text-gray-900 mb-2">Automatically Collected Data</h3>
+                        <p className="text-gray-600 mb-4">
+                            When you access the Website, we may automatically collect certain information including your IP address, browser type, operating system, access times, pages viewed, rough location derived from your network connection (such as country or region), language and timezone settings, and referral or campaign information such as the site or link that sent you to trivrdy.
+                        </p>
                         <p className="text-gray-600">
-                            When you access the Website, we may automatically collect certain information including your IP address, browser type, operating system, access times, and pages viewed.
+                            We use this information for product analytics, fraud prevention, operational monitoring, and to understand how people discover and use the service. We do not intentionally collect precise geolocation or sensitive demographic information for analytics.
                         </p>
                     </section>
 

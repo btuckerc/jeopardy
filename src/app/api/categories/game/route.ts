@@ -16,6 +16,10 @@ import {
     setCachedBoard,
     type CachedCategory
 } from '@/lib/game-cache'
+import {
+    parseCustomCategorySelections,
+    type CustomCategorySelection,
+} from '@/lib/custom-category-selections'
 
 export const dynamic = 'force-dynamic'
 
@@ -174,6 +178,8 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const date = searchParams.get('date')
         const categories = searchParams.get('categories')
         const categoryIds = searchParams.get('categoryIds')
+        const categorySelectionsParam = searchParams.get('categorySelections')
+        const customCategorySelections = parseCustomCategorySelections(categorySelectionsParam)
         const categoryFilter = searchParams.get('categoryFilter')
         const revealAnswers = searchParams.get('reveal') === 'true'
         const appUser = await getAppUser()
@@ -213,6 +219,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             date,
             categories,
             categoryIds,
+            categorySelections: categorySelectionsParam,
             revealAnswers: shouldRevealAnswers
         })
         if (cacheKey) {
@@ -256,7 +263,9 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 break
             }
             case 'custom': {
-                const customCategoryIds = categoryIds?.split(',') || []
+                const customCategoryIds = customCategorySelections.length > 0
+                    ? customCategorySelections.map((selection) => selection.categoryId)
+                    : categoryIds?.split(',') || []
                 if (customCategoryIds.length > 0) {
                     questionWhere.categoryId = { in: customCategoryIds }
                 }
@@ -347,8 +356,18 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         
         if (mode === 'custom') {
             // Custom mode: use all specified categories in the order they were provided
-            const requestedIds = categoryIds?.split(',') || []
-            selectedCategoryIds = requestedIds.filter(id => eligibleCategoryIds.includes(id))
+            const requestedIds = customCategorySelections.length > 0
+                ? customCategorySelections.map((selection) => selection.categoryId)
+                : categoryIds?.split(',') || []
+            const seenCategoryIds = new Set<string>()
+            selectedCategoryIds = requestedIds.filter((id) => {
+                if (!eligibleCategoryIds.includes(id) || seenCategoryIds.has(id)) {
+                    return false
+                }
+
+                seenCategoryIds.add(id)
+                return true
+            })
         } else if (mode === 'date') {
             // Date mode: use all categories from that episode (will be filtered by date)
             selectedCategoryIds = eligibleCategoryIds
@@ -391,6 +410,9 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         })
         const categoryNameMap = new Map(categoryNames.map(c => [c.id, c.name]))
         timer.mark('fetchCategoryNames')
+        const customCategorySelectionMap = new Map<string, CustomCategorySelection>(
+            customCategorySelections.map((selection) => [selection.categoryId, selection]),
+        )
 
         // Define the category type for strong typing
 type CategoryWithQuestions = {
@@ -412,6 +434,7 @@ type CategoryWithQuestions = {
         const categoriesWithQuestions: CategoryWithQuestions[] = await Promise.all(
             selectedCategoryIds.map(async (categoryId): Promise<CategoryWithQuestions> => {
                 const categoryName = categoryNameMap.get(categoryId) || 'Unknown'
+                const customSelection = customCategorySelectionMap.get(categoryId)
                 
                 // CHALLENGE MODE: Show ALL questions from triple stumper categories
                 // Categories are selected based on containing triple stumpers, but we display all questions
@@ -425,6 +448,28 @@ type CategoryWithQuestions = {
                 const categoryQuestionWhere = {
                     round: questionWhere.round,
                     ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {})
+                }
+
+                if (mode === 'custom' && customSelection?.airDate) {
+                    const questions = await prisma.question.findMany({
+                        where: {
+                            categoryId,
+                            ...categoryQuestionWhere,
+                            airDate: new Date(customSelection.airDate),
+                        },
+                        orderBy: { value: 'asc' },
+                        take: 5,
+                        select: {
+                            id: true,
+                            question: true,
+                            answer: shouldRevealAnswers,
+                            value: true,
+                            isDoubleJeopardy: true,
+                            wasTripleStumper: true,
+                            categoryId: true
+                        }
+                    })
+                    return { id: categoryId, name: categoryName, questions }
                 }
                 
                 // For date mode, questions are already filtered by date

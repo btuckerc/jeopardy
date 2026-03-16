@@ -54,8 +54,14 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const activities = await prisma.friendActivity.findMany({
             where: {
                 OR: [
-                    { actorUserId: { in: visibleUserIds } },
-                    { relatedUserId: { in: visibleUserIds } },
+                    { actorUserId: user.id },
+                    { relatedUserId: user.id },
+                    {
+                        AND: [
+                            { actorUserId: { in: visibleUserIds } },
+                            { relatedUserId: { in: visibleUserIds } },
+                        ],
+                    },
                 ],
                 ...(validActivityTypes.length > 0 ? { activityType: { in: validActivityTypes } } : {}),
                 ...(blockedUserIds.length > 0 ? {

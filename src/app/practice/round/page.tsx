@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '../../lib/auth'
+import { StudyBackLink } from '../components/PracticeControls'
 
 type RoundStats = {
     round: string
@@ -138,15 +139,9 @@ export default function RoundSelection() {
     return (
         <div className="container mx-auto px-4 py-8">
             <div className="mb-6">
-                <Link
-                    href="/practice"
-                    className="text-blue-600 hover:text-blue-800 flex items-center font-bold mb-4"
-                >
-                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                    </svg>
+                <StudyBackLink href="/practice">
                     Back to Study Modes
-                </Link>
+                </StudyBackLink>
             </div>
             
             <h1 className="text-3xl font-bold text-gray-900 mb-8">Study by Round</h1>
@@ -171,4 +166,3 @@ export default function RoundSelection() {
         </div>
     )
 }
-

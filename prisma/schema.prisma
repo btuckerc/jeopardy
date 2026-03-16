@@ -106,6 +106,17 @@ model User {
   lastGameDate         DateTime?
   lastOnlineAt         DateTime?
   lastSeenPath         String?
+  locale               String?              @db.VarChar(16)
+  timezone             String?              @db.VarChar(64)
+  countryCode          String?              @db.VarChar(2)
+  regionCode           String?              @db.VarChar(8)
+  deviceType           String?              @db.VarChar(16)
+  browserFamily        String?              @db.VarChar(32)
+  osFamily             String?              @db.VarChar(32)
+  referrerHost         String?              @db.VarChar(255)
+  acquisitionSource    String?              @db.VarChar(64)
+  acquisitionMedium    String?              @db.VarChar(64)
+  acquisitionCampaign  String?              @db.VarChar(128)
   
   // Onboarding tour state
   hasSeenTour          Boolean              @default(false)
@@ -115,6 +126,9 @@ model User {
   // Friend discovery and privacy controls
   friendVisibility     FriendVisibility      @default(FULL_PROFILE)
   allowFriendRequests  Boolean              @default(true)
+  friendCode           String?              @unique @db.VarChar(16)
+  friendInviteToken    String?              @unique @db.VarChar(64)
+  friendInviteTokenCreatedAt DateTime?
   
   accounts             Account[]
   sessions             Session[]
@@ -144,6 +158,11 @@ model User {
   blockedByUsers       FriendBlock[]       @relation("FriendBlockerTarget")
 
   @@index([lastOnlineAt])
+  @@index([countryCode])
+  @@index([deviceType])
+  @@index([locale])
+  @@index([timezone])
+  @@index([acquisitionSource])
 }
 
 model Friendship {

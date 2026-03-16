@@ -31,6 +31,7 @@ const recommendationsQuerySchema = z.object({
 type RecommendationRow = {
     categoryId: string
     categoryName: string
+    knowledgeCategoryId: string | null
     total: number
     correct: number
 }
@@ -66,6 +67,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                     select: {
                         id: true,
                         name: true,
+                        knowledgeCategory: true,
                     }
                 }
             }
@@ -76,7 +78,10 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 recommendations: [],
                 quickSession: {
                     categories: [],
+                    items: [],
                     summary: 'Start practicing to unlock personalized recommendations',
+                    totalTargetQuestions: 0,
+                    mixedReview: null,
                 },
                 focusNow: null,
                 totalAttemptedCategories: 0,
@@ -86,6 +91,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const categoryRows = rawCategoryProgress.map((progress): RecommendationRow => ({
             categoryId: progress.categoryId,
             categoryName: progress.category.name,
+            knowledgeCategoryId: progress.category.knowledgeCategory,
             total: Number(progress.total),
             correct: Number(progress.correct),
         }))
@@ -113,6 +119,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             totalQuestions: row.total,
             correctAnswers: row.correct,
             lastAttemptedAt: lastAttemptByCategory.get(row.categoryId) || null,
+            knowledgeCategoryId: row.knowledgeCategoryId,
         }))
 
         const recommendations = buildStudyRecommendations(

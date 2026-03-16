@@ -5,39 +5,17 @@ import { MetricCard, MetricGrid } from '../MetricCard'
 import { TimeSeriesChart } from '../Charts'
 import { DataTable } from '../DataTable'
 import { useApiMetrics, useDbMetrics } from '../../hooks/useAdminQueries'
+import { getAdminReportingWindowLabel, type AdminReportingWindow } from '../../lib/reporting'
 
-type TimeWindow = '1h' | '24h' | '7d' | '30d'
-
-interface WindowButtonProps {
-    active: boolean
-    onClick: () => void
-    children: React.ReactNode
+interface ObservabilityTabProps {
+    window: AdminReportingWindow
 }
 
-function WindowButton({ active, onClick, children }: WindowButtonProps) {
-    return (
-        <button
-            onClick={onClick}
-            className={`
-                px-3 py-1.5 text-xs font-medium rounded-lg transition-colors
-                ${active
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-600 border border-gray-300 hover:border-blue-400'
-                }
-            `}
-        >
-            {children}
-        </button>
-    )
-}
-
-export function ObservabilityTab() {
-    const [apiWindow, setApiWindow] = useState<TimeWindow>('24h')
-    const [dbWindow, setDbWindow] = useState<TimeWindow>('24h')
+export function ObservabilityTab({ window }: ObservabilityTabProps) {
     const [selectedModel, setSelectedModel] = useState<string | undefined>()
 
-    const { data: apiMetrics, isLoading: apiLoading } = useApiMetrics(apiWindow)
-    const { data: dbMetrics, isLoading: dbLoading } = useDbMetrics(dbWindow, selectedModel)
+    const { data: apiMetrics, isLoading: apiLoading } = useApiMetrics(window)
+    const { data: dbMetrics, isLoading: dbLoading } = useDbMetrics(window, selectedModel)
 
     return (
         <div className="space-y-8">
@@ -45,17 +23,6 @@ export function ObservabilityTab() {
             <section>
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-gray-900">API Performance</h2>
-                    <div className="flex gap-2">
-                        {(['1h', '24h', '7d', '30d'] as const).map(w => (
-                            <WindowButton
-                                key={w}
-                                active={apiWindow === w}
-                                onClick={() => setApiWindow(w)}
-                            >
-                                {w}
-                            </WindowButton>
-                        ))}
-                    </div>
                 </div>
 
                 {/* API Summary Cards */}
@@ -63,7 +30,7 @@ export function ObservabilityTab() {
                     <MetricCard
                         title="Total Requests"
                         value={apiMetrics?.totals.requests ?? 0}
-                        subtitle={`in ${apiWindow}`}
+                        subtitle={`in ${getAdminReportingWindowLabel(window)}`}
                         color="blue"
                         loading={apiLoading}
                     />
@@ -227,17 +194,6 @@ export function ObservabilityTab() {
                                 ))}
                             </select>
                         )}
-                        <div className="flex gap-2">
-                            {(['1h', '24h', '7d', '30d'] as const).map(w => (
-                                <WindowButton
-                                    key={w}
-                                    active={dbWindow === w}
-                                    onClick={() => setDbWindow(w)}
-                                >
-                                    {w}
-                                </WindowButton>
-                            ))}
-                        </div>
                     </div>
                 </div>
 
@@ -246,7 +202,7 @@ export function ObservabilityTab() {
                     <MetricCard
                         title="Total Queries"
                         value={dbMetrics?.totals.queries ?? 0}
-                        subtitle={`in ${dbWindow}`}
+                        subtitle={`in ${getAdminReportingWindowLabel(window)}`}
                         color="blue"
                         loading={dbLoading}
                     />
@@ -389,4 +345,3 @@ export function ObservabilityTab() {
         </div>
     )
 }
-
