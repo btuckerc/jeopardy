@@ -1,12 +1,23 @@
 import { jsonResponse, serverErrorResponse, requireAdmin, parseSearchParams } from '@/lib/api-utils'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
+import { FriendChallengeStatus } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
 interface SegmentDatum {
     name: string
     value: number
+}
+
+const countryDisplayNames = new Intl.DisplayNames(['en'], { type: 'region' })
+
+function formatCountryName(code: string | null | undefined): string {
+    if (!code) {
+        return 'Unknown'
+    }
+
+    return countryDisplayNames.of(code.toUpperCase()) || code.toUpperCase()
 }
 
 interface GroupByCountRow {
@@ -346,7 +357,7 @@ export async function GET(request: Request) {
             prisma.friendChallenge.count({
                 where: {
                     createdAt: { gte: startTime },
-                    status: { in: ['ACCEPTED', 'COMPLETED'] },
+                    status: { in: [FriendChallengeStatus.ACCEPTED, FriendChallengeStatus.COMPLETED] },
                 },
             }),
             prisma.friendChallenge.count({
@@ -478,6 +489,13 @@ export async function GET(request: Request) {
                 _count: { id: true },
             }),
         ])
+        const normalizedCountries = countries
+            .map((row) => ({
+                name: formatCountryName(row.countryCode),
+                value: row._count.id,
+            }))
+            .sort((left, right) => right.value - left.value)
+            .slice(0, 10)
 
         // Calculate onboarding funnel
         const onboarding = {
@@ -499,56 +517,6 @@ export async function GET(request: Request) {
             activeLastWeek,
             activeLastMonth: activeUsers,
             dormant: totalUsers - activeUsers, // Not active in 30 days
-        }
-
-        const activation = {
-            newUsers: totals.newUsers,
-            activatedUsers: activatedUsersInWindow,
-            activationRate: totals.newUsers > 0 ? (activatedUsersInWindow / totals.newUsers) * 100 : 0,
-            withDisplayName: newUsersWithDisplayNameInWindow,
-            withGames: newUsersWithGamesInWindow,
-            withDailyChallenges: newUsersWithDailyChallengesInWindow,
-            withAchievements: newUsersWithAchievementsInWindow,
-        }
-
-        const windowSummary = {
-            activeUsers: activeUsersInWindow,
-            activeNewUsers: activeNewUsersInWindow,
-            returningUsers: Math.max(activeUsersInWindow - activeNewUsersInWindow, 0),
-            returningShare: activeUsersInWindow > 0
-                ? (Math.max(activeUsersInWindow - activeNewUsersInWindow, 0) / activeUsersInWindow) * 100
-                : 0,
-            engagedUsers: engagedUsersInWindow,
-            engagementRate: activeUsersInWindow > 0 ? (engagedUsersInWindow / activeUsersInWindow) * 100 : 0,
-        }
-
-        const valueMetrics = {
-            dauMauStickiness: activeUsers > 0 ? (activeLastDay / activeUsers) * 100 : 0,
-            wauMauStickiness: activeUsers > 0 ? (activeLastWeek / activeUsers) * 100 : 0,
-            gameCompletionRate: totals.gamesStarted > 0 ? (totals.gamesCompleted / totals.gamesStarted) * 100 : 0,
-            avgGamesPerPlayer: playersInWindow > 0 ? totals.gamesStarted / playersInWindow : 0,
-            avgCompletedGamesPerPlayer: completedGamePlayersInWindow > 0 ? totals.gamesCompleted / completedGamePlayersInWindow : 0,
-            dailyParticipationRate: activeUsersInWindow > 0 ? (dailyParticipantsInWindow / activeUsersInWindow) * 100 : 0,
-            avgDailyChallengesPerParticipant: dailyParticipantsInWindow > 0
-                ? totals.dailyChallengeSubmissions / dailyParticipantsInWindow
-                : 0,
-            guestClaimRate: conversionRate,
-        }
-
-        const social = {
-            totalFriendships,
-            usersWithFriends,
-            activeUsersWithFriends: activeUsersWithFriendsInWindow,
-            socialAdoptionRate: activeUsersInWindow > 0 ? (activeUsersWithFriendsInWindow / activeUsersInWindow) * 100 : 0,
-            challengesCreated: friendChallengesCreatedInWindow,
-            challengesAccepted: friendChallengesAcceptedInWindow,
-            challengesCompleted: friendChallengesCompletedInWindow,
-            challengeAcceptanceRate: friendChallengesCreatedInWindow > 0
-                ? (friendChallengesAcceptedInWindow / friendChallengesCreatedInWindow) * 100
-                : 0,
-            challengeCompletionRate: friendChallengesCreatedInWindow > 0
-                ? (friendChallengesCompletedInWindow / friendChallengesCreatedInWindow) * 100
-                : 0,
         }
 
         // Get user activity by bucket
@@ -623,6 +591,56 @@ export async function GET(request: Request) {
             ? (totals.guestSessionsClaimed / totals.guestSessionsCreated) * 100
             : 0
 
+        const activation = {
+            newUsers: totals.newUsers,
+            activatedUsers: activatedUsersInWindow,
+            activationRate: totals.newUsers > 0 ? (activatedUsersInWindow / totals.newUsers) * 100 : 0,
+            withDisplayName: newUsersWithDisplayNameInWindow,
+            withGames: newUsersWithGamesInWindow,
+            withDailyChallenges: newUsersWithDailyChallengesInWindow,
+            withAchievements: newUsersWithAchievementsInWindow,
+        }
+
+        const windowSummary = {
+            activeUsers: activeUsersInWindow,
+            activeNewUsers: activeNewUsersInWindow,
+            returningUsers: Math.max(activeUsersInWindow - activeNewUsersInWindow, 0),
+            returningShare: activeUsersInWindow > 0
+                ? (Math.max(activeUsersInWindow - activeNewUsersInWindow, 0) / activeUsersInWindow) * 100
+                : 0,
+            engagedUsers: engagedUsersInWindow,
+            engagementRate: activeUsersInWindow > 0 ? (engagedUsersInWindow / activeUsersInWindow) * 100 : 0,
+        }
+
+        const valueMetrics = {
+            dauMauStickiness: activeUsers > 0 ? (activeLastDay / activeUsers) * 100 : 0,
+            wauMauStickiness: activeUsers > 0 ? (activeLastWeek / activeUsers) * 100 : 0,
+            gameCompletionRate: totals.gamesStarted > 0 ? (totals.gamesCompleted / totals.gamesStarted) * 100 : 0,
+            avgGamesPerPlayer: playersInWindow > 0 ? totals.gamesStarted / playersInWindow : 0,
+            avgCompletedGamesPerPlayer: completedGamePlayersInWindow > 0 ? totals.gamesCompleted / completedGamePlayersInWindow : 0,
+            dailyParticipationRate: activeUsersInWindow > 0 ? (dailyParticipantsInWindow / activeUsersInWindow) * 100 : 0,
+            avgDailyChallengesPerParticipant: dailyParticipantsInWindow > 0
+                ? totals.dailyChallengeSubmissions / dailyParticipantsInWindow
+                : 0,
+            guestClaimRate: conversionRate,
+        }
+
+        const social = {
+            totalFriendships,
+            usersWithFriends,
+            activeUsersWithFriends: activeUsersWithFriendsInWindow,
+            socialAdoptionRate: activeUsersInWindow > 0 ? (activeUsersWithFriendsInWindow / activeUsersInWindow) * 100 : 0,
+            challengesCreated: friendChallengesCreatedInWindow,
+            challengesAccepted: friendChallengesAcceptedInWindow,
+            challengesCompleted: friendChallengesCompletedInWindow,
+            challengeAcceptanceRate: friendChallengesCreatedInWindow > 0
+                ? (friendChallengesAcceptedInWindow / friendChallengesCreatedInWindow) * 100
+                : 0,
+            challengeCompletionRate: friendChallengesCreatedInWindow > 0
+                ? (friendChallengesCompletedInWindow / friendChallengesCreatedInWindow) * 100
+                : 0,
+        }
+
         return jsonResponse({
             window,
             bucket,
@@ -643,7 +661,7 @@ export async function GET(request: Request) {
             social,
             audience: {
                 activeUsers30d: activeUsers,
-                countries: toSegments(countries, 'countryCode'),
+                countries: normalizedCountries,
                 devices: toSegments(devices, 'deviceType'),
                 locales: toSegments(locales, 'locale'),
                 timezones: toSegments(timezones, 'timezone'),

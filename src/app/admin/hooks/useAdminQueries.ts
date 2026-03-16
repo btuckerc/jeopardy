@@ -9,6 +9,7 @@ export const adminQueryKeys = {
     apiMetrics: (window: string) => ['admin', 'api-metrics', window],
     dbMetrics: (window: string, model?: string) => ['admin', 'db-metrics', window, model],
     usageMetrics: (window: string) => ['admin', 'usage-metrics', window],
+    liveMetrics: () => ['admin', 'live-metrics'],
     opsMetrics: (window: string) => ['admin', 'ops-metrics', window],
     contentMetrics: (window: string) => ['admin', 'content-metrics', window],
     abuseMetrics: (window: string) => ['admin', 'abuse-metrics', window],
@@ -64,6 +65,25 @@ export function useUsageMetrics(window: AdminReportingWindow = '30d') {
         queryKey: adminQueryKeys.usageMetrics(window),
         queryFn: () => fetchAdmin<UsageMetricsResponse>(`/api/admin/usage-metrics?window=${window}&bucket=${bucket}`),
         staleTime: 60 * 1000,
+    })
+}
+
+interface LiveMetricsResponse {
+    timestamp: string
+    activeWindowMinutes: number
+    activeNowUsers: number
+    activeLastHour: number
+    activeCountries: Array<{ name: string; value: number }>
+    activeRegions: Array<{ name: string; value: number }>
+    activePages: Array<{ name: string; value: number }>
+}
+
+export function useLiveMetrics() {
+    return useQuery({
+        queryKey: adminQueryKeys.liveMetrics(),
+        queryFn: () => fetchAdmin<LiveMetricsResponse>('/api/admin/live-metrics'),
+        staleTime: 15 * 1000,
+        refetchInterval: 30 * 1000,
     })
 }
 
@@ -381,6 +401,44 @@ interface UsageMetricsResponse {
         activeLastWeek: number
         activeLastMonth: number
         dormant: number
+    }
+    activation: {
+        newUsers: number
+        activatedUsers: number
+        activationRate: number
+        withDisplayName: number
+        withGames: number
+        withDailyChallenges: number
+        withAchievements: number
+    }
+    windowSummary: {
+        activeUsers: number
+        activeNewUsers: number
+        returningUsers: number
+        returningShare: number
+        engagedUsers: number
+        engagementRate: number
+    }
+    valueMetrics: {
+        dauMauStickiness: number
+        wauMauStickiness: number
+        gameCompletionRate: number
+        avgGamesPerPlayer: number
+        avgCompletedGamesPerPlayer: number
+        dailyParticipationRate: number
+        avgDailyChallengesPerParticipant: number
+        guestClaimRate: number
+    }
+    social: {
+        totalFriendships: number
+        usersWithFriends: number
+        activeUsersWithFriends: number
+        socialAdoptionRate: number
+        challengesCreated: number
+        challengesAccepted: number
+        challengesCompleted: number
+        challengeAcceptanceRate: number
+        challengeCompletionRate: number
     }
     audience: {
         activeUsers30d: number
