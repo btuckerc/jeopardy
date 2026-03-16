@@ -84,6 +84,11 @@
         @apply btn bg-gray-100 text-gray-900 hover:bg-gray-200 
                focus:ring-gray-500 border border-gray-300;
     }
+
+    .btn-outline {
+        @apply btn bg-white text-gray-900 border border-gray-300 hover:bg-gray-50
+               focus:ring-gray-500 shadow-sm;
+    }
     
     .btn-success {
         @apply btn bg-green-600 text-white hover:bg-green-700 
@@ -451,7 +456,9 @@
     }
     
     .page-subtitle {
-        @apply text-gray-500 mt-2;
+        color: #334155;
+        margin-top: 0.5rem;
+        line-height: 1.5;
     }
 
     /* ==========================================================================
@@ -477,10 +484,47 @@
         @apply w-full px-3 py-2 border border-gray-300 rounded-lg
                focus:ring-2 focus:ring-blue-500 focus:border-blue-500
                transition-all duration-200;
+        color: #0f172a;
+        background-color: #ffffff;
+    }
+
+    .form-input::placeholder {
+        color: #475569;
     }
     
     .form-select {
         @apply form-input appearance-none bg-white cursor-pointer;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        .form-input {
+            color: #f1f5f9;
+            border-color: #334155;
+            background-color: #1e293b;
+        }
+
+        .form-input::placeholder {
+            color: #94a3b8;
+        }
+
+        .form-label {
+            color: #e2e8f0;
+        }
+
+        .page-subtitle {
+            color: #e2e8f0;
+        }
+    }
+
+    /* Keep Friends Hub inputs aligned with the light settings-panel treatment. */
+    .friends-hub .form-input {
+        color: #111827;
+        border-color: #d1d5db;
+        background-color: #ffffff;
+    }
+
+    .friends-hub .form-input::placeholder {
+        color: #6b7280;
     }
 
     /* ==========================================================================

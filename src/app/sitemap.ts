@@ -17,6 +17,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
             priority: 0.9,
         },
         {
+            path: '/daily-challenge/archive',
+            changeFrequency: 'daily' as const,
+            priority: 0.6,
+        },
+        {
             path: '/game',
             changeFrequency: 'weekly' as const,
             priority: 0.9,
@@ -37,6 +42,16 @@ export default function sitemap(): MetadataRoute.Sitemap {
             priority: 0.8,
         },
         {
+            path: '/practice/round/final',
+            changeFrequency: 'weekly' as const,
+            priority: 0.8,
+        },
+        {
+            path: '/practice/triple-stumpers',
+            changeFrequency: 'weekly' as const,
+            priority: 0.8,
+        },
+        {
             path: '/leaderboard',
             changeFrequency: 'weekly' as const,
             priority: 0.7,
@@ -52,12 +67,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
             priority: 0.6,
         },
         {
-            path: '/sign-in',
-            changeFrequency: 'monthly' as const,
-            priority: 0.5,
-        },
-        {
-            path: '/sign-up',
+            path: '/privacy',
             changeFrequency: 'monthly' as const,
             priority: 0.5,
         },

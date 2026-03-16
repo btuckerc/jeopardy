@@ -168,9 +168,16 @@ export default async function RootLayout({
                 <body className={inter.className}>
                     <Providers>
                         <KeyboardShortcutsProvider>
+                            {/* Skip link for accessibility */}
+                            <a
+                                href="#main-content"
+                                className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-amber-400 focus:text-gray-900 focus:font-semibold focus:rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+                            >
+                                Skip to main content
+                            </a>
                             <div className="min-h-screen bg-gray-100 flex flex-col">
                                 <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
-                                <main className="flex-1 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
+                                <main id="main-content" className="flex-1 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
                                     {children}
                                 </main>
 
@@ -191,6 +198,13 @@ export default async function RootLayout({
                                                 className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
                                             >
                                                 Report an Issue
+                                            </Link>
+                                            <span className="text-gray-400">•</span>
+                                            <Link
+                                                href="/privacy"
+                                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                            >
+                                                Privacy Policy
                                             </Link>
                                         </div>
                                         <p className="text-gray-600 text-sm">

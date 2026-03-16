@@ -9,7 +9,7 @@ interface ArchiveDay {
     question: {
         id: string
         question: string
-        answer: string
+        answer: string | null
         category: string
         airDate: string | null
     }
@@ -174,7 +174,7 @@ export default function ArchiveCalendar({ challenges, activeDate, onSelectDay }:
                 Click any day to view the challenge. You can catch up on missed days within the last 7 days.
             </p>
             
-            {/* Back to today's challenge - Prominent button style */}
+            {/* Back to today&apos;s challenge - Prominent button style */}
             <div className="flex justify-center pt-4">
                 <Link
                     href="/daily-challenge"
@@ -183,7 +183,7 @@ export default function ArchiveCalendar({ challenges, activeDate, onSelectDay }:
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                     </svg>
-                    Back to Today's Challenge
+                    Back to Today&apos;s Challenge
                 </Link>
             </div>
         </div>

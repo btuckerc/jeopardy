@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 interface QuickPlayButtonProps {
     user: { id: string } | null
@@ -41,7 +42,7 @@ export default function QuickPlayButton({ user }: QuickPlayButtonProps) {
             }
         } catch (error) {
             console.error('Error starting game:', error)
-            alert('Failed to start game. Please try again.')
+            toast.error('Failed to start game. Please try again.')
         } finally {
             setIsStarting(false)
         }

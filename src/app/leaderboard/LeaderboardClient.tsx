@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import UserAvatar from '@/components/UserAvatar';
 import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt';
 import type { AppUser } from '@/lib/clerk-auth';
@@ -21,11 +22,12 @@ interface LeaderboardEntry {
 interface LeaderboardClientProps {
     user: AppUser;
     initialLeaderboard: LeaderboardEntry[];
+    scope: 'global' | 'friends';
 }
 
 // Fetch function for React Query
-async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
-    const response = await fetch('/api/leaderboard?limit=100');
+async function fetchLeaderboard(scope: 'global' | 'friends'): Promise<LeaderboardEntry[]> {
+    const response = await fetch(`/api/leaderboard?limit=100&scope=${scope}`);
     if (!response.ok) {
         throw new Error('Failed to fetch leaderboard');
     }
@@ -33,11 +35,13 @@ async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
     return Array.isArray(data) ? data : (data.leaderboard || []);
 }
 
-export default function LeaderboardClient({ user, initialLeaderboard }: LeaderboardClientProps) {
+export default function LeaderboardClient({ user, initialLeaderboard, scope }: LeaderboardClientProps) {
     const [showBackToTop, setShowBackToTop] = useState(false);
     const [achievementBadges, setAchievementBadges] = useState<Record<string, string[]>>({});
     const [previousRank, setPreviousRank] = useState<number | null>(null);
     const queryClient = useQueryClient();
+    const searchParams = useSearchParams();
+    const activeScope = searchParams.get('scope') === 'friends' ? 'friends' : scope;
 
     // Use React Query with stale-while-revalidate pattern
     // - initialData: Server-rendered data for instant display
@@ -45,8 +49,8 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
     // - refetchOnWindowFocus: Refetch when user returns to tab
     // - refetchOnMount: Always check for fresh data on navigation
     const { data: leaderboard = initialLeaderboard } = useQuery({
-        queryKey: ['leaderboard'],
-        queryFn: fetchLeaderboard,
+        queryKey: ['leaderboard', activeScope],
+        queryFn: () => fetchLeaderboard(activeScope),
         initialData: initialLeaderboard,
         staleTime: 30 * 1000, // Data is fresh for 30 seconds
         gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
@@ -58,12 +62,12 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
     // Invalidate the query to trigger a refetch
     useEffect(() => {
         const handleProfileUpdate = () => {
-            queryClient.invalidateQueries({ queryKey: ['leaderboard'] });
+            queryClient.invalidateQueries({ queryKey: ['leaderboard', activeScope] });
         };
 
         window.addEventListener('user-profile-updated', handleProfileUpdate);
         return () => window.removeEventListener('user-profile-updated', handleProfileUpdate);
-    }, [queryClient]);
+    }, [queryClient, activeScope]);
 
     // Handle scroll to show/hide back to top button
     useEffect(() => {
@@ -162,15 +166,33 @@ export default function LeaderboardClient({ user, initialLeaderboard }: Leaderbo
             <div className="page-header mb-5 md:mb-8">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-6">
                     <div className="flex-1">
-                        <span className="text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wider">Competition</span>
+                        <span className="text-[10px] md:text-xs font-semibold text-gray-900 uppercase tracking-wider">Competition</span>
                         <h1 className="page-title text-2xl sm:text-3xl md:text-4xl lg:text-5xl flex items-center gap-2 md:gap-3 mt-1 mb-1 md:mb-2">
                             <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-9 md:h-9 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                             </svg>
-                            <span>Global Leaderboard</span>
+                            <span>{activeScope === 'friends' ? 'Friends Leaderboard' : 'Global Leaderboard'}</span>
                         </h1>
-                        <p className="page-subtitle text-sm md:text-base lg:text-lg text-gray-600">
-                            See how you rank against other players.
+                        <div className="flex gap-2 mt-3" role="radiogroup" aria-label="Leaderboard scope">
+                            <Link
+                                href="/leaderboard?scope=global"
+                                className={`btn-sm rounded-md border ${activeScope === 'global' ? 'btn-primary border-blue-600' : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50'}`}
+                                aria-current={activeScope === 'global' ? 'page' : undefined}
+                            >
+                                Global
+                            </Link>
+                            <Link
+                                href="/leaderboard?scope=friends"
+                                className={`btn-sm rounded-md border ${activeScope === 'friends' ? 'btn-primary border-blue-600' : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50'}`}
+                                aria-current={activeScope === 'friends' ? 'page' : undefined}
+                            >
+                                Friends
+                            </Link>
+                        </div>
+                        <p className="page-subtitle text-sm md:text-base lg:text-lg text-slate-800">
+                            {activeScope === 'friends'
+                                ? 'See how you rank against your friends only.'
+                                : 'See how you rank against other players.'}
                         </p>
                     </div>
 

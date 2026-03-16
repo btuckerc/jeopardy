@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, forbiddenResponse, serverErrorResponse, parseSearchParams } from '@/lib/api-utils'
+import { jsonResponse, requireAdmin, serverErrorResponse, parseSearchParams } from '@/lib/api-utils'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 
@@ -20,15 +19,8 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: NextRequest) {
     try {
-        const appUser = await getAppUser()
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
-        }
+        const { error: authError } = await requireAdmin()
+        if (authError) return authError
 
         const { searchParams } = new URL(request.url)
         const { data: params, error } = parseSearchParams(searchParams, issuesQuerySchema)
@@ -98,4 +90,3 @@ export async function GET(request: NextRequest) {
         return serverErrorResponse('Failed to fetch issues', error)
     }
 }
-

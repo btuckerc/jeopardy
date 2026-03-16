@@ -1,5 +1,4 @@
 import { Metadata } from 'next'
-import { getAppUser } from '@/lib/clerk-auth'
 import { JsonLd } from '@/components/JsonLd'
 import ArchiveClient from '@/app/daily-challenge/archive/ArchiveClient'
 
@@ -51,8 +50,6 @@ const breadcrumbSchema = {
 export const dynamic = 'force-dynamic'
 
 export default async function ArchivePage() {
-    const user = await getAppUser()
-    
     return (
         <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen -mt-6 min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
             {/* Shadow under navbar */}

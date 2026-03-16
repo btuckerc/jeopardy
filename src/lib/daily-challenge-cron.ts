@@ -12,6 +12,7 @@ import { prisma } from './prisma'
 import { parseGameByDate } from './jarchive-scraper'
 import { format, subDays } from 'date-fns'
 import { withCronLogging } from './cron-logger'
+import { CRON_JOBS } from './cron-jobs'
 
 let dailyChallengeCronJob: cron.ScheduledTask | null = null
 let fetchGamesCronJob: cron.ScheduledTask | null = null
@@ -246,14 +247,22 @@ export function startDailyChallengeCron() {
     dailyChallengeCronJob = cron.schedule('0 2 * * *', async () => {
         try {
             // Use withCronLogging to record execution in database
-            await withCronLogging('daily-challenge', 'scheduled', async () => {
+            await withCronLogging(
+                'daily-challenge',
+                'scheduled',
+                async () => {
                 const result = await generateDailyChallenges()
                 return {
                     success: result.errors === 0,
                     message: `Generated daily challenges: ${result.created} created, ${result.skipped} skipped, ${result.errors} errors`,
                     ...result
                 }
-            })
+                },
+                {
+                    timeoutMs: CRON_JOBS['daily-challenge'].timeoutMs,
+                    maxResultBytes: CRON_JOBS['daily-challenge'].maxResultBytes,
+                }
+            )
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error'
             console.error('[Daily Challenge Cron] Fatal error:', message)
@@ -269,14 +278,22 @@ export function startDailyChallengeCron() {
     fetchGamesCronJob = cron.schedule('0 3 * * *', async () => {
         try {
             // Use withCronLogging to record execution in database
-            await withCronLogging('fetch-games', 'scheduled', async () => {
+            await withCronLogging(
+                'fetch-games',
+                'scheduled',
+                async () => {
                 const result = await fetchLast7DaysGames()
                 return {
                     success: result.totalErrors === 0,
                     message: `Fetched games: ${result.totalCreated} created, ${result.totalSkipped} skipped, ${result.totalErrors} errors`,
                     ...result
                 }
-            })
+                },
+                {
+                    timeoutMs: CRON_JOBS['fetch-games'].timeoutMs,
+                    maxResultBytes: CRON_JOBS['fetch-games'].maxResultBytes,
+                }
+            )
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error'
             console.error('[Fetch Games Cron] Fatal error:', message)

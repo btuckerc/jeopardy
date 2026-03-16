@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth'
 import { getKnowledgeCategoryDetails, getRandomQuestion, saveAnswer, getCategoryQuestions } from '../../actions/practice'
 import { checkAnswer } from '../../lib/answer-checker'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
+import { AnswerExplanationPanel } from '../components/PracticeAnswerExplanation'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import type { RawCategory, RawQuestion } from '@/types/practice'
@@ -57,6 +58,19 @@ type QuestionState = {
     lastAttemptDate?: Date
 }
 
+type InterleaveCategoryStats = {
+    attempts: number
+    correct: number
+    consecutiveIncorrect: number
+    lastSeenAt: number
+}
+
+type InterleaveState = {
+    currentCategoryId: string | null
+    remainingInBlock: number
+    retentionByCategory: Record<string, InterleaveCategoryStats>
+}
+
 function LoadingSpinner() {
     return (
         <div className="flex justify-center items-center p-4">
@@ -65,11 +79,11 @@ function LoadingSpinner() {
     )
 }
 
-function UrlErrorDisplay({ 
-    error, 
-    onGoBack, 
-    onGoHome 
-}: { 
+function UrlErrorDisplay({
+    error,
+    onGoBack,
+    onGoHome
+}: {
     error: { type: string; message: string; invalidValue: string };
     onGoBack: () => void;
     onGoHome: () => void;
@@ -226,6 +240,8 @@ const ensureDate = (timestamp: string | Date | null | undefined): Date | null =>
     return timestamp instanceof Date ? timestamp : new Date(timestamp);
 };
 
+const INTERLEAVE_BLOCK_SIZE = 3
+
 // Helper function to transform API response to match our types
 const transformApiResponse = (categories: RawCategory[]): Category[] => {
     return categories.map(category => {
@@ -241,7 +257,7 @@ const transformApiResponse = (categories: RawCategory[]): Category[] => {
             isLocked: q.isLocked || false,
             hasIncorrectAttempts: q.hasIncorrectAttempts || false
         })) || [];
-        
+
         return {
             id: category.id,
             name: category.name,
@@ -280,17 +296,97 @@ const transformQuestions = (questions: RawQuestion[]): Question[] => {
     }));
 };
 
+const calculateCategoryInterleaveWeight = (category: Category, retention?: InterleaveCategoryStats): number => {
+    const totalAttempts = Math.max(category.totalQuestions, 1)
+    const retentionAttempts = Math.max(retention?.attempts ?? 0, 0)
+    const retentionCorrect = Math.max(retention?.correct ?? 0, 0)
+    const combinedAttempts = totalAttempts + retentionAttempts
+    const combinedAccuracy = Math.min(
+        Math.max((category.correctQuestions + retentionCorrect) / Math.max(combinedAttempts, 1), 0),
+        1
+    )
+
+    const accuracyWeight = 1 + (1 - combinedAccuracy) * 2
+    const effortWeight = Math.log10(totalAttempts + 1) + 1
+    const streakWeight = 1 + (Math.min(retention?.consecutiveIncorrect ?? 0, 4) * 0.25)
+    const recencyMs = retention?.lastSeenAt ? Date.now() - retention.lastSeenAt : 0
+    const recencyDays = Math.max(0, recencyMs / (24 * 60 * 60 * 1000))
+    const recencyWeight = 1 + Math.min(recencyDays, 14) / 14 * 0.4
+
+    return Math.max(0.5, accuracyWeight * effortWeight * streakWeight * recencyWeight)
+}
+
+const pickInterleaveCategory = (categories: Category[], categoryStats: Record<string, InterleaveCategoryStats>, excludeCategoryId?: string | null): string | null => {
+    if (!categories.length) return null
+
+    const weightedCategories = (excludeCategoryId && categories.length > 1
+        ? categories.filter(category => category.id !== excludeCategoryId)
+        : categories
+    ).map(category => ({
+        id: category.id,
+        weight: calculateCategoryInterleaveWeight(category, categoryStats[category.id])
+    }))
+
+    if (!weightedCategories.length) return null
+
+    const totalWeight = weightedCategories.reduce((sum, item) => sum + item.weight, 0)
+    let cursor = Math.random() * totalWeight
+
+    for (const item of weightedCategories) {
+        cursor -= item.weight
+        if (cursor <= 0) {
+            return item.id
+        }
+    }
+
+    return weightedCategories[weightedCategories.length - 1].id
+}
+
+const getInterleaveStorageKey = (userId?: string) => `practice_interleave_state_${userId || 'guest'}`
+
+const getDefaultInterleaveState = (): InterleaveState => ({
+    currentCategoryId: null,
+    remainingInBlock: 0,
+    retentionByCategory: {}
+})
+
+const loadInterleaveState = (userId?: string): InterleaveState => {
+    if (typeof window === 'undefined') return getDefaultInterleaveState()
+
+    try {
+        const saved = localStorage.getItem(getInterleaveStorageKey(userId))
+        if (!saved) {
+            return getDefaultInterleaveState()
+        }
+
+        const parsed = JSON.parse(saved)
+        if (!parsed || typeof parsed !== 'object') return getDefaultInterleaveState()
+
+        return {
+            currentCategoryId: typeof parsed.currentCategoryId === 'string' ? parsed.currentCategoryId : null,
+            remainingInBlock: Number.isFinite(parsed.remainingInBlock) ? Number(parsed.remainingInBlock) : 0,
+            retentionByCategory: typeof parsed.retentionByCategory === 'object' && parsed.retentionByCategory !== null
+                ? parsed.retentionByCategory
+                : {}
+        }
+    } catch (error) {
+        console.error('Error reading interleave state', error)
+        return getDefaultInterleaveState()
+    }
+}
+
+
 function FreePracticeContent() {
     const { user, loading: authLoading } = useAuth()
     const searchParams = useSearchParams()
     const router = useRouter()
-    
+
     // Read URL params synchronously to determine initial view state
     // This prevents flash of wrong view during hydration
     const initialKnowledgeCategory = searchParams.get('knowledgeCategory')
     const initialCategory = searchParams.get('category')
     const initialQuestion = searchParams.get('question')
-    
+
     const [knowledgeCategories, setKnowledgeCategories] = useState<Category[]>([])
     // Initialize selected states from URL params to prevent flash
     const [selectedKnowledgeCategory, setSelectedKnowledgeCategory] = useState<string | null>(initialKnowledgeCategory)
@@ -298,15 +394,15 @@ function FreePracticeContent() {
     const [selectedCategory, setSelectedCategory] = useState<string | null>(initialCategory)
     const [questions, setQuestions] = useState<Question[]>([])
     const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
-    
+
     // Track if we're currently restoring state from URL (to prevent URL update loops)
     const isRestoringFromUrl = useRef(false)
     // Track the last URL we set (to detect browser navigation)
     // Initialize to null so the first restoration always runs
-    const lastUrlState = useRef<{ kc: string | null; c: string | null; q: string | null }>({ 
-        kc: null, 
-        c: null, 
-        q: null 
+    const lastUrlState = useRef<{ kc: string | null; c: string | null; q: string | null }>({
+        kc: null,
+        c: null,
+        q: null
     })
     // Track if this is the initial URL restoration (needs to fetch data)
     const isInitialUrlRestore = useRef(true)
@@ -320,18 +416,18 @@ function FreePracticeContent() {
         message: string;
         invalidValue: string;
     } | null>(null)
-    
+
     // Helper function to update URL parameters without full page reload
-    const updateUrlParams = useCallback((params: { 
-        knowledgeCategory?: string | null; 
-        category?: string | null; 
-        question?: string | null 
+    const updateUrlParams = useCallback((params: {
+        knowledgeCategory?: string | null;
+        category?: string | null;
+        question?: string | null
     }) => {
         // Don't update URL if we're restoring from URL
         if (isRestoringFromUrl.current) return
-        
+
         const url = new URL(window.location.href)
-        
+
         // Handle knowledgeCategory
         if (params.knowledgeCategory !== undefined) {
             if (params.knowledgeCategory) {
@@ -340,7 +436,7 @@ function FreePracticeContent() {
                 url.searchParams.delete('knowledgeCategory')
             }
         }
-        
+
         // Handle category
         if (params.category !== undefined) {
             if (params.category) {
@@ -349,7 +445,7 @@ function FreePracticeContent() {
                 url.searchParams.delete('category')
             }
         }
-        
+
         // Handle question
         if (params.question !== undefined) {
             if (params.question) {
@@ -358,10 +454,10 @@ function FreePracticeContent() {
                 url.searchParams.delete('question')
             }
         }
-        
+
         // Don't update lastUrlState here - let the URL restoration effect handle it
         // This ensures the effect can detect URL changes properly
-        
+
         // Use router.replace to update URL without adding to history stack for minor navigation
         // This preserves the browser back button for meaningful navigation
         router.replace(url.pathname + url.search, { scroll: false })
@@ -370,6 +466,19 @@ function FreePracticeContent() {
     const answerInputRef = useRef<HTMLInputElement>(null)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [showAnswer, setShowAnswer] = useState(false)
+    const [explanationMode, setExplanationMode] = useState<boolean>(() => {
+        if (typeof window === 'undefined') {
+            return false
+        }
+        return localStorage.getItem('practice_explanation_mode') === 'true'
+    })
+    const [interleaveMode, setInterleaveMode] = useState<boolean>(() => {
+        if (typeof window === 'undefined') {
+            return false
+        }
+        return localStorage.getItem('practice_interleave_mode') === 'true'
+    })
+    const [interleaveState, setInterleaveState] = useState<InterleaveState>(() => loadInterleaveState())
     const [disputeContext, setDisputeContext] = useState<{
         questionId: string
         gameId: string | null
@@ -414,54 +523,138 @@ function FreePracticeContent() {
     const sortByRef = useRef(sortBy) // Track sortBy for initial load
     const sortDirectionRef = useRef(sortDirection) // Track sortDirection for initial load
     const isInitialCategoryMount = useRef(true)
-    
+    const interleaveStateRef = useRef<InterleaveState>(interleaveState)
+
     // Keep sortByRef and sortDirectionRef in sync
     useEffect(() => {
         sortByRef.current = sortBy
     }, [sortBy])
-    
+
     useEffect(() => {
         sortDirectionRef.current = sortDirection
     }, [sortDirection])
-    
+
+    useEffect(() => {
+        interleaveStateRef.current = interleaveState
+    }, [interleaveState])
+
     const [showBackToTop, setShowBackToTop] = useState(false)
+
+    useEffect(() => {
+        localStorage.setItem('practice_explanation_mode', String(explanationMode))
+    }, [explanationMode])
+
+    useEffect(() => {
+        localStorage.setItem('practice_interleave_mode', String(interleaveMode))
+    }, [interleaveMode])
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+
+        const currentInterleaveState = loadInterleaveState(user?.id)
+        setInterleaveState(currentInterleaveState)
+    }, [user?.id])
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+
+        localStorage.setItem(getInterleaveStorageKey(user?.id), JSON.stringify(interleaveState))
+    }, [interleaveState, user?.id])
+
+    const updateInterleaveStateFromAnswer = useCallback((categoryId: string, isCorrect: boolean) => {
+        setInterleaveState(prev => {
+            const current = prev.retentionByCategory[categoryId] ?? {
+                attempts: 0,
+                correct: 0,
+                consecutiveIncorrect: 0,
+                lastSeenAt: Date.now()
+            }
+
+            const nextAttempts = current.attempts + 1
+            const nextCorrect = current.correct + (isCorrect ? 1 : 0)
+            const nextConsecutiveIncorrect = isCorrect
+                ? 0
+                : current.consecutiveIncorrect + 1
+
+            return {
+                ...prev,
+                currentCategoryId: prev.currentCategoryId,
+                remainingInBlock: prev.currentCategoryId === categoryId ? prev.remainingInBlock : prev.remainingInBlock,
+                retentionByCategory: {
+                    ...prev.retentionByCategory,
+                    [categoryId]: {
+                        attempts: nextAttempts,
+                        correct: nextCorrect,
+                        consecutiveIncorrect: nextConsecutiveIncorrect,
+                        lastSeenAt: Date.now()
+                    }
+                }
+            }
+        })
+    }, [])
+
+    const resetInterleaveBlock = useCallback(() => {
+        setInterleaveState(prev => ({
+            ...prev,
+            currentCategoryId: null,
+            remainingInBlock: 0
+        }))
+    }, [])
+
+    const consumeInterleaveBlock = useCallback((categoryId: string, blockSize = INTERLEAVE_BLOCK_SIZE) => {
+        setInterleaveState(prev => {
+            if (prev.currentCategoryId === categoryId) {
+                const nextRemaining = Math.max(prev.remainingInBlock - 1, 0)
+                return {
+                    ...prev,
+                    remainingInBlock: nextRemaining
+                }
+            }
+
+            return {
+                ...prev,
+                currentCategoryId: categoryId,
+                remainingInBlock: Math.max(blockSize - 1, 0)
+            }
+        })
+    }, [])
 
     // Persist sort preference to localStorage when user changes it
     const handleSortChange = useCallback((newSort: 'airDate' | 'completion') => {
         setSortBy(newSort)
         localStorage.setItem('practice_sort_preference', newSort)
     }, [])
-    
+
     // Persist sort direction to localStorage when user changes it
     const handleSortDirectionChange = useCallback((newDirection: 'asc' | 'desc') => {
         setSortDirection(newDirection)
         localStorage.setItem('practice_sort_direction', newDirection)
     }, [])
-    
+
     // Refetch categories when sort order or direction changes (not on initial mount)
     useEffect(() => {
         if (isInitialCategoryMount.current || !selectedKnowledgeCategory) return
-        
+
         const refetchWithNewSort = async () => {
             setIsSortTransitioning(true)
             setCurrentPage(1)
-            
+
             try {
                 const result = await getKnowledgeCategoryDetails(
-                    selectedKnowledgeCategory, 
-                    user?.id, 
-                    1, 
-                    20, 
-                    undefined, 
+                    selectedKnowledgeCategory,
+                    user?.id,
+                    1,
+                    20,
+                    undefined,
                     'FINAL',
                     sortBy,
                     sortDirection
                 )
                 const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
-                
+
                 // Small delay to allow fade-out animation
                 await new Promise(resolve => setTimeout(resolve, 150))
-                
+
                 setCategories(transformedCategories)
                 setHasMore(result.hasMore)
             } catch (error) {
@@ -470,7 +663,7 @@ function FreePracticeContent() {
                 setIsSortTransitioning(false)
             }
         }
-        
+
         refetchWithNewSort()
     }, [sortBy, sortDirection, selectedKnowledgeCategory, user?.id])
 
@@ -479,7 +672,7 @@ function FreePracticeContent() {
         const handleScroll = () => {
             setShowBackToTop(window.scrollY > 400)
         }
-        
+
         window.addEventListener('scroll', handleScroll)
         return () => window.removeEventListener('scroll', handleScroll)
     }, [])
@@ -601,7 +794,7 @@ function FreePracticeContent() {
         }
         loadKnowledgeCategories()
     }, [user?.id])
-    
+
     // Handle URL state restoration and browser navigation
     // This effect runs when searchParams change (including browser back/forward)
     useEffect(() => {
@@ -609,35 +802,35 @@ function FreePracticeContent() {
             const knowledgeCategoryParam = searchParams.get('knowledgeCategory')
             const categoryParam = searchParams.get('category')
             const questionParam = searchParams.get('question')
-            
+
             // Check if the URL actually changed (not just a re-render)
             const currentUrlState = { kc: knowledgeCategoryParam, c: categoryParam, q: questionParam }
             const lastState = lastUrlState.current
-            
-            const urlChanged = lastState.kc !== currentUrlState.kc || 
-                               lastState.c !== currentUrlState.c || 
+
+            const urlChanged = lastState.kc !== currentUrlState.kc ||
+                               lastState.c !== currentUrlState.c ||
                                lastState.q !== currentUrlState.q
-            
+
             // On initial load, we need to fetch data even if URL params are set
             // After that, only run if URL actually changed
             const needsRestore = isInitialUrlRestore.current || urlChanged
-            
+
             // If URL hasn't changed and not initial load, no need to do anything
             if (!needsRestore && !loading) {
                 setUrlRestored(true)
                 return
             }
-            
+
             // Update our tracking ref
             lastUrlState.current = currentUrlState
             isInitialUrlRestore.current = false
-            
+
             // Set flag to prevent URL update loops during restoration
             isRestoringFromUrl.current = true
-            
+
             // Clear any previous URL errors when navigating
             setUrlError(null)
-            
+
             try {
                 // Case 1: Going back to root (no knowledge category)
                 if (!knowledgeCategoryParam) {
@@ -646,18 +839,19 @@ function FreePracticeContent() {
                     setSelectedCategory(null)
                     setSelectedQuestion(null)
                     setSearchQuery('')
+                    resetInterleaveBlock()
                     isRestoringFromUrl.current = false
                     setUrlRestored(true)
                     return
                 }
-                
+
                 // Validate knowledge category exists
                 // Wait for knowledgeCategories to be loaded
                 if (knowledgeCategories.length > 0) {
                     const validKnowledgeCategory = knowledgeCategories.find(
                         kc => kc.id === knowledgeCategoryParam || kc.name.replace(/ /g, '_').toUpperCase() === knowledgeCategoryParam
                     )
-                    
+
                     if (!validKnowledgeCategory) {
                         setUrlError({
                             type: 'knowledgeCategory',
@@ -667,44 +861,46 @@ function FreePracticeContent() {
                         setSelectedKnowledgeCategory(null)
                         setSelectedCategory(null)
                         setSelectedQuestion(null)
+                        resetInterleaveBlock()
                         setIsTransitioning(false)
                         isRestoringFromUrl.current = false
                         setUrlRestored(true)
                         return
                     }
                 }
-                
+
                 // Case 2: Knowledge category changed or being restored
                 const knowledgeCategoryChanged = selectedKnowledgeCategory !== knowledgeCategoryParam
                 if (knowledgeCategoryChanged) {
                     // Show transition overlay but DON'T change view state yet
                     setIsTransitioning(true)
                     isInitialCategoryMount.current = false
-                    
+
                     // Load categories FIRST before updating view state (exclude FINAL round)
                     const result = await getKnowledgeCategoryDetails(knowledgeCategoryParam, user?.id, 1, 20, undefined, 'FINAL', sortByRef.current, sortDirectionRef.current)
                     const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[])
-                    
+
                     // Check if knowledge category returned any results
                     if (transformedCategories.length === 0 && knowledgeCategories.length > 0) {
                         // Double-check if this knowledge category exists
                         const validKnowledgeCategory = knowledgeCategories.find(
                             kc => kc.id === knowledgeCategoryParam || kc.name.replace(/ /g, '_').toUpperCase() === knowledgeCategoryParam
                         )
-                        
+
                         if (!validKnowledgeCategory) {
                             setUrlError({
                                 type: 'knowledgeCategory',
                                 message: `The knowledge category "${knowledgeCategoryParam}" doesn't exist. It may have been removed or the URL is incorrect.`,
                                 invalidValue: knowledgeCategoryParam
                             })
+                            resetInterleaveBlock()
                             setIsTransitioning(false)
                             isRestoringFromUrl.current = false
                             setUrlRestored(true)
                             return
                         }
                     }
-                    
+
                     // Atomically update ALL state together - prevents flash
                     setSelectedKnowledgeCategory(knowledgeCategoryParam)
                     setSelectedCategory(null)
@@ -716,17 +912,19 @@ function FreePracticeContent() {
                     setHasMore(result.hasMore)
                     setQuestions([])
                     setIsTransitioning(false)
+                    resetInterleaveBlock()
                 }
-                
+
                 // Case 3: No category - just clear category and question selection
                 if (!categoryParam) {
                     setSelectedCategory(null)
                     setSelectedQuestion(null)
+                    resetInterleaveBlock()
                     isRestoringFromUrl.current = false
                     setUrlRestored(true)
                     return
                 }
-                
+
                 // Validate category UUID format (basic check)
                 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
                 if (!uuidRegex.test(categoryParam)) {
@@ -737,22 +935,23 @@ function FreePracticeContent() {
                     })
                     setSelectedCategory(null)
                     setSelectedQuestion(null)
+                    resetInterleaveBlock()
                     setIsTransitioning(false)
                     isRestoringFromUrl.current = false
                     setUrlRestored(true)
                     return
                 }
-                
+
                 // Case 4: Category changed or being restored
                 const categoryChanged = selectedCategory !== categoryParam
                 if (categoryChanged || questions.length === 0) {
                     // Show transition overlay but DON'T change view state yet
                     setIsTransitioning(true)
-                    
+
                     // Load questions FIRST before updating view state (exclude FINAL round)
                     const questionsData = await getCategoryQuestions(categoryParam, knowledgeCategoryParam, user?.id, 'FINAL')
                     const transformedQuestions = transformQuestions(questionsData as unknown as RawQuestion[])
-                    
+
                     // Check if category exists (has questions)
                     if (transformedQuestions.length === 0) {
                         setUrlError({
@@ -765,11 +964,12 @@ function FreePracticeContent() {
                         setUrlRestored(true)
                         return
                     }
-                    
+
                     // Atomically update ALL state together - prevents flash
                     setSelectedCategory(categoryParam)
                     setQuestions(transformedQuestions)
-                    
+                    resetInterleaveBlock()
+
                     // Case 5: Restore question selection if present
                     if (questionParam) {
                         // Validate question UUID format
@@ -785,7 +985,7 @@ function FreePracticeContent() {
                             setUrlRestored(true)
                             return
                         }
-                        
+
                         const question = transformedQuestions.find(q => q.id === questionParam)
                         if (question) {
                             setSelectedQuestion(question)
@@ -815,6 +1015,7 @@ function FreePracticeContent() {
                                 invalidValue: questionParam
                             })
                             setSelectedQuestion(null)
+                            resetInterleaveBlock()
                         }
                     } else {
                         setSelectedQuestion(null)
@@ -831,11 +1032,12 @@ function FreePracticeContent() {
                                 invalidValue: questionParam
                             })
                             setSelectedQuestion(null)
+                            resetInterleaveBlock()
                             isRestoringFromUrl.current = false
                             setUrlRestored(true)
                             return
                         }
-                        
+
                         const question = questions.find(q => q.id === questionParam)
                         if (question) {
                             setSelectedQuestion(question)
@@ -865,6 +1067,7 @@ function FreePracticeContent() {
                                 invalidValue: questionParam
                             })
                             setSelectedQuestion(null)
+                            resetInterleaveBlock()
                         }
                     } else {
                         setSelectedQuestion(null)
@@ -879,16 +1082,27 @@ function FreePracticeContent() {
                 setUrlRestored(true)
             }
         }
-        
+
         // Don't try to restore while still loading knowledge categories or auth
         // We need auth to be loaded so we can fetch questions with the correct userId
         if (!loading && !authLoading) {
             restoreStateFromUrl()
         }
-    }, [searchParams, loading, authLoading, user?.id, selectedKnowledgeCategory, selectedCategory, selectedQuestion?.id, questions, knowledgeCategories])
+    }, [
+        searchParams,
+        loading,
+        authLoading,
+        user?.id,
+        selectedKnowledgeCategory,
+        selectedCategory,
+        selectedQuestion?.id,
+        questions,
+        knowledgeCategories,
+        resetInterleaveBlock
+    ])
 
     // Intersection Observer for infinite scrolling
-     
+
     useEffect(() => {
         if (!loadMoreRef.current || !hasMore || loadingMore) return
 
@@ -927,11 +1141,12 @@ function FreePracticeContent() {
     const handleCategorySelect = useCallback(async (categoryId: string, knowledgeCategoryOverride?: string) => {
         if (categoryId === selectedCategory && !knowledgeCategoryOverride) return;
         const knowledgeCat = knowledgeCategoryOverride || selectedKnowledgeCategory;
-        
+
         // Show transition overlay but DON'T change view state yet
         setIsTransitioning(true);
         setLoadingQuestions(true);
-        
+        resetInterleaveBlock()
+
         // Update URL immediately for browser history
         updateUrlParams({ category: categoryId, question: null });
 
@@ -939,7 +1154,7 @@ function FreePracticeContent() {
             // Load data FIRST before updating view state - keeps current view visible (exclude FINAL round)
             const questionsData = await getCategoryQuestions(categoryId, knowledgeCat!, user?.id, 'FINAL');
             const transformedQuestions = transformQuestions(questionsData as unknown as RawQuestion[]);
-            
+
             // Atomically update ALL state together in one batch - React batches these
             // This prevents the flash because the view switches only when data is ready
             setSelectedCategory(categoryId);
@@ -951,23 +1166,24 @@ function FreePracticeContent() {
             setLoadingQuestions(false);
             setIsTransitioning(false);
         }
-    }, [selectedCategory, selectedKnowledgeCategory, user?.id, updateUrlParams]);
+    }, [selectedCategory, selectedKnowledgeCategory, user?.id, updateUrlParams, resetInterleaveBlock]);
 
     const handleKnowledgeCategorySelect = useCallback(async (categoryId: string) => {
         if (!categoryId) return;
-        
+
         // Show transition overlay but DON'T change view state yet
         setIsTransitioning(true);
-        
+
         // Update URL immediately for browser history
         updateUrlParams({ knowledgeCategory: categoryId, category: null, question: null });
         isInitialCategoryMount.current = false
+        resetInterleaveBlock()
 
         try {
             // Load data FIRST before updating view state - this keeps current view visible (exclude FINAL round)
             const result = await getKnowledgeCategoryDetails(categoryId, user?.id, 1, 20, undefined, 'FINAL', sortBy, sortDirection);
             const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[]);
-            
+
             // Atomically update ALL state together in one batch - React batches these
             // This prevents the flash because the view switches only when data is ready
             setSelectedKnowledgeCategory(categoryId);
@@ -983,8 +1199,7 @@ function FreePracticeContent() {
         } finally {
             setIsTransitioning(false);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user?.id, updateUrlParams, sortBy]);
+    }, [user?.id, updateUrlParams, sortBy, sortDirection, resetInterleaveBlock]);
 
     // Load question states from local storage
     useEffect(() => {
@@ -1012,7 +1227,8 @@ function FreePracticeContent() {
         setUserAnswer('')
         setShowAnswer(false)
         setIsCorrect(null)
-        
+        resetInterleaveBlock()
+
         // Clear question from URL
         updateUrlParams({ question: null })
 
@@ -1026,7 +1242,7 @@ function FreePracticeContent() {
                 console.error('Error refreshing categories:', error)
             }
         }
-    }, [selectedKnowledgeCategory, user?.id, currentPage, updateUrlParams, sortBy, sortDirection])
+    }, [selectedKnowledgeCategory, user?.id, currentPage, updateUrlParams, sortBy, sortDirection, resetInterleaveBlock])
 
     const handleQuestionSelect = useCallback((question: Question) => {
         if (!question) return;
@@ -1034,13 +1250,16 @@ function FreePracticeContent() {
         setUserAnswer('');
         setIsCorrect(null);
         setShowAnswer(false);
-        
+
         // Update URL with the selected question ID
         updateUrlParams({ question: question.id });
     }, [updateUrlParams]);
 
     const handleAnswerSubmit = async () => {
-        if (!selectedQuestion?.answer || !userAnswer) return;
+        const trimmedUserAnswer = userAnswer.trim()
+
+        if (!selectedQuestion?.answer || !trimmedUserAnswer) return
+        setUserAnswer(trimmedUserAnswer)
 
         // Reset dispute state for new answer
         setDisputeContext(null);
@@ -1056,7 +1275,7 @@ function FreePracticeContent() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         questionId: selectedQuestion.id,
-                        userAnswer: userAnswer,
+                        userAnswer: trimmedUserAnswer,
                         mode: 'PRACTICE',
                         round: 'SINGLE',
                         categoryId: selectedQuestion.categoryId
@@ -1076,20 +1295,21 @@ function FreePracticeContent() {
                     }
                 } else {
                     // Fallback to local check if API fails
-                    isAnswerCorrect = checkAnswer(userAnswer, selectedQuestion.answer);
+                    isAnswerCorrect = checkAnswer(trimmedUserAnswer, selectedQuestion.answer)
                 }
             } catch (error) {
                 console.error('Error grading answer:', error);
                 // Fallback to local check
-                isAnswerCorrect = checkAnswer(userAnswer, selectedQuestion.answer);
+                isAnswerCorrect = checkAnswer(trimmedUserAnswer, selectedQuestion.answer)
             }
         } else {
             // Guest user - use local check
-            isAnswerCorrect = checkAnswer(userAnswer, selectedQuestion.answer);
+            isAnswerCorrect = checkAnswer(trimmedUserAnswer, selectedQuestion.answer)
         }
 
         setIsCorrect(isAnswerCorrect);
         setShowAnswer(true);
+        updateInterleaveStateFromAnswer(selectedQuestion.categoryId, isAnswerCorrect)
 
         if (user?.id && selectedQuestion.id) {
             await saveAnswer(
@@ -1148,6 +1368,13 @@ function FreePracticeContent() {
 
     const handleShowAnswer = () => {
         if (!selectedQuestion) return;
+
+        if (selectedQuestion.hasIncorrectAttempts || selectedQuestion.correct) {
+            setShowAnswer(true)
+            return
+        }
+
+        updateInterleaveStateFromAnswer(selectedQuestion.categoryId, false)
 
         const newIncorrectAttempts = [new Date(), ...(selectedQuestion.incorrectAttempts || [])];
 
@@ -1220,11 +1447,60 @@ function FreePracticeContent() {
 
     const handleShuffle = useCallback(async () => {
         try {
+            const interleaveEnabled = interleaveMode && selectedKnowledgeCategory && !selectedCategory
+
+            let interleaveCategoryId: string | null = null
+            let shuffledQuestionPool: Category[] | null = null
+
+            if (interleaveEnabled) {
+                const currentInterleaveState = interleaveStateRef.current
+                const allLoadedCategories = categories
+                const knowledgeCategoryId = selectedKnowledgeCategory
+
+                const loadCategoryPool = async () => {
+                    if (!knowledgeCategoryId) return []
+
+                    if (allLoadedCategories.length >= 20 && !hasMore) {
+                        return allLoadedCategories
+                    }
+
+                    const result = await getKnowledgeCategoryDetails(
+                        knowledgeCategoryId,
+                        user?.id,
+                        1,
+                        1000,
+                        undefined,
+                        'FINAL',
+                        sortByRef.current,
+                        sortDirectionRef.current
+                    )
+
+                    return transformApiResponse(result.categories as unknown as RawCategory[])
+                }
+
+                shuffledQuestionPool = await loadCategoryPool()
+                const validPool = shuffledQuestionPool.filter(category => category.totalQuestions > 0)
+
+                if (currentInterleaveState.currentCategoryId && currentInterleaveState.remainingInBlock > 0) {
+                    interleaveCategoryId = currentInterleaveState.currentCategoryId
+                } else {
+                    interleaveCategoryId = pickInterleaveCategory(
+                        validPool,
+                        currentInterleaveState.retentionByCategory,
+                        currentInterleaveState.currentCategoryId
+                    )
+                }
+
+                if (interleaveCategoryId && allLoadedCategories !== shuffledQuestionPool) {
+                    setCategories(shuffledQuestionPool)
+                }
+            }
+
             // Determine what level we're shuffling at
             // - No knowledge category selected: shuffle ALL questions
             // - Knowledge category selected but no category: shuffle within knowledge category
             // - Category selected: shuffle within that specific category
-            
+
             const randomQuestion = await getRandomQuestion(
                 selectedKnowledgeCategory || undefined,
                 selectedCategory || undefined,
@@ -1241,29 +1517,71 @@ function FreePracticeContent() {
             // Case 1: Shuffling within a specific category
             if (selectedCategory) {
                 const questions = await getCategoryQuestions(
-                    randomQuestion.categoryId, 
-                    randomQuestion.categoryName, 
+                    randomQuestion.categoryId,
+                    randomQuestion.categoryName,
                     user?.id,
                     'FINAL'
                 );
                 setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
-                
+
                 // Update URL with the question (category stays the same)
                 updateUrlParams({ question: randomQuestion.id });
+                if (interleaveEnabled) {
+                    consumeInterleaveBlock(selectedCategory)
+                }
             }
             // Case 2: Shuffling within a knowledge category (but no specific category selected)
             else if (selectedKnowledgeCategory) {
+                const selectedCategoryId = interleaveEnabled && interleaveCategoryId
+                    ? interleaveCategoryId
+                    : randomQuestion.categoryId
+
+                const questionCategory = selectedCategoryId || randomQuestion.categoryId
+
+                if (interleaveEnabled && interleaveCategoryId) {
+                    // Load all questions for the selected interleave category and pick one at random
+                    const categoryQuestions = await getCategoryQuestions(
+                        questionCategory,
+                        selectedKnowledgeCategory,
+                        user?.id,
+                        'FINAL'
+                    )
+                    const transformedCategoryQuestions = transformQuestions(categoryQuestions as unknown as RawQuestion[])
+                    if (transformedCategoryQuestions.length === 0) {
+                        toast.error('No more questions available in selected category')
+                        return
+                    }
+
+                    const unaskedQuestions = transformedCategoryQuestions.filter(q => q.id !== selectedQuestion?.id)
+                    const pool = unaskedQuestions.length > 0 ? unaskedQuestions : transformedCategoryQuestions
+                    const categoryQuestion = pool[Math.floor(Math.random() * pool.length)]
+
+                    // Update the category to match the selected interleave category
+                    setSelectedCategory(questionCategory);
+                    setQuestions(transformedCategoryQuestions);
+
+                    // Update URL with category and question
+                    updateUrlParams({ category: questionCategory, question: categoryQuestion.id });
+                    consumeInterleaveBlock(questionCategory)
+
+                    setSelectedQuestion(categoryQuestion)
+                    setUserAnswer('');
+                    setShowAnswer(false);
+                    setIsCorrect(null);
+                    return
+                }
+
                 // Update the category to match the random question's category
                 setSelectedCategory(randomQuestion.categoryId);
-                
+
                 const questions = await getCategoryQuestions(
-                    randomQuestion.categoryId, 
-                    selectedKnowledgeCategory, 
+                    randomQuestion.categoryId,
+                    selectedKnowledgeCategory,
                     user?.id,
                     'FINAL'
                 );
                 setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
-                
+
                 // Update URL with category and question
                 updateUrlParams({ category: randomQuestion.categoryId, question: randomQuestion.id });
             }
@@ -1273,36 +1591,38 @@ function FreePracticeContent() {
                 const knowledgeCategoryId = randomQuestion.categoryName; // This is actually knowledgeCategory from the API
                 setSelectedKnowledgeCategory(knowledgeCategoryId);
                 setSelectedCategory(randomQuestion.categoryId);
-                
+
                 // Load the categories for this knowledge category
                 const result = await getKnowledgeCategoryDetails(knowledgeCategoryId, user?.id, 1, 20, undefined, 'FINAL', sortBy, sortDirection);
                 const transformedCategories = transformApiResponse(result.categories as unknown as RawCategory[]);
                 setCategories(transformedCategories);
-                
+
                 // Load questions for the specific category (exclude FINAL round)
                 const questions = await getCategoryQuestions(
-                    randomQuestion.categoryId, 
-                    knowledgeCategoryId, 
+                    randomQuestion.categoryId,
+                    knowledgeCategoryId,
                     user?.id,
                     'FINAL'
                 );
                 setQuestions(transformQuestions(questions as unknown as RawQuestion[]));
-                
+
                 // Update URL with all levels
-                updateUrlParams({ 
-                    knowledgeCategory: knowledgeCategoryId, 
-                    category: randomQuestion.categoryId, 
-                    question: randomQuestion.id 
+                updateUrlParams({
+                    knowledgeCategory: knowledgeCategoryId,
+                    category: randomQuestion.categoryId,
+                    question: randomQuestion.id
                 });
             }
 
             // Set the selected question and reset answer state
-            setSelectedQuestion({
-                ...randomQuestion,
-                gameHistory: [],
-                isLocked: false,
-                hasIncorrectAttempts: false
-            });
+            if (!interleaveEnabled || !selectedKnowledgeCategory || selectedCategory) {
+                setSelectedQuestion({
+                    ...randomQuestion,
+                    gameHistory: [],
+                    isLocked: false,
+                    hasIncorrectAttempts: false
+                });
+            }
             setUserAnswer('');
             setShowAnswer(false);
             setIsCorrect(null);
@@ -1311,7 +1631,18 @@ function FreePracticeContent() {
             toast.error('Failed to load random question');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedKnowledgeCategory, selectedCategory, selectedQuestion?.id, user?.id, updateUrlParams, sortBy]);
+    }, [
+        selectedKnowledgeCategory,
+        selectedCategory,
+        selectedQuestion?.id,
+        user?.id,
+        updateUrlParams,
+        interleaveMode,
+        consumeInterleaveBlock,
+        categories,
+        hasMore,
+        sortBy
+    ]);
 
     const getShuffleButtonText = () => {
         if (!selectedKnowledgeCategory) return 'Shuffle All Questions'
@@ -1336,6 +1667,29 @@ function FreePracticeContent() {
 
         return 'Shuffle Questions'
     }
+
+    const interleaveStatus = useMemo(() => {
+        if (!interleaveMode) {
+            return 'Interleave mode is off'
+        }
+
+        if (!selectedKnowledgeCategory || selectedCategory) {
+            return 'Interleave mode applies only when shuffling at the knowledge-category level.'
+        }
+
+        const activeCategoryName = categories.find(category => category.id === interleaveState.currentCategoryId)?.name
+            || knowledgeCategories.find(category => category.id === interleaveState.currentCategoryId)?.name
+
+        if (!interleaveState.currentCategoryId) {
+            return 'Interleave mode: selecting next category by retention and retention-streak bias.'
+        }
+
+        if (interleaveState.remainingInBlock > 0) {
+            return `Interleave block: ${activeCategoryName || 'Current'} · ${interleaveState.remainingInBlock} remaining`
+        }
+
+        return `Interleave block complete for ${activeCategoryName || 'this category'}. Next shuffle will switch category.`
+    }, [categories, interleaveMode, interleaveState.currentCategoryId, interleaveState.remainingInBlock, selectedCategory, selectedKnowledgeCategory, knowledgeCategories])
 
     const _isQuestionDisabled = (questionId: string) => {
         const state = questionStates[questionId]
@@ -1372,14 +1726,14 @@ function FreePracticeContent() {
             // Split into in-progress and not-started (server already sorted each group)
             const inProgress = combinedResults.filter(c => Number(c.correctQuestions) > 0);
             const notStarted = combinedResults.filter(c => Number(c.correctQuestions) === 0);
-            
+
             return {
                 inProgressCategories: inProgress,
                 notStartedCategories: notStarted,
                 sortedCategories: [...inProgress, ...notStarted]
             };
         }
-        
+
         // For date sorting, server handles the order - just pass through
         return {
             inProgressCategories: [],
@@ -1394,7 +1748,7 @@ function FreePracticeContent() {
     // 3. URL has params but restoration hasn't completed yet
     const hasUrlParams = initialKnowledgeCategory || initialCategory || initialQuestion
     const isInitializing = loading || authLoading || (hasUrlParams && !urlRestored)
-    
+
     if (isInitializing) {
         return (
             <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -1418,7 +1772,7 @@ function FreePracticeContent() {
                                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent" />
                             </div>
                         )}
-                        
+
                         <div className="mb-6">
                             <Link
                                 href="/practice"
@@ -1430,22 +1784,41 @@ function FreePracticeContent() {
                                 Back to Study Modes
                             </Link>
                         </div>
-                        <div className="flex justify-between items-center mb-8">
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
                             <h1 className="text-2xl font-bold text-gray-900">Study by Category</h1>
-                            <button
-                                onClick={handleShuffle}
-                                disabled={loadingQuestions || isTransitioning || !!urlError}
-                                className="px-6 py-3 bg-purple-400 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 transition-colors font-bold text-lg shadow-lg hover:shadow-xl flex items-center gap-2"
-                            >
-                                {loadingQuestions ? <LoadingSpinner /> : (
-                                    <>
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                        </svg>
-                                        {getShuffleButtonText()}
-                                    </>
-                                )}
-                            </button>
+                                <button
+                                    onClick={handleShuffle}
+                                    disabled={loadingQuestions || isTransitioning || !!urlError}
+                                    className="px-6 py-3 bg-purple-400 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 transition-colors font-bold text-lg shadow-lg hover:shadow-xl flex items-center gap-2"
+                                >
+                                    {loadingQuestions ? <LoadingSpinner /> : (
+                                        <>
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                            {getShuffleButtonText()}
+                                        </>
+                                    )}
+                                </button>
+                                <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-white text-sm font-medium text-gray-700 shadow-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={interleaveMode}
+                                        onChange={(event) => {
+                                            const enabled = event.target.checked
+                                            setInterleaveMode(enabled)
+                                            if (!enabled) {
+                                                resetInterleaveBlock()
+                                            }
+                                        }}
+                                    />
+                                    Mix categories
+                                </label>
+                            </div>
+                            <p className="text-sm text-blue-900/80 bg-blue-100 rounded-md px-3 py-2 border border-blue-200">
+                                {interleaveStatus}
+                            </p>
                         </div>
 
                         {/* URL Error Display */}
@@ -1548,12 +1921,12 @@ function FreePracticeContent() {
                                                 </button>
                                             )}
                                         </div>
-                                        
+
                                         {/* Sort Controls Container */}
                                         <div className="flex items-center gap-2">
                                             {/* Asc/Desc Toggle */}
                                             <div className="relative grid grid-cols-2 bg-blue-600 rounded-lg p-1 shadow-md min-w-[80px]">
-                                                <div 
+                                                <div
                                                     style={{
                                                         transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
                                                         transform: sortDirection === 'desc' ? 'translateX(100%)' : 'translateX(0)',
@@ -1589,11 +1962,11 @@ function FreePracticeContent() {
                                                     </svg>
                                                 </button>
                                             </div>
-                                            
+
                                             {/* Date/Progress Toggle */}
                                             <div className="relative grid grid-cols-2 bg-blue-600 rounded-lg p-1 shadow-md min-w-[200px]">
                                                 {/* Sliding pill indicator - GPU-accelerated with spring-like easing */}
-                                                <div 
+                                                <div
                                                     style={{
                                                         transition: 'transform 350ms cubic-bezier(0.4, 0.0, 0.2, 1)',
                                                         transform: sortBy === 'completion' ? 'translateX(100%)' : 'translateX(0)',
@@ -1648,10 +2021,10 @@ function FreePracticeContent() {
                                         {searchQuery.length >= 2 ? (
                                             combinedResults.length > 0 ? (
                                                 sortedCategories.map((category, index) => (
-                                                    <div 
+                                                    <div
                                                         key={category.id}
                                                         className="transition-all duration-300"
-                                                        style={{ 
+                                                        style={{
                                                             transitionDelay: isSortTransitioning ? '0ms' : `${Math.min(index * 30, 300)}ms`,
                                                         }}
                                                     >
@@ -1675,10 +2048,10 @@ function FreePracticeContent() {
                                             )
                                         ) : (
                                             sortedCategories.map((category, index) => (
-                                                <div 
+                                                <div
                                                     key={category.id}
                                                     className="transition-all duration-300"
-                                                    style={{ 
+                                                    style={{
                                                         transitionDelay: isSortTransitioning ? '0ms' : `${Math.min(index * 30, 300)}ms`,
                                                     }}
                                                 >
@@ -1805,118 +2178,132 @@ function FreePracticeContent() {
                                                 </div>
                                             ) : (
                                                 <>
-                                                        <div className="relative">
-                                                            <input
-                                                                ref={answerInputRef}
-                                                                type="text"
-                                                                value={userAnswer}
-                                                                onChange={(e) => setUserAnswer(e.target.value)}
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        handleAnswerSubmit()
-                                                                    }
-                                                                }}
-                                                                onFocus={() => scrollInputIntoView(answerInputRef.current)}
-                                                                className="w-full p-3 border rounded-lg text-black text-base"
-                                                                placeholder="What is..."
-                                                                autoComplete="off"
-                                                                autoCapitalize="off"
-                                                                autoCorrect="off"
-                                                                spellCheck="false"
-                                                                enterKeyHint="send"
-                                                            />
-                                                        </div>
-                                                        <div className="flex justify-between items-center">
-                                                            <div className="flex space-x-4">
-                                                                <button
-                                                                    onClick={handleAnswerSubmit}
-                                                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
-                                                                >
-                                                                    Submit
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => window.alert('Tips for answering:\n\n• You don\'t need to type "What is" - it\'s optional\n• Articles like "a", "an", "the" are ignored\n• Punctuation is ignored\n• Capitalization doesn\'t matter\n• Close answers may be accepted')}
-                                                                    className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
-                                                                    aria-label="Show answer tips"
-                                                                >
-                                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                                    </svg>
-                                                                    Help
-                                                                </button>
-                                                            </div>
+                                                    <div className="relative">
+                                                        <input
+                                                            ref={answerInputRef}
+                                                            type="text"
+                                                            value={userAnswer}
+                                                            onChange={(e) => setUserAnswer(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    handleAnswerSubmit()
+                                                                }
+                                                            }}
+                                                            onFocus={() => scrollInputIntoView(answerInputRef.current)}
+                                                            className="w-full p-3 border rounded-lg text-black text-base"
+                                                            placeholder="What is..."
+                                                            autoComplete="off"
+                                                            autoCapitalize="off"
+                                                            autoCorrect="off"
+                                                            spellCheck="false"
+                                                            enterKeyHint="send"
+                                                        />
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <div className="flex flex-wrap items-center gap-4">
+                                                            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={explanationMode}
+                                                                    onChange={(event) => setExplanationMode(event.target.checked)}
+                                                                />
+                                                                Explanation mode
+                                                            </label>
                                                             <button
-                                                                onClick={handleShowAnswer}
-                                                                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold flex items-center gap-2"
+                                                                onClick={handleAnswerSubmit}
+                                                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
+                                                            >
+                                                                Submit
+                                                            </button>
+                                                            <button
+                                                                onClick={() => toast.error('Tips for answering:\n\n• You don\'t need to type "What is" - it\'s optional\n• Articles like "a", "an", "the" are ignored\n• Punctuation is ignored\n• Capitalization doesn\'t matter\n• Close answers may be accepted')}
+                                                                className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
+                                                                aria-label="Show answer tips"
                                                             >
                                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                                                 </svg>
-                                                                Show Answer
+                                                                Help
                                                             </button>
                                                         </div>
+                                                        <button
+                                                            onClick={handleShowAnswer}
+                                                            className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold flex items-center gap-2"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                            Show Answer
+                                                        </button>
+                                                    </div>
                                                 </>
                                             )}
                                         </div>
                                     ) : (
                                         <div className="space-y-4">
-                                                <div className={`p-4 rounded-lg ${isCorrect || selectedQuestion.correct ? 'bg-green-100' : 'bg-red-100'}`}>
-                                                    <div className="flex items-center gap-2 mb-1">
-                                                        {isCorrect || selectedQuestion.correct ? (
-                                                            <span className="text-green-600 text-lg">✓</span>
+                                            <div className={`p-4 rounded-lg ${isCorrect || selectedQuestion.correct ? 'bg-green-100' : 'bg-red-100'}`}>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {isCorrect || selectedQuestion.correct ? (
+                                                        <span className="text-green-600 text-lg">✓</span>
+                                                    ) : (
+                                                        <span className="text-red-600 text-lg">✗</span>
+                                                    )}
+                                                    <span className={`text-sm font-bold ${isCorrect || selectedQuestion.correct ? 'text-green-700' : 'text-red-700'}`}>
+                                                        {isCorrect || selectedQuestion.correct ? 'Correct!' : 'Incorrect'}
+                                                    </span>
+                                                </div>
+                                                <p className="font-medium text-gray-900 text-center">
+                                                    {selectedQuestion.answer}
+                                                </p>
+                                                {isCorrect === false && disputeContext && user?.id && (
+                                                    <div className="mt-3 flex justify-end">
+                                                        {disputeSubmitted ? (
+                                                            <span className="text-sm text-gray-500 flex items-center gap-1">
+                                                                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                                Dispute submitted
+                                                            </span>
                                                         ) : (
-                                                            <span className="text-red-600 text-lg">✗</span>
-                                                        )}
-                                                        <span className={`text-sm font-bold ${isCorrect || selectedQuestion.correct ? 'text-green-700' : 'text-red-700'}`}>
-                                                            {isCorrect || selectedQuestion.correct ? 'Correct!' : 'Incorrect'}
-                                                        </span>
-                                                    </div>
-                                                    <p className="font-medium text-gray-900 text-center">
-                                                        {selectedQuestion.answer}
-                                                    </p>
-                                                    {isCorrect === false && disputeContext && user?.id && (
-                                                        <div className="mt-3 flex justify-end">
-                                                            {disputeSubmitted ? (
-                                                                <span className="text-sm text-gray-500 flex items-center gap-1">
-                                                                    <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                                    </svg>
-                                                                    Dispute submitted
-                                                                </span>
-                                                            ) : (
-                                                                <span className="inline-flex items-center gap-1">
-                                                                    <button
-                                                                        onClick={handleDispute}
-                                                                        className="text-sm text-gray-500 hover:text-gray-700 underline"
-                                                                    >
-                                                                        Dispute this answer
-                                                                    </button>
-                                                                    <span className="relative group">
-                                                                        <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
-                                                                        <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
-                                                                            An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
-                                                                        </span>
+                                                            <span className="inline-flex items-center gap-1">
+                                                                <button
+                                                                    onClick={handleDispute}
+                                                                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                                                                >
+                                                                    Dispute this answer
+                                                                </button>
+                                                                <span className="relative group">
+                                                                    <span className="w-4 h-4 inline-flex items-center justify-center text-xs text-gray-500 hover:text-gray-700 cursor-help border border-gray-400 rounded-full">i</span>
+                                                                    <span className="absolute bottom-full right-0 mb-2 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-10">
+                                                                        An admin will review your answer.<br/>If approved, you&apos;ll be retroactively credited.
                                                                     </span>
                                                                 </span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="flex space-x-4">
-                                                    <button
-                                                        onClick={handleBackToQuestions}
-                                                        className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
-                                                    >
-                                                        Back to Questions
-                                                    </button>
-                                                    <button
-                                                        onClick={handleShuffle}
-                                                        className="px-6 py-2 bg-purple-400 text-white rounded-lg hover:bg-purple-500 font-bold flex items-center gap-2"
-                                                    >
-                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                        </svg>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <AnswerExplanationPanel
+                                                userAnswer={userAnswer}
+                                                correctAnswer={selectedQuestion.answer}
+                                                explanationMode={explanationMode}
+                                                visible={isCorrect === false}
+                                            />
+                                            <div className="flex space-x-4">
+                                                <button
+                                                    onClick={handleBackToQuestions}
+                                                    className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
+                                                >
+                                                    Back to Questions
+                                                </button>
+                                                <button
+                                                    onClick={handleShuffle}
+                                                    className="px-6 py-2 bg-purple-400 text-white rounded-lg hover:bg-purple-500 font-bold flex items-center gap-2"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                    </svg>
                                                     Next Random Question
                                                 </button>
                                             </div>
@@ -1933,17 +2320,17 @@ function FreePracticeContent() {
                                 className="fixed bottom-8 right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-4 rounded-full shadow-2xl ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110"
                                 aria-label="Back to top"
                             >
-                                <svg 
-                                    className="w-6 h-6" 
-                                    fill="none" 
-                                    stroke="currentColor" 
+                                <svg
+                                    className="w-6 h-6"
+                                    fill="none"
+                                    stroke="currentColor"
                                     viewBox="0 0 24 24"
                                 >
-                                    <path 
-                                        strokeLinecap="round" 
-                                        strokeLinejoin="round" 
-                                        strokeWidth={2.5} 
-                                        d="M5 10l7-7m0 0l7 7m-7-7v18" 
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2.5}
+                                        d="M5 10l7-7m0 0l7 7m-7-7v18"
                                     />
                                 </svg>
                             </button>

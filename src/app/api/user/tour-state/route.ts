@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
+import { z } from 'zod'
+
+const tourStatePayloadSchema = z.object({
+    action: z.enum(['complete', 'dismiss', 'start'])
+})
 
 /**
  * GET /api/user/tour-state
@@ -36,20 +41,26 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json()
-        const { action } = body
-
-        if (!action || !['complete', 'dismiss', 'start'].includes(action)) {
+        const parse = tourStatePayloadSchema.safeParse(body)
+        if (!parse.success) {
             return jsonResponse({ error: 'Invalid action. Use: complete, dismiss, or start' }, 400)
         }
 
-        let updateData: any = {}
+        const { action } = parse.data
+
+        let updateData: {
+            hasSeenTour?: boolean
+            tourCompleted?: boolean
+            tourDismissed?: boolean
+            tourDismissedAt?: Date | null
+        } = {}
 
         switch (action) {
             case 'complete':
                 updateData = {
                     hasSeenTour: true,
                     tourCompleted: true,
-                    tourDismissed: false
+                    tourDismissed: false,
                 }
                 break
             case 'dismiss':
@@ -64,6 +75,8 @@ export async function POST(request: Request) {
                     hasSeenTour: true
                 }
                 break
+            default:
+                return jsonResponse({ error: 'Invalid action. Use: complete, dismiss, or start' }, 400)
         }
 
         const updatedUser = await prisma.user.update({

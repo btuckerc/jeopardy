@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 interface QuickPlayCardsProps {
-    user: { id: string } | null
     onGameCreated?: (game: { id: string; mode?: string; createdAt?: string; progress?: number }) => void
 }
 
@@ -81,7 +81,7 @@ const presets: PresetConfig[] = [
     }
 ]
 
-export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsProps) {
+export default function QuickPlayCards({ onGameCreated }: QuickPlayCardsProps) {
     const router = useRouter()
     const [startingPreset, setStartingPreset] = useState<PresetType | null>(null)
 
@@ -108,7 +108,7 @@ export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsPr
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    alert('Please sign in to start a game.')
+                    toast.error('Please sign in to start a game.')
                     router.push('/sign-in?redirect_url=/game')
                     return
                 }
@@ -128,7 +128,7 @@ export default function QuickPlayCards({ user, onGameCreated }: QuickPlayCardsPr
             router.push(`/game/${game.id}`)
         } catch (error) {
             console.error('Error starting game:', error)
-            alert('Failed to start game. Please try again.')
+            toast.error('Failed to start game. Please try again.')
         } finally {
             setStartingPreset(null)
         }

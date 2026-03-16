@@ -22,6 +22,7 @@ interface RouteParams {
 export async function POST(request: Request, { params }: RouteParams) {
     try {
         const { guestGameId } = await params
+        const revealAnswer = new URL(request.url).searchParams.get('reveal') === 'true'
         
         const { data: body, error } = await parseBody(request, answerSchema)
         if (error) return error
@@ -164,7 +165,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
         return jsonResponse({
             correct,
-            answer: question.answer,
+            ...(revealAnswer ? { answer: question.answer } : {}),
             points,
             currentScore: newScore,
             limitReached,
@@ -174,4 +175,3 @@ export async function POST(request: Request, { params }: RouteParams) {
         return serverErrorResponse('Error submitting guest game answer', error)
     }
 }
-

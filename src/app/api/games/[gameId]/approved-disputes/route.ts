@@ -5,10 +5,6 @@ import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { getStatsPoints } from '@/lib/scoring'
 
-interface RouteParams {
-    params: Promise<{ gameId: string }>
-}
-
 export const dynamic = 'force-dynamic'
 
 /**

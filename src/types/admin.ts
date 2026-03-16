@@ -108,7 +108,9 @@ export interface AdminDispute {
 export interface AdminIssue {
     id: string
     userId: string
+    email: string | null
     subject: string
+    message: string
     description: string
     category: 'BUG' | 'CONTENT' | 'FEATURE_REQUEST' | 'ACCOUNT' | 'QUESTION' | 'OTHER'
     status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED'
@@ -138,6 +140,8 @@ export interface AdminIssue {
             name: string
         }
     } | null
+    questionId: string | null
+    gameId: string | null
     pageUrl?: string | null
     userName?: string
     userEmail?: string
@@ -205,10 +209,19 @@ export interface GuestConfig {
 }
 
 export interface GuestStats {
-    totalSessions: number
+    totalSessions?: number
     activeSessions: number
+    active?: number
+    unclaimed: number
+    claimed: number
     claimedSessions: number
+    expired: number
     byType: Record<string, number>
+    recent?: {
+        unclaimed: number
+        claimed: number
+        conversionRate: number
+    }
 }
 
 // Usage Metrics types

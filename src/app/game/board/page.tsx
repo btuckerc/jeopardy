@@ -11,7 +11,7 @@ import type { GameConfig } from '@/types/game'
 interface Question {
     id: string
     question: string
-    answer: string
+    answer: string | null
     value: number
     categoryId: string
     isDoubleJeopardy: boolean
@@ -148,6 +148,7 @@ export default function GameBoard() {
             params.append('round', round)
             params.append('isDouble', (round === 'DOUBLE').toString()) // Legacy support
             params.append('mode', config.mode || 'random')
+            params.append('reveal', 'true')
 
             if (config.categories) {
                 params.append('categories', config.categories.join(','))
@@ -207,6 +208,7 @@ export default function GameBoard() {
             setLoading(true)
             const params = new URLSearchParams()
             params.append('mode', config.mode || 'random')
+            params.append('reveal', 'true')
             
             if (config.categories) {
                 params.append('categories', config.categories.join(','))
@@ -422,6 +424,12 @@ export default function GameBoard() {
     const handleSubmitAnswer = async () => {
         if (!selectedQuestion || !userAnswer) return
 
+        if (!selectedQuestion.answer) {
+            setIsCorrect(false)
+            setShowAnswer(true)
+            return
+        }
+
         const result = checkAnswer(userAnswer, selectedQuestion.answer)
         setIsCorrect(result)
         setShowAnswer(true)
@@ -496,6 +504,12 @@ export default function GameBoard() {
     // Final Jeopardy handlers
     const handleFinalJeopardySubmit = async () => {
         if (!finalJeopardyQuestion || !finalJeopardyAnswer) return
+
+        if (!finalJeopardyQuestion.answer) {
+            setFinalJeopardyIsCorrect(false)
+            setFinalJeopardyShowAnswer(true)
+            return
+        }
 
         const result = checkAnswer(finalJeopardyAnswer, finalJeopardyQuestion.answer)
         setFinalJeopardyIsCorrect(result)
@@ -709,7 +723,7 @@ export default function GameBoard() {
                                         </span>
                                     </div>
                                     <p className="text-xl font-medium text-center">
-                                        Answer: {finalJeopardyQuestion.answer}
+                                        Answer: {finalJeopardyQuestion.answer || 'Answer unavailable'}
                                     </p>
                                     {finalJeopardyActualWager > 0 && (
                                         <p className="text-lg text-center mt-2 opacity-80">
@@ -969,7 +983,7 @@ export default function GameBoard() {
                                             </span>
                                         </div>
                                         <p className="font-medium text-center text-sm sm:text-base">
-                                            {selectedQuestion.answer}
+                                            {selectedQuestion.answer || 'Answer unavailable'}
                                         </p>
                                     </div>
                                     <button

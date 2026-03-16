@@ -11,6 +11,8 @@ import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
  */
 export const GET = withInstrumentation(async (_request: NextRequest) => {
     try {
+        const { searchParams } = _request.nextUrl
+        const revealAnswers = searchParams.get('reveal') === 'true'
         const user = await getAppUser()
         const activeDate = getActiveChallengeDate()
         
@@ -39,7 +41,7 @@ export const GET = withInstrumentation(async (_request: NextRequest) => {
         })
         
         // Get user participation data if authenticated
-        let userParticipations: Record<string, {
+        const userParticipations: Record<string, {
             correct: boolean
             completedAt: string
             userAnswerText: string | null
@@ -68,13 +70,14 @@ export const GET = withInstrumentation(async (_request: NextRequest) => {
         // Format the response
         const archiveData = challenges.map(challenge => {
             const participation = userParticipations[challenge.id]
+            const includeAnswer = revealAnswers || !!participation
             return {
                 id: challenge.id,
                 date: challenge.date.toISOString(),
                 question: {
                     id: challenge.question.id,
                     question: challenge.question.question,
-                    answer: challenge.question.answer,
+                    answer: includeAnswer ? challenge.question.answer : null,
                     category: challenge.question.category.name,
                     airDate: challenge.question.airDate
                 },

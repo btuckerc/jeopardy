@@ -11,7 +11,7 @@ interface ArchiveDay {
     question: {
         id: string
         question: string
-        answer: string
+        answer: string | null
         category: string
         airDate: string | null
     }

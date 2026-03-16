@@ -14,6 +14,7 @@ async function getHandler(request: NextRequest, context?: { params?: Record<stri
         }
 
         const questionId = context?.params?.questionId as string
+        const revealAnswers = new URL(request.url).searchParams.get('reveal') === 'true'
         if (!questionId) {
             return jsonResponse({ error: 'Missing questionId parameter' }, 400)
         }
@@ -37,7 +38,7 @@ async function getHandler(request: NextRequest, context?: { params?: Record<stri
         return jsonResponse({
             id: question.id,
             question: question.question,
-            answer: question.answer,
+            answer: revealAnswers ? question.answer : null,
             value: question.value,
             category: question.category
         })

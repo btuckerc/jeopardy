@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/app/lib/auth'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import Link from 'next/link'
+import toast from 'react-hot-toast'
 
 interface GuestGameState {
     id: string
@@ -27,7 +28,14 @@ export default function GuestGamePage() {
     const { user, signIn, loading: authLoading } = useAuth()
     const [gameState, setGameState] = useState<GuestGameState | null>(null)
     const [loading, setLoading] = useState(true)
-    const [question, setQuestion] = useState<{ id: string; question: string; answer: string; value: number; categoryId: string; category: { id: string; name: string } } | null>(null)
+    const [question, setQuestion] = useState<{
+        id: string
+        question: string
+        answer: string | null
+        value: number
+        categoryId: string
+        category: { id: string; name: string }
+    } | null>(null)
     const [userAnswer, setUserAnswer] = useState('')
     const answerInputRef = useRef<HTMLInputElement>(null)
     const [showResult, setShowResult] = useState(false)
@@ -108,7 +116,7 @@ export default function GuestGamePage() {
 
         setSubmitting(true)
         try {
-            const response = await fetch(`/api/games/guest/${guestGameId}/answer`, {
+            const response = await fetch(`/api/games/guest/${guestGameId}/answer?reveal=true`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -129,6 +137,7 @@ export default function GuestGamePage() {
 
             const data = await response.json()
             setIsCorrect(data.correct)
+            setQuestion(prev => prev ? { ...prev, answer: data.answer ?? prev.answer } : prev)
             setShowResult(true)
             
             // Update game state
@@ -146,7 +155,7 @@ export default function GuestGamePage() {
             }
         } catch (error) {
             console.error('Error submitting answer:', error)
-            alert('Failed to submit answer. Please try again.')
+            toast.error('Failed to submit answer. Please try again.')
         } finally {
             setSubmitting(false)
         }
@@ -307,11 +316,11 @@ export default function GuestGamePage() {
                                         </span>
                                     </div>
                                     
-                                    <div className="mt-4 p-4 bg-white rounded-lg border-2 border-gray-200">
-                                        <p className="text-xl font-medium text-center text-gray-800">
-                                            {question.answer}
-                                        </p>
-                                    </div>
+                                <div className="mt-4 p-4 bg-white rounded-lg border-2 border-gray-200">
+                                    <p className="text-xl font-medium text-center text-gray-800">
+                                        {question.answer || 'Answer unavailable'}
+                                    </p>
+                                </div>
                                 </div>
 
                                 {/* Sign up CTA */}
@@ -346,4 +355,3 @@ export default function GuestGamePage() {
         </div>
     )
 }
-

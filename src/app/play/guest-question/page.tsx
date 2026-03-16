@@ -3,14 +3,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/app/lib/auth'
-import { checkAnswer } from '@/app/lib/answer-checker'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
 import Link from 'next/link'
+import toast from 'react-hot-toast'
 
 interface Question {
     id: string
     question: string
-    answer: string
+    answer: string | null
     value: number
     category: string
     originalCategory: string
@@ -64,11 +64,11 @@ export default function GuestQuestionPage() {
                 const data = await response.json()
                 setQuestion(data)
             } else {
-                alert('Failed to load question. Please try again.')
+                toast.error('Failed to load question. Please try again.')
             }
         } catch (error) {
             console.error('Error loading question:', error)
-            alert('Failed to load question. Please try again.')
+            toast.error('Failed to load question. Please try again.')
         } finally {
             setLoading(false)
         }
@@ -79,19 +79,13 @@ export default function GuestQuestionPage() {
 
         setSubmitting(true)
         try {
-            // Check answer locally
-            const correct = checkAnswer(userAnswer, question.answer)
-            const points = correct ? question.value : -question.value
-
             // Submit to backend
-            const response = await fetch('/api/practice/guest-question/complete', {
+            const response = await fetch('/api/practice/guest-question/complete?reveal=true', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     ...(guestSessionId && { guestSessionId }),
                     questionId: question.id,
-                    correct,
-                    points,
                     rawAnswer: userAnswer
                 })
             })
@@ -107,7 +101,11 @@ export default function GuestQuestionPage() {
                 if (error.requiresAuth) {
                     setLimitReached(true)
                     // Still show the result even if limit is reached
-                    setIsCorrect(correct)
+                    setIsCorrect(error.correct ?? false)
+                    setQuestion(prev => prev ? {
+                        ...prev,
+                        answer: error.answer ?? prev.answer
+                    } : prev)
                     setShowResult(true)
                     return
                 } else {
@@ -116,7 +114,8 @@ export default function GuestQuestionPage() {
             }
             
             const data = await response.json()
-            setIsCorrect(correct)
+            setIsCorrect(data.correct)
+            setQuestion(prev => prev ? { ...prev, answer: data.answer ?? prev.answer } : prev)
             setShowResult(true)
             setLimitReached(data.limitReached || false)
             if (data.guestSessionId) {
@@ -127,7 +126,7 @@ export default function GuestQuestionPage() {
             }
         } catch (error) {
             console.error('Error submitting answer:', error)
-            alert('Failed to submit answer. Please try again.')
+            toast.error('Failed to submit answer. Please try again.')
         } finally {
             setSubmitting(false)
         }
@@ -283,7 +282,7 @@ export default function GuestQuestionPage() {
                                 
                                 <div className="mt-4 p-4 bg-white rounded-lg border-2 border-gray-200">
                                     <p className="text-xl font-medium text-center text-gray-800">
-                                        {question.answer}
+                                        {question.answer || 'Answer unavailable'}
                                     </p>
                                 </div>
                             </div>
@@ -317,4 +316,3 @@ export default function GuestQuestionPage() {
         </div>
     )
 }
-

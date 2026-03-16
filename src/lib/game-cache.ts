@@ -85,7 +85,7 @@ export interface CachedCategory {
     questions: {
         id: string
         question: string
-        answer: string
+        answer: string | null
         value: number
         isDoubleJeopardy: boolean
         wasTripleStumper: boolean
@@ -96,7 +96,7 @@ export interface CachedCategory {
 export interface CachedFinalJeopardy {
     id: string
     question: string
-    answer: string
+    answer: string | null
     category: {
         id: string
         name: string
@@ -119,6 +119,7 @@ export function getBoardCacheKey(params: {
     date?: string | null
     categories?: string | null
     categoryIds?: string | null
+    revealAnswers?: boolean
 }): string | null {
     // Only cache if we have a deterministic identifier (gameId or seed)
     const identifier = params.gameId || params.seed
@@ -129,7 +130,8 @@ export function getBoardCacheKey(params: {
         'board',
         identifier,
         params.round,
-        params.mode || 'random'
+        params.mode || 'random',
+        params.revealAnswers ? 'reveal' : 'hide'
     ]
 
     // Add mode-specific parameters
@@ -155,6 +157,7 @@ export function getFinalJeopardyCacheKey(params: {
     date?: string | null
     finalCategoryMode?: string | null
     finalCategoryId?: string | null
+    revealAnswers?: boolean
 }): string | null {
     // Only cache if we have a deterministic identifier
     const identifier = params.gameId || params.seed
@@ -164,7 +167,8 @@ export function getFinalJeopardyCacheKey(params: {
         'fj',
         identifier,
         params.mode || 'random',
-        params.finalCategoryMode || 'shuffle'
+        params.finalCategoryMode || 'shuffle',
+        params.revealAnswers ? 'reveal' : 'hide'
     ]
 
     // Add mode-specific parameters
@@ -223,4 +227,3 @@ export function getGameCacheStats(): { board: number; finalJeopardy: number } {
         finalJeopardy: finalJeopardyCache.size
     }
 }
-

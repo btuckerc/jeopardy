@@ -16,6 +16,44 @@ const createIssueSchema = z.object({
 
 export const dynamic = 'force-dynamic'
 
+const ISSUE_SUBMISSION_LIMIT = 5
+const ISSUE_SUBMISSION_WINDOW_MS = 60_000
+const issueSubmissionBuckets = new Map<string, { count: number; resetAt: number }>()
+
+function getIssueSubmitterKey(request: NextRequest, userId?: string | null): string {
+    if (userId) {
+        return `user:${userId}`
+    }
+
+    const forwarded = request.headers.get('x-forwarded-for')
+    const rawIp = forwarded?.split(',')[0]?.trim() ||
+        request.headers.get('x-real-ip') ||
+        request.headers.get('cf-connecting-ip') ||
+        'unknown'
+
+    return `ip:${rawIp}`
+}
+
+function checkIssueRateLimit(key: string): { allowed: boolean; retryAfterMs?: number } {
+    const now = Date.now()
+    const bucket = issueSubmissionBuckets.get(key)
+
+    if (!bucket || bucket.resetAt <= now) {
+        issueSubmissionBuckets.set(key, {
+            count: 1,
+            resetAt: now + ISSUE_SUBMISSION_WINDOW_MS
+        })
+        return { allowed: true }
+    }
+
+    if (bucket.count >= ISSUE_SUBMISSION_LIMIT) {
+        return { allowed: false, retryAfterMs: bucket.resetAt - now }
+    }
+
+    bucket.count += 1
+    return { allowed: true }
+}
+
 /**
  * POST /api/issues
  * Create a new issue report (public endpoint, supports both authenticated and unauthenticated users)
@@ -23,6 +61,16 @@ export const dynamic = 'force-dynamic'
 export async function POST(request: NextRequest) {
     try {
         const appUser = await getAppUser()
+        const rateLimitKey = getIssueSubmitterKey(request, appUser?.id)
+        const rateLimit = checkIssueRateLimit(rateLimitKey)
+
+        if (!rateLimit.allowed) {
+            const retryAfterSec = Math.ceil((rateLimit.retryAfterMs ?? ISSUE_SUBMISSION_WINDOW_MS) / 1000)
+            return jsonResponse({
+                error: 'Too many issue reports submitted. Please wait before trying again.',
+                retryAfterSec
+            }, 429)
+        }
         
         const { data: body, error } = await parseBody(request, createIssueSchema)
         if (error) return error
@@ -83,4 +131,3 @@ export async function POST(request: NextRequest) {
         return serverErrorResponse('Failed to create issue report', error)
     }
 }
-

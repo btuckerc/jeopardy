@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
     '/sign-in(.*)',
     '/sign-up(.*)',
     '/game', // Game hub is public (shows sign-in prompt for guests)
+    '/friends', // Friends hub shows sign-in CTA for guests
     '/help(.*)', // Help pages are public
     '/leaderboard(.*)', // Leaderboard is public
     '/api/cron(.*)', // Cron jobs don't need user auth
@@ -62,4 +63,3 @@ export const config = {
         '/(api|trpc)(.*)',
     ],
 }
-

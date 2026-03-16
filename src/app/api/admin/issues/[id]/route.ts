@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, requireAdmin, notFoundResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 
@@ -21,15 +20,8 @@ export async function GET(
     { params }: { params: { id: string } }
 ) {
     try {
-        const appUser = await getAppUser()
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
-        }
+        const { user: _user, error: authError } = await requireAdmin()
+        if (authError) return authError
 
         const issue = await prisma.issueReport.findUnique({
             where: { id: params.id },
@@ -87,15 +79,8 @@ export async function PATCH(
     { params }: { params: { id: string } }
 ) {
     try {
-        const appUser = await getAppUser()
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
-        }
+        const { user, error: authError } = await requireAdmin()
+        if (authError) return authError
 
         const { data: body, error } = await parseBody(request, updateIssueSchema)
         if (error) return error
@@ -128,7 +113,7 @@ export async function PATCH(
         if (adminNote !== undefined) {
             updateData.adminNote = adminNote || null
         }
-        updateData.admin = { connect: { id: appUser.id } }
+        updateData.admin = { connect: { id: user.id } }
 
         const updatedIssue = await prisma.issueReport.update({
             where: { id: params.id },
@@ -173,4 +158,3 @@ export async function PATCH(
         return serverErrorResponse('Failed to update issue', error)
     }
 }
-

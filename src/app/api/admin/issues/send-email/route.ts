@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, forbiddenResponse, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, requireAdmin, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
 const sendIssueEmailSchema = z.object({
@@ -19,15 +18,8 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
     try {
-        const appUser = await getAppUser()
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
-        }
+        const { error: authError } = await requireAdmin()
+        if (authError) return authError
 
         const { data: body, error } = await parseBody(request, sendIssueEmailSchema)
         if (error) return error
@@ -83,4 +75,3 @@ export async function POST(request: NextRequest) {
         return serverErrorResponse('Failed to send email', error)
     }
 }
-

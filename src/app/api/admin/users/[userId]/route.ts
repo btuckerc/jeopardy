@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { requireAdmin } from '@/lib/clerk-auth'
-import { jsonResponse, serverErrorResponse, notFoundResponse, badRequestResponse } from '@/lib/api-utils'
+import { requireAdmin, jsonResponse, serverErrorResponse, notFoundResponse, badRequestResponse } from '@/lib/api-utils'
 import { generateUniqueDisplayName, validateDisplayName } from '@/lib/display-name'
 
 /**
@@ -14,7 +13,8 @@ export async function DELETE(
     { params }: { params: { userId: string } }
 ) {
     try {
-        await requireAdmin()
+        const { error: authError } = await requireAdmin()
+        if (authError) return authError
 
         const { userId } = params
 
@@ -123,7 +123,8 @@ export async function PATCH(
     { params }: { params: { userId: string } }
 ) {
     try {
-        await requireAdmin()
+        const { error: authError } = await requireAdmin()
+        if (authError) return authError
 
         const { userId } = params
         const body = await request.json()
@@ -207,4 +208,3 @@ export async function PATCH(
         return serverErrorResponse('Failed to update display name', error)
     }
 }
-

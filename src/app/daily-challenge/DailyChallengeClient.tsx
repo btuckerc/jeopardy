@@ -12,6 +12,7 @@ import type { UnlockedAchievement } from '@/types/admin'
 import { getNextChallengeTimeISO } from '@/lib/daily-challenge-utils'
 import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
 import ShareResults from './components/ShareResults'
+import toast from 'react-hot-toast'
 
 // Helper to format date string without timezone conversion
 // Takes ISO date string and returns formatted string like "November 7, 2022"
@@ -243,7 +244,7 @@ export default function DailyChallengeClient({
             }
         } catch (error) {
             console.error('Error submitting answer:', error)
-            alert('Failed to submit answer. Please try again.')
+            toast.error('Failed to submit answer. Please try again.')
         } finally {
             setSubmitting(false)
         }
@@ -271,14 +272,14 @@ export default function DailyChallengeClient({
             if (!response.ok) {
                 const error = await response.json()
                 console.error('Failed to submit dispute:', error.error)
-                alert('Failed to submit dispute. Please try again.')
+                toast.error('Failed to submit dispute. Please try again.')
                 return
             }
 
             setDisputeSubmitted(true)
         } catch (error) {
             console.error('Error submitting dispute:', error)
-            alert('Failed to submit dispute. Please try again.')
+            toast.error('Failed to submit dispute. Please try again.')
         } finally {
             setDisputeSubmitting(false)
         }
@@ -750,4 +751,3 @@ export default function DailyChallengeClient({
         </div>
     )
 }
-

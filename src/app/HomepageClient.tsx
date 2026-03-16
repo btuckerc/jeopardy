@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AppUser } from '@/lib/clerk-auth'
+import toast from 'react-hot-toast'
 
 interface HomepageClientProps {
     user: AppUser | null
@@ -45,7 +46,7 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
             }
         } catch (error) {
             console.error('Error starting game:', error)
-            alert('Failed to start game. Please try again.')
+            toast.error('Failed to start game. Please try again.')
         } finally {
             setIsStarting(false)
         }
@@ -88,7 +89,7 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
             }
         } catch (error) {
             console.error('Error starting practice:', error)
-            alert('Failed to start practice. Please try again.')
+            toast.error('Failed to start practice. Please try again.')
         } finally {
             setIsStarting(false)
         }
@@ -210,4 +211,3 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
         </button>
     )
 }
-

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 
 interface ContextualTooltipProps {
     children: React.ReactNode

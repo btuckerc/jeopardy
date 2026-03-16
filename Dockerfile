@@ -2,15 +2,14 @@ FROM node:20
 
 WORKDIR /app
 
-# Install system dependencies Prisma expects (OpenSSL, ca-certificates)
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+# Base image includes required crypto certificates and openssl tooling for Prisma/Node
 
 # Install dependencies based on the lockfile, but skip lifecycle scripts
 # (the "prepare" script runs prisma generate, which needs the schema copied first)
 COPY package*.json ./
-RUN npm ci --ignore-scripts
+RUN npm config set cache /tmp/.npm-cache --global \
+  && npm ci --ignore-scripts --no-audit --no-fund \
+  && npm cache clean --force
 
 # Copy the rest of the app, including prisma schema and source
 COPY . .

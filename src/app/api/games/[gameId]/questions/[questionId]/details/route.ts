@@ -4,10 +4,6 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 
-interface RouteParams {
-    params: Promise<{ gameId: string; questionId: string }>
-}
-
 export const dynamic = 'force-dynamic'
 
 /**

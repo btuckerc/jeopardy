@@ -1,7 +1,14 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, notFoundResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
+import {
+    jsonResponse,
+    notFoundResponse,
+    serverErrorResponse,
+    badRequestResponse,
+    unauthorizedResponse,
+    forbiddenResponse
+} from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import type { Prisma } from '@prisma/client'
 import {
@@ -79,6 +86,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const gameId = searchParams.get('gameId')
         const mode = searchParams.get('mode')
         const finalCategoryMode = searchParams.get('finalCategoryMode') || 'shuffle'
+        const revealAnswers = searchParams.get('reveal') === 'true'
         const date = searchParams.get('date')
         const finalCategoryId = searchParams.get('finalCategoryId')
         const questionId = searchParams.get('questionId') // For fetching a specific question (resume)
@@ -92,7 +100,8 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 mode, 
                 date, 
                 finalCategoryMode, 
-                finalCategoryId 
+                finalCategoryId,
+                revealAnswers
             })
             if (cacheKey) {
                 const cached = getCachedFinalJeopardy(cacheKey)
@@ -112,16 +121,45 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         // Determine the effective spoiler policy
         let spoilerPolicy: SpoilerPolicy
         let gameSeed: string | null = null
+        let canRevealAnswers = false
+        let userCanAccessGame = true
 
         if (gameId) {
-            // Use the game's spoiler policy for consistent board generation
-            spoilerPolicy = await getGameSpoilerPolicy(gameId)
-            // Also fetch the game's seed for deterministic selection
             const game = await prisma.game.findUnique({
                 where: { id: gameId },
-                select: { seed: true }
+                select: {
+                    userId: true,
+                    opponentUserId: true,
+                    seed: true,
+                    visibility: true
+                }
             })
-            gameSeed = game?.seed ?? null
+            if (!game) {
+                return notFoundResponse('Game not found')
+            }
+
+            const isOwner = !!userId && game.userId === userId
+            const isOpponent = !!userId && game.opponentUserId === userId
+            canRevealAnswers = isOwner || isOpponent
+            userCanAccessGame = game.visibility !== 'PRIVATE' || canRevealAnswers
+
+            if (!userCanAccessGame) {
+                if (!userId) {
+                    return unauthorizedResponse('Please sign in to access this game')
+                }
+                return forbiddenResponse('You do not have access to this game')
+            }
+
+            if (revealAnswers && !canRevealAnswers) {
+                if (!userId) {
+                    return unauthorizedResponse('Please sign in to reveal this game\'s answers')
+                }
+                return forbiddenResponse('You do not have access to this game board\'s answers')
+            }
+
+            // Use the game's spoiler policy for consistent board generation
+            spoilerPolicy = await getGameSpoilerPolicy(gameId)
+            gameSeed = game.seed ?? null
         } else if (userId) {
             // Fall back to the current user's profile settings
             spoilerPolicy = await computeUserEffectiveCutoff(userId)
@@ -130,6 +168,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             spoilerPolicy = { enabled: false, cutoffDate: null }
         }
         timer.mark('spoilerPolicy')
+        const shouldRevealAnswers = revealAnswers && canRevealAnswers
 
         // If a specific question ID is provided, fetch that question directly
         if (questionId) {
@@ -170,7 +209,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             return jsonResponse({
                 id: question.id,
                 question: question.question,
-                answer: question.answer,
+                answer: shouldRevealAnswers ? question.answer : null,
                 category: {
                     id: question.category.id,
                     name: question.category.name
@@ -294,7 +333,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const result: CachedFinalJeopardy = {
             id: selectedQuestion.id,
             question: selectedQuestion.question,
-            answer: selectedQuestion.answer,
+            answer: shouldRevealAnswers ? selectedQuestion.answer : null,
             category: {
                 id: selectedQuestion.category.id,
                 name: selectedQuestion.category.name
@@ -308,7 +347,8 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             mode, 
             date, 
             finalCategoryMode, 
-            finalCategoryId 
+            finalCategoryId,
+            revealAnswers: shouldRevealAnswers
         })
         if (cacheKey) {
             setCachedFinalJeopardy(cacheKey, result)

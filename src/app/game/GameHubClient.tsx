@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import type { ClientResumableGame } from './components/GameResumableList'
 import type { GameConfig } from '@/types/game'
+import toast from 'react-hot-toast'
 
 // Dynamically import heavy components to reduce initial bundle size
 const CustomCategoryPicker = dynamic(
@@ -82,7 +83,7 @@ interface GameHubClientProps {
     initialSpoilerSettings: InitialSpoilerSettings | null
 }
 
-export default function GameHubClient({ 
+export default function GameHubClient({
     initialResumableGames,
     initialCompletedGames,
     initialUser,
@@ -91,15 +92,15 @@ export default function GameHubClient({
     const router = useRouter()
     // Use server-provided user data directly - no client fetch needed!
     const user = initialUser
-    
+
     // Games tab state
     const [activeGamesTab, setActiveGamesTab] = useState<'inProgress' | 'completed'>('inProgress')
-    
+
     // Resumable games state - start with server-provided data
     const [resumableGames, setResumableGames] = useState<ClientResumableGame[]>(initialResumableGames)
     const [completedGames, setCompletedGames] = useState<ClientResumableGame[]>(initialCompletedGames)
     const [loadingGames, setLoadingGames] = useState(false) // Start as false since we have initial data
-    
+
     // New game configuration state
     const [selectedMode, setSelectedMode] = useState<'random' | 'knowledge' | 'custom' | 'date'>('random')
     const [selectedCategories, setSelectedCategories] = useState<KnowledgeCategory[]>([])
@@ -110,7 +111,7 @@ export default function GameHubClient({
     const [finalCategoryMode, setFinalCategoryMode] = useState<'shuffle' | 'byDate' | 'specificCategory'>('byDate')
     const [finalCategoryId, _setFinalCategoryId] = useState<string | null>(null)
     const [isStartingGame, setIsStartingGame] = useState(false)
-    
+
     // Warning modal state
     const [showWarningModal, setShowWarningModal] = useState(false)
     const [pendingGameConfig, setPendingGameConfig] = useState<GameConfig | null>(null)
@@ -151,7 +152,35 @@ export default function GameHubClient({
 
     // Track if this is the initial mount
     const isInitialMount = useRef(true)
-    
+
+    // Refresh games after ending a game or creating a new game
+    const refreshGames = useCallback(async () => {
+        if (!user?.id) return
+
+        setLoadingGames(true)
+        try {
+            // Fetch both in parallel for snappy UX
+            const [resumableRes, completedRes] = await Promise.all([
+                fetch('/api/games/resumable'),
+                fetch('/api/games/completed')
+            ])
+
+            if (resumableRes.ok) {
+                const data = await resumableRes.json()
+                setResumableGames(data.games || [])
+            }
+
+            if (completedRes.ok) {
+                const data = await completedRes.json()
+                setCompletedGames(data.games || [])
+            }
+        } catch (error) {
+            console.error('Error fetching games:', error)
+        } finally {
+            setLoadingGames(false)
+        }
+    }, [user?.id])
+
     // Refresh games when component mounts and when window regains focus
     useEffect(() => {
         // Skip initial mount - we already have server-provided initial data
@@ -160,11 +189,11 @@ export default function GameHubClient({
             isInitialMount.current = false
             return
         }
-        
+
         if (user?.id) {
             refreshGames()
         }
-    }, [user?.id])
+    }, [user?.id, refreshGames])
 
     // Refresh games when window regains focus (e.g., after playing a game)
     useEffect(() => {
@@ -176,35 +205,7 @@ export default function GameHubClient({
 
         window.addEventListener('focus', handleFocus)
         return () => window.removeEventListener('focus', handleFocus)
-    }, [user?.id])
-
-    // Refresh games after ending a game or creating a new game
-    const refreshGames = async () => {
-        if (!user?.id) return
-        
-        setLoadingGames(true)
-        try {
-            // Fetch both in parallel for snappy UX
-            const [resumableRes, completedRes] = await Promise.all([
-                fetch('/api/games/resumable'),
-                fetch('/api/games/completed')
-            ])
-            
-            if (resumableRes.ok) {
-                const data = await resumableRes.json()
-                setResumableGames(data.games || [])
-            }
-            
-            if (completedRes.ok) {
-                const data = await completedRes.json()
-                setCompletedGames(data.games || [])
-            }
-        } catch (error) {
-            console.error('Error fetching games:', error)
-        } finally {
-            setLoadingGames(false)
-        }
-    }
+    }, [user?.id, refreshGames])
 
     const handleDateChange = (date: Date | null) => {
         setSelectedDateObj(date)
@@ -237,7 +238,7 @@ export default function GameHubClient({
                 params.append('mode', 'knowledge')
                 params.append('categories', selectedCategories.join(','))
                 params.append('round', 'SINGLE')
-                
+
                 const response = await fetch(`/api/categories/game?${params.toString()}`)
                 if (!response.ok) return true
                 const data = await response.json()
@@ -256,9 +257,9 @@ export default function GameHubClient({
             if (!response.ok) throw new Error('Failed to fetch categories')
             const data = await response.json()
             const selectedIds = new Set(customCategories.map(c => c.id))
-            const available = data.filter((cat: Category) => 
-                !selectedIds.has(cat.id) && 
-                cat._count?.questions && 
+            const available = data.filter((cat: Category) =>
+                !selectedIds.has(cat.id) &&
+                cat._count?.questions &&
                 cat._count.questions >= 5 &&
                 !cat.isDoubleJeopardy
             )
@@ -284,8 +285,8 @@ export default function GameHubClient({
         if (config.mode === 'date' && config.date) {
             const episodeDate = new Date(config.date)
             if (episodeDate >= cutoffDate) {
-                return { 
-                    hasConflict: true, 
+                return {
+                    hasConflict: true,
                     conflictDate: episodeDate.toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
@@ -320,7 +321,7 @@ export default function GameHubClient({
                 break
             case 'knowledge':
                 if (selectedCategories.length === 0) {
-                    alert('Please select at least one knowledge category')
+                    toast.error('Please select at least one knowledge category')
                     return
                 }
                 gameConfig = {
@@ -330,7 +331,7 @@ export default function GameHubClient({
                 break
             case 'custom':
                 if (customCategories.length === 0) {
-                    alert('Please select at least one category')
+                    toast.error('Please select at least one category')
                     return
                 }
                 gameConfig = {
@@ -340,7 +341,7 @@ export default function GameHubClient({
                 break
             case 'date':
                 if (!selectedDate) {
-                    alert('Please select a date')
+                    toast.error('Please select a date')
                     return
                 }
                 gameConfig = {
@@ -359,7 +360,7 @@ export default function GameHubClient({
         }
 
         if (!rounds.single && !rounds.double && !rounds.final) {
-            alert('Please select at least one round')
+            toast.error('Please select at least one round')
             return
         }
 
@@ -401,12 +402,12 @@ export default function GameHubClient({
             }
 
             const game = await response.json()
-            
+
             // Navigate to the game board with the game ID
             router.push(`/game/${game.id}`)
         } catch (error) {
             console.error('Error creating game:', error)
-            alert(error instanceof Error ? error.message : 'Failed to create game')
+            toast.error(error instanceof Error ? error.message : 'Failed to create game')
         } finally {
             setIsStartingGame(false)
         }
@@ -414,14 +415,14 @@ export default function GameHubClient({
 
     const handleConfirmStartGame = () => {
         if (!pendingGameConfig) return
-        
+
         const updatedConfig = { ...pendingGameConfig }
         if (selectedMode === 'knowledge') {
             updatedConfig.categories = selectedCategories
         } else if (selectedMode === 'custom') {
             updatedConfig.categoryIds = customCategories.map(c => c.id)
         }
-        
+
         setShowWarningModal(false)
         setPendingGameConfig(null)
         createAndStartGame(updatedConfig)
@@ -429,12 +430,12 @@ export default function GameHubClient({
 
     const handleAddRandomCategories = () => {
         if (selectedMode !== 'custom' || availableCategoriesForFill.length === 0) return
-        
+
         const needed = 5 - customCategories.length
         const randomCategories = availableCategoriesForFill
             .sort(() => Math.random() - 0.5)
             .slice(0, needed)
-        
+
         setCustomCategories([...customCategories, ...randomCategories])
         setShowWarningModal(false)
         setPendingGameConfig(null)
@@ -445,7 +446,7 @@ export default function GameHubClient({
         if (customCategories.some(c => c.id === category.id)) return
         const updated = [...customCategories, category]
         setCustomCategories(updated)
-        
+
         if (updated.length >= 5) {
             setShowWarningModal(false)
             setPendingGameConfig(null)
@@ -481,7 +482,7 @@ export default function GameHubClient({
 
         try {
             const response = await fetch(`/api/games/by-seed/${encodeURIComponent(seedInput.trim())}`)
-            
+
             if (response.ok) {
                 const data = await response.json()
                 setSeedLookupResult(data)
@@ -563,7 +564,7 @@ export default function GameHubClient({
         setUpdatingSpoilerDate(true)
         try {
             console.log('Updating spoiler date to:', newDate.toISOString())
-            
+
             // Update the user's spoiler settings - also ensure spoiler protection is enabled
             const response = await fetch('/api/user/spoiler-settings', {
                 method: 'POST',
@@ -588,7 +589,7 @@ export default function GameHubClient({
                 }
                 throw new Error(errorMessage)
             }
-            
+
             const responseData = await response.json()
             console.log('Spoiler settings updated successfully:', responseData)
 
@@ -621,7 +622,7 @@ export default function GameHubClient({
             }
         } catch (error) {
             console.error('Error updating spoiler settings:', error)
-            alert('Failed to update spoiler settings. Please try again.')
+            toast.error('Failed to update spoiler settings. Please try again.')
         } finally {
             setUpdatingSpoilerDate(false)
         }
@@ -639,12 +640,11 @@ export default function GameHubClient({
 
                 {/* Quick Play Cards */}
                 <div className="mb-8">
-                    <QuickPlayCards 
-                        user={user} 
+                    <QuickPlayCards
                         onGameCreated={() => {
                             // Refresh games list when a new game is created
                             refreshGames()
-                        }} 
+                        }}
                     />
                 </div>
 
@@ -680,7 +680,7 @@ export default function GameHubClient({
                                 </svg>
                                 Your Games
                             </h2>
-                            
+
                             {/* Tabs */}
                             <div className="flex bg-gray-100 rounded-lg p-0.5">
                                 <button
@@ -723,17 +723,17 @@ export default function GameHubClient({
                                 </button>
                             </div>
                         </div>
-                        
+
                         {/* Tab content - contain layout prevents content from affecting container width */}
                         <div className="w-full overflow-hidden" style={{ contain: 'inline-size' }}>
                             {activeGamesTab === 'inProgress' ? (
-                                <GameResumableList 
+                                <GameResumableList
                                     games={resumableGames}
                                     loading={loadingGames}
                                     onEndGame={handleEndGame}
                                 />
                             ) : (
-                                <GameCompletedList 
+                                <GameCompletedList
                                     games={completedGames}
                                     loading={loadingGames}
                                 />
@@ -753,7 +753,7 @@ export default function GameHubClient({
 
                     <div className="space-y-6">
                         {/* Mode Selection */}
-                        <GameModeSelector 
+                        <GameModeSelector
                             selectedMode={selectedMode}
                             onModeChange={setSelectedMode}
                         />
@@ -982,4 +982,3 @@ export default function GameHubClient({
         </div>
     )
 }
-

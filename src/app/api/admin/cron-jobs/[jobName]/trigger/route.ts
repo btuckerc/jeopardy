@@ -5,7 +5,7 @@
  */
 
 import { NextResponse } from 'next/server'
-import { getAppUser } from '@/lib/clerk-auth'
+import { requireAdmin } from '@/lib/api-utils'
 import { CRON_JOBS, CronJobName } from '@/lib/cron-jobs'
 import { withCronLogging } from '@/lib/cron-logger'
 
@@ -21,9 +21,9 @@ export async function POST(
 ) {
     try {
         // Verify admin access
-        const user = await getAppUser()
-        if (!user || user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const { user, error: authError } = await requireAdmin()
+        if (authError) {
+            return authError
         }
 
         const { jobName } = params
@@ -55,27 +55,53 @@ export async function POST(
             )
         }
 
+        const triggerTimeoutMs = (job.timeoutMs ?? 5 * 60 * 1000) + 5_000
+        const responseTextLimit = job.maxResultBytes ?? 4096
+
         const result = await withCronLogging(
             jobName,
             user.id, // Store admin user ID as triggeredBy
             async () => {
                 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-                
-                const response = await fetch(`${baseUrl}${job.endpoint}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${cronSecret}`,
-                        'x-skip-cron-logging': 'true', // Prevent double logging
-                        'x-triggered-by': user.id,
-                    },
-                })
+                const controller = new AbortController()
+                const timeout = setTimeout(() => {
+                    controller.abort()
+                }, triggerTimeoutMs)
+
+                const safeResponseText = async (response: Response, maxChars = 2048): Promise<string> => {
+                    const text = await response.text()
+                    if (text.length <= maxChars) {
+                        return text
+                    }
+
+                    return `${text.slice(0, maxChars)}...`
+                }
+
+                let response: Response
+                try {
+                    response = await fetch(`${baseUrl}${job.endpoint}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${cronSecret}`,
+                            'x-skip-cron-logging': 'true', // Prevent double logging
+                            'x-triggered-by': user.id,
+                        },
+                        signal: controller.signal,
+                    })
+                } finally {
+                    clearTimeout(timeout)
+                }
 
                 if (!response.ok) {
-                    const errorText = await response.text()
+                    const errorText = await safeResponseText(response, responseTextLimit)
                     throw new Error(`Cron job failed: ${response.status} ${errorText}`)
                 }
 
                 return await response.json()
+            },
+            {
+                timeoutMs: triggerTimeoutMs,
+                maxResultBytes: job.maxResultBytes ?? 4096,
             }
         )
 
@@ -96,4 +122,3 @@ export async function POST(
         )
     }
 }
-

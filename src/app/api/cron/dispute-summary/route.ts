@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { withCronLogging } from '@/lib/cron-logger'
+import { CRON_JOBS } from '@/lib/cron-jobs'
 import { format } from 'date-fns'
 
 export const dynamic = 'force-dynamic'
@@ -405,7 +406,15 @@ export async function GET(request: Request) {
             const result = await executeJob()
             return NextResponse.json(result)
         } else {
-            const result = await withCronLogging('dispute-summary', triggeredBy, executeJob)
+            const result = await withCronLogging(
+                'dispute-summary',
+                triggeredBy,
+                executeJob,
+                {
+                    timeoutMs: CRON_JOBS['dispute-summary'].timeoutMs,
+                    maxResultBytes: 4096,
+                }
+            )
             return NextResponse.json(result)
         }
     } catch (error: unknown) {
@@ -420,4 +429,3 @@ export async function GET(request: Request) {
         )
     }
 }
-

@@ -1,19 +1,23 @@
-/** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Exclude native modules from client-side bundling
+    // Enable instrumentation hook for cron jobs
     experimental: {
-        serverComponentsExternalPackages: ['@xenova/transformers', 'sharp', 'onnxruntime-node'],
+        instrumentationHook: true,
+        serverComponentsExternalPackages: [
+            '@xenova/transformers',
+            'sharp',
+            'onnxruntime-node',
+        ],
     },
     webpack: (config, { isServer }) => {
         if (!isServer) {
-            // For client-side, completely replace these modules with empty stubs
+            // For client-side, replace native packages with empty stubs
             config.resolve.alias = {
                 ...config.resolve.alias,
                 '@xenova/transformers': false,
-                'sharp': false,
+                sharp: false,
                 'onnxruntime-node': false,
-            };
-            
+            }
+
             config.resolve.fallback = {
                 ...config.resolve.fallback,
                 fs: false,
@@ -21,16 +25,16 @@ const nextConfig = {
                 crypto: false,
                 stream: false,
                 os: false,
-            };
+            }
         }
-        
+
         // Ignore .node binary files everywhere
         config.module.rules.push({
             test: /\.node$/,
             use: 'ignore-loader',
-        });
-        
-        return config;
+        })
+
+        return config
     },
 }
 

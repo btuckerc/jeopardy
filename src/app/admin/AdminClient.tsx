@@ -2,7 +2,19 @@
 
 import { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react'
 import type { AppUser } from '@/lib/clerk-auth'
-import { SimpleLineChart } from './SimpleLineChart'
+import { useQueryClient } from '@tanstack/react-query'
+import type {
+    AdminDispute,
+    AdminGame,
+    AdminIssue,
+    CalendarStats,
+    CronExecution,
+    CronJob,
+    DailyChallengeEntry,
+    GuestConfig,
+    GuestStats
+} from '@/types/admin'
+import toast from 'react-hot-toast'
 
 // Lazy load new observability tab components
 const ObservabilityTab = lazy(() => import('./components/tabs/ObservabilityTab').then(m => ({ default: m.ObservabilityTab })))
@@ -67,18 +79,140 @@ interface GameGroup {
     questionCount: number
 }
 
-interface AdminClientProps {
-    user: AppUser
-    initialGames: any[]
+type JsonDictionary = Record<string, unknown>
+
+type PlayerGameStatusFilter = 'all' | 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'
+type CronJobFilter = 'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games' | 'dispute-summary' | 'issues-summary'
+type CronExecutionStatusFilter = 'all' | 'RUNNING' | 'SUCCESS' | 'FAILED'
+type EditGameRound = 'SINGLE' | 'DOUBLE' | 'FINAL'
+type EditGameStatus = 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'
+type DisputeStatusFilter = '' | 'PENDING' | 'APPROVED' | 'REJECTED'
+type DisputeModeFilter = '' | 'GAME' | 'PRACTICE' | 'DAILY_CHALLENGE'
+type IssueStatusFilter = '' | 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED'
+type IssueCategoryFilter = '' | 'BUG' | 'CONTENT' | 'FEATURE_REQUEST' | 'ACCOUNT' | 'QUESTION' | 'OTHER'
+interface GuestConfigUpdatePayload {
+    randomGameMaxQuestionsBeforeAuth?: number
+    randomQuestionMaxQuestionsBeforeAuth?: number
+    dailyChallengeGuestEnabled?: boolean
+    dailyChallengeGuestAppearsOnLeaderboard?: boolean
+    dailyChallengeMinLookbackDays?: number
+    timeToAuthenticateMinutes?: number
 }
 
-export default function AdminClient({ user, initialGames }: AdminClientProps) {
+interface DailyChallengesStats {
+    coverage: number
+    daysCovered: number
+    daysNeeded: number
+    totalCompletions: number
+    todayChallenge?: {
+        completionCount: number
+    }
+}
+
+interface GroupedGameRecord {
+    airDate?: string | Date | null
+    question?: unknown
+    answer?: unknown
+    value?: unknown
+    difficulty?: unknown
+    knowledgeCategory?: unknown
+    isDoubleJeopardy?: unknown
+    isFinalJeopardy?: unknown
+    round?: unknown
+    category?: {
+        name?: unknown
+    }
+}
+
+interface AdminClientProps {
+    user: AppUser
+    initialGames: AdminGame[]
+}
+
+function isRecord(value: unknown): value is JsonDictionary {
+    return !!value && typeof value === 'object'
+}
+
+function getRecord(value: unknown): JsonDictionary {
+    return isRecord(value) ? value : {}
+}
+
+function toPositiveNumber(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return Number(value)
+    }
+    if (typeof value === 'string') {
+        const parsed = Number.parseInt(value, 10)
+        return Number.isFinite(parsed) ? parsed : 0
+    }
+    return 0
+}
+
+function toStringValue(value: unknown): string {
+    return typeof value === 'string' ? value : ''
+}
+
+function toNumberValue(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+        return value
+    }
+    if (typeof value === 'string') {
+        const parsed = Number.parseFloat(value)
+        return Number.isFinite(parsed) ? parsed : 0
+    }
+    return 0
+}
+
+function toStringOrUnknown(value: unknown): string {
+    return typeof value === 'string'
+        ? value
+        : typeof value === 'number'
+            ? value.toString()
+            : '—'
+}
+
+function toBoolean(value: unknown): boolean {
+    return Boolean(value)
+}
+
+function toDisplayMode(value: unknown): string {
+    return typeof value === 'string' && value.length > 0
+        ? value
+        : 'unknown'
+}
+
+function toDisplayDateTime(value: string | Date | null | undefined): string {
+    if (!value) {
+        return '—'
+    }
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) {
+        return '—'
+    }
+    return date.toLocaleString()
+}
+
+function toDateKey(value: string | Date | null | undefined): string | null {
+    if (!value) {
+        return null
+    }
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) {
+        return null
+    }
+    return date.toISOString().split('T')[0]
+}
+
+function asArray<T>(value: unknown): T[] {
+    return Array.isArray(value) ? value as T[] : []
+}
+
+export default function AdminClient({ user: _user, initialGames }: AdminClientProps) {
+    const queryClient = useQueryClient()
     // Admin status is already verified by the server component
-    const [games, setGames] = useState<any[]>(initialGames)
-    const [loading, setLoading] = useState(false)
+    const [games, setGames] = useState<AdminGame[]>(initialGames)
     const [searching, setSearching] = useState(false)
     const [message, setMessage] = useState('')
-    const [error, setError] = useState<string | null>(null)
     const [showBackToTop, setShowBackToTop] = useState(false)
     
     // Fetch game state
@@ -91,53 +225,43 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     // Tab state - includes new observability tabs (removed legacy metrics and users tabs)
     const [activeTab, setActiveTab] = useState<'manage' | 'fetch' | 'player-games' | 'disputes' | 'issues' | 'daily-challenges' | 'guest-config' | 'cron' | 'metrics-overview' | 'performance' | 'observability' | 'user-debug' | 'content-quality'>('metrics-overview')
     
-    // Metrics tab state
-    const [metricsWindow, setMetricsWindow] = useState<'24h' | '7d' | '14d' | '30d'>('7d')
-    const [metricsLoading, setMetricsLoading] = useState(false)
-    
     // Cron jobs state
-    const [cronExecutions, setCronExecutions] = useState<any[]>([])
-    const [cronStats, setCronStats] = useState<Record<string, number>>({})
-    const [cronLatest, setCronLatest] = useState<Record<string, any>>({})
-    const [cronJobs, setCronJobs] = useState<any>(null)
+    const [cronExecutions, setCronExecutions] = useState<CronExecution[]>([])
+    const [cronLatest, setCronLatest] = useState<Record<string, CronExecution>>({})
+    const [cronJobs, setCronJobs] = useState<Record<string, CronJob> | null>(null)
     const [loadingCronJobs, setLoadingCronJobs] = useState(false)
     const [triggeringJob, setTriggeringJob] = useState<string | null>(null)
-    const [cronFilter, setCronFilter] = useState<'all' | 'daily-challenge' | 'fetch-questions' | 'fetch-games' | 'dispute-summary' | 'issues-summary'>('all')
-    const [cronStatusFilter, setCronStatusFilter] = useState<'all' | 'RUNNING' | 'SUCCESS' | 'FAILED'>('all')
+    const [cronFilter, setCronFilter] = useState<CronJobFilter>('all')
+    const [cronStatusFilter, setCronStatusFilter] = useState<CronExecutionStatusFilter>('all')
     
     // Guest config state
-    const [guestConfig, setGuestConfig] = useState<any>(null)
-    const [guestStats, setGuestStats] = useState<any>(null)
+    const [guestConfig, setGuestConfig] = useState<GuestConfig | null>(null)
+    const [guestStats, setGuestStats] = useState<GuestStats | null>(null)
     const [loadingGuestConfig, setLoadingGuestConfig] = useState(false)
     const [savingGuestConfig, setSavingGuestConfig] = useState(false)
     
-    // Overview metrics state
-    const [usageMetrics, setUsageMetrics] = useState<any>(null)
-    const [opsMetrics, setOpsMetrics] = useState<any>(null)
-    const [loadingOverview, setLoadingOverview] = useState(true)
-    
     // Daily challenges state
-    const [dailyChallenges, setDailyChallenges] = useState<any[]>([])
-    const [dailyChallengesStats, setDailyChallengesStats] = useState<any>(null)
+    const [dailyChallenges, setDailyChallenges] = useState<DailyChallengeEntry[]>([])
+    const [dailyChallengesStats, setDailyChallengesStats] = useState<DailyChallengesStats | null>(null)
     const [loadingDailyChallenges, setLoadingDailyChallenges] = useState(false)
     const [generatingChallenges, setGeneratingChallenges] = useState(false)
     
     // Calendar state
-    const [calendarStats, setCalendarStats] = useState<any>(null)
+    const [calendarStats, setCalendarStats] = useState<CalendarStats | null>(null)
     const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
     const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(null)
-    const [dateGameData, setDateGameData] = useState<any[]>([])
+    const [dateGameData, setDateGameData] = useState<FetchedGame[]>([])
     const [loadingDateData, setLoadingDateData] = useState(false)
 
     // Player games management state
-    const [playerGames, setPlayerGames] = useState<any[]>([])
+    const [playerGames, setPlayerGames] = useState<AdminGame[]>([])
     const [loadingPlayerGames, setLoadingPlayerGames] = useState(false)
-    const [playerGamesFilter, setPlayerGamesFilter] = useState<'all' | 'IN_PROGRESS' | 'COMPLETED' | 'ABANDONED'>('all')
+    const [playerGamesFilter, setPlayerGamesFilter] = useState<PlayerGameStatusFilter>('all')
     const [playerGamesUserIdFilter, setPlayerGamesUserIdFilter] = useState<string | null>(null)
-    const [editingGame, setEditingGame] = useState<any>(null)
+    const [editingGame, setEditingGame] = useState<AdminGame | null>(null)
     const [editGameScore, setEditGameScore] = useState('')
-    const [editGameRound, setEditGameRound] = useState('')
-    const [editGameStatus, setEditGameStatus] = useState('')
+    const [editGameRound, setEditGameRound] = useState<EditGameRound>('SINGLE')
+    const [editGameStatus, setEditGameStatus] = useState<EditGameStatus>('IN_PROGRESS')
     const [savingGameEdit, setSavingGameEdit] = useState(false)
 
     // Batch fetch state
@@ -150,11 +274,11 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null)
 
     // Disputes state
-    const [disputes, setDisputes] = useState<any[]>([])
+    const [disputes, setDisputes] = useState<AdminDispute[]>([])
     const [loadingDisputes, setLoadingDisputes] = useState(false)
     const [disputesError, setDisputesError] = useState<string | null>(null)
-    const [disputeFilterStatus, setDisputeFilterStatus] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | ''>('PENDING')
-    const [disputeFilterMode, setDisputeFilterMode] = useState<'GAME' | 'PRACTICE' | 'DAILY_CHALLENGE' | ''>('')
+    const [disputeFilterStatus, setDisputeFilterStatus] = useState<DisputeStatusFilter>('PENDING')
+    const [disputeFilterMode, setDisputeFilterMode] = useState<DisputeModeFilter>('')
     const [disputePage, setDisputePage] = useState(1)
     const [disputeTotalPages, setDisputeTotalPages] = useState(1)
     const [processingDisputeId, setProcessingDisputeId] = useState<string | null>(null)
@@ -165,44 +289,21 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const [openIssuesCount, setOpenIssuesCount] = useState<number | null>(null)
 
     // Issues state
-    const [issues, setIssues] = useState<any[]>([])
+    const [issues, setIssues] = useState<AdminIssue[]>([])
     const [loadingIssues, setLoadingIssues] = useState(false)
     const [issuesError, setIssuesError] = useState<string | null>(null)
-    const [issueFilterStatus, setIssueFilterStatus] = useState<'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'DISMISSED' | ''>('OPEN')
-    const [issueFilterCategory, setIssueFilterCategory] = useState<'BUG' | 'CONTENT' | 'FEATURE_REQUEST' | 'ACCOUNT' | 'QUESTION' | 'OTHER' | ''>('')
+    const [issueFilterStatus, setIssueFilterStatus] = useState<IssueStatusFilter>('OPEN')
+    const [issueFilterCategory, setIssueFilterCategory] = useState<IssueCategoryFilter>('')
     const [issuePage, setIssuePage] = useState(1)
     const [issueTotalPages, setIssueTotalPages] = useState(1)
     const [processingIssueId, setProcessingIssueId] = useState<string | null>(null)
     const [issueAdminNote, setIssueAdminNote] = useState<Record<string, string>>({})
     const [issuesLoaded, setIssuesLoaded] = useState(false)
-    const [selectedIssue, setSelectedIssue] = useState<any>(null)
+    const [selectedIssue, setSelectedIssue] = useState<AdminIssue | null>(null)
     const [showSendIssueEmailModal, setShowSendIssueEmailModal] = useState(false)
     const [issueEmailSubject, setIssueEmailSubject] = useState('')
     const [issueEmailBody, setIssueEmailBody] = useState('')
     const [sendingIssueEmail, setSendingIssueEmail] = useState(false)
-
-    // User management state
-    const [users, setUsers] = useState<any[]>([])
-    const [loadingUsers, setLoadingUsers] = useState(false)
-    const [usersError, setUsersError] = useState<string | null>(null)
-    const [userSearch, setUserSearch] = useState('')
-    const [userSortBy, setUserSortBy] = useState<'lastOnlineAt' | 'createdAt'>('lastOnlineAt')
-    const [userSortOrder, setUserSortOrder] = useState<'asc' | 'desc'>('desc')
-    const [selectedUser, setSelectedUser] = useState<any>(null)
-    const [userGamesExpanded, setUserGamesExpanded] = useState<Set<string>>(new Set())
-    const [userAllGames, setUserAllGames] = useState<Record<string, any[]>>({})
-    const [loadingUserGames, setLoadingUserGames] = useState<Set<string>>(new Set())
-    const [showDeleteUserModal, setShowDeleteUserModal] = useState(false)
-    const [deleteUserConfirmText, setDeleteUserConfirmText] = useState('')
-    const [deletingUser, setDeletingUser] = useState(false)
-    const [showSendEmailModal, setShowSendEmailModal] = useState(false)
-    const [emailSubject, setEmailSubject] = useState('')
-    const [emailBody, setEmailBody] = useState('')
-    const [sendingEmail, setSendingEmail] = useState(false)
-    const [showDisplayNameModal, setShowDisplayNameModal] = useState(false)
-    const [displayNameAction, setDisplayNameAction] = useState<'reset' | 'edit' | null>(null)
-    const [editDisplayNameValue, setEditDisplayNameValue] = useState('')
-    const [updatingDisplayName, setUpdatingDisplayName] = useState(false)
 
     // Existing games management state
     const [filterStartDate, setFilterStartDate] = useState('')
@@ -236,70 +337,73 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     }
 
     // Helper function to render cron job result
-    const renderCronResult = (result: any, jobName: string) => {
-        // Special rendering for dispute-summary job
-        if (jobName === 'dispute-summary' && result) {
-            // Handle nested data structure (result.data) or direct result
-            const data = result.data || result
-            
+    const renderCronResult = (result: unknown, jobName: string) => {
+        const resultPayload = getRecord(isRecord(result) && isRecord((result as JsonDictionary).data) ? (result as JsonDictionary).data : result)
+
+        if (jobName === 'dispute-summary') {
+            const summary = getRecord(resultPayload.summary)
+            const byMode = getRecord(summary.byMode)
+            const emailStatus = getRecord(resultPayload.emailStatus)
+            const recipients = asArray<JsonDictionary>(emailStatus.recipients)
+            const emailResults = asArray<JsonDictionary>(emailStatus.results)
+            const disputesData = asArray<JsonDictionary>(resultPayload.disputes)
+
             return (
                 <div className="space-y-4">
-                    {/* Summary Section */}
                     <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
                         <h4 className="font-semibold text-gray-900 mb-3">Summary</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
                                 <div className="text-xs text-gray-600 uppercase">Total Disputes</div>
-                                <div className="text-2xl font-bold text-gray-900">{data.pendingCount || data.summary?.totalDisputes || 0}</div>
+                                <div className="text-2xl font-bold text-gray-900">{toPositiveNumber(summary.pendingCount || summary.totalDisputes)}</div>
                             </div>
                             <div>
                                 <div className="text-xs text-gray-600 uppercase">Recipients</div>
-                                <div className="text-2xl font-bold text-gray-900">{data.recipientCount || 0}</div>
+                                <div className="text-2xl font-bold text-gray-900">{toPositiveNumber(resultPayload.recipientCount)}</div>
                             </div>
                             <div>
                                 <div className="text-xs text-gray-600 uppercase">Emails Sent</div>
-                                <div className="text-2xl font-bold text-green-600">{data.successfulEmails || data.emailStatus?.sent || 0}</div>
+                                <div className="text-2xl font-bold text-green-600">{toPositiveNumber(resultPayload.successfulEmails || emailStatus.sent)}</div>
                             </div>
                             <div>
                                 <div className="text-xs text-gray-600 uppercase">Failed</div>
-                                <div className="text-2xl font-bold text-red-600">{data.failedEmails || data.emailStatus?.failed || 0}</div>
+                                <div className="text-2xl font-bold text-red-600">{toPositiveNumber(resultPayload.failedEmails || emailStatus.failed)}</div>
                             </div>
                         </div>
                     </div>
 
-                    {/* By Mode Breakdown */}
-                    {data.summary?.byMode && Object.keys(data.summary.byMode).length > 0 && (
+                    {Object.keys(byMode).length > 0 && (
                         <div className="bg-white p-4 rounded-lg border border-gray-200">
                             <h4 className="font-semibold text-gray-900 mb-3">Disputes by Mode</h4>
                             <div className="flex flex-wrap gap-3">
-                                {Object.entries(data.summary.byMode).map(([mode, count]: [string, any]) => (
+                                {Object.entries(byMode).map(([mode, count]) => (
                                     <div key={mode} className="bg-gray-50 px-4 py-2 rounded-lg">
                                         <div className="text-xs text-gray-600 uppercase">{mode.replace('_', ' ')}</div>
-                                        <div className="text-xl font-bold text-gray-900">{count}</div>
+                                        <div className="text-xl font-bold text-gray-900">{toPositiveNumber(count)}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
 
-                    {/* Email Status */}
-                    {data.emailStatus && (
+                    {recipients.length > 0 && (
                         <div className="bg-white p-4 rounded-lg border border-gray-200">
                             <h4 className="font-semibold text-gray-900 mb-3">Email Recipients</h4>
                             <div className="space-y-2">
-                                {data.emailStatus.recipients?.map((recipient: any, idx: number) => {
-                                    const emailResult = data.emailStatus.results?.[idx]
+                                {recipients.map((recipient, idx) => {
+                                    const emailResult = emailResults[idx]
+                                    const sent = toBoolean(emailResult?.success)
                                     return (
                                         <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                                             <div>
-                                                <div className="font-medium text-sm">{recipient.name}</div>
-                                                <div className="text-xs text-gray-600">{recipient.email}</div>
+                                                <div className="font-medium text-sm">{toStringValue(recipient.name)}</div>
+                                                <div className="text-xs text-gray-600">{toStringValue(recipient.email)}</div>
                                             </div>
-                                            {emailResult?.success ? (
+                                            {sent ? (
                                                 <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Sent</span>
                                             ) : (
                                                 <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                                                    Failed {emailResult?.error ? `: ${emailResult.error}` : ''}
+                                                    Failed {toStringValue(emailResult?.error) ? `: ${toStringValue(emailResult?.error)}` : ''}
                                                 </span>
                                             )}
                                         </div>
@@ -309,42 +413,42 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         </div>
                     )}
 
-                    {/* Disputes List */}
-                    {data.disputes && data.disputes.length > 0 && (
+                    {disputesData.length > 0 && (
                         <div className="bg-white p-4 rounded-lg border border-gray-200">
-                            <h4 className="font-semibold text-gray-900 mb-3">Disputes ({data.disputes.length} shown)</h4>
+                            <h4 className="font-semibold text-gray-900 mb-3">Disputes ({disputesData.length} shown)</h4>
                             <div className="space-y-3 max-h-96 overflow-y-auto">
-                                {data.disputes.map((dispute: any, idx: number) => (
-                                    <div key={idx} className="border-l-4 border-blue-500 pl-3 py-2 bg-gray-50 rounded-r">
-                                        <div className="flex items-start justify-between mb-1">
-                                            <div className="font-medium text-sm text-gray-900">#{idx + 1} - {dispute.userName}</div>
-                                            <div className="text-xs text-gray-500">{dispute.createdAt}</div>
-                                        </div>
-                                        <div className="text-xs text-gray-600 space-y-1">
-                                            <div><span className="font-medium">Mode:</span> {dispute.mode} | <span className="font-medium">Round:</span> {dispute.round}</div>
-                                            <div><span className="font-medium">Category:</span> {dispute.category}</div>
-                                            <div><span className="font-medium">Question:</span> {dispute.questionPreview}</div>
-                                            <div><span className="font-medium">User Answer:</span> {dispute.userAnswer}</div>
-                                            <div>
-                                                <span className={`px-2 py-0.5 rounded text-xs ${dispute.systemWasCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                                    System: {dispute.systemWasCorrect ? 'Correct' : 'Incorrect'}
-                                                </span>
+                                {disputesData.map((dispute, idx) => {
+                                    const systemWasCorrect = toBoolean(dispute.systemWasCorrect)
+                                    return (
+                                        <div key={idx} className="border-l-4 border-blue-500 pl-3 py-2 bg-gray-50 rounded-r">
+                                            <div className="flex items-start justify-between mb-1">
+                                                <div className="font-medium text-sm text-gray-900">#{idx + 1} - {toStringOrUnknown(dispute.userName)}</div>
+                                                <div className="text-xs text-gray-500">{toStringOrUnknown(dispute.createdAt)}</div>
+                                            </div>
+                                            <div className="text-xs text-gray-600 space-y-1">
+                                                <div><span className="font-medium">Mode:</span> {toStringOrUnknown(dispute.mode)} | <span className="font-medium">Round:</span> {toStringOrUnknown(dispute.round)}</div>
+                                                <div><span className="font-medium">Category:</span> {toStringOrUnknown(dispute.category)}</div>
+                                                <div><span className="font-medium">Question:</span> {toStringOrUnknown(dispute.questionPreview)}</div>
+                                                <div><span className="font-medium">User Answer:</span> {toStringOrUnknown(dispute.userAnswer)}</div>
+                                                <div>
+                                                    <span className={`px-2 py-0.5 rounded text-xs ${systemWasCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                                        System: {systemWasCorrect ? 'Correct' : 'Incorrect'}
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    )
+                                })}
                             </div>
                         </div>
                     )}
 
-                    {/* Message */}
-                    {data.message && (
+                    {toStringOrUnknown(resultPayload.message) !== '—' && (
                         <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg">
-                            <div className="text-sm text-blue-900">{data.message}</div>
+                            <div className="text-sm text-blue-900">{toStringOrUnknown(resultPayload.message)}</div>
                         </div>
                     )}
 
-                    {/* Raw JSON fallback */}
                     <details className="text-xs">
                         <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-medium">
                             View Raw JSON
@@ -357,83 +461,85 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             )
         }
 
-        // Special rendering for issues-summary job
-        if (jobName === 'issues-summary' && result) {
-            const data = result.data || result
-            
+        if (jobName === 'issues-summary') {
+            const summary = getRecord(resultPayload.summary)
+            const byCategory = getRecord(summary.byCategory)
+            const byStatus = getRecord(summary.byStatus)
+            const emailStatus = getRecord(resultPayload.emailStatus)
+            const recipients = asArray<JsonDictionary>(emailStatus.recipients)
+            const emailResults = asArray<JsonDictionary>(emailStatus.results)
+            const issuesData = asArray<JsonDictionary>(resultPayload.issues)
+
             return (
                 <div className="space-y-4">
-                    {/* Summary Section */}
                     <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-lg border border-amber-200">
                         <h4 className="font-semibold text-gray-900 mb-3">Summary</h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                             <div>
                                 <div className="text-xs text-gray-600 uppercase">Total Issues</div>
-                                <div className="text-2xl font-bold text-gray-900">{data.openCount || data.summary?.totalIssues || 0}</div>
+                                <div className="text-2xl font-bold text-gray-900">{toPositiveNumber(resultPayload.openCount || summary.totalIssues)}</div>
                             </div>
                             <div>
                                 <div className="text-xs text-gray-600 uppercase">Recipients</div>
-                                <div className="text-2xl font-bold text-gray-900">{data.recipientCount || 0}</div>
+                                <div className="text-2xl font-bold text-gray-900">{toPositiveNumber(resultPayload.recipientCount)}</div>
                             </div>
                             <div>
                                 <div className="text-xs text-gray-600 uppercase">Emails Sent</div>
-                                <div className="text-2xl font-bold text-green-600">{data.successfulEmails || data.emailStatus?.sent || 0}</div>
+                                <div className="text-2xl font-bold text-green-600">{toPositiveNumber(resultPayload.successfulEmails || emailStatus.sent)}</div>
                             </div>
                             <div>
                                 <div className="text-xs text-gray-600 uppercase">Failed</div>
-                                <div className="text-2xl font-bold text-red-600">{data.failedEmails || data.emailStatus?.failed || 0}</div>
+                                <div className="text-2xl font-bold text-red-600">{toPositiveNumber(resultPayload.failedEmails || emailStatus.failed)}</div>
                             </div>
                         </div>
                     </div>
 
-                    {/* By Category Breakdown */}
-                    {data.summary?.byCategory && Object.keys(data.summary.byCategory).length > 0 && (
+                    {Object.keys(byCategory).length > 0 && (
                         <div className="bg-white p-4 rounded-lg border border-gray-200">
                             <h4 className="font-semibold text-gray-900 mb-3">Issues by Category</h4>
                             <div className="flex flex-wrap gap-3">
-                                {Object.entries(data.summary.byCategory).map(([category, count]: [string, any]) => (
+                                {Object.entries(byCategory).map(([category, count]) => (
                                     <div key={category} className="bg-gray-50 px-4 py-2 rounded-lg">
                                         <div className="text-xs text-gray-600 uppercase">{category.replace('_', ' ')}</div>
-                                        <div className="text-xl font-bold text-gray-900">{count}</div>
+                                        <div className="text-xl font-bold text-gray-900">{toPositiveNumber(count)}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
 
-                    {/* By Status Breakdown */}
-                    {data.summary?.byStatus && Object.keys(data.summary.byStatus).length > 0 && (
+                    {Object.keys(byStatus).length > 0 && (
                         <div className="bg-white p-4 rounded-lg border border-gray-200">
                             <h4 className="font-semibold text-gray-900 mb-3">Issues by Status</h4>
                             <div className="flex flex-wrap gap-3">
-                                {Object.entries(data.summary.byStatus).map(([status, count]: [string, any]) => (
+                                {Object.entries(byStatus).map(([status, count]) => (
                                     <div key={status} className="bg-gray-50 px-4 py-2 rounded-lg">
                                         <div className="text-xs text-gray-600 uppercase">{status.replace('_', ' ')}</div>
-                                        <div className="text-xl font-bold text-gray-900">{count}</div>
+                                        <div className="text-xl font-bold text-gray-900">{toPositiveNumber(count)}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
 
-                    {/* Email Status */}
-                    {data.emailStatus && (
+                    {recipients.length > 0 && (
                         <div className="bg-white p-4 rounded-lg border border-gray-200">
                             <h4 className="font-semibold text-gray-900 mb-3">Email Recipients</h4>
                             <div className="space-y-2">
-                                {data.emailStatus.recipients?.map((recipient: any, idx: number) => {
-                                    const emailResult = data.emailStatus.results?.[idx]
+                                {recipients.map((recipient, idx) => {
+                                    const emailResult = emailResults[idx]
+                                    const sent = toBoolean(emailResult?.success)
                                     return (
                                         <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                                             <div>
-                                                <div className="font-medium text-sm">{recipient.name}</div>
-                                                <div className="text-xs text-gray-600">{recipient.email}</div>
+                                                <div className="font-medium text-sm">{toStringValue(recipient.name)}</div>
+                                                <div className="text-xs text-gray-600">{toStringValue(recipient.email)}</div>
                                             </div>
-                                            {emailResult?.success ? (
+                                            {sent ? (
                                                 <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Sent</span>
                                             ) : (
                                                 <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                                                    Failed {emailResult?.error ? `: ${emailResult.error}` : ''}
+                                                    Failed {toStringValue(emailResult?.error) ? `: ${toStringValue(emailResult?.error)}` : ''}
                                                 </span>
                                             )}
                                         </div>
@@ -443,21 +549,22 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         </div>
                     )}
 
-                    {/* Issues List */}
-                    {data.issues && data.issues.length > 0 && (
+                    {issuesData.length > 0 && (
                         <div className="bg-white p-4 rounded-lg border border-gray-200">
-                            <h4 className="font-semibold text-gray-900 mb-3">Issues ({data.issues.length} shown)</h4>
+                            <h4 className="font-semibold text-gray-900 mb-3">Issues ({issuesData.length} shown)</h4>
                             <div className="space-y-3 max-h-96 overflow-y-auto">
-                                {data.issues.map((issue: any, idx: number) => (
+                                {issuesData.map((issue, idx) => (
                                     <div key={idx} className="border-l-4 border-amber-500 pl-3 py-2 bg-gray-50 rounded-r">
                                         <div className="flex items-start justify-between mb-1">
-                                            <div className="font-medium text-sm text-gray-900">#{idx + 1} - {issue.subject}</div>
-                                            <div className="text-xs text-gray-500">{issue.createdAt}</div>
+                                            <div className="font-medium text-sm text-gray-900">#{idx + 1} - {toStringOrUnknown(issue.subject)}</div>
+                                            <div className="text-xs text-gray-500">{toStringOrUnknown(issue.createdAt)}</div>
                                         </div>
                                         <div className="text-xs text-gray-600 space-y-1">
-                                            <div><span className="font-medium">Category:</span> {issue.category} | <span className="font-medium">Status:</span> {issue.status}</div>
-                                            <div><span className="font-medium">User:</span> {issue.userName} ({issue.userEmail})</div>
-                                            {issue.pageUrl && <div><span className="font-medium">Page:</span> {issue.pageUrl}</div>}
+                                            <div><span className="font-medium">Category:</span> {toStringOrUnknown(issue.category)} | <span className="font-medium">Status:</span> {toStringOrUnknown(issue.status)}</div>
+                                            <div><span className="font-medium">User:</span> {toStringOrUnknown(issue.userName)} ({toStringOrUnknown(issue.userEmail)})</div>
+                                            {toStringOrUnknown(issue.pageUrl) !== '—' && (
+                                                <div><span className="font-medium">Page:</span> {toStringOrUnknown(issue.pageUrl)}</div>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -465,14 +572,12 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         </div>
                     )}
 
-                    {/* Message */}
-                    {data.message && (
+                    {toStringOrUnknown(resultPayload.message) !== '—' && (
                         <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg">
-                            <div className="text-sm text-amber-900">{data.message}</div>
+                            <div className="text-sm text-amber-900">{toStringOrUnknown(resultPayload.message)}</div>
                         </div>
                     )}
 
-                    {/* Raw JSON fallback */}
                     <details className="text-xs">
                         <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-medium">
                             View Raw JSON
@@ -485,7 +590,6 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             )
         }
 
-        // Default JSON rendering for other jobs
         return (
             <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto break-words whitespace-pre-wrap text-gray-900">
                 {JSON.stringify(result, null, 2)}
@@ -541,114 +645,14 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         }
     }, [activeTab, playerGamesFilter, playerGamesUserIdFilter, fetchPlayerGames])
 
-    // Fetch users
-    const fetchUsers = useCallback(async () => {
-        setLoadingUsers(true)
-        setUsersError(null)
-        try {
-            const params = new URLSearchParams()
-            if (userSearch) {
-                params.append('search', userSearch)
-            }
-            params.append('limit', '100')
-            params.append('sortBy', userSortBy)
-            params.append('sortOrder', userSortOrder)
-            
-            const response = await fetch(`/api/admin/users?${params}`)
-            if (response.ok) {
-                const data = await response.json()
-                setUsers(data.users || [])
-            } else {
-                const errorData = await response.json().catch(() => ({ error: 'Failed to fetch users' }))
-                setUsersError(errorData.error || 'Failed to fetch users')
-            }
-        } catch (error) {
-            console.error('Error fetching users:', error)
-            setUsersError('Failed to fetch users')
-        } finally {
-            setLoadingUsers(false)
-        }
-    }, [userSearch, userSortBy, userSortOrder])
-
-    // Load users when navigating (for navigation helper functions)
-    useEffect(() => {
-        if (activeTab === 'user-debug') {
-            // UserDebugTab handles its own fetching via React Query
-        }
-    }, [activeTab])
-
-    // Fetch all games for a specific user
-    const fetchUserAllGames = useCallback(async (userId: string) => {
-        if (userAllGames[userId] || loadingUserGames.has(userId)) {
-            return // Already loaded or loading
-        }
-
-        setLoadingUserGames(prev => new Set(prev).add(userId))
-        try {
-            const params = new URLSearchParams()
-            params.append('userId', userId)
-            params.append('limit', '100')
-            
-            const response = await fetch(`/api/admin/player-games?${params}`)
-            if (response.ok) {
-                const data = await response.json()
-                setUserAllGames(prev => ({ ...prev, [userId]: data.games || [] }))
-            }
-        } catch (error) {
-            console.error('Error fetching user games:', error)
-        } finally {
-            setLoadingUserGames(prev => {
-                const next = new Set(prev)
-                next.delete(userId)
-                return next
-            })
-        }
-    }, [userAllGames, loadingUserGames])
-
-    // Navigate to Games tab filtered by user
-    const navigateToUserGames = useCallback((userId: string) => {
-        setPlayerGamesUserIdFilter(userId)
-        setActiveTab('player-games')
+    // Navigate to Users tab and highlight user
+    const navigateToUser = useCallback((_userId: string) => {
+        setActiveTab('user-debug')
         // Scroll to top
         window.scrollTo({ top: 0, behavior: 'smooth' })
     }, [])
 
-    // Navigate to Users tab and highlight user
-    const navigateToUser = useCallback((userId: string) => {
-        setActiveTab('user-debug')
-        // Scroll to top and fetch users if needed
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-        if (users.length === 0) {
-            fetchUsers()
-        }
-    }, [users.length, fetchUsers])
-
-    // Navigation helpers for metrics integration
-    const navigateToDisputes = useCallback(() => {
-        setActiveTab('disputes')
-        setDisputeFilterStatus('PENDING')
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }, [])
-
-    const navigateToCronJobs = useCallback(() => {
-        setActiveTab('cron')
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }, [])
-
-    const navigateToUsers = useCallback(() => {
-        setActiveTab('user-debug')
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-        if (users.length === 0) {
-            fetchUsers()
-        }
-    }, [users.length, fetchUsers])
-
-    const navigateToGames = useCallback(() => {
-        setActiveTab('player-games')
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }, [])
-
-    // Fetch guest config and stats (defined before navigateToGuestConfig to avoid initialization error)
+    // Fetch guest config and stats
     const fetchGuestConfig = useCallback(async () => {
         setLoadingGuestConfig(true)
         try {
@@ -671,73 +675,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         }
     }, [])
 
-    const navigateToGuestConfig = useCallback(() => {
-        setActiveTab('guest-config')
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-        if (!guestConfig) {
-            fetchGuestConfig()
-        }
-    }, [guestConfig, fetchGuestConfig])
-
-    // Fetch overview metrics (usage and ops)
-    const fetchOverviewMetrics = useCallback(async (window: '24h' | '7d' | '14d' | '30d' = '7d') => {
-        setLoadingOverview(true)
-        setMetricsLoading(true)
-        try {
-            const bucket = window === '24h' ? 'hour' : 'day'
-            const [usageRes, opsRes, guestStatsRes, disputesRes] = await Promise.all([
-                fetch(`/api/admin/usage-metrics?window=${window}&bucket=${bucket}`),
-                fetch(`/api/admin/ops-metrics?window=${window}`),
-                fetch('/api/admin/guest-stats'),
-                fetch('/api/admin/disputes/stats')
-            ])
-            
-            if (usageRes.ok) {
-                const usage = await usageRes.json()
-                setUsageMetrics(usage)
-            }
-            if (opsRes.ok) {
-                const ops = await opsRes.json()
-                setOpsMetrics(ops)
-            }
-            if (guestStatsRes.ok) {
-                const stats = await guestStatsRes.json()
-                setGuestStats(stats)
-            }
-            if (disputesRes.ok) {
-                const disputes = await disputesRes.json()
-                setPendingDisputesCount(disputes.pendingCount || 0)
-            }
-        } catch (error) {
-            console.error('Error fetching overview metrics:', error)
-        } finally {
-            setLoadingOverview(false)
-            setMetricsLoading(false)
-        }
-    }, [])
-    
-    // Fetch metrics when window changes
-    useEffect(() => {
-        if (activeTab === 'metrics-overview') {
-            fetchOverviewMetrics(metricsWindow)
-        }
-    }, [metricsWindow, activeTab, fetchOverviewMetrics])
-    
-    // Load overview metrics on mount (for metrics tab)
-    useEffect(() => {
-        if (activeTab === 'metrics-overview') {
-            fetchOverviewMetrics(metricsWindow)
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []) // Only run on mount
-    
-    // Load metrics when switching to metrics tab
-    useEffect(() => {
-        if (activeTab === 'metrics-overview' && !usageMetrics) {
-            fetchOverviewMetrics(metricsWindow)
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeTab]) // Only depend on activeTab to avoid unnecessary refetches
+    // Metrics and legacy user-management fetches were consolidated into existing tab-specific data loaders.
 
     // Load guest config when tab is active
     useEffect(() => {
@@ -836,44 +774,39 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
         }
     }, [activeTab, issueFilterStatus, issueFilterCategory, issuePage])
 
+    const refreshAdminBadgeCounts = useCallback(async () => {
+        const [disputesRes, issuesRes] = await Promise.all([
+            fetch('/api/admin/disputes/stats'),
+            fetch('/api/admin/issues/stats'),
+        ])
+
+        if (disputesRes.ok) {
+            const disputesData = await disputesRes.json()
+            if (disputesData?.pendingCount !== undefined) {
+                setPendingDisputesCount(disputesData.pendingCount)
+            }
+        } else {
+            setPendingDisputesCount(null)
+        }
+
+        if (issuesRes.ok) {
+            const issuesData = await issuesRes.json()
+            if (issuesData?.openCount !== undefined) {
+                setOpenIssuesCount(issuesData.openCount)
+            }
+        } else {
+            setOpenIssuesCount(null)
+        }
+    }, [])
+
     // Fetch pending dispute and open issues counts on mount
     useEffect(() => {
-        // Fetch disputes count
-        fetch('/api/admin/disputes/stats')
-            .then(res => {
-                if (res.ok) {
-                    return res.json()
-                }
-                return null
-            })
-            .then(data => {
-                if (data?.pendingCount !== undefined) {
-                    setPendingDisputesCount(data.pendingCount)
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching dispute stats:', error)
-                setPendingDisputesCount(null)
-            })
-        
-        // Fetch issues count
-        fetch('/api/admin/issues/stats')
-            .then(res => {
-                if (res.ok) {
-                    return res.json()
-                }
-                return null
-            })
-            .then(data => {
-                if (data?.openCount !== undefined) {
-                    setOpenIssuesCount(data.openCount)
-                }
-            })
-            .catch(error => {
-                console.error('Error fetching issue stats:', error)
-                setOpenIssuesCount(null)
-            })
-    }, [])
+        void refreshAdminBadgeCounts().catch((error) => {
+            console.error('Error refreshing admin badge counts:', error)
+            setPendingDisputesCount(null)
+            setOpenIssuesCount(null)
+        })
+    }, [refreshAdminBadgeCounts])
 
     // Fetch cron jobs
     const fetchCronJobs = useCallback(async () => {
@@ -894,7 +827,6 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             }
             const data = await response.json()
             setCronExecutions(data.executions || [])
-            setCronStats(data.stats || {})
             setCronLatest(data.latestExecutions || {})
             setCronJobs(data.jobs || {})
         } catch (error) {
@@ -993,7 +925,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
             if (!response.ok) {
                 const error = await response.json()
-                alert(error.error || 'Failed to approve dispute')
+                toast.error(error.error || 'Failed to approve dispute')
                 return
             }
 
@@ -1009,9 +941,12 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 return next
             })
             setDisputesLoaded(false)
+            await queryClient.invalidateQueries({ queryKey: ['admin', 'disputes-stats'] })
+            await queryClient.invalidateQueries({ queryKey: ['admin', 'issues-stats'] })
+            await refreshAdminBadgeCounts()
         } catch (error) {
             console.error('Error approving dispute:', error)
-            alert('Failed to approve dispute')
+            toast.error('Failed to approve dispute')
         } finally {
             setProcessingDisputeId(null)
         }
@@ -1031,16 +966,18 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
             if (!response.ok) {
                 const error = await response.json()
-                alert(`Failed to update issue: ${error.error || 'Unknown error'}`)
+                toast.error(`Failed to update issue: ${error.error || 'Unknown error'}`)
                 return
             }
 
             // Refresh issues list
             setIssuesLoaded(false)
             fetchIssues()
+            await queryClient.invalidateQueries({ queryKey: ['admin', 'issues-stats'] })
+            await refreshAdminBadgeCounts()
         } catch (error) {
             console.error('Error updating issue:', error)
-            alert('Failed to update issue. Please try again.')
+            toast.error('Failed to update issue. Please try again.')
         } finally {
             setProcessingIssueId(null)
         }
@@ -1061,7 +998,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
             if (!response.ok) {
                 const error = await response.json()
-                alert(error.error || 'Failed to reject dispute')
+                toast.error(error.error || 'Failed to reject dispute')
                 return
             }
 
@@ -1072,20 +1009,23 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 return next
             })
             setDisputesLoaded(false)
+            await queryClient.invalidateQueries({ queryKey: ['admin', 'disputes-stats'] })
+            await queryClient.invalidateQueries({ queryKey: ['admin', 'issues-stats'] })
+            await refreshAdminBadgeCounts()
         } catch (error) {
             console.error('Error rejecting dispute:', error)
-            alert('Failed to reject dispute')
+            toast.error('Failed to reject dispute')
         } finally {
             setProcessingDisputeId(null)
         }
     }
 
     // Handle editing a game
-    const handleEditGame = (game: any) => {
+    const handleEditGame = (game: AdminGame) => {
         setEditingGame(game)
-        setEditGameScore(String(game.currentScore))
-        setEditGameRound(game.currentRound)
-        setEditGameStatus(game.status)
+        setEditGameScore(String(game.currentScore ?? 0))
+        setEditGameRound((game.currentRound as EditGameRound) || 'SINGLE')
+        setEditGameStatus((game.status as EditGameStatus) || 'IN_PROGRESS')
     }
 
     const handleSaveGameEdit = async () => {
@@ -1163,14 +1103,15 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
 
             const response = await fetch(`/api/admin/games?${params}`)
             if (response.ok) {
-                const data = await response.json()
-                setGames(data.games || [])
+                const payload = (await response.json()) as { games?: AdminGame[] }
+                const fetchedGames = payload.games || []
+                setGames(fetchedGames)
                 const uniqueDates = new Set(
-                    (data.games || [])
-                        .map((g: any) => g.airDate ? new Date(g.airDate).toISOString().split('T')[0] : null)
-                        .filter(Boolean)
+                    fetchedGames
+                        .map((game) => toDateKey(game.airDate))
+                        .filter((date): date is string => Boolean(date))
                 )
-                setMessage(`Found ${data.games?.length || 0} questions across ${uniqueDates.size} dates`)
+                setMessage(`Found ${fetchedGames.length || 0} questions across ${uniqueDates.size} dates`)
             } else {
                 const errorData = await response.json().catch(() => ({}))
                 setMessage(errorData.error || 'Error loading games')
@@ -1659,9 +1600,9 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     }
 
     // Group games by air date and round - create a helper function that can be reused
-    const groupGamesByDate = (gameList: any[]): Record<string, GameGroup> => {
-        return gameList.reduce((acc: Record<string, GameGroup>, game: any) => {
-            const dateKey = game.airDate ? new Date(game.airDate).toISOString().split('T')[0] : 'unknown'
+    const groupGamesByDate = (gameList: GroupedGameRecord[]): Record<string, GameGroup> => {
+        return gameList.reduce<Record<string, GameGroup>>((acc, game) => {
+            const dateKey = toDateKey(game.airDate) || 'unknown'
             
             if (!acc[dateKey]) {
                 acc[dateKey] = {
@@ -1673,16 +1614,16 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                 }
             }
 
-            const categoryName = game.category?.name || 'Unknown'
+            const categoryName = typeof game.category?.name === 'string' ? game.category.name : 'Unknown'
             
             // Determine round - support both new 'round' field and legacy 'isDoubleJeopardy'/'isFinalJeopardy'
             let roundKey: 'singleJeopardy' | 'doubleJeopardy' | 'finalJeopardy' = 'singleJeopardy'
             let roundType: 'single' | 'double' | 'final' = 'single'
             
-            if (game.round === 'FINAL' || game.isFinalJeopardy) {
+            if (game.round === 'FINAL' || game.isFinalJeopardy === true) {
                 roundKey = 'finalJeopardy'
                 roundType = 'final'
-            } else if (game.round === 'DOUBLE' || game.isDoubleJeopardy) {
+            } else if (game.round === 'DOUBLE' || game.isDoubleJeopardy === true) {
                 roundKey = 'doubleJeopardy'
                 roundType = 'double'
             }
@@ -1698,15 +1639,15 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
             }
 
             categoryGroup.questions.push({
-                question: game.question,
-                answer: game.answer,
-                value: game.value,
+                question: toStringValue(game.question),
+                answer: toStringValue(game.answer),
+                value: toNumberValue(game.value),
                 category: categoryName,
-                isDoubleJeopardy: game.isDoubleJeopardy || false,
-                isFinalJeopardy: game.isFinalJeopardy || false,
-                round: game.round,
-                difficulty: game.difficulty,
-                knowledgeCategory: game.knowledgeCategory
+                isDoubleJeopardy: game.isDoubleJeopardy === true,
+                isFinalJeopardy: game.isFinalJeopardy === true,
+                round: game.round === 'SINGLE' || game.round === 'DOUBLE' || game.round === 'FINAL' ? game.round : undefined,
+                difficulty: toStringValue(game.difficulty),
+                knowledgeCategory: toStringValue(game.knowledgeCategory)
             })
 
             acc[dateKey].questionCount++
@@ -1722,18 +1663,6 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
     const sortedGameGroups = Object.values(groupedGames).sort((a, b) => 
         b.airDate.localeCompare(a.airDate)
     )
-
-    // Show error state if something goes wrong during data fetching
-    if (error) {
-        return (
-            <div className="container mx-auto p-4">
-                <div className="text-center p-8">
-                    <h1 className="text-2xl font-bold text-black mb-4">Error</h1>
-                    <p className="text-gray-600">{error}</p>
-                </div>
-            </div>
-        )
-    }
 
     return (
         // Allow horizontal scrolling within the admin area so mid-width layouts
@@ -2183,7 +2112,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         <label className="text-sm font-medium text-gray-700">Filter by status:</label>
                         <select
                             value={playerGamesFilter}
-                            onChange={(e) => setPlayerGamesFilter(e.target.value as any)}
+                            onChange={(e) => setPlayerGamesFilter(e.target.value as PlayerGameStatusFilter)}
                             className="p-2 border rounded text-gray-900"
                         >
                             <option value="all">All</option>
@@ -2226,92 +2155,106 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {playerGames.map((game) => (
-                                <div key={game.id} className="border rounded-lg p-4 bg-gray-50">
-                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                <span className="font-bold text-gray-900">
-                                                    {game.user?.displayName || game.user?.email || 'Unknown User'}
-                                                </span>
-                                                {game.user?.id && (
-                                                    <button
-                                                        onClick={() => navigateToUser(game.user.id)}
-                                                        className="bg-blue-600 text-white px-2 py-0.5 rounded text-xs hover:bg-blue-700 whitespace-nowrap font-medium transition-colors"
-                                                        aria-label={`View user details for ${game.user?.displayName || game.user?.email}`}
-                                                    >
-                                                        View User →
-                                                    </button>
-                                                )}
-                                                <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
-                                                    game.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
-                                                    game.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
-                                                    'bg-gray-100 text-gray-800'
-                                                }`}>
-                                                    {game.status}
-                                                </span>
+                            {playerGames.map((game, index) => {
+                                const gameUser = game.user
+                                const gameMode = toDisplayMode(game.config?.mode)
+                                const currentRound = toDisplayMode(game.currentRound)
+                                const currentScore = toNumberValue(game.currentScore)
+                                const answeredQuestions = toNumberValue(game.answeredQuestions)
+                                const correctQuestions = toNumberValue(game.correctQuestions)
+                                const createdAt = toDisplayDateTime(game.createdAt)
+                                const updatedAt = toDisplayDateTime(game.updatedAt)
+                                const gameId = game.id || game.gameId || `game-${index}`
+                                const gameUserLabel = gameUser?.displayName || gameUser?.email || 'Unknown User'
+                                const gameIdentifier = gameId || String(index)
+
+                                return (
+                                    <div key={gameIdentifier} className="border rounded-lg p-4 bg-gray-50">
+                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                    <span className="font-bold text-gray-900">
+                                                        {gameUserLabel}
+                                                    </span>
+                                                    {gameUser?.id && (
+                                                        <button
+                                                            onClick={() => navigateToUser(gameUser.id)}
+                                                            className="bg-blue-600 text-white px-2 py-0.5 rounded text-xs hover:bg-blue-700 whitespace-nowrap font-medium transition-colors"
+                                                            aria-label={`View user details for ${gameUserLabel}`}
+                                                        >
+                                                            View User →
+                                                        </button>
+                                                    )}
+                                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                                        game.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-800' :
+                                                        game.status === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                                                        'bg-gray-100 text-gray-800'
+                                                    }`}>
+                                                        {game.status}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
+                                                    <span>Game ID: <code className="bg-gray-200 px-1 rounded text-xs">{gameIdentifier}</code></span>
+                                                    {game.seed && (
+                                                        <>
+                                                            <span className="hidden sm:inline">|</span>
+                                                            <span>Seed: <code className="bg-gray-200 px-1 rounded text-xs">{game.seed}</code></span>
+                                                        </>
+                                                    )}
+                                                </p>
+                                                <p className="text-sm text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
+                                                    <span>Mode: {gameMode}</span>
+                                                    <span className="hidden sm:inline">|</span>
+                                                    <span>Round: {currentRound}</span>
+                                                    <span className="hidden sm:inline">|</span>
+                                                    <span>Score: <span className={currentScore >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                                        ${currentScore.toLocaleString()}
+                                                    </span></span>
+                                                </p>
+                                                <p className="text-sm text-gray-600">
+                                                    Questions answered: {answeredQuestions} ({correctQuestions} correct)
+                                                </p>
+                                                <p className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-2 gap-y-1">
+                                                    <span>Created: {createdAt}</span>
+                                                    <span className="hidden sm:inline">|</span>
+                                                    <span>Updated: {updatedAt}</span>
+                                                </p>
                                             </div>
-                                            <p className="text-sm text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
-                                                <span>Game ID: <code className="bg-gray-200 px-1 rounded text-xs">{game.id}</code></span>
-                                                {game.seed && (
-                                                    <>
-                                                        <span className="hidden sm:inline">|</span>
-                                                        <span>Seed: <code className="bg-gray-200 px-1 rounded text-xs">{game.seed}</code></span>
-                                                    </>
-                                                )}
-                                            </p>
-                                            <p className="text-sm text-gray-600 flex flex-wrap gap-x-2 gap-y-1">
-                                                <span>Mode: {game.config?.mode || 'unknown'}</span>
-                                                <span className="hidden sm:inline">|</span>
-                                                <span>Round: {game.currentRound}</span>
-                                                <span className="hidden sm:inline">|</span>
-                                                <span>Score: <span className={game.currentScore >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                                    ${game.currentScore.toLocaleString()}
-                                                </span></span>
-                                            </p>
-                                            <p className="text-sm text-gray-600">
-                                                Questions answered: {game.answeredQuestions} ({game.correctQuestions} correct)
-                                            </p>
-                                            <p className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-2 gap-y-1">
-                                                <span>Created: {new Date(game.createdAt).toLocaleString()}</span>
-                                                <span className="hidden sm:inline">|</span>
-                                                <span>Updated: {new Date(game.updatedAt).toLocaleString()}</span>
-                                            </p>
-                                        </div>
-                                        <div className="flex gap-2 flex-shrink-0">
+                                            <div className="flex gap-2 flex-shrink-0">
+                                                <button
+                                                    onClick={() => handleEditGame(game)}
+                                                    className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 whitespace-nowrap"
+                                                >
+                                                    Edit
+                                                </button>
                                             <button
-                                                onClick={() => handleEditGame(game)}
-                                                className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 whitespace-nowrap"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteGame(game.id)}
+                                                onClick={() => handleDeleteGame(game.id || game.gameId || String(index))}
                                                 className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 whitespace-nowrap"
                                             >
                                                 Delete
                                             </button>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Categories */}
-                                    {game.categories && game.categories.length > 0 && (
-                                        <div className="mt-2">
-                                            <p className="text-xs text-gray-500 mb-1">Categories:</p>
-                                            <div className="flex flex-wrap gap-1">
-                                                {game.categories.map((cat: any) => (
-                                                    <span
-                                                        key={cat.id}
-                                                        className="px-2 py-0.5 text-xs bg-gray-200 text-gray-700 rounded"
-                                                    >
-                                                        {cat.name}
-                                                    </span>
-                                                ))}
                                             </div>
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+
+                                        {/* Categories */}
+                                        {game.categories && game.categories.length > 0 && (
+                                            <div className="mt-2">
+                                                <p className="text-xs text-gray-500 mb-1">Categories:</p>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {game.categories.map((category) => (
+                                                        <span
+                                                            key={category.id}
+                                                            className="px-2 py-0.5 text-xs bg-gray-200 text-gray-700 rounded"
+                                                        >
+                                                            {category.name}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
                     )}
                 </div>
@@ -2332,7 +2275,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             <select
                                 value={disputeFilterStatus}
                                 onChange={(e) => {
-                                    setDisputeFilterStatus(e.target.value as any)
+                                    setDisputeFilterStatus(e.target.value as DisputeStatusFilter)
                                     setDisputePage(1)
                                 }}
                                 className="border rounded-lg px-3 py-2 text-gray-900"
@@ -2348,7 +2291,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             <select
                                 value={disputeFilterMode}
                                 onChange={(e) => {
-                                    setDisputeFilterMode(e.target.value as any)
+                                    setDisputeFilterMode(e.target.value as DisputeModeFilter)
                                     setDisputePage(1)
                                 }}
                                 className="border rounded-lg px-3 py-2 text-gray-900"
@@ -2397,7 +2340,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                     {/* Disputes List */}
                     {disputes.length > 0 && (
                         <div className="space-y-4">
-                            {disputes.map((dispute: any) => (
+                            {disputes.map((dispute: AdminDispute) => (
                                 <div key={dispute.id} className="border rounded-lg p-4 bg-gray-50">
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
                                         <div className="flex-1 min-w-0">
@@ -2568,7 +2511,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             <select
                                 value={issueFilterStatus}
                                 onChange={(e) => {
-                                    setIssueFilterStatus(e.target.value as any)
+                                    setIssueFilterStatus(e.target.value as IssueStatusFilter)
                                     setIssuePage(1)
                                 }}
                                 className="border rounded-lg px-3 py-2 text-gray-900"
@@ -2585,7 +2528,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             <select
                                 value={issueFilterCategory}
                                 onChange={(e) => {
-                                    setIssueFilterCategory(e.target.value as any)
+                                    setIssueFilterCategory(e.target.value as IssueCategoryFilter)
                                     setIssuePage(1)
                                 }}
                                 className="border rounded-lg px-3 py-2 text-gray-900"
@@ -2637,7 +2580,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                     {/* Issues List */}
                     {issues.length > 0 && (
                         <div className="space-y-4">
-                            {issues.map((issue: any) => (
+                            {issues.map((issue: AdminIssue) => (
                                 <div key={issue.id} className="border rounded-lg p-4 bg-gray-50">
                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-3 gap-3">
                                         <div className="flex-1 min-w-0">
@@ -2872,14 +2815,14 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     })
                                     if (response.ok) {
                                         const data = await response.json()
-                                        alert(`Generated ${data.created} challenges, ${data.skipped} already existed`)
+                                        toast.success(`Generated ${data.created} challenges, ${data.skipped} already existed`)
                                         fetchDailyChallenges()
                                     } else {
-                                        alert('Failed to generate challenges')
+                                        toast.error('Failed to generate challenges')
                                     }
                                 } catch (error) {
                                     console.error('Error generating challenges:', error)
-                                    alert('Failed to generate challenges')
+                                    toast.error('Failed to generate challenges')
                                 } finally {
                                     setGeneratingChallenges(false)
                                 }
@@ -2948,10 +2891,11 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         <div className="space-y-2">
                             <h3 className="text-lg font-semibold text-gray-900 mb-3">Upcoming Challenges (Next 30 Days)</h3>
                             <div className="max-h-96 overflow-y-auto">
-                                {dailyChallenges.map((challenge: any) => {
+                                {dailyChallenges.map((challenge: DailyChallengeEntry) => {
                                     const challengeDate = new Date(challenge.date)
                                     const isToday = challengeDate.toDateString() === new Date().toDateString()
                                     const airDate = challenge.airDate ? new Date(challenge.airDate) : null
+                                    const completionCount = toNumberValue(challenge.completionCount)
                                     
                                     return (
                                         <div
@@ -2988,7 +2932,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                         )}
                                                     </div>
                                                     <p className="text-xs text-gray-500 mt-1">
-                                                        {challenge.completionCount} completion{challenge.completionCount !== 1 ? 's' : ''}
+                                                        {completionCount} completion{completionCount !== 1 ? 's' : ''}
                                                     </p>
                                                 </div>
                                             </div>
@@ -3097,15 +3041,40 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                     setSavingGuestConfig(true)
                                     try {
                                         const formData = new FormData(e.currentTarget)
-                                        const updates: any = {}
+                                        const updates: GuestConfigUpdatePayload = {}
                                         
                                         // Collect form values
-                                        updates.randomGameMaxQuestionsBeforeAuth = parseInt(formData.get('randomGameMaxQuestions') as string) || 1
-                                        updates.randomQuestionMaxQuestionsBeforeAuth = parseInt(formData.get('randomQuestionMaxQuestions') as string) || 1
+                                        const randomGameMaxQuestionsBeforeAuth = parseInt(
+                                            String(formData.get('randomGameMaxQuestions')),
+                                            10,
+                                        )
+                                        const randomQuestionMaxQuestionsBeforeAuth = parseInt(
+                                            String(formData.get('randomQuestionMaxQuestions')),
+                                            10,
+                                        )
+                                        const dailyChallengeMinLookbackDays = parseInt(
+                                            String(formData.get('dailyChallengeMinLookbackDays')),
+                                            10,
+                                        )
+                                        const timeToAuthenticateMinutes = parseInt(
+                                            String(formData.get('timeToAuthenticateMinutes')),
+                                            10,
+                                        )
+
+                                        updates.randomGameMaxQuestionsBeforeAuth = Number.isNaN(randomGameMaxQuestionsBeforeAuth)
+                                            ? 1
+                                            : randomGameMaxQuestionsBeforeAuth
+                                        updates.randomQuestionMaxQuestionsBeforeAuth = Number.isNaN(randomQuestionMaxQuestionsBeforeAuth)
+                                            ? 1
+                                            : randomQuestionMaxQuestionsBeforeAuth
                                         updates.dailyChallengeGuestEnabled = formData.get('dailyChallengeGuestEnabled') === 'on'
                                         updates.dailyChallengeGuestAppearsOnLeaderboard = formData.get('dailyChallengeGuestAppearsOnLeaderboard') === 'on'
-                                        updates.dailyChallengeMinLookbackDays = parseInt(formData.get('dailyChallengeMinLookbackDays') as string) || 365
-                                        updates.timeToAuthenticateMinutes = parseInt(formData.get('timeToAuthenticateMinutes') as string) || 1440
+                                        updates.dailyChallengeMinLookbackDays = Number.isNaN(dailyChallengeMinLookbackDays)
+                                            ? 365
+                                            : dailyChallengeMinLookbackDays
+                                        updates.timeToAuthenticateMinutes = Number.isNaN(timeToAuthenticateMinutes)
+                                            ? 1440
+                                            : timeToAuthenticateMinutes
 
                                         const response = await fetch('/api/admin/guest-config', {
                                             method: 'PUT',
@@ -3116,13 +3085,13 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                         if (response.ok) {
                                             const updated = await response.json()
                                             setGuestConfig(updated)
-                                            alert('Guest configuration updated successfully')
+                                            toast.success('Guest configuration updated successfully')
                                         } else {
-                                            alert('Failed to update configuration')
+                                            toast.error('Failed to update configuration')
                                         }
                                     } catch (error) {
                                         console.error('Error updating guest config:', error)
-                                        alert('Failed to update configuration')
+                                        toast.error('Failed to update configuration')
                                     } finally {
                                         setSavingGuestConfig(false)
                                     }
@@ -3266,7 +3235,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                         {/* Job Status Cards */}
                         {cronJobs && Object.keys(cronJobs).length > 0 && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-                                {Object.entries(cronJobs).map(([jobName, job]: [string, any]) => {
+                                {Object.entries(cronJobs).map(([jobName, job]) => {
                                     const latest = cronLatest[jobName]
                                     const isRunning = latest?.status === 'RUNNING'
                                     const isSuccess = latest?.status === 'SUCCESS'
@@ -3339,7 +3308,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 </label>
                                 <select
                                     value={cronFilter}
-                                    onChange={(e) => setCronFilter(e.target.value as any)}
+                                    onChange={(e) => setCronFilter(e.target.value as CronJobFilter)}
                                     className="w-full p-2 border rounded text-gray-900"
                                 >
                                     <option value="all">All Jobs</option>
@@ -3356,7 +3325,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 </label>
                                 <select
                                     value={cronStatusFilter}
-                                    onChange={(e) => setCronStatusFilter(e.target.value as any)}
+                                    onChange={(e) => setCronStatusFilter(e.target.value as CronExecutionStatusFilter)}
                                     className="w-full p-2 border rounded text-gray-900"
                                 >
                                     <option value="all">All Statuses</option>
@@ -3383,7 +3352,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 <>
                                     {/* Mobile / Tablet Card View */}
                                     <div className="block lg:hidden space-y-3">
-                                        {cronExecutions.map((execution: any) => (
+                                        {cronExecutions.map((execution: CronExecution) => (
                                             <div key={execution.id} className="bg-white border rounded-lg p-4 space-y-2">
                                                 <div className="flex items-start justify-between gap-2">
                                                     <div className="flex-1 min-w-0">
@@ -3466,7 +3435,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                                 </tr>
                                             </thead>
                                             <tbody className="bg-white divide-y divide-gray-200">
-                                                {cronExecutions.map((execution: any) => (
+                                                {cronExecutions.map((execution: CronExecution) => (
                                                     <tr key={execution.id} className="hover:bg-gray-50">
                                                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                                                             {cronJobs?.[execution.jobName]?.name || execution.jobName}
@@ -3556,7 +3525,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Current Round</label>
                                 <select
                                     value={editGameRound}
-                                    onChange={(e) => setEditGameRound(e.target.value)}
+                                    onChange={(e) => setEditGameRound(e.target.value as EditGameRound)}
                                     className="w-full p-2 border rounded text-gray-900"
                                 >
                                     <option value="SINGLE">Single Jeopardy</option>
@@ -3569,7 +3538,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                                 <select
                                     value={editGameStatus}
-                                    onChange={(e) => setEditGameStatus(e.target.value)}
+                                    onChange={(e) => setEditGameStatus(e.target.value as EditGameStatus)}
                                     className="w-full p-2 border rounded text-gray-900"
                                 >
                                     <option value="IN_PROGRESS">In Progress</option>
@@ -3886,7 +3855,7 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                             <button
                                 onClick={async () => {
                                     if (!issueEmailSubject.trim() || !issueEmailBody.trim()) {
-                                        alert('Subject and message are required')
+                                        toast.error('Subject and message are required')
                                         return
                                     }
 
@@ -3915,11 +3884,11 @@ export default function AdminClient({ user, initialGames }: AdminClientProps) {
                                             setIssueEmailBody('')
                                         } else {
                                             const error = await response.json()
-                                            alert(error.error || 'Failed to send email')
+                                            toast.error(error.error || 'Failed to send email')
                                         }
                                     } catch (error) {
                                         console.error('Error sending email:', error)
-                                        alert('Failed to send email. Please check your SMTP configuration.')
+                                        toast.error('Failed to send email. Please check your SMTP configuration.')
                                     } finally {
                                         setSendingIssueEmail(false)
                                     }
@@ -4280,68 +4249,6 @@ function SelectableGameGroup({ group, isSelected, onToggle }: {
             </div>
             {isOpen && (
                 <div className="p-4 pt-0 bg-white space-y-4 border-t">
-                    {group.singleJeopardy.length > 0 && (
-                        <div>
-                            <h4 className="font-semibold text-lg mb-2 text-gray-900">Single Jeopardy</h4>
-                            {group.singleJeopardy.map((category, idx) => (
-                                <CollapsibleCategory key={idx} category={category} />
-                            ))}
-                        </div>
-                    )}
-                    {group.doubleJeopardy.length > 0 && (
-                        <div>
-                            <h4 className="font-semibold text-lg mb-2 text-gray-900">Double Jeopardy</h4>
-                            {group.doubleJeopardy.map((category, idx) => (
-                                <CollapsibleCategory key={idx} category={category} />
-                            ))}
-                        </div>
-                    )}
-                    {group.finalJeopardy.length > 0 && (
-                        <div>
-                            <h4 className="font-semibold text-lg mb-2 text-gray-900">Final Jeopardy</h4>
-                            {group.finalJeopardy.map((category, idx) => (
-                                <CollapsibleCategory key={idx} category={category} />
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    )
-}
-
-function CollapsibleGameGroup({ group }: { group: GameGroup }) {
-    const [isOpen, setIsOpen] = useState(false)
-
-    return (
-        <div className="border rounded">
-            <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="w-full p-4 bg-gray-100 hover:bg-gray-200 flex justify-between items-center text-left gap-2"
-            >
-                <div className="flex-1 min-w-0">
-                    <div className="font-bold text-lg text-gray-900 break-words">
-                        {group.airDate === 'unknown' ? 'Unknown Date' : formatDateString(group.airDate)}
-                    </div>
-                    <div className="text-gray-800 text-sm flex flex-wrap gap-x-2 gap-y-1 mt-1">
-                        <span>{group.questionCount} questions</span>
-                        <span className="hidden sm:inline">|</span>
-                        <span>Single: {group.singleJeopardy.length} categories</span>
-                        <span className="hidden sm:inline">|</span>
-                        <span>Double: {group.doubleJeopardy.length} categories</span>
-                    </div>
-                </div>
-                <svg
-                    className={`w-5 h-5 transform transition-transform text-gray-900 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
-            {isOpen && (
-                <div className="p-4 bg-white space-y-4">
                     {group.singleJeopardy.length > 0 && (
                         <div>
                             <h4 className="font-semibold text-lg mb-2 text-gray-900">Single Jeopardy</h4>

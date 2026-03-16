@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import type { AdminGame, AdminDispute, AdminIssue, AdminUser, DailyChallengeEntry, UserDailyChallengeEntry, AdminAchievement, CronExecution } from '@/types/admin'
+import type { AdminGame, AdminDispute, AdminIssue, AdminUser, UserDailyChallengeEntry, AdminAchievement, CronExecution } from '@/types/admin'
 
 // Query keys for cache management
 export const adminQueryKeys = {
@@ -190,8 +190,9 @@ export function useDisputesStats(enabled: boolean = true) {
         queryKey: ['admin', 'disputes-stats'],
         queryFn: () => fetchAdmin<{ pendingCount: number }>('/api/admin/disputes/stats'),
         enabled,
-        staleTime: 30 * 1000,
-        refetchInterval: 60 * 1000,
+        staleTime: 10 * 1000,
+        refetchInterval: 5 * 1000,
+        refetchOnWindowFocus: true,
     })
 }
 
@@ -201,8 +202,9 @@ export function useIssuesStats(enabled: boolean = true) {
         queryKey: ['admin', 'issues-stats'],
         queryFn: () => fetchAdmin<{ openCount: number }>('/api/admin/issues/stats'),
         enabled,
-        staleTime: 30 * 1000,
-        refetchInterval: 60 * 1000,
+        staleTime: 10 * 1000,
+        refetchInterval: 5 * 1000,
+        refetchOnWindowFocus: true,
     })
 }
 
@@ -717,4 +719,3 @@ export type {
     CronJobsResponse,
     CalendarStatsResponse,
 }
-

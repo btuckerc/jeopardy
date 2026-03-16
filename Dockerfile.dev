@@ -2,10 +2,7 @@ FROM node:20
 
 WORKDIR /app
 
-# Install system dependencies Prisma expects (OpenSSL, ca-certificates)
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
-  && rm -rf /var/lib/apt/lists/*
+# Base image includes required crypto certificates and openssl tooling for Prisma/Node
 
 # Copy package files first
 COPY package*.json ./
@@ -32,4 +29,3 @@ EXPOSE 3000
 # Use entrypoint script to run migrations before starting
 ENTRYPOINT ["node", "scripts/docker-entrypoint.js"]
 CMD ["npm", "run", "dev"]
-

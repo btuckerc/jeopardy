@@ -10,7 +10,6 @@ datasource db {
   extensions = [vector]
 }
 
-// NextAuth.js Models
 model Account {
   id                String  @id @default(cuid())
   userId            String
@@ -46,6 +45,46 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+// Friend / social graph
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum FriendChallengeStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum FriendChallengeMode {
+  PRACTICE
+  GAME
+}
+
+enum FriendActivityType {
+  FRIEND_REQUEST_SENT
+  FRIEND_REQUEST_ACCEPTED
+  FRIEND_REQUEST_DECLINED
+  FRIEND_REQUEST_CANCELLED
+  FRIEND_REQUEST_BLOCKED
+  CHALLENGE_CREATED
+  CHALLENGE_ACCEPTED
+  CHALLENGE_DECLINED
+  CHALLENGE_COMPLETED
+  CHALLENGE_CANCELLED
+}
+
+enum FriendVisibility {
+  FULL_PROFILE
+  STREAK_ONLY
+}
+
 model User {
   id                   String               @id @default(cuid())
   clerkUserId          String?              @unique // Clerk user ID for new auth system
@@ -73,6 +112,9 @@ model User {
   tourCompleted        Boolean              @default(false)
   tourDismissed        Boolean              @default(false)
   tourDismissedAt      DateTime?
+  // Friend discovery and privacy controls
+  friendVisibility     FriendVisibility      @default(FULL_PROFILE)
+  allowFriendRequests  Boolean              @default(true)
   
   accounts             Account[]
   sessions             Session[]
@@ -89,8 +131,112 @@ model User {
   resolvedIssues       Issue[]              @relation("IssueAdmin")
   issueReports         IssueReport[]        @relation("IssueReportUser")
   resolvedIssueReports IssueReport[]        @relation("IssueReportAdmin")
+  sentFriendRequests   FriendRequest[]      @relation("FriendRequestFromUser")
+  receivedFriendRequests FriendRequest[]    @relation("FriendRequestToUser")
+  friendshipsAsUserOne Friendship[]        @relation("FriendshipUserOne")
+  friendshipsAsUserTwo Friendship[]        @relation("FriendshipUserTwo")
+  sentFriendChallenges FriendChallenge[]  @relation("FriendChallengeSender")
+  receivedFriendChallenges FriendChallenge[] @relation("FriendChallengeRecipient")
+  wonFriendChallenges FriendChallenge[] @relation("FriendChallengeWinner")
+  actorFriendActivities FriendActivity[] @relation("FriendActivityActor")
+  relatedFriendActivities FriendActivity[] @relation("FriendActivityTarget")
+  blockedUsers         FriendBlock[]       @relation("FriendBlocker")
+  blockedByUsers       FriendBlock[]       @relation("FriendBlockerTarget")
 
   @@index([lastOnlineAt])
+}
+
+model Friendship {
+  id         String   @id @default(cuid())
+  userId1    String
+  userId2    String
+  since      DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  userOne    User     @relation("FriendshipUserOne", fields: [userId1], references: [id], onDelete: Cascade)
+  userTwo    User     @relation("FriendshipUserTwo", fields: [userId2], references: [id], onDelete: Cascade)
+
+  @@unique([userId1, userId2])
+  @@index([userId1])
+  @@index([userId2])
+}
+
+model FriendRequest {
+  id          String             @id @default(cuid())
+  fromUserId  String
+  toUserId    String
+  status      FriendRequestStatus @default(PENDING)
+  message     String?            @db.Text
+  respondedAt DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  fromUser    User               @relation("FriendRequestFromUser", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser      User               @relation("FriendRequestToUser", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([status])
+  @@index([fromUserId, toUserId, status])
+}
+
+model FriendChallenge {
+  id           String               @id @default(cuid())
+  challengerUserId String
+  opponentUserId  String
+  mode         FriendChallengeMode   @default(PRACTICE)
+  message      String?              @db.Text
+  targetValue  Int?                 // optional goal score for practice/game challenge
+  status       FriendChallengeStatus @default(PENDING)
+  expiresAt    DateTime
+  winnerUserId String?
+  challengerScore Int?
+  opponentScore  Int?
+  completedAt  DateTime?
+  respondedAt  DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  challenger   User                 @relation("FriendChallengeSender", fields: [challengerUserId], references: [id], onDelete: Cascade)
+  opponent     User                 @relation("FriendChallengeRecipient", fields: [opponentUserId], references: [id], onDelete: Cascade)
+  winner       User?                @relation("FriendChallengeWinner", fields: [winnerUserId], references: [id], onDelete: SetNull)
+
+  @@index([challengerUserId])
+  @@index([opponentUserId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model FriendActivity {
+  id           String           @id @default(cuid())
+  actorUserId  String
+  relatedUserId String?
+  challengeId  String?
+  activityType FriendActivityType
+  metadata     Json?
+  createdAt    DateTime         @default(now())
+
+  actorUser    User             @relation("FriendActivityActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+  relatedUser  User?            @relation("FriendActivityTarget", fields: [relatedUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([relatedUserId])
+  @@index([activityType])
+  @@index([createdAt])
+}
+
+model FriendBlock {
+  id             String   @id @default(cuid())
+  blockerUserId  String
+  blockedUserId  String
+  createdAt      DateTime @default(now())
+
+  blockerUser    User     @relation("FriendBlocker", fields: [blockerUserId], references: [id], onDelete: Cascade)
+  blockedUser    User     @relation("FriendBlockerTarget", fields: [blockedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerUserId, blockedUserId])
+  @@index([blockerUserId])
+  @@index([blockedUserId])
 }
 
 model Question {

@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, forbiddenResponse, serverErrorResponse } from '@/lib/api-utils'
+import { jsonResponse, requireAdmin, serverErrorResponse } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,15 +10,8 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(_request: NextRequest) {
     try {
-        const appUser = await getAppUser()
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
-        }
+        const { error: authError } = await requireAdmin()
+        if (authError) return authError
 
         // Count open issues (OPEN or IN_PROGRESS)
         const openCount = await prisma.issueReport.count({
@@ -38,4 +30,3 @@ export async function GET(_request: NextRequest) {
         return serverErrorResponse('Failed to fetch issue stats', error)
     }
 }
-

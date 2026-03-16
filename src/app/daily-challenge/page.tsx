@@ -5,6 +5,7 @@ import DailyChallengeClient from './DailyChallengeClient'
 import { Metadata } from 'next'
 import { setupDailyChallenge } from '../api/daily-challenge/route'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
+import { JsonLd } from '@/components/JsonLd'
 
 export const metadata: Metadata = {
     title: 'Daily Trivia Challenge | New Jeopardy Question - trivrdy',
@@ -62,7 +63,7 @@ interface LeaderboardEntry {
 
 /**
  * Daily Challenge page - Server component that fetches initial data
- * 
+ *
  * By fetching data server-side:
  * 1. The page loads with data already populated (no loading splash screen)
  * 2. Better SEO and initial page load performance
@@ -70,15 +71,15 @@ interface LeaderboardEntry {
  */
 export default async function DailyChallengePage() {
     const user = await getAppUser()
-    
+
     // Fetch challenge data server-side
     let challenge: DailyChallenge | null = null
     let leaderboard: LeaderboardEntry[] = []
-    
+
     try {
         // Get the active challenge date (based on 9AM ET boundary)
         const challengeDate = getActiveChallengeDate()
-        
+
         // Get today's challenge, create if it doesn't exist
         let challengeData = await prisma.dailyChallenge.findUnique({
             where: { date: challengeDate },
@@ -204,9 +205,61 @@ export default async function DailyChallengePage() {
         // Continue with null challenge - client will handle error state
     }
 
-    return <DailyChallengeClient 
-        initialChallenge={challenge} 
-        initialLeaderboard={leaderboard}
-        user={user}
-    />
+    // Build QAPage schema for SEO (only if we have a challenge)
+    const qaPageSchema = challenge ? {
+        '@context': 'https://schema.org',
+        '@type': 'QAPage',
+        mainEntity: {
+            '@type': 'Question',
+            name: challenge.question.question.length > 150
+                ? challenge.question.question.substring(0, 150) + '...'
+                : challenge.question.question,
+            text: challenge.question.question,
+            answer: {
+                '@type': 'Answer',
+                text: challenge.question.answer,
+            },
+            author: {
+                '@type': 'Organization',
+                name: 'Jeopardy!',
+            },
+            datePublished: challenge.question.airDate || challenge.date,
+            about: {
+                '@type': 'Thing',
+                name: challenge.question.category,
+            },
+        },
+    } : null
+
+    // Breadcrumb schema
+    const breadcrumbSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+            {
+                '@type': 'ListItem',
+                position: 1,
+                name: 'Home',
+                item: 'https://trivrdy.com',
+            },
+            {
+                '@type': 'ListItem',
+                position: 2,
+                name: 'Daily Challenge',
+                item: 'https://trivrdy.com/daily-challenge',
+            },
+        ],
+    }
+
+    return (
+        <>
+            {qaPageSchema && <JsonLd data={qaPageSchema} />}
+            <JsonLd data={breadcrumbSchema} />
+            <DailyChallengeClient
+                initialChallenge={challenge}
+                initialLeaderboard={leaderboard}
+                user={user}
+            />
+        </>
+    )
 }

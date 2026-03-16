@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import {
     jsonResponse,
+    forbiddenResponse,
     serverErrorResponse,
     parseSearchParams,
     getAuthenticatedUser
@@ -24,14 +25,17 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         
         if (error) return error
 
+        // Get requesting user if authenticated
+        const requestingUser = await getAuthenticatedUser()
+
         // Get userId from params or authenticated user
         let userId = params.userId
-        
         if (!userId) {
-            const user = await getAuthenticatedUser()
-            if (user) {
-                userId = user.id
-            }
+            userId = requestingUser?.id
+        } else if (requestingUser && userId !== requestingUser.id && requestingUser.role !== 'ADMIN') {
+            return forbiddenResponse('Cannot access statistics for another user')
+        } else if (!requestingUser) {
+            return forbiddenResponse('Sign in to access another user\'s statistics')
         }
 
         if (!userId) {

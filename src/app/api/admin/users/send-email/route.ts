@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { requireAdmin } from '@/lib/clerk-auth'
-import { jsonResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
+import { requireAdmin, jsonResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
 
 /**
  * POST /api/admin/users/send-email
@@ -9,7 +8,8 @@ import { jsonResponse, serverErrorResponse, badRequestResponse } from '@/lib/api
  */
 export async function POST(request: Request) {
     try {
-        await requireAdmin()
+        const { error: authError } = await requireAdmin()
+        if (authError) return authError
 
         const body = await request.json()
         const { userId, subject, body: emailBody } = body
@@ -50,4 +50,3 @@ export async function POST(request: Request) {
         return serverErrorResponse('Failed to send email', error)
     }
 }
-

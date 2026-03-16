@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth'
 import { getTripleStumperCategories, getTripleStumperCategoryQuestions, getRandomTripleStumper, saveAnswer } from '../../actions/practice'
 import { checkAnswer } from '../../lib/answer-checker'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
+import { AnswerExplanationPanel } from '../components/PracticeAnswerExplanation'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 
@@ -218,6 +219,12 @@ function TripleStumpersContent() {
     const answerInputRef = useRef<HTMLInputElement>(null)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [showAnswer, setShowAnswer] = useState(false)
+    const [explanationMode, setExplanationMode] = useState<boolean>(() => {
+        if (typeof window === 'undefined') {
+            return false
+        }
+        return localStorage.getItem('practice_explanation_mode') === 'true'
+    })
     const [disputeContext, setDisputeContext] = useState<{
         questionId: string
         gameId: string | null
@@ -258,6 +265,10 @@ function TripleStumpersContent() {
     const sortDirectionRef = useRef(sortDirection)
     const isInitialMount = useRef(true)
     const [totalStats, setTotalStats] = useState({ total: 0, conquered: 0 })
+
+    useEffect(() => {
+        localStorage.setItem('practice_explanation_mode', String(explanationMode))
+    }, [explanationMode])
 
     useEffect(() => {
         sortByRef.current = sortBy
@@ -542,7 +553,9 @@ function TripleStumpersContent() {
     }, [updateUrlParams, user?.id, sortBy, sortDirection])
 
     const handleAnswerSubmit = async () => {
-        if (!selectedQuestion?.answer || !userAnswer) return
+        const trimmedUserAnswer = userAnswer.trim()
+        if (!selectedQuestion?.answer || !trimmedUserAnswer) return
+        setUserAnswer(trimmedUserAnswer)
 
         // Reset dispute state for new answer
         setDisputeContext(null)
@@ -558,7 +571,7 @@ function TripleStumpersContent() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         questionId: selectedQuestion.id,
-                        userAnswer: userAnswer,
+                        userAnswer: trimmedUserAnswer,
                         mode: 'PRACTICE',
                         round: 'SINGLE',
                         categoryId: selectedQuestion.categoryId
@@ -571,16 +584,16 @@ function TripleStumpersContent() {
                     setDisputeContext(data.disputeContext)
                 } else {
                     // Fallback to local check if API fails
-                    isAnswerCorrect = checkAnswer(userAnswer, selectedQuestion.answer)
+                    isAnswerCorrect = checkAnswer(trimmedUserAnswer, selectedQuestion.answer)
                 }
             } catch (error) {
                 console.error('Error grading answer:', error)
                 // Fallback to local check
-                isAnswerCorrect = checkAnswer(userAnswer, selectedQuestion.answer)
+                isAnswerCorrect = checkAnswer(trimmedUserAnswer, selectedQuestion.answer)
             }
         } else {
             // Guest user - use local check
-            isAnswerCorrect = checkAnswer(userAnswer, selectedQuestion.answer)
+            isAnswerCorrect = checkAnswer(trimmedUserAnswer, selectedQuestion.answer)
         }
 
         setIsCorrect(isAnswerCorrect)
@@ -1046,7 +1059,15 @@ function TripleStumpersContent() {
                                                 enterKeyHint="send"
                                             />
                                             <div className="flex justify-between items-center">
-                                                <div className="flex space-x-4">
+                                                <div className="flex flex-wrap items-center gap-4">
+                                                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={explanationMode}
+                                                            onChange={(event) => setExplanationMode(event.target.checked)}
+                                                        />
+                                                        Explanation mode
+                                                    </label>
                                                     <button
                                                         onClick={handleAnswerSubmit}
                                                         className="px-6 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-bold"
@@ -1117,6 +1138,12 @@ function TripleStumpersContent() {
                                             </div>
                                         )}
                                     </div>
+                                    <AnswerExplanationPanel
+                                        userAnswer={userAnswer}
+                                        correctAnswer={selectedQuestion.answer}
+                                        explanationMode={explanationMode}
+                                        visible={isCorrect === false}
+                                    />
                                     <div className="flex space-x-4">
                                         <button
                                             onClick={handleBackToQuestions}

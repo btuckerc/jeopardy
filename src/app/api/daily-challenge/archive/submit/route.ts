@@ -20,6 +20,7 @@ const submitSchema = z.object({
  */
 export const POST = withInstrumentation(async (request: NextRequest) => {
     try {
+        const revealAnswer = request.nextUrl.searchParams.get('reveal') === 'true'
         const body = await request.json()
         const { challengeId, answer } = submitSchema.parse(body)
         
@@ -80,16 +81,20 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         
         // If already participated, return existing result
         if (existingParticipation) {
-            return jsonResponse({
+            const response = {
                 correct: existingParticipation.correct,
                 alreadyCompleted: true,
                 unlockedAchievements: []
+            }
+            return jsonResponse({
+                ...response,
+                ...(revealAnswer ? { answer: challenge.question.answer } : {})
             })
         }
         
         // Grade the answer
         const overrides = await getQuestionOverrides(challenge.question.id)
-        const isCorrect = isAnswerAcceptedWithOverrides(
+        const isCorrect = await isAnswerAcceptedWithOverrides(
             answer.trim(),
             challenge.question.answer,
             overrides
@@ -118,7 +123,8 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             
             return jsonResponse({
                 correct: isCorrect,
-                unlockedAchievements
+                unlockedAchievements,
+                ...(revealAnswer ? { answer: challenge.question.answer } : {})
             })
         } else {
             // Create guest session
@@ -129,7 +135,8 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             
             return jsonResponse({
                 correct: isCorrect,
-                guestSessionId
+                guestSessionId,
+                ...(revealAnswer ? { answer: challenge.question.answer } : {})
             })
         }
     } catch (error) {

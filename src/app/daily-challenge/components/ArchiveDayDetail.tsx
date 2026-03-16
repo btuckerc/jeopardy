@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '@/app/lib/auth'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
+import Link from 'next/link'
 import toast from 'react-hot-toast'
 import type { UnlockedAchievement } from '@/types/admin'
 import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
@@ -14,7 +15,7 @@ interface ArchiveDay {
     question: {
         id: string
         question: string
-        answer: string
+        answer: string | null
         category: string
         airDate: string | null
     }
@@ -62,6 +63,7 @@ export default function ArchiveDayDetail({ day, onBack, onParticipationUpdate }:
     const [showQuestion, setShowQuestion] = useState(false)
     const [showAnswer, setShowAnswer] = useState(false)
     const [revealAnswer, setRevealAnswer] = useState(false)
+    const [revealedAnswer, setRevealedAnswer] = useState<string | null>(null)
     const [revealMyAnswer, setRevealMyAnswer] = useState(false)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [submitting, setSubmitting] = useState(false)
@@ -71,13 +73,21 @@ export default function ArchiveDayDetail({ day, onBack, onParticipationUpdate }:
     
     // Initialize state based on participation
     useEffect(() => {
+        setRevealedAnswer(day.question.answer)
         if (day.participation) {
             setShowQuestion(true)
             setShowAnswer(true)
             setIsCorrect(day.participation.correct)
             if (day.participation.correct) {
                 setRevealAnswer(true)
+            } else {
+                setRevealAnswer(false)
             }
+        } else {
+            setShowQuestion(false)
+            setShowAnswer(false)
+            setIsCorrect(null)
+            setRevealAnswer(false)
         }
     }, [day])
     
@@ -90,7 +100,7 @@ export default function ArchiveDayDetail({ day, onBack, onParticipationUpdate }:
         
         setSubmitting(true)
         try {
-            const response = await fetch('/api/daily-challenge/archive/submit', {
+            const response = await fetch('/api/daily-challenge/archive/submit?reveal=true', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -111,6 +121,9 @@ export default function ArchiveDayDetail({ day, onBack, onParticipationUpdate }:
             const data = await response.json()
             setIsCorrect(data.correct)
             setShowAnswer(true)
+            if (data.answer) {
+                setRevealedAnswer(data.answer)
+            }
             
             if (data.correct) {
                 setRevealAnswer(true)
@@ -303,9 +316,9 @@ export default function ArchiveDayDetail({ day, onBack, onParticipationUpdate }:
                                 
                                 {/* Reveal Answer button */}
                                 {revealAnswer ? (
-                                    <div className="mt-6 p-6 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
+                                <div className="mt-6 p-6 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
                                         <p className="text-white text-xl sm:text-2xl font-medium text-center leading-relaxed">
-                                            {day.question.answer}
+                                            {revealedAnswer || 'Answer unavailable'}
                                         </p>
                                     </div>
                                 ) : (
@@ -397,7 +410,7 @@ export default function ArchiveDayDetail({ day, onBack, onParticipationUpdate }:
             
             {/* Practice more link */}
             <div className="text-center">
-                <a
+                <Link
                     href="/practice/round?round=FINAL"
                     className="inline-flex items-center gap-2 text-blue-300 hover:text-blue-200 transition-colors text-sm"
                 >
@@ -406,7 +419,7 @@ export default function ArchiveDayDetail({ day, onBack, onParticipationUpdate }:
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Practice more Final Jeopardy questions
-                </a>
+                </Link>
             </div>
         </div>
     )

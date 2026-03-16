@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import UserAvatar, { AVATAR_BACKGROUNDS, AvatarBackgroundKey } from './UserAvatar'
 import { getEmojisByCategory, type EmojiCategory } from '@/lib/avatar'
+import toast from 'react-hot-toast'
 
 interface SpoilerSettings {
     spoilerBlockDate: Date | null;
@@ -208,10 +209,10 @@ export default function UserSettings({
 
             onClose();
             router.refresh();
-            alert('Your data has been reset successfully.');
+            toast.success('Your data has been reset successfully.');
         } catch (error) {
             console.error('Error resetting data:', error);
-            alert('Failed to reset data. Please try again.');
+            toast.error('Failed to reset data. Please try again.');
         } finally {
             setIsResetting(false);
         }

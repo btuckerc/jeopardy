@@ -11,6 +11,7 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { withCronLogging } from '@/lib/cron-logger'
 import { format } from 'date-fns'
+import { CRON_JOBS } from '@/lib/cron-jobs'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // 1 minute max for querying and sending emails
@@ -359,7 +360,15 @@ export async function GET(request: Request) {
             const result = await executeJob()
             return NextResponse.json(result)
         } else {
-            const result = await withCronLogging('issues-summary', triggeredBy, executeJob)
+            const result = await withCronLogging(
+                'issues-summary',
+                triggeredBy,
+                executeJob,
+                {
+                    timeoutMs: CRON_JOBS['issues-summary'].timeoutMs,
+                    maxResultBytes: 4096,
+                }
+            )
             return NextResponse.json(result)
         }
     } catch (error) {
@@ -375,4 +384,3 @@ export async function GET(request: Request) {
         )
     }
 }
-

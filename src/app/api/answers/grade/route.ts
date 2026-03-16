@@ -6,6 +6,7 @@ import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
 import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
+import { FriendChallengeMode, FriendChallengeStatus } from '@prisma/client'
 import crypto from 'crypto'
 
 const gradeAnswerSchema = z.object({
@@ -18,6 +19,25 @@ const gradeAnswerSchema = z.object({
 })
 
 export const dynamic = 'force-dynamic'
+
+type ChallengeRole = 'CHALLENGER' | 'OPPONENT'
+
+function parseChallengeConfig(config: unknown): {
+    friendChallengeId?: string
+    friendChallengeRole?: ChallengeRole
+} {
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+        return {}
+    }
+
+    const typed = config as Record<string, unknown>
+    return {
+        friendChallengeId: typeof typed.friendChallengeId === 'string' ? typed.friendChallengeId : undefined,
+        friendChallengeRole: typed.friendChallengeRole === 'CHALLENGER' || typed.friendChallengeRole === 'OPPONENT'
+            ? typed.friendChallengeRole
+            : undefined,
+    }
+}
 
 /**
  * POST /api/answers/grade
@@ -53,7 +73,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         const _overrideTexts = overrides.map(o => o.text)
 
         // Grade the answer using canonical answer + overrides
-        const correct = isAnswerAcceptedWithOverrides(
+        const correct = await isAnswerAcceptedWithOverrides(
             userAnswer,
             question.answer,
             overrides
@@ -78,7 +98,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                 // Verify game ownership
                 const game = await tx.game.findUnique({
                     where: { id: gameId },
-                    select: { userId: true }
+                    select: { userId: true, currentScore: true, config: true }
                 })
 
                 if (!game) {
@@ -121,13 +141,50 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                 }
 
                 // Update game score if correct
+                let updatedCurrentScore = game.currentScore
                 if (correct && storedPoints > 0) {
-                    await tx.game.update({
+                    const updatedGame = await tx.game.update({
                         where: { id: gameId },
                         data: {
                             currentScore: { increment: storedPoints }
-                        }
+                        },
+                        select: { currentScore: true },
                     })
+                    updatedCurrentScore = updatedGame.currentScore
+                }
+
+                const challengeContext = parseChallengeConfig(game.config)
+                if (challengeContext.friendChallengeId) {
+                    const challenge = await tx.friendChallenge.findUnique({
+                        where: { id: challengeContext.friendChallengeId },
+                        select: {
+                            id: true,
+                            mode: true,
+                            status: true,
+                            challengerUserId: true,
+                            opponentUserId: true,
+                        },
+                    })
+
+                    if (
+                        challenge
+                        && challenge.mode === FriendChallengeMode.GAME
+                        && (
+                            challenge.status === FriendChallengeStatus.ACCEPTED
+                            || challenge.status === FriendChallengeStatus.COMPLETED
+                        )
+                    ) {
+                        const isChallenger = challenge.challengerUserId === appUser.id
+                        const isOpponent = challenge.opponentUserId === appUser.id
+                        if (isChallenger || isOpponent) {
+                            await tx.friendChallenge.update({
+                                where: { id: challenge.id },
+                                data: isChallenger
+                                    ? { challengerScore: updatedCurrentScore }
+                                    : { opponentScore: updatedCurrentScore },
+                            })
+                        }
+                    }
                 }
             }
 
@@ -224,4 +281,3 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         return serverErrorResponse('Failed to grade answer', error)
     }
 })
-

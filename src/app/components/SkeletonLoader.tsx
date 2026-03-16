@@ -80,7 +80,7 @@ export function SkeletonStats({ className = '' }: SkeletonProps) {
     )
 }
 
-export default {
+const Skeletons = {
     Card: SkeletonCard,
     Text: SkeletonText,
     Avatar: SkeletonAvatar,
@@ -88,3 +88,5 @@ export default {
     GameBoard: SkeletonGameBoard,
     Stats: SkeletonStats
 }
+
+export default Skeletons

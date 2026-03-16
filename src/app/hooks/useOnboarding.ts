@@ -80,12 +80,12 @@ export function useOnboarding(userId?: string | null, initialTourState?: TourSta
                     showTour: shouldShowTour,
                     isLoading: false
                 })
-            } catch (error) {
-                // On error, default to not showing tour
-                setState({
-                    isComplete: true,
-                    currentStep: 0,
-                    showTour: false,
+        } catch {
+            // On error, default to not showing tour
+            setState({
+                isComplete: true,
+                currentStep: 0,
+                showTour: false,
                     isLoading: false
                 })
             }
@@ -134,23 +134,6 @@ export function useOnboarding(userId?: string | null, initialTourState?: TourSta
             ...prev,
             isComplete: true,
             showTour: false
-        }))
-    }, [])
-    
-    const startTour = useCallback(async () => {
-        try {
-            await fetch('/api/user/tour-state', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'start' })
-            })
-        } catch (error) {
-            console.error('Failed to update tour state:', error)
-        }
-        
-        setState(prev => ({
-            ...prev,
-            hasSeenTour: true
         }))
     }, [])
     

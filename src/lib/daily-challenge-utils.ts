@@ -186,16 +186,6 @@ export function getRefreshTimeDescription(): string {
     // Get the next challenge time (9AM ET)
     const nextTime = getNextChallengeTime()
     
-    // Format it in Eastern timezone with timezone name
-    // Use Intl.DateTimeFormat to get both time and timezone abbreviation
-    const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: TIMEZONE,
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-        timeZoneName: 'short'
-    })
-    
     // Format the time
     const timeFormatter = new Intl.DateTimeFormat('en-US', {
         timeZone: TIMEZONE,
@@ -205,12 +195,7 @@ export function getRefreshTimeDescription(): string {
     })
     
     const formattedTime = timeFormatter.format(nextTime)
-    
-    // Get timezone abbreviation (EST or EDT)
-    const parts = formatter.formatToParts(nextTime)
-    const tzPart = parts.find(p => p.type === 'timeZoneName')
-    const tzAbbr = tzPart?.value || 'ET'
-    
+
     // Use full timezone name for clarity
     return `${formattedTime} Eastern`
 }

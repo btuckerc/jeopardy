@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { setupDailyChallenge } from '@/app/api/daily-challenge/route'
 import { withCronLogging } from '@/lib/cron-logger'
+import { CRON_JOBS } from '@/lib/cron-jobs'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300 // 5 minutes max for generating multiple challenges
@@ -154,7 +155,15 @@ export async function GET(request: Request) {
             const result = await executeJob()
             return NextResponse.json(result)
         } else {
-            const result = await withCronLogging('daily-challenge', triggeredBy, executeJob)
+            const result = await withCronLogging(
+                'daily-challenge',
+                triggeredBy,
+                executeJob,
+                {
+                    timeoutMs: CRON_JOBS['daily-challenge'].timeoutMs,
+                    maxResultBytes: CRON_JOBS['daily-challenge'].maxResultBytes,
+                }
+            )
             return NextResponse.json(result)
         }
     } catch (error: unknown) {
@@ -169,4 +178,3 @@ export async function GET(request: Request) {
         )
     }
 }
-

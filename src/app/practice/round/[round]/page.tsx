@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 'use client'
 
@@ -7,6 +8,7 @@ import Link from 'next/link'
 import { useAuth } from '../../../lib/auth'
 import { getRoundCategories, getRandomQuestion, getCategoryQuestions } from '../../../actions/practice'
 import { scrollInputIntoView } from '@/app/hooks/useMobileKeyboard'
+import { AnswerExplanationPanel } from '../../components/PracticeAnswerExplanation'
 import { format } from 'date-fns'
 import toast from 'react-hot-toast'
 import type { RawCategory, RawQuestion } from '@/types/practice'
@@ -340,6 +342,13 @@ function FreePracticeContent() {
     const answerInputRef = useRef<HTMLInputElement>(null)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
     const [showAnswer, setShowAnswer] = useState(false)
+    const [explanationMode, setExplanationMode] = useState<boolean>(() => {
+        if (typeof window === 'undefined') {
+            return false
+        }
+
+        return localStorage.getItem('practice_explanation_mode') === 'true'
+    })
     const [disputeContext, setDisputeContext] = useState<{
         questionId: string
         gameId: string | null
@@ -395,6 +404,10 @@ function FreePracticeContent() {
     }, [sortDirection])
     
     const [showBackToTop, setShowBackToTop] = useState(false)
+
+    useEffect(() => {
+        localStorage.setItem('practice_explanation_mode', String(explanationMode))
+    }, [explanationMode])
 
     // Persist sort preference to localStorage when user changes it
     const handleSortChange = useCallback((newSort: 'airDate' | 'completion') => {
@@ -791,20 +804,23 @@ function FreePracticeContent() {
     }, [updateUrlParams]);
 
     const handleAnswerSubmit = async () => {
-        if (!selectedQuestion?.answer || !userAnswer || !user?.id) return;
+        const trimmedUserAnswer = userAnswer.trim()
+
+        if (!selectedQuestion?.answer || !trimmedUserAnswer || !user?.id) return
+        setUserAnswer(trimmedUserAnswer)
 
         try {
             // Use the centralized grading API
             const response = await fetch('/api/answers/grade', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    questionId: selectedQuestion.id,
-                    mode: 'PRACTICE',
-                    round: round,
-                    userAnswer: userAnswer.trim()
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        questionId: selectedQuestion.id,
+                        mode: 'PRACTICE',
+                        round: round,
+                        userAnswer: trimmedUserAnswer,
+                    })
                 })
-            })
 
             if (!response.ok) {
                 throw new Error('Failed to grade answer')
@@ -864,7 +880,7 @@ function FreePracticeContent() {
             );
         } catch (error) {
             console.error('Error submitting answer:', error)
-            alert('Failed to submit answer. Please try again.')
+            toast.error('Failed to submit answer. Please try again.')
         }
     };
 
@@ -1470,7 +1486,15 @@ function FreePracticeContent() {
                                                             />
                                                         </div>
                                                         <div className="flex justify-between items-center">
-                                                            <div className="flex space-x-4">
+                                                            <div className="flex flex-wrap items-center gap-4">
+                                                                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={explanationMode}
+                                                                        onChange={(event) => setExplanationMode(event.target.checked)}
+                                                                    />
+                                                                    Explanation mode
+                                                                </label>
                                                                 <button
                                                                     onClick={handleAnswerSubmit}
                                                                     className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold"
@@ -1478,7 +1502,7 @@ function FreePracticeContent() {
                                                                     Submit
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => window.alert('Tips for answering:\n\n• You don\'t need to type "What is" - it\'s optional\n• Articles like "a", "an", "the" are ignored\n• Punctuation is ignored\n• Capitalization doesn\'t matter\n• Close answers may be accepted')}
+                                                                    onClick={() => toast.error('Tips for answering:\n\n• You don\'t need to type "What is" - it\'s optional\n• Articles like "a", "an", "the" are ignored\n• Punctuation is ignored\n• Capitalization doesn\'t matter\n• Close answers may be accepted')}
                                                                     className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-bold"
                                                                     aria-label="Show answer tips"
                                                                 >
@@ -1546,6 +1570,12 @@ function FreePracticeContent() {
                                                         </div>
                                                     )}
                                                 </div>
+                                                <AnswerExplanationPanel
+                                                    userAnswer={userAnswer}
+                                                    correctAnswer={selectedQuestion.answer}
+                                                    explanationMode={explanationMode}
+                                                    visible={isCorrect === false}
+                                                />
                                                 <div className="flex space-x-4">
                                                     <button
                                                         onClick={handleBackToQuestions}

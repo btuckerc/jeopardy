@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma, setRequestContextGetter } from './prisma'
+import crypto from 'crypto'
 
 // Request context for correlating DB queries with API requests
 interface RequestContext {
@@ -154,6 +155,27 @@ async function logApiRequestEvent(event: {
     }
 }
 
+function resolveClientIp(request: NextRequest): string | undefined {
+    const forwardedFor = request.headers.get('x-forwarded-for')
+    const rawIp = (
+        forwardedFor?.split(',')[0]?.trim() ||
+        request.headers.get('x-real-ip') ||
+        request.headers.get('cf-connecting-ip') ||
+        ''
+    ).trim()
+
+    if (!rawIp) {
+        return undefined
+    }
+
+    // Keep local development addresses readable
+    if (rawIp === '127.0.0.1' || rawIp === '::1') {
+        return rawIp
+    }
+
+    return crypto.createHash('sha256').update(rawIp).digest('hex').slice(0, 16)
+}
+
 /**
  * Type for Next.js API route handlers
  */
@@ -229,9 +251,7 @@ export function withInstrumentation(
                     userId,
                     isAdminRoute,
                     userAgent: request.headers.get('user-agent') || undefined,
-                    ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-                        request.headers.get('x-real-ip') || 
-                        undefined,
+                    ip: resolveClientIp(request),
                 }).catch(() => {}) // Swallow errors to never impact request
             }
 
@@ -251,9 +271,7 @@ export function withInstrumentation(
                     errorCode: 'UNHANDLED_ERROR',
                     errorMessage: error instanceof Error ? error.message : String(error),
                     userAgent: request.headers.get('user-agent') || undefined,
-                    ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-                        request.headers.get('x-real-ip') || 
-                        undefined,
+                    ip: resolveClientIp(request),
                 }).catch(() => {})
             }
 
@@ -301,9 +319,7 @@ export async function logRequest(
         errorCode: options?.errorCode,
         errorMessage: options?.errorMessage,
         userAgent: request.headers.get('user-agent') || undefined,
-        ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
-            request.headers.get('x-real-ip') || 
-            undefined,
+        ip: resolveClientIp(request),
     })
 }
 
@@ -428,4 +444,3 @@ export async function getErrorCountsByBucket(
         return new Map()
     }
 }
-

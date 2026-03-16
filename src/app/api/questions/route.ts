@@ -27,8 +27,9 @@ const questionsParamsSchema = z.object({
 export async function GET(request: Request) {
     try {
         const { searchParams } = new URL(request.url)
+        const revealAnswers = searchParams.get('reveal') === 'true'
         const { data: params, error } = parseSearchParams(searchParams, questionsParamsSchema)
-        
+
         if (error) return error
 
         // Get user's spoiler settings if logged in
@@ -97,7 +98,10 @@ export async function GET(request: Request) {
                 orderBy: {
                     airDate: 'desc'
                 }
-            }),
+            }).then(rows => rows.map(row => ({
+                ...row,
+                answer: revealAnswers ? row.answer : null
+            }))),
             prisma.question.count({ where })
         ])
 
@@ -113,4 +117,4 @@ export async function GET(request: Request) {
     } catch (error) {
         return serverErrorResponse('Error fetching questions', error)
     }
-} 
+}

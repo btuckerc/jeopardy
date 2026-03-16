@@ -29,7 +29,8 @@ export async function GET(request: Request) {
 
         const { searchParams } = new URL(request.url)
         const jobName = searchParams.get('jobName')
-        const limit = parseInt(searchParams.get('limit') || '50')
+        const limitParam = parseInt(searchParams.get('limit') || '50', 10)
+        const limit = Number.isNaN(limitParam) ? 50 : Math.min(Math.max(limitParam, 1), 200)
         const status = searchParams.get('status')
 
         const where: Prisma.CronJobExecutionWhereInput = {}
@@ -86,4 +87,3 @@ export async function GET(request: Request) {
         )
     }
 }
-

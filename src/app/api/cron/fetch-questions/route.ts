@@ -10,6 +10,7 @@ import { PrismaClient } from '@prisma/client'
 import { subDays, format } from 'date-fns'
 import { parseGameByDate, JeopardyRound } from '@/lib/jarchive-scraper'
 import { withCronLogging } from '@/lib/cron-logger'
+import { CRON_JOBS } from '@/lib/cron-jobs'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Maximum allowed duration for hobby plan (in seconds)
@@ -123,7 +124,15 @@ export async function GET(request: Request) {
             const result = await executeJob()
             return NextResponse.json(result)
         } else {
-            const result = await withCronLogging('fetch-questions', triggeredBy, executeJob)
+            const result = await withCronLogging(
+                'fetch-questions',
+                triggeredBy,
+                executeJob,
+                {
+                    timeoutMs: CRON_JOBS['fetch-questions'].timeoutMs,
+                    maxResultBytes: 4096,
+                }
+            )
             return NextResponse.json(result)
         }
     } catch (error) {

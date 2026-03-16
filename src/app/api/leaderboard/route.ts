@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
 import {
     jsonResponse,
     serverErrorResponse,
@@ -8,7 +7,7 @@ import {
 } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { NextRequest } from 'next/server'
-import { FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
+import { LeaderboardScope, getLeaderboardEntries } from '@/lib/leaderboard'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,79 +16,26 @@ export const revalidate = 300
 
 // Request validation schema
 const leaderboardParamsSchema = z.object({
-    limit: z.coerce.number().min(1).max(100).default(10)
+    limit: z.coerce.number().min(1).max(100).default(100),
+    scope: z.enum(['global', 'friends']).optional().default('global')
 })
-
-interface LeaderboardEntry {
-    id: string
-    displayName: string
-    selectedIcon: string | null
-    avatarBackground: string | null
-    correctAnswers: number
-    totalAnswered: number
-    totalPoints: number
-    avgPointsPerCorrect: number
-}
 
 export const GET = withInstrumentation(async (request: NextRequest) => {
     // Require authentication
-    const { error: authError } = await requireAuth()
+    const { user, error: authError } = await requireAuth()
     if (authError) return authError
 
     try {
         const { searchParams } = new URL(request.url)
         const { data: params, error } = parseSearchParams(searchParams, leaderboardParamsSchema)
-        
         if (error) return error
 
-        // Get all users with their stats using optimized query
-        // Note: We join with Question to get round and value for normalized scoring
-        // GameHistory.points remains unchanged (may contain wagers) for future use
-        const userStats = await prisma.$queryRaw<LeaderboardEntry[]>`
-            WITH UserStats AS (
-                SELECT 
-                    u.id,
-                    u."displayName",
-                    u."selectedIcon",
-                    u."avatarBackground",
-                    COUNT(DISTINCT CASE WHEN gh.correct = true THEN gh."questionId" END)::integer as correct_answers,
-                    COUNT(DISTINCT gh."questionId")::integer as total_answered,
-                    COALESCE(SUM(
-                        CASE 
-                            WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
-                            WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
-                            ELSE 0 
-                        END
-                    ), 0)::integer as total_points
-                FROM "User" u
-                LEFT JOIN "GameHistory" gh ON u.id = gh."userId"
-                LEFT JOIN "Question" q ON q.id = gh."questionId"
-                GROUP BY u.id, u."displayName", u."selectedIcon", u."avatarBackground"
-                HAVING COALESCE(SUM(
-                    CASE 
-                        WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
-                        WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
-                        ELSE 0 
-                    END
-                ), 0) > 0
-            )
-            SELECT 
-                id,
-                COALESCE("displayName", 'Anonymous Player') as "displayName",
-                "selectedIcon",
-                "avatarBackground",
-                correct_answers as "correctAnswers",
-                total_answered as "totalAnswered",
-                total_points as "totalPoints",
-                CASE 
-                    WHEN correct_answers > 0 
-                    THEN ROUND(CAST(total_points AS DECIMAL) / correct_answers, 2)::float
-                    ELSE 0 
-                END as "avgPointsPerCorrect"
-            FROM UserStats
-            ORDER BY total_points DESC
-            LIMIT ${params.limit}
-        `
+        const scope = params.scope as LeaderboardScope
+        const userStats = await getLeaderboardEntries({
+            limit: params.limit,
+            scope,
+            viewerUserId: scope === 'friends' ? user.id : undefined,
+        })
 
         return jsonResponse({
             leaderboard: userStats,

@@ -19,6 +19,7 @@ export async function GET(request: Request) {
         const { data: params, error } = parseSearchParams(searchParams, guestQuestionParamsSchema)
         
         if (error) return error
+        const revealAnswer = searchParams.get('reveal') === 'true'
 
         // Build where clause - exclude FINAL round for simplicity, and exclude the excluded ID if provided
         const where: Record<string, unknown> = {
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
         return jsonResponse({
             id: question.id,
             question: question.question,
-            answer: question.answer,
+            answer: revealAnswer ? question.answer : null,
             value: question.value,
             category: question.knowledgeCategory,
             originalCategory: question.category.name,
@@ -66,4 +67,3 @@ export async function GET(request: Request) {
         return serverErrorResponse('Error fetching guest question', error)
     }
 }
-

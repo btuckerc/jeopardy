@@ -5,6 +5,7 @@ import { MetricCard, MetricGrid } from '../MetricCard'
 import { DataTable, StatusBadge, getStatusVariant } from '../DataTable'
 import { useAdminUsers, useUserDebug } from '../../hooks/useAdminQueries'
 import { useQueryClient } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 
 
 export function UserDebugTab() {
@@ -570,11 +571,11 @@ export function UserDebugTab() {
                                                         refreshData()
                                                     } else {
                                                         const error = await response.json()
-                                                        alert(error.error || 'Failed to reset display name')
+                                                        toast.error(error.error || 'Failed to reset display name')
                                                     }
                                                 } catch (error) {
                                                     console.error('Error resetting display name:', error)
-                                                    alert('Failed to reset display name')
+                                                    toast.error('Failed to reset display name')
                                                 } finally {
                                                     setUpdatingDisplayName(false)
                                                 }
@@ -621,7 +622,7 @@ export function UserDebugTab() {
                                         <button
                                             onClick={async () => {
                                                 if (!editDisplayNameValue.trim()) {
-                                                    alert('Display name cannot be empty')
+                                                    toast.error('Display name cannot be empty')
                                                     return
                                                 }
 
@@ -645,11 +646,11 @@ export function UserDebugTab() {
                                                         refreshData()
                                                     } else {
                                                         const error = await response.json()
-                                                        alert(error.error || 'Failed to update display name')
+                                                        toast.error(error.error || 'Failed to update display name')
                                                     }
                                                 } catch (error) {
                                                     console.error('Error updating display name:', error)
-                                                    alert('Failed to update display name')
+                                                    toast.error('Failed to update display name')
                                                 } finally {
                                                     setUpdatingDisplayName(false)
                                                 }
@@ -733,7 +734,7 @@ export function UserDebugTab() {
                             <button
                                 onClick={async () => {
                                     if (!emailSubject.trim() || !emailBody.trim()) {
-                                        alert('Subject and message are required')
+                                        toast.error('Subject and message are required')
                                         return
                                     }
 
@@ -761,11 +762,11 @@ export function UserDebugTab() {
                                             setEmailBody('')
                                         } else {
                                             const error = await response.json()
-                                            alert(error.error || 'Failed to send email')
+                                            toast.error(error.error || 'Failed to send email')
                                         }
                                     } catch (error) {
                                         console.error('Error sending email:', error)
-                                        alert('Failed to send email. Please check your SMTP configuration.')
+                                        toast.error('Failed to send email. Please check your SMTP configuration.')
                                     } finally {
                                         setSendingEmail(false)
                                     }
@@ -825,7 +826,7 @@ export function UserDebugTab() {
                             <button
                                 onClick={async () => {
                                     if (deleteConfirmText !== selectedUser.email) {
-                                        alert('Email does not match. Please type the email exactly to confirm deletion.')
+                                        toast.error('Email does not match. Please type the email exactly to confirm deletion.')
                                         return
                                     }
 
@@ -843,11 +844,11 @@ export function UserDebugTab() {
                                             refreshData()
                                         } else {
                                             const error = await response.json()
-                                            alert(error.error || 'Failed to delete user')
+                                            toast.error(error.error || 'Failed to delete user')
                                         }
                                     } catch (error) {
                                         console.error('Error deleting user:', error)
-                                        alert('Failed to delete user')
+                                        toast.error('Failed to delete user')
                                     } finally {
                                         setDeletingUser(false)
                                     }

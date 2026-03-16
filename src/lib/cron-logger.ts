@@ -15,6 +15,60 @@ export interface CronJobResult {
     error?: string
 }
 
+export interface CronJobLoggingOptions {
+    timeoutMs?: number
+    maxResultBytes?: number
+}
+
+function clampResultBytes(value: number): number {
+    return Math.max(256, Math.min(value, 20_000))
+}
+
+function truncateResult(result: unknown, maxBytes: number): Prisma.InputJsonValue | null {
+    if (result == null) {
+        return null as unknown as Prisma.InputJsonValue
+    }
+
+    const serialized = JSON.stringify(result)
+    if (!serialized || serialized.length <= maxBytes) {
+        return result as Prisma.InputJsonValue
+    }
+
+    return {
+        ...(typeof result === 'object' && result !== null
+            ? { ...(result as Record<string, unknown>) }
+            : {}),
+        success: false,
+        _truncated: true,
+        _resultBytes: serialized.length,
+        _maxResultBytes: maxBytes,
+        message: 'Cron result truncated to fit storage budget',
+    } as Prisma.InputJsonValue
+}
+
+function executeWithTimeout<T>(jobFn: () => Promise<T>, timeoutMs?: number): Promise<T> {
+    if (!timeoutMs || timeoutMs <= 0) {
+        return jobFn()
+    }
+
+    return new Promise<T>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            reject(new Error(`Cron job timed out after ${timeoutMs}ms`))
+        }, timeoutMs)
+
+        jobFn().then(
+            value => {
+                clearTimeout(timeoutId)
+                resolve(value)
+            },
+            error => {
+                clearTimeout(timeoutId)
+                reject(error)
+            }
+        )
+    })
+}
+
 /**
  * Create a new cron job execution record
  */
@@ -69,8 +123,12 @@ export async function updateCronExecution(
 export async function withCronLogging<T>(
     jobName: string,
     triggeredBy: string,
-    jobFn: () => Promise<T>
+    jobFn: () => Promise<T>,
+    options: CronJobLoggingOptions = {}
 ): Promise<T> {
+    const timeoutMs = options.timeoutMs
+    const maxResultBytes = clampResultBytes(options.maxResultBytes ?? 2048)
+
     // Clean up any timed out jobs before starting a new execution
     try {
         await cleanupTimedOutJobs()
@@ -82,10 +140,10 @@ export async function withCronLogging<T>(
     const executionId = await createCronExecution(jobName, triggeredBy)
     
     try {
-        const result = await jobFn()
+        const result = await executeWithTimeout(jobFn, timeoutMs)
         await updateCronExecution(executionId, CronJobStatus.SUCCESS, {
             success: true,
-            data: result,
+            data: truncateResult(result, maxResultBytes),
         })
         return result
     } catch (error: unknown) {
@@ -94,4 +152,3 @@ export async function withCronLogging<T>(
         throw error
     }
 }
-

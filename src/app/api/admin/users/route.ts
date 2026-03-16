@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { requireAdmin } from '@/lib/clerk-auth'
-import { jsonResponse, serverErrorResponse } from '@/lib/api-utils'
+import { requireAdmin, jsonResponse, serverErrorResponse } from '@/lib/api-utils'
 import { Prisma } from '@prisma/client'
 
 /**
@@ -10,7 +9,8 @@ import { Prisma } from '@prisma/client'
  */
 export async function GET(request: Request) {
     try {
-        await requireAdmin()
+        const { error: authError } = await requireAdmin()
+        if (authError) return authError
 
         const { searchParams } = new URL(request.url)
         const search = searchParams.get('search')
@@ -81,5 +81,4 @@ export async function GET(request: Request) {
         return serverErrorResponse('Failed to fetch users', error)
     }
 }
-
 

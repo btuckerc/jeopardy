@@ -6,6 +6,7 @@ import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import type { Prisma } from '@prisma/client'
+import { FriendActivityType, FriendChallengeMode, FriendChallengeStatus } from '@prisma/client'
 
 interface GameConfig {
     finalJeopardyQuestionId?: string
@@ -20,6 +21,110 @@ interface GameConfig {
         cutoffDate?: string | null
     }
     [key: string]: unknown
+}
+
+interface FriendChallengeContext {
+    friendChallengeId?: string
+    friendChallengeRole?: 'CHALLENGER' | 'OPPONENT'
+}
+
+function parseFriendChallengeContext(config: unknown): FriendChallengeContext {
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+        return {}
+    }
+
+    const typed = config as Record<string, unknown>
+    return {
+        friendChallengeId: typeof typed.friendChallengeId === 'string' ? typed.friendChallengeId : undefined,
+        friendChallengeRole: typed.friendChallengeRole === 'CHALLENGER' || typed.friendChallengeRole === 'OPPONENT'
+            ? typed.friendChallengeRole
+            : undefined,
+    }
+}
+
+async function syncFriendChallengeCompletion(params: {
+    userId: string
+    finalScore: number
+    config: unknown
+    completedAt: Date
+}) {
+    const challengeContext = parseFriendChallengeContext(params.config)
+    if (!challengeContext.friendChallengeId) {
+        return
+    }
+
+    await prisma.$transaction(async (tx) => {
+        const challenge = await tx.friendChallenge.findUnique({
+            where: { id: challengeContext.friendChallengeId },
+        })
+
+        if (!challenge || challenge.mode !== FriendChallengeMode.GAME) {
+            return
+        }
+
+        const isChallenger = challenge.challengerUserId === params.userId
+        const isOpponent = challenge.opponentUserId === params.userId
+        if (!isChallenger && !isOpponent) {
+            return
+        }
+
+        if (
+            challenge.status === FriendChallengeStatus.CANCELLED
+            || challenge.status === FriendChallengeStatus.DECLINED
+            || challenge.status === FriendChallengeStatus.EXPIRED
+        ) {
+            return
+        }
+
+        const partiallyUpdated = await tx.friendChallenge.update({
+            where: { id: challenge.id },
+            data: isChallenger
+                ? { challengerScore: params.finalScore }
+                : { opponentScore: params.finalScore },
+        })
+
+        const challengerScore = isChallenger ? params.finalScore : partiallyUpdated.challengerScore
+        const opponentScore = isOpponent ? params.finalScore : partiallyUpdated.opponentScore
+        const hasBothScores = challengerScore !== null && opponentScore !== null
+
+        if (!hasBothScores || partiallyUpdated.status === FriendChallengeStatus.COMPLETED) {
+            return
+        }
+
+        const winnerUserId =
+            challengerScore > opponentScore
+                ? challenge.challengerUserId
+                : opponentScore > challengerScore
+                    ? challenge.opponentUserId
+                    : null
+
+        await tx.friendChallenge.update({
+            where: { id: challenge.id },
+            data: {
+                status: FriendChallengeStatus.COMPLETED,
+                challengerScore,
+                opponentScore,
+                winnerUserId,
+                completedAt: params.completedAt,
+            },
+        })
+
+        await tx.friendActivity.create({
+            data: {
+                actorUserId: params.userId,
+                relatedUserId: isChallenger ? challenge.opponentUserId : challenge.challengerUserId,
+                challengeId: challenge.id,
+                activityType: FriendActivityType.CHALLENGE_COMPLETED,
+                metadata: {
+                    challengeId: challenge.id,
+                    challengerScore,
+                    opponentScore,
+                    challengeChallengerUserId: challenge.challengerUserId,
+                    challengeOpponentUserId: challenge.opponentUserId,
+                },
+            },
+        })
+    })
 }
 
 // Schema for answering a question
@@ -101,7 +206,7 @@ async function patchHandler(request: NextRequest, context?: { params?: Record<st
                     return badRequestResponse('Invalid answer data')
                 }
 
-                const { questionId, correct, pointsEarned } = parsed.data
+                const { questionId, correct } = parsed.data
 
                 // Find or create the GameQuestion record
                 const gameQuestion = game.questions.find(gq => gq.questionId === questionId)
@@ -189,6 +294,17 @@ async function patchHandler(request: NextRequest, context?: { params?: Record<st
                         currentScore: finalScore
                     }
                 })
+
+                try {
+                    await syncFriendChallengeCompletion({
+                        userId: appUser.id,
+                        finalScore,
+                        config: game.config,
+                        completedAt: new Date(),
+                    })
+                } catch (challengeSyncError) {
+                    console.error('Failed to sync friend challenge completion:', challengeSyncError)
+                }
 
                 // Update user streak
                 const today = new Date()

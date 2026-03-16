@@ -1,16 +1,17 @@
 import { prisma } from '@/lib/prisma'
-import { jsonResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, serverErrorResponse, parseBody, notFoundResponse } from '@/lib/api-utils'
 import { z } from 'zod'
 import { createGuestSession, checkGuestLimit } from '@/lib/guest-sessions'
+import { getQuestionOverrides, isAnswerAcceptedWithOverrides } from '@/lib/answer-overrides'
 
 export const dynamic = 'force-dynamic'
 
 const completeQuestionSchema = z.object({
     guestSessionId: z.string().uuid().optional(),
     questionId: z.string().uuid(),
-    correct: z.boolean(),
-    points: z.number(),
-    rawAnswer: z.string().optional()
+    correct: z.boolean().optional(),
+    points: z.number().optional(),
+    rawAnswer: z.string().min(1)
 })
 
 /**
@@ -23,7 +24,9 @@ export async function POST(request: Request) {
         
         if (error) return error
         
-        const { guestSessionId, questionId, correct, points, rawAnswer } = body
+        const { guestSessionId, questionId, rawAnswer } = body
+        const revealAnswer = new URL(request.url).searchParams.get('reveal') === 'true'
+        const answerText = rawAnswer.trim()
         
         // If we have an existing session, check if it's valid and count questions
         let sessionId: string | undefined = guestSessionId
@@ -71,6 +74,20 @@ export async function POST(request: Request) {
             where: { id: questionId },
             include: { category: true }
         })
+
+        if (!questionDetails) {
+            return notFoundResponse('Question not found')
+        }
+
+        const overrides = await getQuestionOverrides(questionId)
+        const isCorrect = await isAnswerAcceptedWithOverrides(
+            answerText,
+            questionDetails.answer,
+            overrides
+        )
+        const computedPoints = isCorrect
+            ? (questionDetails.value || 0)
+            : -(questionDetails.value || 0)
         
         // Add current question's category to the set
         if (questionDetails?.category.name) {
@@ -101,9 +118,9 @@ export async function POST(request: Request) {
                 data: {
                     data: {
                         questionId,
-                        correct,
-                        points,
-                        userAnswer: rawAnswer,
+                        correct: isCorrect,
+                        points: computedPoints,
+                        userAnswer: answerText,
                         timestamp: new Date().toISOString(),
                         categoryName: questionDetails?.category.name,
                         knowledgeCategory: questionDetails?.knowledgeCategory,
@@ -120,9 +137,9 @@ export async function POST(request: Request) {
             // Create new session with category info for redirect
             const newSession = await createGuestSession('RANDOM_QUESTION', {
                 questionId,
-                correct,
-                points,
-                userAnswer: rawAnswer,
+                correct: isCorrect,
+                points: computedPoints,
+                userAnswer: answerText,
                 timestamp: new Date().toISOString(),
                 categoryName: questionDetails?.category.name,
                 knowledgeCategory: questionDetails?.knowledgeCategory,
@@ -144,10 +161,12 @@ export async function POST(request: Request) {
         return jsonResponse({
             guestSessionId: sessionId,
             expiresAt: expiresAt.toISOString(),
-            limitReached
+            correct: isCorrect,
+            points: computedPoints,
+            limitReached,
+            ...(revealAnswer ? { answer: questionDetails.answer } : {})
         })
     } catch (error) {
         return serverErrorResponse('Error completing guest question', error)
     }
 }
-

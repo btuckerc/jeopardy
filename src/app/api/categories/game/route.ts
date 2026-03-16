@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, notFoundResponse, serverErrorResponse } from '@/lib/api-utils'
+import { jsonResponse, notFoundResponse, serverErrorResponse, forbiddenResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import type { Prisma } from '@prisma/client'
 import {
@@ -175,9 +175,46 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const categories = searchParams.get('categories')
         const categoryIds = searchParams.get('categoryIds')
         const categoryFilter = searchParams.get('categoryFilter')
+        const revealAnswers = searchParams.get('reveal') === 'true'
+        const appUser = await getAppUser()
+        timer.mark('auth')
+        const userId = appUser?.id
+        let canRevealAnswers = !gameId
+
+        if (gameId) {
+            const game = await prisma.game.findUnique({
+                where: { id: gameId },
+                select: {
+                    userId: true,
+                    opponentUserId: true
+                }
+            })
+
+            if (!game) {
+                return notFoundResponse('Game not found')
+            }
+
+            canRevealAnswers = !!userId && (game.userId === userId || game.opponentUserId === userId)
+            timer.mark('gameLookup')
+
+            if (revealAnswers && !canRevealAnswers) {
+                return forbiddenResponse('You do not have access to this game board\'s answers')
+            }
+        }
+
+        const shouldRevealAnswers = revealAnswers && canRevealAnswers
 
         // Check cache first for deterministic requests
-        const cacheKey = getBoardCacheKey({ gameId, seed, round, mode, date, categories, categoryIds })
+        const cacheKey = getBoardCacheKey({
+            gameId,
+            seed,
+            round,
+            mode,
+            date,
+            categories,
+            categoryIds,
+            revealAnswers: shouldRevealAnswers
+        })
         if (cacheKey) {
             const cached = getCachedBoard(cacheKey)
             if (cached) {
@@ -187,10 +224,6 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             }
         }
         timer.mark('cacheMiss')
-
-        const appUser = await getAppUser()
-        timer.mark('auth')
-        const userId = appUser?.id
 
         // Determine the effective spoiler policy
         let spoilerPolicy: SpoilerPolicy
@@ -244,7 +277,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
 
         // OPTIMIZED: Use groupBy to get category IDs with question counts
         // This avoids loading all questions - just aggregates counts per category
-        let categoryStats = await prisma.question.groupBy({
+        const categoryStats = await prisma.question.groupBy({
             by: ['categoryId'],
             where: questionWhere,
             _count: { id: true }
@@ -360,19 +393,19 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         timer.mark('fetchCategoryNames')
 
         // Define the category type for strong typing
-        type CategoryWithQuestions = {
-            id: string
-            name: string
-            questions: {
-                id: string
-                question: string
-                answer: string
-                value: number
-                isDoubleJeopardy: boolean
-                wasTripleStumper: boolean
-                categoryId: string
-            }[]
-        }
+type CategoryWithQuestions = {
+    id: string
+    name: string
+    questions: {
+        id: string
+        question: string
+        answer: string | null
+        value: number
+        isDoubleJeopardy: boolean
+        wasTripleStumper: boolean
+        categoryId: string
+    }[]
+}
 
         // OPTIMIZED: Fetch questions only for selected categories
         // For each category, prefer questions from the same episode (airDate)
@@ -406,7 +439,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                         select: {
                             id: true,
                             question: true,
-                            answer: true,
+                            answer: shouldRevealAnswers,
                             value: true,
                             isDoubleJeopardy: true,
                             wasTripleStumper: true,
@@ -445,7 +478,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                     select: {
                         id: true,
                         question: true,
-                        answer: true,
+                        answer: shouldRevealAnswers,
                         value: true,
                         isDoubleJeopardy: true,
                         wasTripleStumper: true,

@@ -164,7 +164,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
 
         // Check answer using override-aware checking
         const overrides = await getQuestionOverrides(challenge.questionId)
-        const correct = isAnswerAcceptedWithOverrides(
+        const correct = await isAnswerAcceptedWithOverrides(
             body.answer,
             challenge.question.answer,
             overrides

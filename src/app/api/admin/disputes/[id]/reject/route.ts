@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, notFoundResponse, badRequestResponse, serverErrorResponse, parseBody, requireAdmin } from '@/lib/api-utils'
 import { z } from 'zod'
 
 interface RouteParams {
@@ -20,14 +19,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
-        const appUser = await getAppUser()
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
+        const { user: appUser, error: authError } = await requireAdmin()
+        if (authError) {
+            return authError
         }
 
         const { id } = await params
@@ -70,4 +64,3 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         return serverErrorResponse('Failed to reject dispute', error)
     }
 }
-

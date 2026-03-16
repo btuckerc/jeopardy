@@ -1,9 +1,9 @@
 import Link from 'next/link';
-import { getAppUser } from '@/lib/clerk-auth';
-import { prisma } from '@/lib/prisma';
-import { FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring';
+import { getAppUser } from '@/lib/clerk-auth'
+import { getLeaderboardEntries } from '@/lib/leaderboard'
 import LeaderboardClient from './LeaderboardClient';
 import { Metadata } from 'next';
+import { JsonLd } from '@/components/JsonLd';
 
 export const metadata: Metadata = {
     title: 'Trivia Leaderboard | Rankings & Scores - trivrdy',
@@ -25,6 +25,25 @@ export const metadata: Metadata = {
     },
 };
 
+const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+        {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: 'https://trivrdy.com',
+        },
+        {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Leaderboard',
+            item: 'https://trivrdy.com/leaderboard',
+        },
+    ],
+};
+
 interface LeaderboardEntry {
     id: string;
     displayName: string;
@@ -38,14 +57,21 @@ interface LeaderboardEntry {
 
 /**
  * Leaderboard page - Server component that fetches data and handles auth.
- * 
+ *
  * By fetching data server-side:
  * 1. The page loads with data already populated (no loading spinner)
  * 2. router.refresh() from settings will refetch this data
  * 3. Display name changes are immediately reflected
  */
-export default async function LeaderboardPage() {
+interface LeaderboardPageProps {
+    searchParams?: {
+        scope?: 'global' | 'friends'
+    }
+}
+
+export default async function LeaderboardPage({ searchParams }: LeaderboardPageProps) {
     const user = await getAppUser();
+    const scope = searchParams?.scope === 'friends' ? 'friends' : 'global'
 
     // Not signed in - show sign in prompt
     if (!user) {
@@ -75,55 +101,20 @@ export default async function LeaderboardPage() {
     // Fetch leaderboard data server-side
     let leaderboard: LeaderboardEntry[] = [];
     try {
-        leaderboard = await prisma.$queryRaw<LeaderboardEntry[]>`
-            WITH UserStats AS (
-                SELECT 
-                    u.id,
-                    u."displayName",
-                    u."selectedIcon",
-                    u."avatarBackground",
-                    COUNT(DISTINCT CASE WHEN gh.correct = true THEN gh."questionId" END)::integer as correct_answers,
-                    COUNT(DISTINCT gh."questionId")::integer as total_answered,
-                    COALESCE(SUM(
-                        CASE 
-                            WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
-                            WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
-                            ELSE 0 
-                        END
-                    ), 0)::integer as total_points
-                FROM "User" u
-                LEFT JOIN "GameHistory" gh ON u.id = gh."userId"
-                LEFT JOIN "Question" q ON q.id = gh."questionId"
-                GROUP BY u.id, u."displayName", u."selectedIcon", u."avatarBackground"
-                HAVING COALESCE(SUM(
-                    CASE 
-                        WHEN gh.correct = true AND q.round = 'FINAL' THEN ${FINAL_STATS_CLUE_VALUE}
-                        WHEN gh.correct = true THEN COALESCE(q.value, ${DEFAULT_STATS_CLUE_VALUE})
-                        ELSE 0 
-                    END
-                ), 0) > 0
-            )
-            SELECT 
-                id,
-                COALESCE("displayName", 'Anonymous Player') as "displayName",
-                "selectedIcon",
-                "avatarBackground",
-                correct_answers as "correctAnswers",
-                total_answered as "totalAnswered",
-                total_points as "totalPoints",
-                CASE 
-                    WHEN correct_answers > 0 
-                    THEN ROUND(CAST(total_points AS DECIMAL) / correct_answers, 2)::float
-                    ELSE 0 
-                END as "avgPointsPerCorrect"
-            FROM UserStats
-            ORDER BY total_points DESC
-            LIMIT 100
-        `;
+        leaderboard = await getLeaderboardEntries({
+            limit: 100,
+            scope,
+            viewerUserId: scope === 'friends' ? user.id : undefined,
+        })
     } catch (error) {
         console.error('Error fetching leaderboard:', error);
         // Continue with empty leaderboard
     }
 
-    return <LeaderboardClient user={user} initialLeaderboard={leaderboard} />;
+    return (
+        <>
+            <JsonLd data={breadcrumbSchema} />
+            <LeaderboardClient user={user} initialLeaderboard={leaderboard} scope={scope} />
+        </>
+    );
 }

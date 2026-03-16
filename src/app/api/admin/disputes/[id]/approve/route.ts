@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, notFoundResponse, badRequestResponse, serverErrorResponse, parseBody, requireAdmin } from '@/lib/api-utils'
 import { z } from 'zod'
 import { normalizeAnswerForOverride } from '@/lib/answer-overrides'
 import { getStatsPoints } from '@/lib/scoring'
@@ -24,14 +23,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest, { params }: RouteParams) {
     try {
-        const appUser = await getAppUser()
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
+        const { user: appUser, error: authError } = await requireAdmin()
+        if (authError) {
+            return authError
         }
 
         const { id } = await params
@@ -265,7 +259,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
             // If this was a game mode dispute, also update GameQuestion and game score
             if (dispute.mode === 'GAME' && dispute.gameId) {
-                let gameQuestion = await tx.gameQuestion.findFirst({
+                const gameQuestion = await tx.gameQuestion.findFirst({
                     where: {
                         gameId: dispute.gameId,
                         questionId: dispute.questionId
@@ -376,4 +370,3 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         return serverErrorResponse('Failed to approve dispute', error)
     }
 }
-

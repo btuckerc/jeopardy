@@ -18,6 +18,7 @@ export const CRON_JOBS = {
         schedule: '0 2 * * *',
         endpoint: '/api/cron/daily-challenge',
         timeoutMs: 5 * 60 * 1000, // 5 minutes
+        maxResultBytes: 4096,
     },
     'fetch-questions': {
         name: 'Fetch Questions',
@@ -25,6 +26,7 @@ export const CRON_JOBS = {
         schedule: '0 9 * * *',
         endpoint: '/api/cron/fetch-questions',
         timeoutMs: 5 * 60 * 1000, // 5 minutes
+        maxResultBytes: 4096,
     },
     'dispute-summary': {
         name: 'Dispute Summary Email',
@@ -32,6 +34,7 @@ export const CRON_JOBS = {
         schedule: '0 8 * * *',
         endpoint: '/api/cron/dispute-summary',
         timeoutMs: 120 * 1000, // 2 minutes
+        maxResultBytes: 4096,
     },
     'issues-summary': {
         name: 'Issues Summary Email',
@@ -39,6 +42,7 @@ export const CRON_JOBS = {
         schedule: '0 8 * * *',
         endpoint: '/api/cron/issues-summary',
         timeoutMs: 120 * 1000, // 2 minutes
+        maxResultBytes: 4096,
     },
     'fetch-games': {
         name: 'Fetch Games',
@@ -46,6 +50,7 @@ export const CRON_JOBS = {
         schedule: '0 3 * * *',
         endpoint: null, // Internal cron job, no API endpoint
         timeoutMs: 10 * 60 * 1000, // 10 minutes (fetches multiple games)
+        maxResultBytes: 8192,
     },
 } as const
 
@@ -90,4 +95,3 @@ export async function cleanupTimedOutJobs(): Promise<number> {
 
     return timedOutCount
 }
-

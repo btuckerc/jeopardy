@@ -1,6 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, serverErrorResponse, forbiddenResponse, badRequestResponse, notFoundResponse } from '@/lib/api-utils'
+import { jsonResponse, badRequestResponse, notFoundResponse, requireAdmin, serverErrorResponse } from '@/lib/api-utils'
 import { Prisma, GameStatus, JeopardyRound } from '@prisma/client'
 
 /**
@@ -10,15 +9,9 @@ import { Prisma, GameStatus, JeopardyRound } from '@prisma/client'
  */
 export async function GET(request: Request) {
     try {
-        const appUser = await getAppUser()
-
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
+        const { error: authError } = await requireAdmin()
+        if (authError) {
+            return authError
         }
 
         const { searchParams } = new URL(request.url)
@@ -107,15 +100,9 @@ export async function GET(request: Request) {
  */
 export async function PATCH(request: Request) {
     try {
-        const appUser = await getAppUser()
-
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
+        const { error: authError } = await requireAdmin()
+        if (authError) {
+            return authError
         }
 
         const body = await request.json()
@@ -176,15 +163,9 @@ export async function PATCH(request: Request) {
  */
 export async function POST(request: Request) {
     try {
-        const appUser = await getAppUser()
-
-        if (!appUser) {
-            return unauthorizedResponse()
-        }
-
-        // Check admin role
-        if (appUser.role !== 'ADMIN') {
-            return forbiddenResponse('Admin access required')
+        const { error: authError } = await requireAdmin()
+        if (authError) {
+            return authError
         }
 
         const body = await request.json()
@@ -259,4 +240,3 @@ export async function POST(request: Request) {
         return serverErrorResponse('Failed to process request', error)
     }
 }
-

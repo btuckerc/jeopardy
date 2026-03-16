@@ -16,7 +16,7 @@ import { useGuestProgress } from '@/app/components/GuestProgressBanner'
 interface Question {
     id: string
     question: string
-    answer: string
+    answer: string | null
     value: number
     categoryId: string
     isDoubleJeopardy: boolean
@@ -45,6 +45,10 @@ interface GameConfig {
     finalJeopardyStage?: 'category' | 'question' | 'result' // Current stage of FJ
     finalJeopardyWager?: number // The wager that was placed
     categoryFilter?: string // Category filter for challenge mode
+    friendChallengeId?: string
+    friendChallengeRole?: 'CHALLENGER' | 'OPPONENT'
+    friendChallengeBoardCategoryId?: string
+    friendChallengeBoardCategoryIds?: string[]
 }
 
 // Helper functions defined before the component
@@ -119,7 +123,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const gameId = params?.gameId as string
     const { user } = useAuth()
     const { incrementProgress } = useGuestProgress()
-    
+
     // Start loading: if no initial data, or if we have initial data (we still need to load categories/Final Jeopardy)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
@@ -133,6 +137,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         initialGameData?.currentRound === 'DOUBLE' || initialGameData?.currentRound === 'FINAL'
     )
     const [showRoundComplete, setShowRoundComplete] = useState(false)
+    const [isFinalizingChallengeCompletion, setIsFinalizingChallengeCompletion] = useState(false)
+    const challengeCompletionRequestedRef = useRef(false)
     const hasInitialized = useRef(false)
     const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
     const [userAnswer, setUserAnswer] = useState('')
@@ -152,25 +158,18 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     })
     const [score, setScore] = useState(initialGameData?.currentScore || 0)
     const scoreRef = useRef(score)
-    
+
     // Keep ref in sync with state for polling functions
     useEffect(() => {
         scoreRef.current = score
     }, [score])
-    
+
     const [gameStats, setGameStats] = useState({ correct: 0, incorrect: 0 })
     const [showCelebrationModal, setShowCelebrationModal] = useState(false)
     const [showProfilePrompt, setShowProfilePrompt] = useState(false)
     const [isFirstGame, setIsFirstGame] = useState(false)
     const [gameCompletionAchievements, setGameCompletionAchievements] = useState<UnlockedAchievement[]>([])
     const [roundScores, setRoundScores] = useState<{ SINGLE: number; DOUBLE: number; FINAL: number }>({ SINGLE: 0, DOUBLE: 0, FINAL: 0 })
-    const [disputeContext, setDisputeContext] = useState<{
-        questionId: string
-        gameId: string | null
-        round: string
-        userAnswer: string
-        mode: string
-    } | null>(null)
     const [disputeSubmitted, setDisputeSubmitted] = useState(false)
     const [finalJeopardyDisputeContext, setFinalJeopardyDisputeContext] = useState<{
         questionId: string
@@ -180,7 +179,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         mode: string
     } | null>(null)
     const [finalJeopardyDisputeSubmitted, setFinalJeopardyDisputeSubmitted] = useState(false)
-    
+
     // Question details state for answered questions (userAnswer, correct status, dispute status)
     const [questionDetails, setQuestionDetails] = useState<Record<string, {
         userAnswer: string | null
@@ -192,10 +191,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const answerInputRef = useRef<HTMLInputElement>(null)
     const { scrollIntoView, focusInput } = useMobileKeyboard()
     const [revealMyAnswer, setRevealMyAnswer] = useState(false)
-    
+
     // Completed game state - for review mode
     const isCompletedGame = initialGameData?.status === 'COMPLETED'
-    
+
     // Focus input on desktop when question modal opens (skip on mobile to let user read question first)
     useEffect(() => {
         if (selectedQuestion && !showAnswer && !answeredQuestions.has(selectedQuestion.id) && !isCompletedGame) {
@@ -219,16 +218,16 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         }
         return correctness
     })
-    
+
     // Cache for round categories in review mode - prevents reload flash when switching rounds
     const [roundCategoriesCache, setRoundCategoriesCache] = useState<Record<string, Category[]>>({})
     const [cachedFinalJeopardy, setCachedFinalJeopardy] = useState<{
         id: string
         question: string
-        answer: string
+        answer: string | null
         category: { id: string; name: string }
     } | null>(null)
-    
+
     // Final Jeopardy state
     // Stage: 'category' (show category + wager), 'question' (show question + answer input), 'result' (show result)
     const [showFinalJeopardy, setShowFinalJeopardy] = useState(false)
@@ -236,7 +235,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const [finalJeopardyQuestion, setFinalJeopardyQuestion] = useState<{
         id: string
         question: string
-        answer: string
+        answer: string | null
         category: { id: string; name: string }
     } | null>(null)
     const [finalJeopardyWager, setFinalJeopardyWager] = useState<number>(0)
@@ -256,6 +255,26 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             isActive: true
         }
     ]
+
+    const isFriendChallengeGame = Boolean(gameConfig?.friendChallengeId)
+    const exitRoute = isFriendChallengeGame ? '/friends?tab=challenges' : '/game'
+
+    const getRoundCompletionState = useCallback(() => {
+        if (!gameConfig) {
+            return {
+                hasNextRound: false,
+                isTerminalRound: true,
+            }
+        }
+
+        const rounds = gameConfig.rounds || { single: true, double: true, final: false }
+        const hasDoubleNext = currentRound === 'SINGLE' && rounds.double
+        const hasFinalNext = rounds.final && !hasDoubleNext
+        return {
+            hasNextRound: hasDoubleNext || hasFinalNext,
+            isTerminalRound: !hasDoubleNext && !hasFinalNext,
+        }
+    }, [currentRound, gameConfig])
 
     // Save game state to server
     const saveGameState = useCallback(async (action: string, data: Record<string, unknown>) => {
@@ -286,6 +305,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         params.append('round', round)
         params.append('isDouble', (round === 'DOUBLE').toString())
         params.append('mode', config.mode || 'random')
+        params.append('reveal', 'true')
 
         // Pass gameId so the API uses the game's stored spoiler policy
         if (gameId) {
@@ -310,7 +330,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         }
 
         const response = await fetch(`/api/categories/game?${params.toString()}`)
-        
+
         if (!response.ok) {
             let errorMessage = 'Failed to load categories'
             try {
@@ -325,7 +345,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         }
 
         const data = await response.json()
-        
+
         if (!Array.isArray(data) || data.length === 0) {
             throw new Error('No categories available')
         }
@@ -350,7 +370,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             setLoading(true)
             const params = new URLSearchParams()
             params.append('mode', config.mode || 'random')
-            
+
             // Pass gameId so the API uses the game's stored spoiler policy
             if (gameId) {
                 params.append('gameId', gameId)
@@ -371,6 +391,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             if (config.finalCategoryId) {
                 params.append('finalCategoryId', config.finalCategoryId)
             }
+            params.append('reveal', 'true')
 
             const response = await fetch(`/api/game/final?${params.toString()}`)
             if (!response.ok) {
@@ -384,7 +405,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             setFinalJeopardyWager(Math.max(0, score))
             setFinalJeopardyAnswer('')
             setFinalJeopardyIsCorrect(null)
-            
+
             // Update game state with the Final Jeopardy question ID
             await saveGameState('advance_round', { newRound: 'FINAL', finalJeopardyQuestionId: data.id })
         } catch (error) {
@@ -397,17 +418,12 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
     // Round type - represents any round in the game
     type RoundType = 'SINGLE' | 'DOUBLE' | 'FINAL'
-    
-    // Check if a round is a board-based round (Single/Double) vs Final Jeopardy
-    const isBoardRound = (round: RoundType): round is 'SINGLE' | 'DOUBLE' => {
-        return round === 'SINGLE' || round === 'DOUBLE'
-    }
-    
+
     // Get human-readable label for a round
     const getRoundLabel = (round: RoundType): string => {
         const labels: Record<RoundType, string> = {
             'SINGLE': 'Single',
-            'DOUBLE': 'Double', 
+            'DOUBLE': 'Double',
             'FINAL': 'Final'
         }
         return labels[round] || round
@@ -432,31 +448,36 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     // Navigate to a specific round in review mode (completed games only)
     const navigateToRound = useCallback(async (round: RoundType) => {
         if (!isCompletedGame || !gameConfig) return
-        
+
         // Reset reveal state when navigating rounds (answers start hidden in review mode)
         setRevealedAnswers({})
-        
+
         if (round === 'FINAL') {
             // Check cache first for Final Jeopardy
             if (cachedFinalJeopardy) {
                 setFinalJeopardyQuestion(cachedFinalJeopardy)
                 setShowFinalJeopardy(true)
                 setFinalJeopardyStage('result')
-                
+
                 const fjCorrectness = questionCorrectness[cachedFinalJeopardy.id]
                 setFinalJeopardyIsCorrect(fjCorrectness ?? null)
-                
+
                 if (gameConfig.finalJeopardyWager !== undefined) {
                     setFinalJeopardyActualWager(gameConfig.finalJeopardyWager)
                 }
                 return
             }
-            
+
             // Load Final Jeopardy for review (first time)
             if (gameConfig.finalJeopardyQuestionId) {
                 try {
                     setLoading(true)
-                    const response = await fetch(`/api/questions/${gameConfig.finalJeopardyQuestionId}`)
+                    const params = new URLSearchParams()
+                    params.append('questionId', gameConfig.finalJeopardyQuestionId)
+                    params.append('gameId', gameId)
+                    params.append('reveal', 'true')
+
+                    const response = await fetch(`/api/game/final?${params.toString()}`)
                     if (response.ok) {
                         const data = await response.json()
                         // Cache the Final Jeopardy data
@@ -464,10 +485,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         setFinalJeopardyQuestion(data)
                         setShowFinalJeopardy(true)
                         setFinalJeopardyStage('result')
-                        
+
                         const fjCorrectness = questionCorrectness[gameConfig.finalJeopardyQuestionId]
                         setFinalJeopardyIsCorrect(fjCorrectness ?? null)
-                        
+
                         if (gameConfig.finalJeopardyWager !== undefined) {
                             setFinalJeopardyActualWager(gameConfig.finalJeopardyWager)
                         }
@@ -478,7 +499,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     setLoading(false)
                 }
             }
-        } else if (isBoardRound(round)) {
+        } else if (round === 'SINGLE' || round === 'DOUBLE') {
             // Check cache first for board rounds
             if (roundCategoriesCache[round]) {
                 setCategories(roundCategoriesCache[round])
@@ -487,7 +508,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 setShowFinalJeopardy(false)
                 return
             }
-            
+
             // Load board-based round categories (first time)
             setShowFinalJeopardy(false)
             setLoading(true)
@@ -500,7 +521,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 setLoading(false)
             }
         }
-    }, [isCompletedGame, gameConfig, gameSeed, loadCategories, questionCorrectness, cachedFinalJeopardy, roundCategoriesCache])
+    }, [isCompletedGame, gameConfig, gameSeed, loadCategories, questionCorrectness, cachedFinalJeopardy, roundCategoriesCache, gameId])
 
     // Cache categories when loaded in review mode
     useEffect(() => {
@@ -514,7 +535,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
     // Check for round completion
     useEffect(() => {
-        if (!loading && categories.length > 0 && !showFinalJeopardy && gameConfig) {
+        if (!isCompletedGame && !loading && categories.length > 0 && !showFinalJeopardy && gameConfig) {
             const allAnswered = categories.every(category =>
                 category.questions.every(q => !q || answeredQuestions.has(q.id))
             )
@@ -529,38 +550,38 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 }
             }
         }
-    }, [categories, answeredQuestions, currentRound, loading, showFinalJeopardy, gameConfig, loadFinalJeopardy])
+    }, [isCompletedGame, categories, answeredQuestions, currentRound, loading, showFinalJeopardy, gameConfig, loadFinalJeopardy])
 
     // Initialize game from server - runs only once, or use initial data if provided
     useEffect(() => {
         if (hasInitialized.current || !gameId) {
             return
         }
-        
+
         hasInitialized.current = true
-        
+
         // If we have initial data from server, use it and load categories
         if (initialGameData) {
             const config = initialGameData.config
             const round = initialGameData.currentRound
-            
+
             if (!config) {
                 console.error('No config in initialGameData')
                 setError('Invalid game configuration')
                 setLoading(false)
                 return
             }
-            
+
             // Set loading to true while we fetch categories/Final Jeopardy
             setLoading(true)
-            
+
             if (round === 'FINAL') {
                 // Handle Final Jeopardy restoration
                 const fjQuestionId = config.finalJeopardyQuestionId
                 const fjAnswered = fjQuestionId && initialGameData.questions?.[fjQuestionId]?.answered
                 const fjStage = config.finalJeopardyStage || 'category'
                 const fjWager = config.finalJeopardyWager || 0
-                
+
                 if (fjAnswered && fjQuestionId) {
                     // Load Final Jeopardy result
                     const params = new URLSearchParams()
@@ -568,7 +589,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     params.append('mode', config.mode || 'random')
                     params.append('gameId', gameId)
                     if (config.date) params.append('date', config.date)
-                    
+                    params.append('reveal', 'true')
+
                     fetch(`/api/game/final?${params.toString()}`)
                         .then(res => {
                             if (!res.ok) {
@@ -596,7 +618,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     params.append('mode', config.mode || 'random')
                     params.append('gameId', gameId)
                     if (config.date) params.append('date', config.date)
-                    
+                    params.append('reveal', 'true')
+
                     fetch(`/api/game/final?${params.toString()}`)
                         .then(res => {
                             if (!res.ok) {
@@ -629,7 +652,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     setError('Loading categories timed out. Please refresh the page.')
                     setLoading(false)
                 }, 30000)
-                
+
                 loadCategories(round, config, initialGameData.seed)
                     .then(() => {
                         clearTimeout(timeoutId)
@@ -647,7 +670,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             }
             return
         }
-        
+
         // Fallback: fetch from API if no initial data (shouldn't happen in production)
         const initGame = async () => {
             setLoading(true)
@@ -665,7 +688,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
                 const gameData = await response.json()
                 const config = gameData.config as GameConfig
-                
+
                 if (!config) {
                     throw new Error('Invalid game configuration')
                 }
@@ -693,7 +716,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     const fjAnswered = fjQuestionId && gameData.questions?.[fjQuestionId]?.answered
                     const fjStage = config.finalJeopardyStage || 'category'
                     const fjWager = config.finalJeopardyWager || 0
-                    
+
                     if (fjAnswered && fjQuestionId) {
                         const fjResult = gameData.questions[fjQuestionId]
                         const params = new URLSearchParams()
@@ -701,7 +724,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         params.append('mode', config.mode || 'random')
                         params.append('gameId', gameId)
                         if (config.date) params.append('date', config.date)
-                        
+                        params.append('reveal', 'true')
+
                         const response = await fetch(`/api/game/final?${params.toString()}`)
                         if (response.ok) {
                             const data = await response.json()
@@ -718,7 +742,8 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         params.append('mode', config.mode || 'random')
                         params.append('gameId', gameId)
                         if (config.date) params.append('date', config.date)
-                        
+                        params.append('reveal', 'true')
+
                         const response = await fetch(`/api/game/final?${params.toString()}`)
                         if (response.ok) {
                             const data = await response.json()
@@ -748,38 +773,6 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         initGame()
     }, [gameId, initialGameData, loadCategories, loadFinalJeopardy])
 
-    // Poll for approved disputes to sync score mid-game
-    // Use localStorage to persist seen disputes across page refreshes
-    const getSeenDisputesKey = () => `seen-disputes-${gameId}`
-    
-    const loadSeenDisputes = useCallback((): Set<string> => {
-        if (!gameId || typeof window === 'undefined') {
-            return new Set()
-        }
-        try {
-            const stored = localStorage.getItem(getSeenDisputesKey())
-            if (stored) {
-                return new Set(JSON.parse(stored))
-            }
-        } catch (error) {
-            console.debug('Error loading seen disputes from localStorage:', error)
-        }
-        return new Set()
-    }, [gameId])
-
-    const saveSeenDispute = useCallback((disputeKey: string) => {
-        if (!gameId || typeof window === 'undefined') {
-            return
-        }
-        try {
-            const seen = loadSeenDisputes()
-            seen.add(disputeKey)
-            localStorage.setItem(getSeenDisputesKey(), JSON.stringify(Array.from(seen)))
-        } catch (error) {
-            console.debug('Error saving seen dispute to localStorage:', error)
-        }
-    }, [gameId, loadSeenDisputes])
-    
     useEffect(() => {
         if (!gameId || loading || showFinalJeopardy) {
             return // Don't connect if game isn't loaded or we're in Final Jeopardy
@@ -801,7 +794,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 eventSource.addEventListener('dispute_approved', (event) => {
                     try {
                         const data = JSON.parse(event.data)
-                        
+
                         // Update score from server
                         setScore(data.newScore)
 
@@ -844,7 +837,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
                         // Show toast notification
                         toast.success(
-                            (t) => (
+                            () => (
                                 <div className="flex items-center gap-2">
                                     <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -871,7 +864,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 eventSource.onerror = (error) => {
                     console.error('SSE error:', error)
                     eventSource?.close()
-                    
+
                     // Reconnect after 5 seconds
                     reconnectTimeout = setTimeout(connectSSE, 5000)
                 }
@@ -899,12 +892,13 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     // Handle round completion
     const handleRoundComplete = useCallback(async () => {
         if (!gameConfig) {
-            router.push('/game')
+            router.push(exitRoute)
             return
         }
 
+        const completionState = getRoundCompletionState()
         const rounds = gameConfig.rounds || { single: true, double: true, final: false }
-        const nextRound = currentRound === 'SINGLE' && rounds.double ? 'DOUBLE' : null
+        const nextRound = completionState.hasNextRound && currentRound === 'SINGLE' ? 'DOUBLE' : null
 
         if (nextRound) {
             setLoading(true)
@@ -924,11 +918,60 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             setShowRoundComplete(false)
             await loadFinalJeopardy(gameConfig)
         } else {
+            if (isFriendChallengeGame) {
+                if (!challengeCompletionRequestedRef.current) {
+                    challengeCompletionRequestedRef.current = true
+                    setIsFinalizingChallengeCompletion(true)
+                    try {
+                        await saveGameState('complete', { finalScore: score })
+                    } catch (error) {
+                        console.error('Failed to finalize challenge completion:', error)
+                    } finally {
+                        setIsFinalizingChallengeCompletion(false)
+                    }
+                }
+                setShowRoundComplete(false)
+                return
+            }
             // Game complete - show celebration modal
             await saveGameState('complete', { finalScore: score })
             setShowCelebrationModal(true)
         }
-    }, [currentRound, gameConfig, gameSeed, loadCategories, router, loadFinalJeopardy, saveGameState, score])
+    }, [
+        currentRound,
+        exitRoute,
+        gameConfig,
+        gameSeed,
+        getRoundCompletionState,
+        isFriendChallengeGame,
+        loadCategories,
+        loadFinalJeopardy,
+        router,
+        saveGameState,
+        score,
+    ])
+
+    useEffect(() => {
+        const completionState = getRoundCompletionState()
+        if (
+            !showRoundComplete
+            || !isFriendChallengeGame
+            || !completionState.isTerminalRound
+            || challengeCompletionRequestedRef.current
+        ) {
+            return
+        }
+
+        challengeCompletionRequestedRef.current = true
+        setIsFinalizingChallengeCompletion(true)
+        void saveGameState('complete', { finalScore: score })
+            .catch((error) => {
+                console.error('Failed to finalize challenge completion:', error)
+            })
+            .finally(() => {
+                setIsFinalizingChallengeCompletion(false)
+            })
+    }, [getRoundCompletionState, isFriendChallengeGame, saveGameState, score, showRoundComplete])
 
     if (loading) {
         return (
@@ -953,10 +996,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     <h2 className="text-xl font-bold text-gray-900 mb-2">Unable to Load Game</h2>
                     <p className="text-gray-600 mb-6">{error}</p>
                     <button
-                        onClick={() => router.push('/game')}
+                        onClick={() => router.push(exitRoute)}
                         className="btn-primary"
                     >
-                        Back to Game Setup
+                        {isFriendChallengeGame ? 'Back to Friends' : 'Back to Game Setup'}
                     </button>
                 </div>
             </div>
@@ -987,14 +1030,14 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
     const handleQuestionSelect = async (question: Question) => {
         if (!question) return
-        
+
         if (answeredQuestions.has(question.id)) {
             // Question already answered - fetch details
             setSelectedQuestion(question)
             setShowAnswer(true)
             setRevealMyAnswer(false)
             setUserAnswer('') // Reset to prevent showing stale answer from previous question
-            
+
             // Check if we have cached details first
             const cachedDetails = questionDetails[question.id]
             if (cachedDetails) {
@@ -1005,7 +1048,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 // This ensures the UI shows the correct state while loading
                 setIsCorrect(null)
             }
-            
+
             // Fetch question details if not already loaded
             if (!cachedDetails && gameId) {
                 try {
@@ -1029,7 +1072,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             }
             return
         }
-        
+
         // New question - reset state
         setSelectedQuestion(question)
         setUserAnswer('')
@@ -1071,7 +1114,6 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             const result = data.correct
             setIsCorrect(result)
             setShowAnswer(true)
-            setDisputeContext(data.disputeContext)
             setDisputeSubmitted(false)
 
             // Save question details for later viewing
@@ -1119,10 +1161,12 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         } catch (error) {
             console.error('Error submitting answer:', error)
             // Fallback to local checking if API fails
-            const result = checkAnswer(userAnswer, selectedQuestion.answer)
+            const result = selectedQuestion.answer
+                ? checkAnswer(userAnswer, selectedQuestion.answer)
+                : false
             setIsCorrect(result)
             setShowAnswer(true)
-            
+
             // Save question details for later viewing
             setQuestionDetails(prev => ({
                 ...prev,
@@ -1132,7 +1176,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     disputeStatus: 'NONE' as const
                 }
             }))
-            
+
             setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
 
             // Track guest progress
@@ -1159,37 +1203,12 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         }
     }
 
-    const handleDispute = async () => {
-        if (!disputeContext || disputeSubmitted || !user?.id) return
-
-        try {
-            const response = await fetch('/api/answers/disputes', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    ...disputeContext,
-                    systemWasCorrect: false
-                })
-            })
-
-            if (!response.ok) {
-                const error = await response.json()
-                console.error('Failed to submit dispute:', error.error)
-                return
-            }
-
-            setDisputeSubmitted(true)
-        } catch (error) {
-            console.error('Error submitting dispute:', error)
-        }
-    }
-
     const handleDontKnow = async () => {
         if (!selectedQuestion) return
 
         setIsCorrect(false)
         setShowAnswer(true)
-        
+
         // Save question details for later viewing
         setQuestionDetails(prev => ({
             ...prev,
@@ -1199,7 +1218,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 disputeStatus: 'NONE' as const
             }
         }))
-        
+
         setAnsweredQuestions(prev => new Set([...prev, selectedQuestion.id]))
 
         // Track guest progress
@@ -1217,19 +1236,19 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     // Final Jeopardy handlers
     const handleFinalJeopardyWagerSubmit = async () => {
         if (!finalJeopardyQuestion) return
-        
+
         const canWager = score >= 0
         const maxWager = Math.max(0, score)
         const effectiveWager = canWager ? Math.max(0, Math.min(finalJeopardyWager, maxWager)) : 0
-        
+
         // Store the wager and advance to question stage
         setFinalJeopardyActualWager(effectiveWager)
         setFinalJeopardyStage('question')
-        
+
         // Save state to server
-        await saveGameState('update_final_jeopardy', { 
-            stage: 'question', 
-            wager: effectiveWager 
+        await saveGameState('update_final_jeopardy', {
+            stage: 'question',
+            wager: effectiveWager
         })
     }
 
@@ -1263,7 +1282,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
             setFinalJeopardyDisputeSubmitted(false)
 
             const effectiveWager = finalJeopardyActualWager
-            
+
             const newScore = result ? score + effectiveWager : score - effectiveWager
             setScore(newScore)
 
@@ -1275,12 +1294,14 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         } catch (error) {
             console.error('Error submitting Final Jeopardy answer:', error)
             // Fallback to local checking
-            const result = checkAnswer(finalJeopardyAnswer, finalJeopardyQuestion.answer)
+            const result = finalJeopardyQuestion.answer
+                ? checkAnswer(finalJeopardyAnswer, finalJeopardyQuestion.answer)
+                : false
             setFinalJeopardyIsCorrect(result)
             setFinalJeopardyStage('result')
 
             const effectiveWager = finalJeopardyActualWager
-            
+
             const newScore = result ? score + effectiveWager : score - effectiveWager
             setScore(newScore)
 
@@ -1324,10 +1345,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         setFinalJeopardyIsCorrect(false)
 
             const effectiveWager = finalJeopardyActualWager
-            
+
             setScore(prev => prev - effectiveWager)
             setGameStats(prev => ({ ...prev, incorrect: prev.incorrect + 1 }))
-            
+
             // Track Final Jeopardy score
             setRoundScores(prev => ({
                 ...prev,
@@ -1363,7 +1384,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         if (isFirstGame) {
             setShowProfilePrompt(true)
         } else {
-            router.push('/game')
+            router.push(exitRoute)
         }
     }
 
@@ -1379,10 +1400,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 const game = await response.json()
                 router.push(`/game/${game.id}`)
             } else {
-                router.push('/game')
+                router.push(exitRoute)
             }
         } catch {
-            router.push('/game')
+            router.push(exitRoute)
         }
     }
 
@@ -1397,7 +1418,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 <div className="max-w-4xl mx-auto mb-6 sm:mb-8">
                     <div className="flex justify-between items-center">
                         <button
-                            onClick={() => router.push('/game')}
+                            onClick={() => router.push(exitRoute)}
                             className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
                             title="Exit game"
                         >
@@ -1412,7 +1433,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                             </div>
                         </div>
                     </div>
-                    
+
                     {/* Review Mode Round Navigation */}
                     {isCompletedGame && (
                         <div className="mt-4 flex items-center justify-center gap-2">
@@ -1643,11 +1664,11 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                         )}
                                     </div>
                                     <p className="text-xl font-medium text-center">
-                                        Answer: {finalJeopardyQuestion.answer}
+                                        Answer: {finalJeopardyQuestion.answer || 'Answer unavailable'}
                                     </p>
                                     {finalJeopardyActualWager > 0 && (
                                         <p className="text-lg text-center mt-2 opacity-80">
-                                            {finalJeopardyIsCorrect 
+                                            {finalJeopardyIsCorrect
                                                 ? `Wager: +$${finalJeopardyActualWager.toLocaleString()}`
                                                 : `Wager: -$${finalJeopardyActualWager.toLocaleString()}`
                                             }
@@ -1682,7 +1703,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                     )}
                                 </div>
                                 )}
-                                
+
                                 {/* Final Score Display */}
                                 <div className="text-center py-4">
                                     <p className="text-blue-200 text-lg">Final Score</p>
@@ -1694,11 +1715,11 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                 <button
                                     onClick={async () => {
                                         await saveGameState('complete', { finalScore: score })
-                                        router.push('/game')
+                                        router.push(exitRoute)
                                     }}
                                     className="w-full btn-gold py-4 text-lg"
                                 >
-                                    Return to Game Hub
+                                    {isFriendChallengeGame ? 'Return to Friends' : 'Return to Game Hub'}
                                 </button>
                             </div>
                         </div>
@@ -1716,7 +1737,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={() => router.push('/game')}
+                            onClick={() => router.push(exitRoute)}
                             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                             title="Exit game"
                         >
@@ -1731,7 +1752,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                             </span>
                         </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 sm:gap-3">
                         {/* Seed copy button */}
                         {gameSeed && (
@@ -1792,7 +1813,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                             </div>
                         </div>
                     )}
-                    
+
                     {categories.length === 0 && !showFinalJeopardy ? (
                         <div className="text-center py-12">
                             <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent mb-4"></div>
@@ -1824,7 +1845,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                     </button>
                                 )
                             })()}
-                            
+
                             {/* Right Navigation Button - Next Round */}
                             {isCompletedGame && (() => {
                                 const rounds = getAvailableRounds()
@@ -1848,7 +1869,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                     </button>
                                 )
                             })()}
-                            
+
                             {/* Game Board */}
                             <div className="game-board overflow-visible">
                             {/* Mobile: Vertical scroll layout */}
@@ -1909,7 +1930,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         {/* Desktop: Traditional grid layout */}
                         <div className="hidden lg:block overflow-visible">
                             <div className="overflow-x-auto scrollbar-hide -mx-2 px-2">
-                                <div 
+                                <div
                                     className="grid gap-2 overflow-visible"
                                     style={{ gridTemplateColumns: `repeat(${categories.length}, minmax(120px, 1fr))` }}
                                 >
@@ -2059,7 +2080,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                     const storedUserAnswer = details?.userAnswer
                                     const hasUserAnswer = storedUserAnswer || userAnswer.trim()
                                     const isAnswerRevealed = !isCompletedGame || revealedAnswers[selectedQuestion.id]
-                                    
+
                                     return (
                                         <>
                                             {/* In review mode (completed game), show reveal button first */}
@@ -2107,9 +2128,9 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                                     )}
                                                 </div>
                                                 <p className="font-medium text-center">
-                                                    {selectedQuestion.answer}
+                                                    {selectedQuestion.answer || 'Answer unavailable'}
                                                 </p>
-                                                
+
                                                 {/* Action row: Show My Answer + Dispute (on same line) */}
                                                 {!effectiveCorrect && (
                                                     <div className="mt-4 flex items-center justify-between gap-2">
@@ -2139,7 +2160,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                                         ) : (
                                                             <span /> // Empty spacer when no answer to show
                                                         )}
-                                                        
+
                                                         {/* Dispute button or status */}
                                                         {effectiveDisputeStatus === 'PENDING' ? (
                                                             <span className="text-sm text-blue-600 flex items-center gap-1">
@@ -2160,7 +2181,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                                                 <button
                                                                     onClick={async () => {
                                                                         if (!selectedQuestion || !gameId) return
-                                                                        
+
                                                                         const disputeCtx = {
                                                                             questionId: selectedQuestion.id,
                                                                             gameId: gameId,
@@ -2168,7 +2189,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                                                             userAnswer: storedUserAnswer || userAnswer.trim() || '',
                                                                             mode: 'GAME' as const
                                                                         }
-                                                                        
+
                                                                         try {
                                                                             const response = await fetch('/api/answers/disputes', {
                                                                                 method: 'POST',
@@ -2178,13 +2199,13 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                                                                     systemWasCorrect: false
                                                                                 })
                                                                             })
-                                                                            
+
                                                                             if (!response.ok) {
                                                                                 const error = await response.json()
                                                                                 console.error('Failed to submit dispute:', error.error)
                                                                                 return
                                                                             }
-                                                                            
+
                                                                             setQuestionDetails(prev => ({
                                                                                 ...prev,
                                                                                 [selectedQuestion.id]: {
@@ -2210,7 +2231,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                                         ) : null}
                                                     </div>
                                                 )}
-                                                
+
                                                 {/* Revealed answer box */}
                                                 {!effectiveCorrect && revealMyAnswer && hasUserAnswer && (
                                                     <div className="mt-2 p-3 bg-red-200/50 rounded-lg border border-red-300">
@@ -2249,22 +2270,33 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
-                        <h2 className="text-2xl font-bold mb-2 text-gray-900">Round Complete!</h2>
+                        <h2 className="text-2xl font-bold mb-2 text-gray-900">
+                            {isFriendChallengeGame ? 'Challenge Round Complete!' : 'Round Complete!'}
+                        </h2>
                         <p className="text-gray-600 mb-2">Current Score</p>
                         <p className={`text-4xl font-bold mb-6 ${score >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                             {score < 0 ? '-' : ''}${Math.abs(score).toLocaleString()}
                         </p>
                         <p className="text-lg mb-6 text-gray-700">
-                            {gameConfig?.rounds?.double && currentRound === 'SINGLE'
+                            {isFriendChallengeGame
+                                ? 'Challenge score synced automatically. Review the board or return to Friends.'
+                                : gameConfig?.rounds?.double && currentRound === 'SINGLE'
                                 ? 'Ready for Double Jeopardy?'
                                 : gameConfig?.rounds?.final
                                     ? 'Ready for Final Jeopardy?'
                                     : 'Game Complete!'
                             }
                         </p>
+                        {isFriendChallengeGame && isFinalizingChallengeCompletion ? (
+                            <p className="text-sm text-blue-700 mb-4">Syncing challenge completion...</p>
+                        ) : null}
                         <div className="flex flex-col sm:flex-row gap-3 justify-center">
                             <button
                                 onClick={async () => {
+                                    if (isFriendChallengeGame) {
+                                        setShowRoundComplete(false)
+                                        return
+                                    }
                                     setShowRoundComplete(false)
                                     setLoading(true)
                                     try {
@@ -2277,7 +2309,9 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                 }}
                                 className="btn-primary py-3 px-6"
                             >
-                                {gameConfig?.rounds?.double && currentRound === 'SINGLE'
+                                {isFriendChallengeGame
+                                    ? 'Review Round'
+                                    : gameConfig?.rounds?.double && currentRound === 'SINGLE'
                                     ? "Let's Go!"
                                     : gameConfig?.rounds?.final
                                         ? 'Final Jeopardy!'
@@ -2285,10 +2319,10 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                 }
                             </button>
                             <button
-                                onClick={() => router.push('/game')}
+                                onClick={() => router.push(exitRoute)}
                                 className="btn-secondary py-3 px-6"
                             >
-                                Exit Game
+                                {isFriendChallengeGame ? 'Back to Friends' : 'Exit Game'}
                             </button>
                         </div>
                     </div>
@@ -2305,7 +2339,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                             </svg>
                         </div>
                         <h2 className="text-3xl font-bold mb-2 text-gray-900">Game Complete!</h2>
-                        
+
                         {/* Final Score */}
                         <div className="my-6">
                             <p className="text-gray-600 mb-2">Final Score</p>
@@ -2335,7 +2369,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                                     <p className="text-sm text-gray-600">Accuracy</p>
                                 </div>
                             </div>
-                            
+
                             {/* Round Score Breakdown */}
                             {(roundScores.SINGLE > 0 || roundScores.DOUBLE > 0 || roundScores.FINAL !== 0) && (
                                 <div className="border-t border-gray-200 pt-4 mt-4">
@@ -2439,7 +2473,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                     trigger="first_game"
                     onComplete={() => {
                         setShowProfilePrompt(false)
-                        router.push('/game')
+                        router.push(exitRoute)
                     }}
                 />
             )}
