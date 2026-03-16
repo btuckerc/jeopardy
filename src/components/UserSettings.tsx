@@ -352,7 +352,7 @@ export default function UserSettings({
                             <div className="spinner text-blue-600"></div>
                         </div>
                     ) : (
-                        <div className="space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto overflow-x-hidden">
+                        <div className="space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto overflow-x-hidden scrollbar-hide">
                             {/* Avatar & Icon Section */}
                             <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-4 border border-gray-200">
                                 <div className="flex items-start gap-4 mb-4">

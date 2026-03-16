@@ -41,6 +41,24 @@ services:
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
       EMAIL_FROM: ${EMAIL_FROM}
+    develop:
+      watch:
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: ./public
+        - action: rebuild
+          path: ./prisma
+        - action: rebuild
+          path: ./package.json
+        - action: rebuild
+          path: ./package-lock.json
+        - action: rebuild
+          path: ./tsconfig.json
+        - action: rebuild
+          path: ./next.config.js
+        - action: rebuild
+          path: ./scripts/docker-entrypoint.js
 
 volumes:
   db-data:

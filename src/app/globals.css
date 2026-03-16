@@ -482,10 +482,16 @@
     .workspace-sidebar-scroll {
         @apply h-full;
         overscroll-behavior: contain;
-        scrollbar-gutter: stable;
+        scrollbar-gutter: auto;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
         min-height: 0;
         padding-bottom: 0.75rem;
         scroll-padding-bottom: 1.5rem;
+    }
+
+    .workspace-sidebar-scroll::-webkit-scrollbar {
+        display: none;
     }
 
     .workspace-sidebar-scroll::after {

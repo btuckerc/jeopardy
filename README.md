@@ -90,6 +90,10 @@ npm run dev              # Start local dev server (localhost:3000)
 npm run dev:docker       # Start dev server in Docker with hot-reloading
 npm run dev:docker:build # Rebuild and start Docker dev environment
 npm run dev:docker:down  # Stop Docker dev environment
+npm run laptop           # Rebuild and restart the laptop web container
+npm run laptop:watch     # Production-style auto rebuild/restart on file changes
+npm run laptop:logs      # Follow web logs in the laptop environment
+npm run macmini:deploy   # Pull latest main and redeploy on the mac mini
 ```
 
 ### Database
@@ -114,9 +118,12 @@ npm run db:backfill           # Backfill historical questions (see docs for opti
 npm run db:update-triple-stumpers  # Update triple stumper flags
 ```
 
-### Build & Production
+### Laptop & Production
 
 ```bash
+npm run laptop           # Rebuild production-style app on your laptop
+npm run laptop:watch     # Keep laptop mode running and auto-rebuild on changes
+npm run macmini:deploy   # Pull latest main and redeploy on the mac mini
 npm run build            # Build for production
 npm run start            # Start production server
 ```

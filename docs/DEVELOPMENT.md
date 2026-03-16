@@ -46,21 +46,48 @@ npm run dev:docker:down
 
 **Note:** Docker development mounts your source code, so changes are reflected immediately. Only database migrations require a rebuild.
 
-### Production-Style Docker Verification
+### Laptop Verification
 
-When validating shipped behavior, prefer the production-style image instead of the local Node.js environment. This is the standard workflow for Codex sessions and for final verification of UI and API changes.
+When validating shipped behavior on your machine, prefer the laptop workflow instead of the local Node.js environment. This is the production-style Docker path intended to behave like release code while still being runnable and inspectable locally.
 
 ```bash
-# Rebuild and restart the production-style web container
-'/Applications/Docker.app/Contents/Resources/bin/docker' compose up -d --build web
+# Rebuild and restart the laptop web container
+npm run laptop
 
-# Run validation against the built image
-'/Applications/Docker.app/Contents/Resources/bin/docker' run --rm --entrypoint sh jeopardy-web -lc 'cd /app && npm run lint'
-'/Applications/Docker.app/Contents/Resources/bin/docker' run --rm --entrypoint sh jeopardy-web -lc 'cd /app && npm run typecheck'
-'/Applications/Docker.app/Contents/Resources/bin/docker' run --rm --entrypoint sh jeopardy-web -lc 'cd /app && npm run test:run'
+# Keep the laptop environment running and rebuild/restart web on file changes
+npm run laptop:watch
+
+# Follow logs when needed
+npm run laptop:logs
 ```
 
-Use the explicit Docker Desktop binary because some Codex shells do not expose `docker` on `PATH`.
+Today, `npm run laptop` is equivalent to:
+1. `docker compose up -d --build web`
+
+`npm run laptop:watch` is the production-like auto-refresh workflow. It uses Docker Compose watch rules to rebuild and restart the `web` service when relevant app files change. This is slower than `next dev`, but it keeps the `Dockerfile` build path and `NODE_ENV=production` runtime behavior.
+
+Use `npm run dev:docker` only when you want true hot reload and accept that it is less production-like because it runs `next dev` with bind mounts and file watching.
+
+### Mac Mini Deployment
+
+For the remote mac mini, use the dedicated deployment entrypoint:
+
+```bash
+npm run macmini:deploy
+```
+
+This performs:
+1. `git fetch origin`
+2. `git checkout main`
+3. `git pull --ff-only origin main`
+4. database backup when the DB container is already running
+5. `docker compose up -d db`
+6. `docker compose build web`
+7. `docker compose run --rm --no-deps --entrypoint sh web -lc 'npx prisma migrate deploy && npx prisma generate'`
+8. `docker compose up -d --no-deps web`
+9. print recent web logs
+
+Use `./scripts/deploy-macmini.sh --logs` if you want to tail logs after startup.
 
 For quick inspection after a rebuild:
 
