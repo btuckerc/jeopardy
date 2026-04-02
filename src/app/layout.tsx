@@ -11,6 +11,7 @@ import { getAppUser } from '@/lib/clerk-auth'
 import { JsonLd } from '@/components/JsonLd'
 import KeyboardShortcutsProvider from './components/KeyboardShortcutsProvider'
 import GuestProgressBanner from './components/GuestProgressBanner'
+import SiteAnnouncementBanner from './components/SiteAnnouncementBanner'
 
 const inter = Inter({ subsets: ['latin'] })
 const fredoka = Fredoka({ weight: '500', subsets: ['latin'] })
@@ -176,6 +177,7 @@ export default async function RootLayout({
                             </a>
                             <div className="min-h-screen bg-gray-100 flex flex-col">
                                 <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
+                                <SiteAnnouncementBanner />
                                 <main id="main-content" className="flex-1 w-full min-w-0 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
                                     {children}
                                 </main>
