@@ -283,7 +283,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 👨‍💻 Author
 
 **Tucker Craig**
-- Website: [tuckercraig.com](https://tuckercraig.com)
+- Website: [btuckerc.dev](https://btuckerc.dev)
 - Twitter: [@btuckerc](https://twitter.com/btuckerc)
 - BlueSky: [@btuckerc.com](https://bsky.app/profile/btuckerc.com)
 

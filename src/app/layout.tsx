@@ -32,7 +32,7 @@ export const metadata = {
     title: 'Play Jeopardy Free | Trivia Practice Game - trivrdy',
     description: 'Master Jeopardy with 12,000+ real questions. Free online trivia practice with flashcards, game modes, and leaderboards. Study smart, compete globally, track your progress.',
     keywords: 'jeopardy practice, free jeopardy game, trivia questions, study jeopardy, online trivia game, jeopardy simulator, practice trivia, quiz game, knowledge quiz, trivrdy, jeopardy study tool, trivia flashcards, game show practice, learn trivia',
-    authors: [{ name: 'Tucker Craig', url: 'https://tuckercraig.com' }],
+    authors: [{ name: 'Tucker Craig', url: 'https://btuckerc.dev' }],
     creator: 'Tucker Craig',
     publisher: 'Tucker Craig',
     openGraph: {
@@ -118,7 +118,7 @@ export default async function RootLayout({
         author: {
             '@type': 'Person',
             name: 'Tucker Craig',
-            url: 'https://tuckercraig.com',
+            url: 'https://btuckerc.dev',
         },
         potentialAction: {
             '@type': 'SearchAction',
@@ -151,7 +151,7 @@ export default async function RootLayout({
         author: {
             '@type': 'Person',
             name: 'Tucker Craig',
-            url: 'https://tuckercraig.com',
+            url: 'https://btuckerc.dev',
         },
     }
 
@@ -211,7 +211,7 @@ export default async function RootLayout({
                                         <p className="text-slate-600 text-sm">
                                             Made by{' '}
                                             <a
-                                                href="https://tuckercraig.com"
+                                                href="https://btuckerc.dev"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-blue-700 hover:text-blue-900 font-medium transition-colors"
