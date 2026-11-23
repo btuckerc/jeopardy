@@ -1,16 +1,18 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getPlayableQuestionWhere } from '@/lib/question-policy'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
     try {
-        // Get distinct air dates
+        // Get distinct pack release dates for published ORIGINAL_ENGINE questions
         const dates = await prisma.question.findMany({
             select: {
                 airDate: true
             },
             where: {
+                ...getPlayableQuestionWhere('ORIGINAL_ENGINE'),
                 airDate: {
                     not: null
                 }

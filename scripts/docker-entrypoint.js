@@ -111,6 +111,70 @@ async function generatePrismaClient() {
   }
 }
 
+async function ensureStarterPackPublished() {
+  console.log('📦 Checking Original question bank readiness...');
+
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const packPath = path.join(process.cwd(), 'data', 'original-packs', 'starter-pack-v1.json');
+
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    let singleCount = 0;
+    let doubleCount = 0;
+    let finalCount = 0;
+    try {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          [singleCount, doubleCount, finalCount] = await Promise.all([
+            prisma.question.count({ where: { source: 'ORIGINAL_ENGINE', publishStatus: 'PUBLISHED', round: 'SINGLE' } }),
+            prisma.question.count({ where: { source: 'ORIGINAL_ENGINE', publishStatus: 'PUBLISHED', round: 'DOUBLE' } }),
+            prisma.question.count({ where: { source: 'ORIGINAL_ENGINE', publishStatus: 'PUBLISHED', round: 'FINAL' } })
+          ]);
+          break;
+        } catch (countErr) {
+          if (attempt === 3) throw countErr;
+          console.log(`⚠️  Transient DB check failure (attempt ${attempt}/3), retrying...`);
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+      }
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    const playable = singleCount >= 25 && doubleCount >= 25 && finalCount >= 1;
+    if (playable) {
+      console.log(`✅ Original question bank ready (SINGLE=${singleCount}, DOUBLE=${doubleCount}, FINAL=${finalCount})`);
+      return;
+    }
+
+    if (!fs.existsSync(packPath)) {
+      console.error(
+        `❌ Original question bank lacks full-game coverage (SINGLE=${singleCount}, DOUBLE=${doubleCount}, FINAL=${finalCount}) and bundled starter pack is missing at ${packPath}`
+      );
+      process.exit(1);
+    }
+
+    try {
+      execSync('npx ts-node --version', { stdio: 'pipe' });
+    } catch {
+      console.error('❌ ts-node is unavailable to publish bundled starter pack and Original question bank is not playable.');
+      process.exit(1);
+    }
+
+    console.log(`🚀 Publishing bundled Original starter pack (currently SINGLE=${singleCount}, DOUBLE=${doubleCount}, FINAL=${finalCount})...`);
+    execSync(`npx ts-node --project tsconfig.json src/scripts/publish-original-pack.ts ${JSON.stringify(packPath)}`, {
+      stdio: 'inherit',
+      env: { ...process.env, NODE_ENV: process.env.NODE_ENV || 'production' }
+    });
+    console.log('✅ Starter pack published successfully');
+  } catch (error) {
+    console.error('❌ Failed to auto-publish Original starter pack:', error.message);
+    process.exit(1);
+  }
+}
+
 async function seedAchievements() {
   console.log('🏆 Seeding achievements...');
   
@@ -156,6 +220,9 @@ async function main() {
     // Only regenerate Prisma client if migrations succeeded
     await generatePrismaClient();
     
+    // Ensure bundled ORIGINAL_ENGINE starter pack is published before accepting traffic
+    await ensureStarterPackPublished();
+
     // Seed achievements (non-blocking, uses upsert so safe to run multiple times)
     await seedAchievements();
     

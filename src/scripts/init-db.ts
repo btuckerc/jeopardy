@@ -60,15 +60,19 @@ async function main() {
         const _processedCategories = 0
 
         for (const [categoryName, categoryQuestions] of categoriesMap) {
-            // Create or update category
+            // Create or update category (legacy seed)
             const category = await prisma.category.upsert({
                 where: {
-                    name: categoryName
+                    name_source: {
+                        name: categoryName,
+                        source: 'LEGACY_JEOPARDY'
+                    }
                 },
                 update: {},
                 create: {
                     id: crypto.randomUUID(),
-                    name: categoryName
+                    name: categoryName,
+                    source: 'LEGACY_JEOPARDY'
                 }
             })
 

@@ -75,7 +75,11 @@ export async function POST(request: Request) {
             include: { category: true }
         })
 
-        if (!questionDetails) {
+        if (
+            !questionDetails ||
+            questionDetails.source !== 'ORIGINAL_ENGINE' ||
+            questionDetails.publishStatus !== 'PUBLISHED'
+        ) {
             return notFoundResponse('Question not found')
         }
 
@@ -83,7 +87,8 @@ export async function POST(request: Request) {
         const grading = await evaluateAnswerWithOverridesAsync(
             answerText,
             questionDetails.answer,
-            overrides
+            overrides,
+            questionDetails.acceptableAnswers
         )
         const isCorrect = grading.accepted
         const computedPoints = isCorrect

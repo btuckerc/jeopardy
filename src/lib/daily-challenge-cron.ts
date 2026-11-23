@@ -7,12 +7,13 @@
  */
 
 import * as cron from 'node-cron'
-import { setupDailyChallenge } from '@/app/api/daily-challenge/route'
+import { ensureOriginalDailyChallenge } from '@/app/api/daily-challenge/route'
 import { prisma } from './prisma'
 import { parseGameByDate } from './jarchive-scraper'
 import { format, subDays } from 'date-fns'
 import { withCronLogging } from './cron-logger'
 import { CRON_JOBS } from './cron-jobs'
+import { isJArchiveSyncEnabled } from './question-policy'
 
 let dailyChallengeCronJob: cron.ScheduledTask | null = null
 let fetchGamesCronJob: cron.ScheduledTask | null = null
@@ -27,6 +28,16 @@ async function fetchLast7DaysGames(): Promise<{
     totalErrors: number
     details: Array<{ date: string; status: string; created?: number; skipped?: number; error?: string }>
 }> {
+    if (!isJArchiveSyncEnabled()) {
+        console.log('[Fetch Games Cron] J-Archive sync disabled (ENABLE_JARCHIVE_SYNC != true); skipping.')
+        return {
+            totalCreated: 0,
+            totalSkipped: 0,
+            totalErrors: 0,
+            details: [{ date: format(new Date(), 'yyyy-MM-dd'), status: 'disabled' }],
+        }
+    }
+
     console.log('[Fetch Games Cron] Starting to fetch last 7 days of games...')
     
     let totalCreated = 0
@@ -73,11 +84,17 @@ async function fetchLast7DaysGames(): Promise<{
                         continue
                     }
 
-                    // Create or update category
+                    // Create or update category (legacy J-Archive source)
                     const category = await tx.category.upsert({
-                        where: { name: question.category },
+                        where: {
+                            name_source: {
+                                name: question.category,
+                                source: 'LEGACY_JEOPARDY',
+                            }
+                        },
                         create: { 
                             name: question.category,
+                            source: 'LEGACY_JEOPARDY',
                             knowledgeCategory: question.knowledgeCategory
                         },
                         update: {}
@@ -91,6 +108,8 @@ async function fetchLast7DaysGames(): Promise<{
                             value: question.value,
                             difficulty: question.difficulty,
                             knowledgeCategory: question.knowledgeCategory,
+                            source: 'LEGACY_JEOPARDY',
+                            publishStatus: 'PUBLISHED',
                             airDate: new Date(dateStr),
                             round: question.round,
                             isDoubleJeopardy: question.round === 'DOUBLE', // Legacy field
@@ -160,20 +179,29 @@ async function generateDailyChallenges(): Promise<{
         const dateStr = targetDate.toISOString().split('T')[0]
 
         try {
-            // Check if challenge already exists
+            // Check if an ORIGINAL_ENGINE challenge already exists; rotate unplayed legacy rows
             const existing = await prisma.dailyChallenge.findUnique({
                 where: { date: targetDate },
                 include: {
                     question: {
                         select: {
                             id: true,
-                            airDate: true
+                            airDate: true,
+                            source: true,
+                            publishStatus: true,
                         }
-                    }
+                    },
+                    _count: { select: { completions: true } },
                 }
             })
 
-            if (existing) {
+            if (
+                existing &&
+                (
+                    (existing.question?.source === 'ORIGINAL_ENGINE' && existing.question?.publishStatus === 'PUBLISHED') ||
+                    existing._count.completions > 0
+                )
+            ) {
                 skipped++
                 results.push({ 
                     date: dateStr, 
@@ -185,8 +213,8 @@ async function generateDailyChallenges(): Promise<{
                 continue
             }
 
-            // Create challenge (setupDailyChallenge handles retries internally)
-            const challenge = await setupDailyChallenge(targetDate)
+            // Create or rotate challenge into published ORIGINAL_ENGINE pool
+            const challenge = await ensureOriginalDailyChallenge(targetDate)
 
             if (challenge) {
                 created++

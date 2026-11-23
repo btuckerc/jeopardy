@@ -192,14 +192,17 @@ export async function calculateAchievementProgress(
             }
         }
 
-        // Triple stumpers
+        // Triple stumpers / Hard-tier Original challenges
         case 'TRIPLE_STUMPER_10': {
             const count = await prisma.gameHistory.count({
                 where: {
                     userId,
                     correct: true,
                     question: {
-                        wasTripleStumper: true
+                        OR: [
+                            { wasTripleStumper: true },
+                            { source: 'ORIGINAL_ENGINE', difficulty: 'HARD' }
+                        ]
                     }
                 }
             })
@@ -216,7 +219,10 @@ export async function calculateAchievementProgress(
                     userId,
                     correct: true,
                     question: {
-                        wasTripleStumper: true
+                        OR: [
+                            { wasTripleStumper: true },
+                            { source: 'ORIGINAL_ENGINE', difficulty: 'HARD' }
+                        ]
                     }
                 }
             })
@@ -233,7 +239,10 @@ export async function calculateAchievementProgress(
                     userId,
                     correct: true,
                     question: {
-                        wasTripleStumper: true
+                        OR: [
+                            { wasTripleStumper: true },
+                            { source: 'ORIGINAL_ENGINE', difficulty: 'HARD' }
+                        ]
                     }
                 }
             })

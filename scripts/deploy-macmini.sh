@@ -76,10 +76,43 @@ fi
 
 run docker compose -f "$COMPOSE_FILE" up -d "$DB_SERVICE"
 run docker compose -f "$COMPOSE_FILE" build "$WEB_SERVICE"
-run docker compose -f "$COMPOSE_FILE" run --rm --no-deps --entrypoint sh "$WEB_SERVICE" -lc 'npx prisma migrate deploy && npx prisma generate'
+run docker compose -f "$COMPOSE_FILE" run --rm --no-deps --entrypoint sh "$WEB_SERVICE" -lc 'npx prisma migrate deploy && npx prisma generate && npm run engine:snapshot-legacy'
 run docker compose -f "$COMPOSE_FILE" up -d --no-deps "$WEB_SERVICE"
 
-log "Mac mini deploy complete."
+log "Waiting for web readiness smoke check (guest question, Single+Double boards, Daily Challenge)..."
+READY=false
+for attempt in $(seq 1 30); do
+    if docker compose -f "$COMPOSE_FILE" exec -T "$WEB_SERVICE" node -e '
+      Promise.all([
+        fetch("http://127.0.0.1:3000/api/practice/guest-question"),
+        fetch("http://127.0.0.1:3000/api/categories/game?mode=random&round=SINGLE"),
+        fetch("http://127.0.0.1:3000/api/categories/game?mode=random&round=DOUBLE"),
+        fetch("http://127.0.0.1:3000/api/daily-challenge")
+      ]).then(async ([g, s, dbl, d]) => {
+        if (!g.ok || !s.ok || !dbl.ok) process.exit(1);
+        const sBoard = await s.json();
+        const dBoard = await dbl.json();
+        if (!Array.isArray(sBoard) || sBoard.length < 5) process.exit(1);
+        if (!Array.isArray(dBoard) || dBoard.length < 5) process.exit(1);
+        if (!d.ok) {
+          const dJson = await d.json().catch(() => ({}));
+          if (!(d.status === 503 && dJson.legacyTransition === true)) process.exit(1);
+        }
+      }).catch(() => process.exit(1));
+    ' 2>/dev/null; then
+        READY=true
+        break
+    fi
+    sleep 2
+done
+
+if [[ "$READY" != true ]]; then
+    log "ERROR: Web readiness smoke check failed after 60s. Inspect logs below."
+    docker compose -f "$COMPOSE_FILE" logs --tail 100 "$WEB_SERVICE"
+    exit 1
+fi
+
+log "Mac mini deploy complete and smoke-tested."
 log "Web status:"
 docker compose -f "$COMPOSE_FILE" ps "$WEB_SERVICE"
 

@@ -20,6 +20,15 @@ import {
     parseCustomCategorySelections,
     type CustomCategorySelection,
 } from '@/lib/custom-category-selections'
+import {
+    canPlayGameContentSource,
+    getPlayableQuestionSql,
+    getPlayableQuestionWhere,
+    parseBoardSnapshot,
+    resolveRequestedContentSource,
+    shouldApplySpoilerFilter,
+} from '@/lib/question-policy'
+import type { QuestionSource } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,7 +87,8 @@ async function selectChallengeCategories(
     eligibleCategoryIds: string[],
     userId: string,
     round: 'SINGLE' | 'DOUBLE',
-    seed: string | null
+    seed: string | null,
+    contentSource: QuestionSource
 ): Promise<string[]> {
     // Handle edge case: no eligible categories
     if (eligibleCategoryIds.length === 0) {
@@ -92,6 +102,7 @@ async function selectChallengeCategories(
 
     // Get triple stumper counts per category with user's answered status
     // Join through Game table to get userId since GameQuestion doesn't have userId directly
+    const sourceFilterSql = getPlayableQuestionSql('q', contentSource)
     const categoryStats = await prisma.$queryRaw<Array<{
         categoryId: string
         totalTripleStumpers: bigint
@@ -106,7 +117,8 @@ async function selectChallengeCategories(
         LEFT JOIN "Game" g ON gq."gameId" = g."id" AND g."userId" = ${userId}
         WHERE q."categoryId" = ANY(${eligibleCategoryIds}::text[])
             AND q."round" = ${round}::"JeopardyRound"
-            AND q."wasTripleStumper" = true
+            AND (q."wasTripleStumper" = true OR (q.source = 'ORIGINAL_ENGINE' AND q.difficulty = 'HARD'))
+            AND ${sourceFilterSql}
         GROUP BY q."categoryId"
     `
 
@@ -185,57 +197,275 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const appUser = await getAppUser()
         timer.mark('auth')
         const userId = appUser?.id
+        const isAdmin = appUser?.role === 'ADMIN'
         let canRevealAnswers = !gameId
+        let contentSource: QuestionSource = resolveRequestedContentSource(searchParams.get('source'), isAdmin)
+        let gameRecord: {
+            userId: string
+            opponentUserId: string | null
+            seed: string | null
+            visibility: string
+            status: string
+            contentSource: QuestionSource
+            config: Prisma.JsonValue
+        } | null = null
 
         if (gameId) {
-            const game = await prisma.game.findUnique({
+            gameRecord = await prisma.game.findUnique({
                 where: { id: gameId },
                 select: {
                     userId: true,
-                    opponentUserId: true
+                    opponentUserId: true,
+                    seed: true,
+                    visibility: true,
+                    status: true,
+                    contentSource: true,
+                    config: true
                 }
             })
 
-            if (!game) {
+            if (!gameRecord) {
                 return notFoundResponse('Game not found')
             }
 
-            canRevealAnswers = !!userId && (game.userId === userId || game.opponentUserId === userId)
+            const isOwnerOrOpponent = !!userId && (gameRecord.userId === userId || gameRecord.opponentUserId === userId)
+            canRevealAnswers = isOwnerOrOpponent
             timer.mark('gameLookup')
 
-            if (revealAnswers && !canRevealAnswers) {
+            if (gameRecord.visibility === 'PRIVATE' && !isOwnerOrOpponent && !isAdmin) {
+                return forbiddenResponse('You do not have access to this game')
+            }
+
+            if (revealAnswers && !canRevealAnswers && !isAdmin) {
                 return forbiddenResponse('You do not have access to this game board\'s answers')
+            }
+
+            contentSource = gameRecord.contentSource
+            const playPolicy = canPlayGameContentSource(contentSource, gameRecord.status, isAdmin)
+            if (!playPolicy.allowed) {
+                return jsonResponse(
+                    {
+                        error: 'This legacy game has been retired. Your score, history, and stats remain preserved—start a new game from the Original question bank.',
+                        legacyRetired: true
+                    },
+                    410
+                )
             }
         }
 
-        const shouldRevealAnswers = revealAnswers && canRevealAnswers
+        // When gameId is present, derive board parameters from stored Game.config / seed
+        // so caller query parameters cannot hijack or pin an unrelated board into boardSnapshot.
+        const storedCfg = (gameRecord?.config && typeof gameRecord.config === 'object' && !Array.isArray(gameRecord.config)
+            ? gameRecord.config
+            : {}) as Record<string, unknown>
+        const effectiveMode = (gameRecord && typeof storedCfg.mode === 'string') ? storedCfg.mode : mode
+        const effectiveSeed = (gameRecord && gameRecord.seed) ? gameRecord.seed : seed
+        const effectiveDate = (gameRecord && typeof storedCfg.date === 'string') ? storedCfg.date : date
+        const effectiveCategories =
+            (gameRecord && Array.isArray(storedCfg.categories))
+                ? storedCfg.categories.filter((c): c is string => typeof c === 'string').join(',')
+                : categories
+        const effectiveCategoryIds =
+            (gameRecord && Array.isArray(storedCfg.categoryIds))
+                ? storedCfg.categoryIds.filter((c): c is string => typeof c === 'string').join(',')
+                : categoryIds
+        const storedSelections = (gameRecord && Array.isArray(storedCfg.categorySelections))
+            ? (storedCfg.categorySelections as Array<{ categoryId?: unknown; airDate?: unknown; round?: unknown }>)
+                .filter((s): s is { categoryId: string; airDate?: string | null; round?: 'SINGLE' | 'DOUBLE' } => typeof s?.categoryId === 'string')
+                .map((s) => ({
+                    categoryId: s.categoryId,
+                    airDate: typeof s.airDate === 'string' ? s.airDate : '',
+                    round: (s.round === 'DOUBLE' ? 'DOUBLE' : 'SINGLE') as 'SINGLE' | 'DOUBLE',
+                }))
+            : null
+        const effectiveCustomCategorySelections: CustomCategorySelection[] = gameRecord
+            ? (storedSelections ?? [])
+            : customCategorySelections
+        const effectiveCategorySelectionsParam = gameRecord
+            ? (storedSelections && storedSelections.length > 0 ? JSON.stringify(storedSelections) : null)
+            : categorySelectionsParam
+        const effectiveCategoryFilter =
+            (gameRecord && typeof storedCfg.categoryFilter === 'string')
+                ? storedCfg.categoryFilter
+                : categoryFilter
 
-        // Check cache first for deterministic requests
-        const cacheKey = getBoardCacheKey({
-            gameId,
-            seed,
-            round,
-            mode,
-            date,
-            categories,
-            categoryIds,
-            categorySelections: categorySelectionsParam,
-            revealAnswers: shouldRevealAnswers
-        })
+        const shouldRevealAnswers = revealAnswers && (canRevealAnswers || isAdmin)
+        const allowCache = !isAdmin && gameRecord?.status !== 'COMPLETED'
+
+        // Check cache AFTER authorization and contentSource resolution (never share admin/completed caches)
+        const cacheKey = allowCache
+            ? getBoardCacheKey({
+                gameId,
+                seed: effectiveSeed,
+                round,
+                mode: effectiveMode,
+                contentSource,
+                date: effectiveDate,
+                categories: effectiveCategories,
+                categoryIds: effectiveCategoryIds,
+                categorySelections: effectiveCategorySelectionsParam,
+                revealAnswers: shouldRevealAnswers,
+                isAdmin
+            })
+            : null
         if (cacheKey) {
             const cached = getCachedBoard(cacheKey)
             if (cached) {
-                timer.mark('cacheHit')
-                timer.log()
-                return jsonResponse(cached)
+                const cachedIds = cached.flatMap((c) => c.questions.map((q) => q.id))
+                const publishedCount = cachedIds.length > 0
+                    ? await prisma.question.count({
+                        where: { id: { in: cachedIds }, source: contentSource, publishStatus: 'PUBLISHED' }
+                    })
+                    : 0
+                if (cachedIds.length > 0 && publishedCount === cachedIds.length) {
+                    timer.mark('cacheHit')
+                    timer.log()
+                    return jsonResponse(cached)
+                }
             }
         }
         timer.mark('cacheMiss')
 
-        // Determine the effective spoiler policy
+        // Helper to render an ordered pinned board from question IDs
+        const buildPinnedBoard = async (pinnedIds: string[]) => {
+            const pinnedQuestions = await prisma.question.findMany({
+                where: {
+                    id: { in: pinnedIds },
+                    source: contentSource,
+                    ...(!isAdmin && gameRecord?.status !== 'COMPLETED'
+                        ? { publishStatus: 'PUBLISHED' }
+                        : {})
+                },
+                select: {
+                    id: true,
+                    question: true,
+                    answer: shouldRevealAnswers,
+                    value: true,
+                    isDoubleJeopardy: true,
+                    wasTripleStumper: true,
+                    categoryId: true,
+                    category: { select: { id: true, name: true } }
+                }
+            })
+            if (pinnedQuestions.length === 0) return null
+
+            const orderMap = new Map(pinnedIds.map((id, idx) => [id, idx]))
+            const byCategory = new Map<string, {
+                id: string
+                name: string
+                firstOrder: number
+                questions: {
+                    id: string
+                    question: string
+                    answer: string | null
+                    value: number
+                    isDoubleJeopardy: boolean
+                    wasTripleStumper: boolean
+                    categoryId: string
+                }[]
+            }>()
+
+            for (const q of pinnedQuestions) {
+                const order = orderMap.get(q.id) ?? Number.MAX_SAFE_INTEGER
+                let entry = byCategory.get(q.categoryId)
+                if (!entry) {
+                    entry = { id: q.categoryId, name: q.category.name, firstOrder: order, questions: [] }
+                    byCategory.set(q.categoryId, entry)
+                }
+                if (order < entry.firstOrder) entry.firstOrder = order
+                entry.questions.push({
+                    id: q.id,
+                    question: q.question,
+                    answer: shouldRevealAnswers ? q.answer : null,
+                    value: q.value,
+                    isDoubleJeopardy: q.isDoubleJeopardy,
+                    wasTripleStumper: q.wasTripleStumper,
+                    categoryId: q.categoryId
+                })
+            }
+
+            return Array.from(byCategory.values())
+                .sort((a, b) => a.firstOrder - b.firstOrder)
+                .map(({ id, name, questions }) => ({
+                    id,
+                    name,
+                    questions: questions.sort((a, b) => a.value - b.value)
+                }))
+        }
+
+        // If this game already has a snapshotted board for this round, return those exact pinned questions
+        if (gameId && gameRecord) {
+            const snapshot = parseBoardSnapshot(gameRecord.config)
+            const pinnedIds = snapshot[round]
+            if (pinnedIds && pinnedIds.length > 0) {
+                const snapshottedBoard = await buildPinnedBoard(pinnedIds)
+                if (snapshottedBoard) {
+                    if (cacheKey) {
+                        setCachedBoard(cacheKey, snapshottedBoard as CachedCategory[])
+                    }
+                    timer.mark('snapshotHit')
+                    timer.log()
+                    return jsonResponse(snapshottedBoard)
+                }
+            }
+
+            // For non-admin review of a non-active (COMPLETED or ABANDONED) legacy game without a board snapshot,
+            // serve ONLY the questions actually played in that game immediately.
+            if (gameRecord.contentSource === 'LEGACY_JEOPARDY' && gameRecord.status !== 'IN_PROGRESS' && !isAdmin) {
+                const played = await prisma.gameQuestion.findMany({
+                    where: {
+                        gameId,
+                        question: { round, source: 'LEGACY_JEOPARDY' }
+                    },
+                    include: {
+                        question: {
+                            select: {
+                                id: true,
+                                question: true,
+                                answer: shouldRevealAnswers,
+                                value: true,
+                                isDoubleJeopardy: true,
+                                wasTripleStumper: true,
+                                categoryId: true,
+                                category: { select: { id: true, name: true } }
+                            }
+                        }
+                    }
+                })
+                const byCat = new Map<string, { id: string; name: string; questions: Array<{ id: string; question: string; answer: string | null; value: number; isDoubleJeopardy: boolean; wasTripleStumper: boolean; categoryId: string }> }>()
+                for (const gq of played) {
+                    const q = gq.question
+                    let entry = byCat.get(q.categoryId)
+                    if (!entry) {
+                        entry = { id: q.categoryId, name: q.category.name, questions: [] }
+                        byCat.set(q.categoryId, entry)
+                    }
+                    entry.questions.push({
+                        id: q.id,
+                        question: q.question,
+                        answer: shouldRevealAnswers ? q.answer : null,
+                        value: q.value,
+                        isDoubleJeopardy: q.isDoubleJeopardy,
+                        wasTripleStumper: q.wasTripleStumper,
+                        categoryId: q.categoryId
+                    })
+                }
+                const completedCats = Array.from(byCat.values()).map(c => ({
+                    ...c,
+                    questions: c.questions.sort((a, b) => a.value - b.value)
+                }))
+                timer.mark('completedLegacyReview')
+                timer.log()
+                return jsonResponse(completedCats)
+            }
+        }
+
+        // Determine the effective spoiler policy (only applies to aired LEGACY_JEOPARDY episodes)
         let spoilerPolicy: SpoilerPolicy
 
-        if (gameId) {
+        if (!shouldApplySpoilerFilter(contentSource)) {
+            spoilerPolicy = { enabled: false, cutoffDate: null }
+        } else if (gameId) {
             spoilerPolicy = await getGameSpoilerPolicy(gameId)
         } else if (userId) {
             spoilerPolicy = await computeUserEffectiveCutoff(userId)
@@ -246,42 +476,48 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
 
         // Build the airDate condition from the spoiler policy
         const airDateCondition = buildSimpleAirDateCondition(spoilerPolicy)
+        const baseSourceWhere = getPlayableQuestionWhere(contentSource)
 
-        // Build question filter based on mode
+        // Build question filter based on mode (always scoped to contentSource + PUBLISHED)
         const questionWhere: Prisma.QuestionWhereInput = {
+            ...baseSourceWhere,
             round: round,
             ...(airDateCondition ? { airDate: airDateCondition } : {})
         }
 
-        // Add mode-specific filters
-        switch (mode) {
+        // Add mode-specific filters (derived from stored Game.config when gameId is present)
+        switch (effectiveMode) {
             case 'knowledge': {
-                const knowledgeCategories = categories?.split(',') || []
+                const knowledgeCategories = effectiveCategories?.split(',').filter(Boolean) || []
                 if (knowledgeCategories.length > 0) {
                     questionWhere.knowledgeCategory = { in: knowledgeCategories as KnowledgeCategory[] }
                 }
                 break
             }
             case 'custom': {
-                const customCategoryIds = customCategorySelections.length > 0
-                    ? customCategorySelections.map((selection) => selection.categoryId)
-                    : categoryIds?.split(',') || []
+                const customCategoryIds = effectiveCustomCategorySelections.length > 0
+                    ? effectiveCustomCategorySelections.map((selection) => selection.categoryId)
+                    : effectiveCategoryIds?.split(',').filter(Boolean) || []
                 if (customCategoryIds.length > 0) {
                     questionWhere.categoryId = { in: customCategoryIds }
                 }
                 break
             }
             case 'date': {
-                if (date) {
-                    questionWhere.airDate = new Date(date)
+                if (effectiveDate) {
+                    questionWhere.airDate = new Date(effectiveDate)
                 }
                 break
             }
         }
 
-        // Add triple stumper filter for challenge mode
-        if (categoryFilter === 'TRIPLE_STUMPER') {
-            questionWhere.wasTripleStumper = true
+        // Add triple stumper / hard challenge filter
+        if (effectiveCategoryFilter === 'TRIPLE_STUMPER') {
+            if (contentSource === 'ORIGINAL_ENGINE') {
+                questionWhere.OR = [{ wasTripleStumper: true }, { difficulty: 'HARD' }]
+            } else {
+                questionWhere.wasTripleStumper = true
+            }
         }
 
         // OPTIMIZED: Use groupBy to get category IDs with question counts
@@ -289,7 +525,8 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const categoryStats = await prisma.question.groupBy({
             by: ['categoryId'],
             where: questionWhere,
-            _count: { id: true }
+            _count: { id: true },
+            orderBy: { categoryId: 'asc' }
         })
         timer.mark(`groupByCategories(${categoryStats.length})`)
 
@@ -303,11 +540,12 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
 
         // For challenge mode: if we don't have enough triple stumper categories, 
         // fall back to regular categories
-        if (categoryFilter === 'TRIPLE_STUMPER' && eligibleCategoryIds.length < 5) {
+        if (effectiveCategoryFilter === 'TRIPLE_STUMPER' && eligibleCategoryIds.length < 5) {
             console.log(`[Challenge Mode] Only ${eligibleCategoryIds.length} triple stumper categories found, falling back to regular categories`)
             
-            // Query for regular categories without the triple stumper filter
+            // Query for regular categories without the triple stumper filter (still source-scoped!)
             const fallbackWhere: Prisma.QuestionWhereInput = {
+                ...baseSourceWhere,
                 round: round,
                 ...(airDateCondition ? { airDate: airDateCondition } : {})
             }
@@ -354,11 +592,11 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         // Select categories based on mode
         let selectedCategoryIds: string[]
         
-        if (mode === 'custom') {
+        if (effectiveMode === 'custom') {
             // Custom mode: use all specified categories in the order they were provided
-            const requestedIds = customCategorySelections.length > 0
-                ? customCategorySelections.map((selection) => selection.categoryId)
-                : categoryIds?.split(',') || []
+            const requestedIds = effectiveCustomCategorySelections.length > 0
+                ? effectiveCustomCategorySelections.map((selection) => selection.categoryId)
+                : effectiveCategoryIds?.split(',').filter(Boolean) || []
             const seenCategoryIds = new Set<string>()
             selectedCategoryIds = requestedIds.filter((id) => {
                 if (!eligibleCategoryIds.includes(id) || seenCategoryIds.has(id)) {
@@ -368,12 +606,12 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 seenCategoryIds.add(id)
                 return true
             })
-        } else if (mode === 'date') {
+        } else if (effectiveMode === 'date') {
             // Date mode: use all categories from that episode (will be filtered by date)
             selectedCategoryIds = eligibleCategoryIds
-        } else if (categoryFilter === 'TRIPLE_STUMPER' && userId) {
+        } else if (effectiveCategoryFilter === 'TRIPLE_STUMPER' && userId) {
             // Challenge mode: Prioritize categories with more triple stumpers that user hasn't answered
-            selectedCategoryIds = await selectChallengeCategories(eligibleCategoryIds, userId, round, seed)
+            selectedCategoryIds = await selectChallengeCategories(eligibleCategoryIds, userId, round, effectiveSeed, contentSource)
             
             // If selectChallengeCategories returns empty, fall back to regular category selection
             if (selectedCategoryIds.length === 0) {
@@ -381,8 +619,8 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 if (eligibleCategoryIds.length <= 5) {
                     selectedCategoryIds = eligibleCategoryIds
                 } else {
-                    selectedCategoryIds = seed 
-                        ? seededShuffle(eligibleCategoryIds, seededRandom(seed + round)).slice(0, 5)
+                    selectedCategoryIds = effectiveSeed 
+                        ? seededShuffle(eligibleCategoryIds, seededRandom(effectiveSeed + round)).slice(0, 5)
                         : eligibleCategoryIds.sort(() => Math.random() - 0.5).slice(0, 5)
                 }
             }
@@ -391,8 +629,8 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             selectedCategoryIds = eligibleCategoryIds
         } else {
             // Random/knowledge mode: select 5 deterministically or randomly
-            if (seed) {
-                const random = seededRandom(seed + round) // Include round for different boards per round
+            if (effectiveSeed) {
+                const random = seededRandom(effectiveSeed + round) // Include round for different boards per round
                 selectedCategoryIds = seededShuffle(eligibleCategoryIds, random).slice(0, 5)
             } else {
                 // Random selection
@@ -411,7 +649,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const categoryNameMap = new Map(categoryNames.map(c => [c.id, c.name]))
         timer.mark('fetchCategoryNames')
         const customCategorySelectionMap = new Map<string, CustomCategorySelection>(
-            customCategorySelections.map((selection) => [selection.categoryId, selection]),
+            effectiveCustomCategorySelections.map((selection) => [selection.categoryId, selection]),
         )
 
         // Define the category type for strong typing
@@ -445,12 +683,13 @@ type CategoryWithQuestions = {
                 //     ? { round: questionWhere.round, ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {}), wasTripleStumper: true }
                 //     : { round: questionWhere.round, ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {}) }
                 
-                const categoryQuestionWhere = {
+                const categoryQuestionWhere: Prisma.QuestionWhereInput = {
+                    ...baseSourceWhere,
                     round: questionWhere.round,
                     ...(questionWhere.airDate ? { airDate: questionWhere.airDate } : {})
                 }
 
-                if (mode === 'custom' && customSelection?.airDate) {
+                if (effectiveMode === 'custom' && customSelection?.airDate) {
                     const questions = await prisma.question.findMany({
                         where: {
                             categoryId,
@@ -473,7 +712,7 @@ type CategoryWithQuestions = {
                 }
                 
                 // For date mode, questions are already filtered by date
-                if (mode === 'date') {
+                if (effectiveMode === 'date') {
                     const questions = await prisma.question.findMany({
                         where: {
                             categoryId,
@@ -537,7 +776,7 @@ type CategoryWithQuestions = {
         timer.mark('fetchQuestions')
 
         // Sort categories by name for consistency (except custom mode preserves order)
-        const sortedCategories = mode === 'custom' 
+        const sortedCategories = effectiveMode === 'custom' 
             ? categoriesWithQuestions 
             : categoriesWithQuestions.sort((a, b) => a.name.localeCompare(b.name))
 
@@ -562,14 +801,54 @@ type CategoryWithQuestions = {
             )
         }
 
+        // Atomically persist immutable board snapshot on first render without clobbering concurrent fields
+        let finalBoard = sortedCategories
+        if (gameId && gameRecord && gameRecord.status === 'IN_PROGRESS') {
+            const snapshotIds = sortedCategories.flatMap(cat => cat.questions.map(q => q.id))
+            if (snapshotIds.length > 0) {
+                const payload = JSON.stringify(snapshotIds)
+                const pathKey = round === 'DOUBLE' ? '{boardSnapshot,DOUBLE}' : '{boardSnapshot,SINGLE}'
+                const roundKey = round === 'DOUBLE' ? 'DOUBLE' : 'SINGLE'
+                const updatedRows = await prisma.$executeRaw`
+                    UPDATE "Game"
+                    SET "config" = jsonb_set(
+                        CASE
+                            WHEN jsonb_typeof(COALESCE("config", '{}'::jsonb) -> 'boardSnapshot') = 'object'
+                                THEN COALESCE("config", '{}'::jsonb)
+                            ELSE jsonb_set(COALESCE("config", '{}'::jsonb), '{boardSnapshot}', '{}'::jsonb, true)
+                        END,
+                        ${pathKey}::text[],
+                        ${payload}::jsonb,
+                        true
+                    )
+                    WHERE "id" = ${gameId}
+                      AND (COALESCE("config", '{}'::jsonb) -> 'boardSnapshot' -> ${roundKey}) IS NULL
+                `
+                // If another concurrent request won the snapshot write, return the winning stored board
+                if (Number(updatedRows) === 0) {
+                    const freshGame = await prisma.game.findUnique({
+                        where: { id: gameId },
+                        select: { config: true }
+                    })
+                    const winningIds = parseBoardSnapshot(freshGame?.config)[round]
+                    if (winningIds && winningIds.length > 0) {
+                        const winningBoard = await buildPinnedBoard(winningIds)
+                        if (winningBoard) {
+                            finalBoard = winningBoard
+                        }
+                    }
+                }
+            }
+        }
+
         // Cache the result for future requests
         if (cacheKey) {
-            setCachedBoard(cacheKey, sortedCategories as CachedCategory[])
+            setCachedBoard(cacheKey, finalBoard as CachedCategory[])
         }
 
         timer.mark('done')
         timer.log()
-        return jsonResponse(sortedCategories)
+        return jsonResponse(finalBoard)
     } catch (error) {
         timer.mark('error')
         timer.log()

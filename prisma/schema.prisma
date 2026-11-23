@@ -262,10 +262,14 @@ model Question {
   id                 String                       @id @default(uuid())
   question           String
   answer             String
+  acceptableAnswers  String[]                     @default([])
   value              Int
   difficulty         Difficulty
   categoryId         String
   knowledgeCategory  KnowledgeCategory
+  source             QuestionSource               @default(LEGACY_JEOPARDY)
+  publishStatus      QuestionPublishStatus        @default(PUBLISHED)
+  generationRunId    String?
   airDate            DateTime?
   season             Int?
   episodeId          String?
@@ -278,6 +282,8 @@ model Question {
   gameHistory        GameHistory[]
   games              GameQuestion[]
   category           Category                     @relation(fields: [categoryId], references: [id])
+  generationRun      QuestionGenerationRun?       @relation(fields: [generationRunId], references: [id], onDelete: SetNull)
+  provenance         QuestionProvenance?
   userProgress       UserProgress[]
   tags               Tag[]                        @relation("QuestionTags")
   answerOverrides    AnswerOverride[]
@@ -291,11 +297,16 @@ model Question {
   @@index([airDate])
   @@index([round])
   @@index([round, airDate]) // Composite index for daily challenge queries
+  @@index([source, publishStatus, round])
+  @@index([source, publishStatus, knowledgeCategory])
+  @@index([source, publishStatus, categoryId])
+  @@index([generationRunId])
 }
 
 model Category {
   id                String                       @id @default(uuid())
-  name              String                       @unique
+  name              String
+  source            QuestionSource               @default(LEGACY_JEOPARDY)
   knowledgeCategory KnowledgeCategory?
   embedding         Unsupported("vector(1536)")?
   createdAt         DateTime                     @default(now())
@@ -303,7 +314,60 @@ model Category {
   questions         Question[]
   userProgress      UserProgress[]
 
+  @@unique([name, source])
   @@index([knowledgeCategory])
+  @@index([source])
+}
+
+model QuestionGenerationRun {
+  id                   String               @id @default(uuid())
+  engineVersion        String
+  modelId              String
+  promptTemplateHash   String
+  merkleRoot           String
+  screeningCorpusCount Int                  @default(0)
+  screeningCorpusHash  String?
+  packReleaseDate      DateTime?            @db.Date
+  totalGenerated       Int                  @default(0)
+  totalPassed          Int                  @default(0)
+  totalRejectedOverlap Int                  @default(0)
+  manifestJson         Json
+  createdAt            DateTime             @default(now())
+  publishedAt          DateTime?
+  questions            Question[]
+  provenances          QuestionProvenance[]
+
+  @@index([createdAt])
+  @@index([merkleRoot])
+}
+
+model QuestionProvenance {
+  id                 String                @id @default(uuid())
+  questionId         String                @unique
+  runId              String
+  licenseSpdx        String                // e.g. 'CC0-1.0' or 'CC0-1.0 AND Public-Domain'
+  sourceBundle       Json                  // Canonical CC0/PD structured facts, entity IDs, revisions, URLs
+  sourceBundleHash   String
+  promptTemplateHash String
+  modelId            String
+  samplingParams     Json                  @default("{}")
+  generatedAt        String                @default("")
+  outputHash         String
+  receiptHash        String                @unique
+  merkleLeafHash     String
+  merkleProof        Json                  // Array of { position: 'left' | 'right', hash: string }
+  overlapMaxScore    Float?
+  overlapPassed      Boolean               @default(false)
+  blindSolverPassed  Boolean               @default(false)
+  qualityScore       Float?
+  verifiedAt         DateTime              @default(now())
+  createdAt          DateTime              @default(now())
+  question           Question              @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  run                QuestionGenerationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([sourceBundleHash])
+  @@index([overlapPassed])
 }
 
 model Tag {
@@ -360,12 +424,13 @@ model Game {
   updatedAt              DateTime @updatedAt
 
   // New fields for resumable games and multiplayer support
-  seed         String?        @unique // Short opaque identifier for sharing/recreating games
-  config       Json? // Full game configuration (mode, categories, rounds, etc.)
-  status       GameStatus     @default(IN_PROGRESS)
-  currentRound JeopardyRound  @default(SINGLE)
-  currentScore Int            @default(0) // Tracks score during gameplay (separate from final score)
-  visibility   GameVisibility @default(PRIVATE)
+  seed          String?        @unique // Short opaque identifier for sharing/recreating games
+  config        Json? // Full game configuration (mode, categories, rounds, etc.)
+  status        GameStatus     @default(IN_PROGRESS)
+  currentRound  JeopardyRound  @default(SINGLE)
+  currentScore  Int            @default(0) // Tracks score during gameplay (separate from final score)
+  visibility    GameVisibility @default(PRIVATE)
+  contentSource QuestionSource @default(LEGACY_JEOPARDY)
 
   // Multiplayer-ready fields (nullable for now)
   opponentUserId String? // For future 2-player games
@@ -396,6 +461,17 @@ enum Difficulty {
   EASY
   MEDIUM
   HARD
+}
+
+enum QuestionSource {
+  LEGACY_JEOPARDY
+  ORIGINAL_ENGINE
+}
+
+enum QuestionPublishStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
 }
 
 enum JeopardyRound {
@@ -581,6 +657,7 @@ model GuestGame {
   status         GameStatus          @default(IN_PROGRESS)
   currentRound   JeopardyRound       @default(SINGLE)
   currentScore   Int                 @default(0)
+  contentSource  QuestionSource      @default(LEGACY_JEOPARDY)
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   guestSession   GuestSession        @relation(fields: [guestSessionId], references: [id], onDelete: Cascade)

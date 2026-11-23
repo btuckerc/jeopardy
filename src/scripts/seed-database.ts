@@ -273,9 +273,10 @@ async function seedDatabase(options: {
         })
         console.log(`   ${categoriesMap.size.toLocaleString()} unique categories`)
         
-        // Get existing categories for deduplication
+        // Get existing LEGACY_JEOPARDY categories for deduplication (never attach legacy clues to ORIGINAL_ENGINE categories)
         console.log('\n🔍 Checking existing categories...')
         const existingCategories = await prisma.category.findMany({
+            where: { source: 'LEGACY_JEOPARDY' },
             select: { id: true, name: true }
         })
         const categoryNameToId = new Map(existingCategories.map(c => [c.name, c.id]))

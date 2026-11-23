@@ -1,38 +1,27 @@
 import { prisma } from '@/lib/prisma'
-import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, serverErrorResponse } from '@/lib/api-utils'
+import { getPlayableQuestionWhere } from '@/lib/question-policy'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
     try {
-        const appUser = await getAppUser()
-        const userId = appUser?.id
+        const playableWhere = getPlayableQuestionWhere('ORIGINAL_ENGINE')
 
-        // Get user's spoiler settings if logged in
-        const user = userId ? await prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                spoilerBlockDate: true,
-                spoilerBlockEnabled: true
-            }
-        }) : null
-
-        // Get all categories with their question counts
+        // Get all ORIGINAL_ENGINE categories with their published question counts
         const categories = await prisma.category.findMany({
-            where: user?.spoilerBlockEnabled ? {
+            where: {
+                source: 'ORIGINAL_ENGINE',
                 questions: {
-                    some: {
-                        airDate: {
-                            lt: user.spoilerBlockDate ?? undefined
-                        }
-                    }
+                    some: playableWhere
                 }
-            } : undefined,
+            },
             include: {
                 _count: {
                     select: {
-                        questions: true
+                        questions: {
+                            where: playableWhere
+                        }
                     }
                 }
             },

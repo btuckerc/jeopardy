@@ -5,6 +5,7 @@ import path from 'path'
 import axios from 'axios'
 import { subDays, format } from 'date-fns'
 import * as cheerio from 'cheerio'
+import { assertJArchiveSyncEnabled } from '../lib/question-policy'
 
 const _prisma = new PrismaClient() // Reserved for future use
 
@@ -23,6 +24,7 @@ interface JeopardyQuestion {
 }
 
 async function getYesterdayGame(): Promise<JeopardyQuestion[]> {
+    assertJArchiveSyncEnabled('fetch-yesterday-questions CLI')
     const yesterday = subDays(new Date(), 1)
     const formattedDate = format(yesterday, 'yyyy-MM-dd')
 

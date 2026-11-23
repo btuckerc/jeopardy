@@ -3,6 +3,7 @@ import { jsonResponse, serverErrorResponse, parseBody, notFoundResponse } from '
 import { z } from 'zod'
 import { checkGuestLimit, getGuestConfig } from '@/lib/guest-sessions'
 import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
+import { canPlayGameContentSource } from '@/lib/question-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,13 +53,34 @@ export async function POST(request: Request, { params }: RouteParams) {
             }, 403)
         }
 
+        // Enforce legacy retirement policy on pre-cutover guest games
+        const playPolicy = canPlayGameContentSource(guestGame.contentSource, guestGame.status, false)
+        if (!playPolicy.allowed) {
+            return jsonResponse(
+                {
+                    error: 'This legacy guest game has been retired. Start a new game from the Original question bank.',
+                    legacyRetired: true
+                },
+                410
+            )
+        }
+
         // Get question
         const question = await prisma.question.findUnique({
             where: { id: body.questionId }
         })
 
-        if (!question) {
+        if (!question || question.publishStatus !== 'PUBLISHED') {
             return notFoundResponse('Question not found')
+        }
+
+        // Under ALLOW_FINISH, pre-cutover legacy guest games fetch new ORIGINAL_ENGINE clues on resume,
+        // while ORIGINAL_ENGINE guest games strictly accept ORIGINAL_ENGINE clues only.
+        const sourceAllowed =
+            question.source === guestGame.contentSource ||
+            (guestGame.contentSource === 'LEGACY_JEOPARDY' && question.source === 'ORIGINAL_ENGINE')
+        if (!sourceAllowed) {
+            return jsonResponse({ error: 'Question does not belong to this game content pool' }, 403)
         }
 
         // Check if question already answered
@@ -129,7 +151,8 @@ export async function POST(request: Request, { params }: RouteParams) {
         const grading = await evaluateAnswerWithOverridesAsync(
             body.answer,
             question.answer,
-            overrides
+            overrides,
+            question.acceptableAnswers
         )
         const correct = grading.accepted
         const points = correct ? (question.value || 0) : -(question.value || 0)

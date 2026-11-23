@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio'
 import { writeFileSync } from 'fs'
 import path from 'path'
 import crypto from 'crypto'
+import { assertJArchiveSyncEnabled } from '../lib/question-policy'
 
 type KnowledgeCategory =
     | 'GEOGRAPHY_AND_HISTORY'
@@ -482,6 +483,8 @@ async function main() {
             console.error('Both --start-date and --end-date are required')
             process.exit(1)
         }
+
+        assertJArchiveSyncEnabled('fetch-jeopardy-data CLI')
 
         console.log('Finding games between', options.startDate, 'and', options.endDate)
 

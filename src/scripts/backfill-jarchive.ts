@@ -28,6 +28,7 @@
 import axios, { AxiosError } from 'axios'
 import * as cheerio from 'cheerio'
 import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs'
+import { assertJArchiveSyncEnabled } from '../lib/question-policy'
 import path from 'path'
 import crypto from 'crypto'
 
@@ -608,6 +609,7 @@ Example:
     }
 
     try {
+        assertJArchiveSyncEnabled('backfill-jarchive CLI')
         await backfill(options)
         process.exit(0)
     } catch (error) {

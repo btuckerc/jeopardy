@@ -102,22 +102,38 @@ export async function GET(_request: Request) {
             _max: { airDate: true }
         })
 
-        // Count total Final Jeopardy questions
+        // Count total published ORIGINAL_ENGINE Final questions (active daily challenge pool)
         const totalFinalQuestions = await prisma.question.count({
             where: {
+                source: 'ORIGINAL_ENGINE',
+                publishStatus: 'PUBLISHED',
                 round: 'FINAL',
-                airDate: { not: null }
             }
         })
 
-        // Count unused Final Jeopardy questions (globally)
+        // Count unused ORIGINAL_ENGINE Final questions (globally)
         const usedQuestionIdsSet = new Set(allUsedQuestionIds.map(c => c.questionId))
+        const usedIdsArray = Array.from(usedQuestionIdsSet)
         const unusedFinalQuestions = await prisma.question.count({
             where: {
+                source: 'ORIGINAL_ENGINE',
+                publishStatus: 'PUBLISHED',
                 round: 'FINAL',
-                airDate: { not: null },
                 id: {
-                    notIn: Array.from(usedQuestionIdsSet)
+                    notIn: usedIdsArray
+                }
+            }
+        })
+
+        // Count unused HARD non-FINAL ORIGINAL_ENGINE fallback questions (so operators see full runway)
+        const unusedHardFallbackQuestions = await prisma.question.count({
+            where: {
+                source: 'ORIGINAL_ENGINE',
+                publishStatus: 'PUBLISHED',
+                round: { not: 'FINAL' },
+                difficulty: 'HARD',
+                id: {
+                    notIn: usedIdsArray
                 }
             }
         })
@@ -187,6 +203,8 @@ export async function GET(_request: Request) {
                 totalFinalQuestions,
                 usedQuestions: usedQuestionIdsSet.size,
                 unusedQuestions: unusedFinalQuestions,
+                unusedHardFallbackQuestions,
+                totalRunwayDays: unusedFinalQuestions + unusedHardFallbackQuestions,
                 unusedInPreferredWindow,
                 preferredWindow: {
                     minDate: preferredMinDate.toISOString(),

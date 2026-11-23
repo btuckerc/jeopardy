@@ -42,10 +42,18 @@ async function loadQuestions(filePath: string) {
         for (const [categoryKey, dateGroups] of categoryGroups) {
             const categoryName = categoryKey.split('_')[0]
 
-            // Find or create category
+            // Find or create category (legacy seed)
             const category = await prisma.category.upsert({
-                where: { name: categoryName },
-                create: { name: categoryName },
+                where: {
+                    name_source: {
+                        name: categoryName,
+                        source: 'LEGACY_JEOPARDY'
+                    }
+                },
+                create: {
+                    name: categoryName,
+                    source: 'LEGACY_JEOPARDY'
+                },
                 update: {}
             })
 
@@ -64,7 +72,7 @@ async function loadQuestions(filePath: string) {
                         value: q.value || determineDifficulty(q.value).value,
                         difficulty: determineDifficulty(q.value).difficulty,
                         airDate: q.airDate ? new Date(q.airDate) : null,
-                        source: q.source || 'jeopardy_archive',
+                        source: 'LEGACY_JEOPARDY' as const,
                         categoryId: category.id,
                         knowledgeCategory: knowledgeCategory
                     }))

@@ -63,7 +63,9 @@ type SelectedRound = 'SINGLE' | 'DOUBLE' | 'FINAL' | null
 type CategoryFilter = 'ALL' | 'SINGLE' | 'DOUBLE' | 'FINAL' | 'TRIPLE_STUMPER'
 
 type CategoryStats = {
+    categoryId?: string
     categoryName: string
+    source?: string
     correct: number
     total: number
     points: number
@@ -98,6 +100,8 @@ type Stats = {
     totalQuestions: number
     totalAnswered: number
     correctAnswers: number
+    originalTotalAnswered?: number
+    originalCorrectAnswers?: number
     tripleStumpersAnswered: number
     categoryStats: CategoryStats[]
     roundStats?: RoundStats[]
@@ -825,7 +829,7 @@ function RoundHistoryModal({
                     <div className="flex flex-wrap gap-3 md:gap-6 mt-4 text-xs md:text-sm">
                         <div>
                             <span className="text-white/70">Attempted:</span>
-                            <span className="ml-1.5 font-semibold">{summary.totalAttempted}/{roundStats?.totalQuestions || 0}</span>
+                            <span className="ml-1.5 font-semibold">{roundStats?.totalAnswered ?? summary.totalAttempted}/{roundStats?.totalQuestions || 0}</span>
                         </div>
                         <div>
                             <span className="text-white/70">Correct:</span>
@@ -1606,7 +1610,9 @@ export default function StatsPage() {
 
     const handleCategoryClick = async (category: CategoryStats) => {
         try {
-            const response = await fetch(`/api/stats/category?name=${encodeURIComponent(category.categoryName)}`)
+            const params = new URLSearchParams({ name: category.categoryName })
+            if (category.categoryId) params.set('id', category.categoryId)
+            const response = await fetch(`/api/stats/category?${params.toString()}`)
             if (!response.ok) throw new Error('Failed to fetch category details')
 
             const data = await response.json()
@@ -1887,10 +1893,14 @@ export default function StatsPage() {
                             Questions Attempted
                         </div>
                         <div className="stat-value">
-                            {stats.totalAnswered.toLocaleString()}
+                            {(stats.originalTotalAnswered ?? stats.totalAnswered).toLocaleString()}
                             <span className="text-lg text-gray-400 font-normal"> / {stats.totalQuestions.toLocaleString()}</span>
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">Questions you&apos;ve answered</p>
+                        <p className="text-xs text-gray-500 mt-2">
+                            {stats.originalTotalAnswered !== undefined && stats.totalAnswered > stats.originalTotalAnswered
+                                ? `${stats.totalAnswered.toLocaleString()} lifetime attempted (incl. archive)`
+                                : 'Questions you\'ve answered'}
+                        </p>
                         <div className="flex items-center gap-1 mt-3 text-xs text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
                             <span>View history</span>
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1911,12 +1921,14 @@ export default function StatsPage() {
                             Accuracy
                         </div>
                         <div className="stat-value text-green-600">
-                            {stats.totalAnswered > 0
-                                ? Math.round((stats.correctAnswers / stats.totalAnswered) * 100)
-                                : 0}%
+                            {(() => {
+                                const denom = stats.originalTotalAnswered ?? stats.totalAnswered
+                                const num = stats.originalCorrectAnswers ?? stats.correctAnswers
+                                return denom > 0 ? Math.round((num / denom) * 100) : 0
+                            })()}%
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                            {stats.correctAnswers.toLocaleString()} correct of {stats.totalAnswered.toLocaleString()} attempted
+                            {(stats.originalCorrectAnswers ?? stats.correctAnswers).toLocaleString()} correct of {(stats.originalTotalAnswered ?? stats.totalAnswered).toLocaleString()} attempted
                         </p>
                         <div className="flex items-center gap-1 mt-3 text-xs text-green-600 opacity-0 group-hover:opacity-100 transition-opacity">
                             <span>View answers</span>
@@ -2315,7 +2327,7 @@ export default function StatsPage() {
                                         
                                         return (
                                             <button
-                                                key={category.categoryName}
+                                                key={category.categoryId ?? category.categoryName}
                                                 onClick={() => handleCategoryClick(category)}
                                                 className="category-card group text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                                                 aria-label={`View ${category.categoryName} details`}
@@ -2396,7 +2408,7 @@ export default function StatsPage() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {visibleNotStartedPage.map((category) => (
                                         <button
-                                            key={category.categoryName}
+                                            key={category.categoryId ?? category.categoryName}
                                             onClick={() => handleCategoryClick(category)}
                                             className="bg-gray-50 border border-gray-200 p-3 md:p-4 rounded-lg hover:bg-white hover:shadow-md hover:border-gray-300 transition-all text-left group focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                                             aria-label={`View ${category.categoryName} details`}

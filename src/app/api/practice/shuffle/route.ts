@@ -7,6 +7,8 @@ import {
     parseSearchParams,
     knowledgeCategorySchema 
 } from '@/lib/api-utils'
+import { getPlayableQuestionWhere } from '@/lib/question-policy'
+import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,8 +26,10 @@ export async function GET(request: Request) {
         
         if (error) return error
 
-        // Build where clause
-        const where: Record<string, unknown> = {}
+        // Build where clause scoped to published ORIGINAL_ENGINE questions
+        const where: Prisma.QuestionWhereInput = {
+            ...getPlayableQuestionWhere('ORIGINAL_ENGINE')
+        }
         
         if (params.category) {
             where.knowledgeCategory = params.category

@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { jsonResponse, serverErrorResponse, parseSearchParams } from '@/lib/api-utils'
+import { getPlayableQuestionWhere } from '@/lib/question-policy'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -21,8 +23,9 @@ export async function GET(request: Request) {
         if (error) return error
         const revealAnswer = searchParams.get('reveal') === 'true'
 
-        // Build where clause - exclude FINAL round for simplicity, and exclude the excluded ID if provided
-        const where: Record<string, unknown> = {
+        // Build where clause - published ORIGINAL_ENGINE questions only, exclude FINAL round
+        const where: Prisma.QuestionWhereInput = {
+            ...getPlayableQuestionWhere('ORIGINAL_ENGINE'),
             round: { not: 'FINAL' }
         }
         

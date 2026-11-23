@@ -70,7 +70,7 @@ async function getOrCreateCategory(categoryName: string): Promise<string> {
             // Try to find existing category using parameterized query
             const result = await prisma.$transaction(async (tx) => {
                 const existingCategories = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-                    'SELECT id FROM "Category" WHERE name = $1 LIMIT 1',
+                    'SELECT id FROM "Category" WHERE name = $1 AND source = \'LEGACY_JEOPARDY\'::"QuestionSource" LIMIT 1',
                     categoryName
                 )
 
@@ -78,11 +78,11 @@ async function getOrCreateCategory(categoryName: string): Promise<string> {
                     return existingCategories[0].id
                 }
 
-                // Create new category if it doesn't exist
+                // Create new LEGACY_JEOPARDY category if it doesn't exist
                 const newId = crypto.randomUUID()
                 const now = new Date()
                 await tx.$executeRawUnsafe(
-                    'INSERT INTO "Category" (id, name, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4) ON CONFLICT (name) DO NOTHING',
+                    'INSERT INTO "Category" (id, name, source, "createdAt", "updatedAt") VALUES ($1, $2, \'LEGACY_JEOPARDY\'::"QuestionSource", $3, $4) ON CONFLICT (name, source) DO NOTHING',
                     newId,
                     categoryName,
                     now,
@@ -91,7 +91,7 @@ async function getOrCreateCategory(categoryName: string): Promise<string> {
 
                 // Double-check if we got the category (in case of race condition)
                 const finalCategories = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-                    'SELECT id FROM "Category" WHERE name = $1 LIMIT 1',
+                    'SELECT id FROM "Category" WHERE name = $1 AND source = \'LEGACY_JEOPARDY\'::"QuestionSource" LIMIT 1',
                     categoryName
                 )
 

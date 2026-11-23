@@ -37,9 +37,14 @@ function determineDifficulty(value: number): 'EASY' | 'MEDIUM' | 'HARD' {
 }
 
 async function getOrCreateCategory(categoryName: string): Promise<string> {
-    // Try to find existing category
-    const existing = await prisma.category.findFirst({
-        where: { name: categoryName },
+    // Scope legacy import strictly to LEGACY_JEOPARDY so original categories are never polluted
+    const existing = await prisma.category.findUnique({
+        where: {
+            name_source: {
+                name: categoryName,
+                source: 'LEGACY_JEOPARDY',
+            },
+        },
         select: { id: true }
     })
 
@@ -47,11 +52,12 @@ async function getOrCreateCategory(categoryName: string): Promise<string> {
         return existing.id
     }
 
-    // Create new category if it doesn't exist
+    // Create new legacy category if it doesn't exist
     const created = await prisma.category.create({
         data: {
             id: crypto.randomUUID(),
-            name: categoryName
+            name: categoryName,
+            source: 'LEGACY_JEOPARDY',
         },
         select: { id: true }
     })

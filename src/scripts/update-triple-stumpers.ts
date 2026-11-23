@@ -6,6 +6,7 @@
 import { PrismaClient } from '@prisma/client'
 import axios from 'axios'
 import * as cheerio from 'cheerio'
+import { assertJArchiveSyncEnabled } from '../lib/question-policy'
 
 const prisma = new PrismaClient()
 
@@ -25,6 +26,7 @@ function cleanText(text: string): string {
 }
 
 async function scrapeEpisodeTripleStumpers(episodeId: string): Promise<Map<string, boolean>> {
+    assertJArchiveSyncEnabled('update-triple-stumpers CLI')
     const tripleStumperMap = new Map<string, boolean>()
     
     try {

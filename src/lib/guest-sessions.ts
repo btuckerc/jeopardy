@@ -199,7 +199,12 @@ export async function claimGuestSession(
                         // Fetch category ID for the redirect
                         try {
                             const category = await prisma.category.findUnique({
-                                where: { name: categoryName }
+                                where: {
+                                    name_source: {
+                                        name: categoryName,
+                                        source: question.source,
+                                    }
+                                }
                             })
                             
                             if (category) {
@@ -228,6 +233,21 @@ export async function claimGuestSession(
                 }
                 
                 if (data.challengeId && typeof data.correct === 'boolean') {
+                    // Verify the challenge still points to the same question the guest answered
+                    // (protects against crediting a pre-cutover answer to a rotated original clue)
+                    const challenge = await prisma.dailyChallenge.findUnique({
+                        where: { id: data.challengeId },
+                        select: { id: true, questionId: true }
+                    })
+
+                    if (!challenge || (data.questionId && challenge.questionId !== data.questionId)) {
+                        await markGuestSessionClaimed(sessionId, userId)
+                        return {
+                            success: false,
+                            error: 'That daily challenge has rotated to a new clue since your guest attempt.'
+                        }
+                    }
+
                     // Check if user already has a completion for this challenge
                     const existing = await prisma.userDailyChallenge.findUnique({
                         where: {
@@ -291,7 +311,7 @@ export async function claimGuestSession(
                  */
                 // Use a transaction to ensure atomicity
                 const result = await prisma.$transaction(async (tx) => {
-                    // Create the actual game
+                    // Create the actual game preserving guestGame contentSource
                     const game = await tx.game.create({
                         data: {
                             userId,
@@ -300,6 +320,7 @@ export async function claimGuestSession(
                             status: guestGame.status,
                             currentRound: guestGame.currentRound,
                             currentScore: guestGame.currentScore,
+                            contentSource: guestGame.contentSource,
                             useKnowledgeCategories: false,
                             completed: guestGame.status === 'COMPLETED',
                             score: guestGame.currentScore

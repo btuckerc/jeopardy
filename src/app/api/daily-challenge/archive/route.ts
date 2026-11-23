@@ -71,27 +71,42 @@ export const GET = withInstrumentation(async (_request: NextRequest) => {
             })
         }
         
-        // Format the response
-        const archiveData = challenges.map(challenge => {
-            const participation = userParticipations[challenge.id]
-            const includeAnswer = revealAnswers || !!participation
-            return {
-                id: challenge.id,
-                date: getDailyChallengeDateKey(challenge.date),
-                question: {
-                    id: challenge.question.id,
-                    question: challenge.question.question,
-                    answer: includeAnswer ? challenge.question.answer : null,
-                    category: challenge.question.category.name,
-                    airDate: challenge.question.airDate
-                },
-                participation: participation ? {
-                    correct: participation.correct,
-                    completedAt: participation.completedAt,
-                    userAnswerText: participation.userAnswerText
-                } : null
-            }
-        })
+        // Format the response:
+        // - ORIGINAL_ENGINE challenges are playable by everyone
+        // - LEGACY_JEOPARDY challenges are only visible to admins or users who already completed them (read-only history)
+        const isAdmin = user?.role === 'ADMIN'
+        const archiveData = challenges
+            .filter(challenge => {
+                if (
+                    challenge.question.source === 'ORIGINAL_ENGINE' &&
+                    challenge.question.publishStatus === 'PUBLISHED'
+                ) {
+                    return true
+                }
+                if (isAdmin) return true
+                return Boolean(userParticipations[challenge.id])
+            })
+            .map(challenge => {
+                const participation = userParticipations[challenge.id]
+                const includeAnswer = revealAnswers || !!participation
+                return {
+                    id: challenge.id,
+                    date: getDailyChallengeDateKey(challenge.date),
+                    question: {
+                        id: challenge.question.id,
+                        question: challenge.question.question,
+                        answer: includeAnswer ? challenge.question.answer : null,
+                        category: challenge.question.category.name,
+                        airDate: challenge.question.airDate,
+                        source: challenge.question.source
+                    },
+                    participation: participation ? {
+                        correct: participation.correct,
+                        completedAt: participation.completedAt,
+                        userAnswerText: participation.userAnswerText
+                    } : null
+                }
+            })
         
         return jsonResponse({
             challenges: archiveData,

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getGuestConfig } from '@/lib/guest-sessions'
 import DailyChallengeClient from './DailyChallengeClient'
 import { Metadata } from 'next'
-import { setupDailyChallenge } from '../api/daily-challenge/route'
+import { ensureOriginalDailyChallenge } from '../api/daily-challenge/route'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
 import { JsonLd } from '@/components/JsonLd'
 
@@ -78,61 +78,17 @@ export default async function DailyChallengePage() {
     let challenge: DailyChallenge | null = null
     let leaderboard: LeaderboardEntry[] = []
 
+    let challengeQuestionSource: string | null = null
     try {
         // Get the active challenge date (based on 9AM ET boundary)
         const challengeDate = getActiveChallengeDate()
 
-        // Get today's challenge, create if it doesn't exist
-        let challengeData = await prisma.dailyChallenge.findUnique({
-            where: { date: challengeDate },
-            include: {
-                question: {
-                    include: {
-                        category: true
-                    }
-                }
-            }
-        })
-
-        // If no challenge exists, try to create one (may fail if no questions available)
-        if (!challengeData) {
-            try {
-                const createdChallenge = await setupDailyChallenge(challengeDate)
-                if (createdChallenge) {
-                    challengeData = createdChallenge
-                } else {
-                    // Setup returned null, try fetching anyway (might have been created by another request)
-                    challengeData = await prisma.dailyChallenge.findUnique({
-                        where: { date: challengeDate },
-                        include: {
-                            question: {
-                                include: {
-                                    category: true
-                                }
-                            }
-                        }
-                    })
-                }
-            } catch (error: unknown) {
-                // If it's a unique constraint error, challenge was created by another request
-                if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
-                    challengeData = await prisma.dailyChallenge.findUnique({
-                        where: { date: challengeDate },
-                        include: {
-                            question: {
-                                include: {
-                                    category: true
-                                }
-                            }
-                        }
-                    })
-                } else {
-                    console.error('Error setting up daily challenge:', error)
-                }
-            }
-        }
+        // Get or rotate today's challenge so pre-generated unplayed legacy rows switch to ORIGINAL_ENGINE
+        const challengeData = await ensureOriginalDailyChallenge(challengeDate)
 
         if (challengeData) {
+            challengeQuestionSource = challengeData.question.source
+            const isAdmin = user?.role === 'ADMIN'
             // Fetch user answer, guest config, and leaderboard in parallel
             const [userChallenge, guestConfig, completions] = await Promise.all([
                 user
@@ -173,32 +129,43 @@ export default async function DailyChallengePage() {
                 }
                 : null
 
-            challenge = {
-                id: challengeData.id,
-                date: challengeData.date.toISOString(),
-                question: {
-                    id: challengeData.question.id,
-                    question: challengeData.question.question,
-                    answer: challengeData.question.answer,
-                    category: challengeData.question.category.name,
-                    airDate: challengeData.question.airDate?.toISOString() || null
-                },
-                userAnswer,
-                guestConfig: {
-                    guestEnabled: guestConfig.dailyChallengeGuestEnabled,
-                    guestAppearsOnLeaderboard: guestConfig.dailyChallengeGuestAppearsOnLeaderboard
-                }
-            }
+            // Mirror GET /api/daily-challenge mid-day cutover guard:
+            // never render a non-published or LEGACY_JEOPARDY clue/answer in SSR HTML or JSON-LD
+            // to non-admin users who did not already participate before cutover.
+            const canExposeChallenge =
+                isAdmin ||
+                Boolean(userAnswer) ||
+                (challengeData.question.source === 'ORIGINAL_ENGINE' &&
+                    challengeData.question.publishStatus === 'PUBLISHED')
 
-            leaderboard = completions.map((completion, index) => ({
-                rank: index + 1,
-                userId: completion.user.id,
-                displayName: completion.user.displayName || 'Anonymous',
-                selectedIcon: completion.user.selectedIcon,
-                avatarBackground: completion.user.avatarBackground,
-                correct: completion.correct,
-                completedAt: completion.completedAt.toISOString()
-            }))
+            if (canExposeChallenge) {
+                challenge = {
+                    id: challengeData.id,
+                    date: challengeData.date.toISOString(),
+                    question: {
+                        id: challengeData.question.id,
+                        question: challengeData.question.question,
+                        answer: challengeData.question.answer,
+                        category: challengeData.question.category.name,
+                        airDate: challengeData.question.airDate?.toISOString() || null
+                    },
+                    userAnswer,
+                    guestConfig: {
+                        guestEnabled: guestConfig.dailyChallengeGuestEnabled,
+                        guestAppearsOnLeaderboard: guestConfig.dailyChallengeGuestAppearsOnLeaderboard
+                    }
+                }
+
+                leaderboard = completions.map((completion, index) => ({
+                    rank: index + 1,
+                    userId: completion.user.id,
+                    displayName: completion.user.displayName || 'Anonymous',
+                    selectedIcon: completion.user.selectedIcon,
+                    avatarBackground: completion.user.avatarBackground,
+                    correct: completion.correct,
+                    completedAt: completion.completedAt.toISOString()
+                }))
+            }
         }
     } catch (error) {
         console.error('Error fetching daily challenge:', error)
@@ -221,7 +188,7 @@ export default async function DailyChallengePage() {
             },
             author: {
                 '@type': 'Organization',
-                name: 'Jeopardy!',
+                name: challengeQuestionSource === 'ORIGINAL_ENGINE' ? 'trivrdy' : 'Jeopardy!',
             },
             datePublished: challenge.question.airDate || challenge.date,
             about: {

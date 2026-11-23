@@ -6,6 +6,7 @@
  */
 
 import { jsonResponse, serverErrorResponse, requireAdmin, parseSearchParams } from '@/lib/api-utils'
+import { isJArchiveSyncEnabled } from '@/lib/question-policy'
 import { z } from 'zod'
 import { 
     parseGameById, 
@@ -23,6 +24,15 @@ const searchParamsSchema = z.object({
 export async function GET(request: Request) {
     const { error: authError } = await requireAdmin()
     if (authError) return authError
+
+    if (!isJArchiveSyncEnabled()) {
+        return jsonResponse({
+            success: false,
+            disabled: true,
+            message: 'J-Archive fetching is disabled. Set ENABLE_JARCHIVE_SYNC=true to allow legacy admin fetches.',
+            game: null
+        }, 403)
+    }
 
     const { searchParams } = new URL(request.url)
     const { data: params, error } = parseSearchParams(searchParams, searchParamsSchema)

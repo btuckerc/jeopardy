@@ -46,7 +46,7 @@ Dockerfile*
 README.md
 docs
 
-# Data files (if large)
+# Data files (exclude legacy J-Archive JSONs from production images)
 data/*.json
-!data/initial_questions.json
+!data/original-packs/*.json
 

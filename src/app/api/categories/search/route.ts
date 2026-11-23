@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, serverErrorResponse } from '@/lib/api-utils'
+import { getPlayableQuestionWhere } from '@/lib/question-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -92,21 +93,15 @@ export async function GET(request: NextRequest) {
             return jsonResponse([])
         }
 
-        const user = userId ? await prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                spoilerBlockDate: true,
-                spoilerBlockEnabled: true,
-            },
-        }) : null
+        const playableWhere = getPlayableQuestionWhere('ORIGINAL_ENGINE')
 
         if (variantMode === EPISODE_VARIANT_MODE) {
             const questionWhere: Prisma.QuestionWhereInput = {
+                ...playableWhere,
                 ...(round ? { round } : {}),
                 ...(excludeIds.length > 0 ? { categoryId: { notIn: excludeIds } } : {}),
                 airDate: {
                     not: null,
-                    ...(user?.spoilerBlockEnabled ? { lt: user.spoilerBlockDate ?? undefined } : {}),
                 },
                 ...(query ? {
                     category: {
@@ -206,13 +201,9 @@ export async function GET(request: NextRequest) {
         }
 
         const questionWhere: Prisma.QuestionWhereInput = {
+            ...playableWhere,
             ...(round ? { round } : {}),
             ...(excludeIds.length > 0 ? { categoryId: { notIn: excludeIds } } : {}),
-            ...(user?.spoilerBlockEnabled ? {
-                airDate: {
-                    lt: user.spoilerBlockDate ?? undefined,
-                },
-            } : {}),
             ...(query ? {
                 category: {
                     name: {

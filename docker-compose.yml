@@ -35,6 +35,9 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       # Cron jobs
       CRON_SECRET: ${CRON_SECRET}
+      # Original Question Engine & Legacy Cutover Policy
+      ENABLE_JARCHIVE_SYNC: ${ENABLE_JARCHIVE_SYNC:-false}
+      LEGACY_IN_PROGRESS_POLICY: ${LEGACY_IN_PROGRESS_POLICY:-ALLOW_FINISH}
       # Email/SMTP configuration
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}

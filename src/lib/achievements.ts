@@ -256,7 +256,12 @@ async function getAchievementStats(userId: string, _event: AchievementEvent) {
             where: {
                 userId,
                 correct: true,
-                question: { wasTripleStumper: true }
+                question: {
+                    OR: [
+                        { wasTripleStumper: true },
+                        { source: 'ORIGINAL_ENGINE', difficulty: 'HARD' }
+                    ]
+                }
             }
         }),
         prisma.game.count({

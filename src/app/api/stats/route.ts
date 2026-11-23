@@ -10,6 +10,7 @@ import {
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { NextRequest } from 'next/server'
 import { getStatsPoints, FINAL_STATS_CLUE_VALUE, DEFAULT_STATS_CLUE_VALUE } from '@/lib/scoring'
+import { getPlayableQuestionSql, getPlayableQuestionWhere } from '@/lib/question-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,10 +39,13 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             return forbiddenResponse('Sign in to access another user\'s statistics')
         }
 
+        const playableWhere = getPlayableQuestionWhere('ORIGINAL_ENGINE')
+        const playableSql = getPlayableQuestionSql('q', 'ORIGINAL_ENGINE')
+
         if (!userId) {
-            // For public stats, return general statistics without user-specific data
-            const totalQuestions = await prisma.question.count()
-            const totalCategories = await prisma.category.count()
+            // For public stats, return general statistics for the active ORIGINAL_ENGINE pool
+            const totalQuestions = await prisma.question.count({ where: playableWhere })
+            const totalCategories = await prisma.category.count({ where: { source: 'ORIGINAL_ENGINE' } })
             
             return jsonResponse({
                 totalQuestions,
@@ -54,13 +58,14 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 knowledgeCategoryStats: []
             })
         }
-        // Get knowledge category totals
+        // Get knowledge category totals (active ORIGINAL_ENGINE pool)
         const knowledgeCategoryTotals = await prisma.$queryRaw`
             SELECT 
-                "knowledgeCategory",
-                COUNT(DISTINCT id) as total_questions
-            FROM "Question"
-            GROUP BY "knowledgeCategory"
+                q."knowledgeCategory",
+                COUNT(DISTINCT q.id) as total_questions
+            FROM "Question" q
+            WHERE ${playableSql}
+            GROUP BY q."knowledgeCategory"
         ` as Array<{ knowledgeCategory: string; total_questions: number }>
 
         // Get latest answers for each question with knowledge categories
@@ -78,10 +83,13 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             SELECT 
                 la.*,
                 q."wasTripleStumper",
+                q.difficulty,
                 q."categoryId",
                 q."knowledgeCategory",
                 q.round,
                 q.value,
+                q.source,
+                q."publishStatus",
                 c.name as "categoryName"
             FROM LatestAnswers la
             JOIN "Question" q ON q.id = la."questionId"
@@ -91,20 +99,24 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             correct: boolean
             points: number
             wasTripleStumper: boolean
+            difficulty: string
             categoryId: string
             categoryName: string
             knowledgeCategory: string
             round: string
             value: number | null
+            source: string
+            publishStatus: string
         }>
 
-        // Get round breakdown for all questions (to support filtering not-started categories)
+        // Get round breakdown for active ORIGINAL_ENGINE questions
         const allQuestionsRoundBreakdown = await prisma.$queryRaw`
             SELECT 
                 q."categoryId",
                 q.round,
                 COUNT(*) as question_count
             FROM "Question" q
+            WHERE ${playableSql}
             GROUP BY q."categoryId", q.round
         ` as Array<{
             categoryId: string
@@ -112,20 +124,20 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             question_count: number
         }>
 
-        // Get total triple stumper count per category (to support filtering not-started categories)
+        // Get total triple stumper / hard-tier challenge count per category (active ORIGINAL_ENGINE pool)
         const tripleStumpersTotal = await prisma.$queryRaw`
             SELECT 
                 q."categoryId",
                 COUNT(*) as triple_stumper_count
             FROM "Question" q
-            WHERE q."wasTripleStumper" = true
+            WHERE (q."wasTripleStumper" = true OR q.difficulty = 'HARD') AND ${playableSql}
             GROUP BY q."categoryId"
         ` as Array<{
             categoryId: string
             triple_stumper_count: number
         }>
 
-        // Calculate total statistics using normalized scoring
+        // Calculate lifetime total statistics across ALL historical + original answers
         const totalPoints = latestAnswers
             .filter(record => record.correct)
             .reduce((sum, record) => {
@@ -140,12 +152,19 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const totalAnswered = latestAnswers.length
         const correctAnswers = latestAnswers.filter(record => record.correct).length
         const tripleStumpersAnswered = latestAnswers
-            .filter(record => record.correct && record.wasTripleStumper)
+            .filter(record => record.correct && (record.wasTripleStumper || (record.source === 'ORIGINAL_ENGINE' && record.difficulty === 'HARD')))
             .length
 
-        // Calculate knowledge category stats using normalized scoring
+        // Scope progress ratios strictly to published ORIGINAL_ENGINE so numerators and denominators match
+        const originalLatestAnswers = latestAnswers.filter(
+            a => a.source === 'ORIGINAL_ENGINE' && a.publishStatus === 'PUBLISHED'
+        )
+        const originalTotalAnswered = originalLatestAnswers.length
+        const originalCorrectAnswers = originalLatestAnswers.filter(a => a.correct).length
+
+        // Calculate knowledge category stats (numerator & denominator both scoped to ORIGINAL_ENGINE)
         const knowledgeCategoryStats = knowledgeCategoryTotals.map(kc => {
-            const answersInCategory = latestAnswers.filter(
+            const answersInCategory = originalLatestAnswers.filter(
                 a => a.knowledgeCategory === kc.knowledgeCategory
             )
             const correctAnswersInCategory = answersInCategory.filter(a => a.correct)
@@ -165,13 +184,25 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             }
         })
 
-        // Calculate category stats
+        // Include all ORIGINAL_ENGINE categories + only legacy categories where the user has recorded answers
+        const answeredCategoryIds = Array.from(new Set(latestAnswers.map(a => a.categoryId)))
         const categories = await prisma.category.findMany({
+            where: {
+                OR: [
+                    { source: 'ORIGINAL_ENGINE' },
+                    ...(answeredCategoryIds.length > 0 ? [{ id: { in: answeredCategoryIds } }] : [])
+                ]
+            },
             include: {
                 _count: {
-                    select: { questions: true }
+                    select: {
+                        questions: {
+                            where: { publishStatus: 'PUBLISHED' }
+                        }
+                    }
                 },
                 questions: {
+                    where: { publishStatus: 'PUBLISHED' },
                     orderBy: {
                         airDate: 'desc'
                     },
@@ -185,7 +216,9 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
 
         const categoryStatsMap = categories.reduce((acc, category) => {
             acc[category.id] = {
+                categoryId: category.id,
                 categoryName: category.name,
+                source: category.source,
                 correct: 0,
                 total: category._count.questions,
                 points: 0,
@@ -205,7 +238,9 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             }
             return acc
         }, {} as Record<string, {
+            categoryId: string
             categoryName: string
+            source: string
             correct: number
             total: number
             points: number
@@ -241,6 +276,11 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         latestAnswers.forEach(record => {
             if (record.correct) {
                 const categoryStat = categoryStatsMap[record.categoryId]
+                if (!categoryStat) return
+                // For active ORIGINAL_ENGINE categories, keep category progress numerator aligned with published denominator
+                if (categoryStat.source === 'ORIGINAL_ENGINE' && record.publishStatus !== 'PUBLISHED') {
+                    return
+                }
                 categoryStat.correct++
                 categoryStat.points += getStatsPoints({
                     round: record.round,
@@ -254,23 +294,24 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                     categoryStat.roundBreakdown[record.round as 'SINGLE' | 'DOUBLE' | 'FINAL']++
                 }
                 
-                // Track triple stumpers
-                if (record.wasTripleStumper) {
+                // Track triple stumpers / hard-tier originals
+                if (record.wasTripleStumper || (record.source === 'ORIGINAL_ENGINE' && record.difficulty === 'HARD')) {
                     categoryStat.tripleStumpersCorrect++
                 }
             }
         })
 
         const categoryStats = Object.values(categoryStatsMap)
-        const totalQuestions = categories.reduce((sum, cat) => sum + cat._count.questions, 0)
+        const totalQuestions = await prisma.question.count({ where: playableWhere })
 
-        // Calculate round-based stats (Single, Double, Final Jeopardy)
+        // Calculate round-based stats (Single, Double, Final) for the active ORIGINAL_ENGINE pool
         const roundTotals = await prisma.$queryRaw`
             SELECT 
-                round,
-                COUNT(DISTINCT id) as total_questions
-            FROM "Question"
-            GROUP BY round
+                q.round,
+                COUNT(DISTINCT q.id) as total_questions
+            FROM "Question" q
+            WHERE ${playableSql}
+            GROUP BY q.round
         ` as Array<{ round: string; total_questions: number }>
 
         const roundAnswers = await prisma.$queryRaw`
@@ -294,6 +335,7 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 END) as total_points
             FROM LatestAnswers la
             JOIN "Question" q ON q.id = la."questionId"
+            WHERE ${playableSql}
             GROUP BY q.round
         ` as Array<{ 
             round: string
@@ -325,6 +367,8 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             totalQuestions,
             totalAnswered,
             correctAnswers,
+            originalTotalAnswered,
+            originalCorrectAnswers,
             tripleStumpersAnswered,
             accuracy: totalAnswered > 0 ? Math.round((correctAnswers / totalAnswered) * 100) : 0,
             knowledgeCategoryStats,

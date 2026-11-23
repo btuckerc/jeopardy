@@ -35,6 +35,10 @@
     "db:backfill": "ts-node --project tsconfig.json src/scripts/backfill-jarchive.ts",
     "db:update-triple-stumpers": "ts-node --project tsconfig.json src/scripts/update-triple-stumpers.ts",
     "db:pre-generate-challenges": "ts-node --project tsconfig.json src/scripts/pre-generate-daily-challenges.ts",
+    "engine:generate": "ts-node --project tsconfig.json src/scripts/generate-original-questions.ts",
+    "engine:seal": "ts-node --project tsconfig.json src/scripts/seal-original-pack.ts",
+    "engine:publish": "ts-node --project tsconfig.json src/scripts/publish-original-pack.ts",
+    "engine:snapshot-legacy": "ts-node --project tsconfig.json src/scripts/snapshot-legacy-games.ts",
     "prepare": "npm run db:generate"
   },
   "dependencies": {

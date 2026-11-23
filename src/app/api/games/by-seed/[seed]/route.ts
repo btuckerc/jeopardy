@@ -102,7 +102,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const originalGame = await prisma.game.findFirst({
             where: { seed },
             select: {
-                config: true
+                config: true,
+                contentSource: true
             }
         })
 
@@ -112,6 +113,17 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
         const config = originalGame.config as Record<string, unknown> | null
 
+        // Legacy date/custom seeds tied to legacy episode IDs cannot be cloned into new original games
+        if (
+            originalGame.contentSource === 'LEGACY_JEOPARDY' &&
+            (config?.mode === 'date' || config?.mode === 'custom')
+        ) {
+            return jsonResponse(
+                { error: 'This legacy episode/custom seed cannot be replayed as a new game. Start a new game from the Original question bank.' },
+                400
+            )
+        }
+
         // Determine starting round
         const rounds = (config?.rounds as { single?: boolean; double?: boolean; final?: boolean } | undefined) || { single: true, double: true, final: false }
         const startingRound = rounds.single ? 'SINGLE' : rounds.double ? 'DOUBLE' : 'SINGLE'
@@ -120,26 +132,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         const newSeed = nanoid(10)
 
         // Compute the spoiler protection policy for this new game instance.
-        // Each player gets their own Game row (for now), so we compute the policy
-        // based on the joining user's current profile settings.
-        //
-        // NOTE: When we move to a true shared Game with opponentUserId,
-        // we will instead compute spoilerProtection from ALL participants'
-        // profiles once and keep it fixed for the entire game.
         const userPolicy = await computeUserEffectiveCutoff(appUser.id)
         const spoilerProtection = toStoredPolicy(userPolicy)
 
-        // Build JSON-safe game configuration to store
+        // Strip any runtime board/Final state when cloning a seed into a fresh ORIGINAL_ENGINE game
+        const {
+            boardSnapshot: _ignoredSnapshot,
+            finalJeopardyQuestionId: _ignoredFjId,
+            finalJeopardyStage: _ignoredFjStage,
+            finalJeopardyWager: _ignoredFjWager,
+            ...restConfig
+        } = (config || {}) as Record<string, unknown>
         const gameConfigToStore = {
-            ...config,
-            // Store reference to original seed for tracking
+            ...restConfig,
+            ...(originalGame.contentSource === 'ORIGINAL_ENGINE' && config?.boardSnapshot
+                ? { boardSnapshot: config.boardSnapshot }
+                : {}),
             originalSeed: seed,
-            // Use the joining user's spoiler protection policy
-            // This replaces any spoilerProtection from the original game
             spoilerProtection
         } as unknown as Prisma.InputJsonValue
 
-        // Create a new game with the same config but the new user's spoiler policy
+        // Create a new game using ORIGINAL_ENGINE
         const newGame = await prisma.game.create({
             data: {
                 userId: appUser.id,
@@ -149,6 +162,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
                 currentRound: startingRound,
                 currentScore: 0,
                 visibility: 'PRIVATE',
+                contentSource: 'ORIGINAL_ENGINE',
                 useKnowledgeCategories: config?.mode === 'knowledge'
             }
         })

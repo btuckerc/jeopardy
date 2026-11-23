@@ -6,6 +6,7 @@ import HomepageClient from './HomepageClient'
 import DailyChallengeCardClient from './components/DailyChallengeCardClient'
 import OnboardingTour from './components/OnboardingTour'
 import { getActiveChallengeDate } from '@/lib/daily-challenge-utils'
+import { ensureOriginalDailyChallenge } from '@/app/api/daily-challenge/route'
 
 export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
@@ -19,21 +20,10 @@ async function getDailyChallenge(userId: string | null) {
         // Get the active challenge date (based on 9AM ET boundary)
         const challengeDate = getActiveChallengeDate()
         
-        // Check if challenge exists for today
-        const challenge = await prisma.dailyChallenge.findUnique({
-            where: { date: challengeDate },
-            include: {
-                question: {
-                    include: {
-                        category: true
-                    }
-                }
-            }
-        })
+        // Resolve today's active ORIGINAL_ENGINE challenge (rotating unplayed pre-generated legacy rows)
+        const challenge = await ensureOriginalDailyChallenge(challengeDate)
 
-        // If no challenge exists, we'll let the API handle creation on first request
-        // For now, just return null to avoid blocking the page
-        if (!challenge) {
+        if (!challenge || challenge.question.source !== 'ORIGINAL_ENGINE' || challenge.question.publishStatus !== 'PUBLISHED') {
             return null
         }
 

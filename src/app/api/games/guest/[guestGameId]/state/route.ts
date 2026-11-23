@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { jsonResponse, serverErrorResponse, notFoundResponse } from '@/lib/api-utils'
 import { getGuestConfig } from '@/lib/guest-sessions'
+import { canPlayGameContentSource } from '@/lib/question-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,15 @@ export async function GET(request: Request, { params }: RouteParams) {
                 error: 'Guest session expired or already claimed',
                 requiresAuth: true
             }, 403)
+        }
+
+        // Enforce legacy retirement policy before serving a clue
+        const playPolicy = canPlayGameContentSource(guestGame.contentSource, guestGame.status, false)
+        if (!playPolicy.allowed) {
+            return jsonResponse({
+                error: 'This legacy guest game has been retired. Start a new game from the Original question bank.',
+                legacyRetired: true
+            }, 410)
         }
 
         // Check guest limits

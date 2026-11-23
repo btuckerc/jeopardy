@@ -11,6 +11,7 @@ import { subDays, format } from 'date-fns'
 import { parseGameByDate, JeopardyRound } from '@/lib/jarchive-scraper'
 import { withCronLogging } from '@/lib/cron-logger'
 import { CRON_JOBS } from '@/lib/cron-jobs'
+import { isJArchiveSyncEnabled } from '@/lib/question-policy'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // Maximum allowed duration for hobby plan (in seconds)
@@ -33,6 +34,14 @@ export async function GET(request: Request) {
         const triggeredBy = request.headers.get('x-triggered-by') || 'scheduled'
 
         const executeJob = async () => {
+            if (!isJArchiveSyncEnabled()) {
+                return {
+                    success: false,
+                    disabled: true,
+                    message: 'J-Archive scraping is disabled in production. Set ENABLE_JARCHIVE_SYNC=true only for explicit legacy sync.'
+                }
+            }
+
             const yesterday = subDays(new Date(), 1)
             const formattedDate = format(yesterday, 'yyyy-MM-dd')
 
@@ -59,11 +68,17 @@ export async function GET(request: Request) {
 
                 await prisma.$transaction(async (tx) => {
                     for (const question of game.questions) {
-                        // First, get or create the category
+                        // First, get or create the category (legacy J-Archive source)
                         const category = await tx.category.upsert({
-                            where: { name: question.category },
+                            where: {
+                                name_source: {
+                                    name: question.category,
+                                    source: 'LEGACY_JEOPARDY',
+                                }
+                            },
                             create: { 
                                 name: question.category,
+                                source: 'LEGACY_JEOPARDY',
                                 knowledgeCategory: question.knowledgeCategory
                             },
                             update: {}

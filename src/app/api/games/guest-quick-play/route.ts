@@ -38,7 +38,7 @@ export async function POST(_request: Request) {
             config: gameConfigToStore
         })
 
-        // Create the guest game
+        // Create the guest game (always ORIGINAL_ENGINE for new guest games)
         const guestGame = await prisma.guestGame.create({
             data: {
                 guestSessionId: session.id,
@@ -46,7 +46,8 @@ export async function POST(_request: Request) {
                 config: gameConfigToStore,
                 status: 'IN_PROGRESS',
                 currentRound: 'SINGLE',
-                currentScore: 0
+                currentScore: 0,
+                contentSource: 'ORIGINAL_ENGINE'
             }
         })
 

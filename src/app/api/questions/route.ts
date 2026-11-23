@@ -11,6 +11,11 @@ import {
     difficultySchema,
     paginationSchema
 } from '@/lib/api-utils'
+import {
+    getPlayableQuestionWhere,
+    resolveRequestedContentSource,
+    shouldApplySpoilerFilter
+} from '@/lib/question-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +24,7 @@ const questionsParamsSchema = z.object({
     category: z.string().optional(),
     knowledgeCategory: knowledgeCategorySchema.optional(),
     difficulty: difficultySchema.optional(),
+    source: z.enum(['ORIGINAL_ENGINE', 'LEGACY_JEOPARDY']).optional(),
     airDateFrom: z.string().optional(),
     airDateTo: z.string().optional(),
     ...paginationSchema.shape
@@ -32,12 +38,14 @@ export async function GET(request: Request) {
 
         if (error) return error
 
-        // Get user's spoiler settings if logged in
+        // Resolve effective content source (LEGACY_JEOPARDY strictly restricted to admins)
         const user = await getAuthenticatedUser()
+        const effectiveSource = resolveRequestedContentSource(params.source, user?.role === 'ADMIN')
+
         let spoilerBlockDate: Date | null = null
         let spoilerBlockEnabled = false
 
-        if (user) {
+        if (user && shouldApplySpoilerFilter(effectiveSource)) {
             const userSettings = await prisma.user.findUnique({
                 where: { id: user.id },
                 select: {
@@ -52,8 +60,10 @@ export async function GET(request: Request) {
             }
         }
 
-        // Build where clause
-        const where: Prisma.QuestionWhereInput = {}
+        // Build where clause scoped to effectiveSource + PUBLISHED
+        const where: Prisma.QuestionWhereInput = {
+            ...getPlayableQuestionWhere(effectiveSource)
+        }
 
         // Spoiler protection
         if (spoilerBlockEnabled) {

@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { setupDailyChallenge } from '@/app/api/daily-challenge/route'
+import { ensureOriginalDailyChallenge } from '@/app/api/daily-challenge/route'
 import { withCronLogging } from '@/lib/cron-logger'
 import { CRON_JOBS } from '@/lib/cron-jobs'
 
@@ -54,20 +54,29 @@ export async function GET(request: Request) {
                 const dateStr = targetDate.toISOString().split('T')[0]
 
                 try {
-                    // Check if challenge already exists
+                    // Check if an ORIGINAL_ENGINE challenge already exists; rotate unplayed legacy rows
                     const existing = await prisma.dailyChallenge.findUnique({
                         where: { date: targetDate },
                         include: {
                             question: {
                                 select: {
                                     id: true,
-                                    airDate: true
+                                    airDate: true,
+                                    source: true,
+                                    publishStatus: true,
                                 }
-                            }
+                            },
+                            _count: { select: { completions: true } },
                         }
                     })
 
-                    if (existing) {
+                    if (
+                        existing &&
+                        (
+                            (existing.question?.source === 'ORIGINAL_ENGINE' && existing.question?.publishStatus === 'PUBLISHED') ||
+                            existing._count.completions > 0
+                        )
+                    ) {
                         skipped++
                         results.push({ 
                             date: dateStr, 
@@ -79,8 +88,8 @@ export async function GET(request: Request) {
                         continue
                     }
 
-                    // Create challenge (setupDailyChallenge handles retries internally and excludes used questions)
-                    const challenge = await setupDailyChallenge(targetDate)
+                    // Create or rotate challenge into published ORIGINAL_ENGINE pool
+                    const challenge = await ensureOriginalDailyChallenge(targetDate)
 
                     if (challenge) {
                         created++

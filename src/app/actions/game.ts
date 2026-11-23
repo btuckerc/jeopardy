@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import crypto from 'crypto'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
+import { getPlayableQuestionWhere } from '@/lib/question-policy'
 
 type GameCategory = {
     id: string
@@ -19,35 +20,21 @@ type GameCategory = {
 
 export async function createNewGame(userId: string): Promise<{ gameId: string, categories: GameCategory[] }> {
     try {
-        // Get user's spoiler settings
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                spoilerBlockDate: true,
-                spoilerBlockEnabled: true
-            }
-        })
+        const playableWhere = getPlayableQuestionWhere('ORIGINAL_ENGINE')
 
-        // First get all categories with their question counts and respect spoiler settings
+        // First get all ORIGINAL_ENGINE categories with their published question counts
         const categoriesWithCounts = await prisma.category.findMany({
             where: {
+                source: 'ORIGINAL_ENGINE',
                 questions: {
-                    some: user?.spoilerBlockEnabled ? {
-                        airDate: {
-                            lt: user.spoilerBlockDate ?? undefined
-                        }
-                    } : {}
+                    some: playableWhere
                 }
             },
             include: {
                 _count: {
                     select: { 
                         questions: {
-                            where: user?.spoilerBlockEnabled ? {
-                                airDate: {
-                                    lt: user.spoilerBlockDate ?? undefined
-                                }
-                            } : undefined
+                            where: playableWhere
                         }
                     }
                 }
@@ -68,14 +55,15 @@ export async function createNewGame(userId: string): Promise<{ gameId: string, c
             .sort(() => Math.random() - 0.5)
             .slice(0, 5)
 
-        // Create a new game
+        // Create a new game using ORIGINAL_ENGINE
         const game = await prisma.game.create({
             data: {
                 id: crypto.randomUUID(),
                 userId,
                 useKnowledgeCategories: false,
                 score: 0,
-                completed: false
+                completed: false,
+                contentSource: 'ORIGINAL_ENGINE'
             }
         })
 
@@ -85,11 +73,7 @@ export async function createNewGame(userId: string): Promise<{ gameId: string, c
                 const questions = await prisma.question.findMany({
                     where: {
                         categoryId: category.id,
-                        ...(user?.spoilerBlockEnabled ? {
-                            airDate: {
-                                lt: user.spoilerBlockDate ?? undefined
-                            }
-                        } : {})
+                        ...playableWhere
                     },
                     orderBy: {
                         value: 'asc'

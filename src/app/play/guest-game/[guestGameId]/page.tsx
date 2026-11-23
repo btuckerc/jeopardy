@@ -126,11 +126,15 @@ export default function GuestGamePage() {
             })
 
             if (!response.ok) {
-                const error = await response.json()
-                if (error.requiresAuth) {
+                const errorData = await response.json()
+                if (errorData.legacyRetired) {
+                    setError(errorData.error || 'This legacy guest game has been retired. Start a new game from the Original question bank.')
+                    return
+                }
+                if (errorData.requiresAuth) {
                     setGameState({ ...gameState, limitReached: true, requiresAuth: true })
                 } else {
-                    throw new Error(error.error || 'Failed to submit answer')
+                    throw new Error(errorData.error || 'Failed to submit answer')
                 }
                 return
             }

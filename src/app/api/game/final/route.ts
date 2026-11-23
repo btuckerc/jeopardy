@@ -24,6 +24,14 @@ import {
     setCachedFinalJeopardy,
     type CachedFinalJeopardy
 } from '@/lib/game-cache'
+import {
+    canPlayGameContentSource,
+    getPlayableQuestionWhere,
+    parseBoardSnapshot,
+    resolveRequestedContentSource,
+    shouldApplySpoilerFilter,
+} from '@/lib/question-policy'
+import type { QuestionSource } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,57 +99,49 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const finalCategoryId = searchParams.get('finalCategoryId')
         const questionId = searchParams.get('questionId') // For fetching a specific question (resume)
 
-        // For specific questionId lookups, don't cache (used for resume)
-        // For new FJ selection with deterministic params, check cache
-        if (!questionId) {
-            const cacheKey = getFinalJeopardyCacheKey({ 
-                gameId, 
-                seed: null, // Will use gameId's seed internally
-                mode, 
-                date, 
-                finalCategoryMode, 
-                finalCategoryId,
-                revealAnswers
-            })
-            if (cacheKey) {
-                const cached = getCachedFinalJeopardy(cacheKey)
-                if (cached) {
-                    timer.mark('cacheHit')
-                    timer.log()
-                    return jsonResponse(cached)
-                }
-            }
-            timer.mark('cacheMiss')
-        }
-
+        // Authenticate and authorize BEFORE checking cache
         const appUser = await getAppUser()
         timer.mark('auth')
         const userId = appUser?.id
+        const isAdmin = appUser?.role === 'ADMIN'
 
-        // Determine the effective spoiler policy
+        // Determine the effective spoiler policy and contentSource
         let spoilerPolicy: SpoilerPolicy
         let gameSeed: string | null = null
         let canRevealAnswers = false
         let userCanAccessGame = true
+        let contentSource: QuestionSource = resolveRequestedContentSource(searchParams.get('source'), isAdmin)
+        let gameRecord: {
+            userId: string
+            opponentUserId: string | null
+            seed: string | null
+            visibility: string
+            status: string
+            contentSource: QuestionSource
+            config: Prisma.JsonValue
+        } | null = null
 
         if (gameId) {
-            const game = await prisma.game.findUnique({
+            gameRecord = await prisma.game.findUnique({
                 where: { id: gameId },
                 select: {
                     userId: true,
                     opponentUserId: true,
                     seed: true,
-                    visibility: true
+                    visibility: true,
+                    status: true,
+                    contentSource: true,
+                    config: true
                 }
             })
-            if (!game) {
+            if (!gameRecord) {
                 return notFoundResponse('Game not found')
             }
 
-            const isOwner = !!userId && game.userId === userId
-            const isOpponent = !!userId && game.opponentUserId === userId
-            canRevealAnswers = isOwner || isOpponent
-            userCanAccessGame = game.visibility !== 'PRIVATE' || canRevealAnswers
+            const isOwner = !!userId && gameRecord.userId === userId
+            const isOpponent = !!userId && gameRecord.opponentUserId === userId
+            canRevealAnswers = isOwner || isOpponent || isAdmin
+            userCanAccessGame = gameRecord.visibility !== 'PRIVATE' || canRevealAnswers
 
             if (!userCanAccessGame) {
                 if (!userId) {
@@ -157,23 +157,120 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 return forbiddenResponse('You do not have access to this game board\'s answers')
             }
 
-            // Use the game's spoiler policy for consistent board generation
-            spoilerPolicy = await getGameSpoilerPolicy(gameId)
-            gameSeed = game.seed ?? null
-        } else if (userId) {
-            // Fall back to the current user's profile settings
+            contentSource = gameRecord.contentSource
+            const playPolicy = canPlayGameContentSource(contentSource, gameRecord.status, isAdmin)
+            if (!playPolicy.allowed) {
+                return jsonResponse(
+                    {
+                        error: 'This legacy game has been retired. Your score, history, and stats remain preserved—start a new game from the Original question bank.',
+                        legacyRetired: true
+                    },
+                    410
+                )
+            }
+
+            spoilerPolicy = shouldApplySpoilerFilter(contentSource)
+                ? await getGameSpoilerPolicy(gameId)
+                : { enabled: false, cutoffDate: null }
+            gameSeed = gameRecord.seed ?? null
+        } else if (userId && shouldApplySpoilerFilter(contentSource)) {
             spoilerPolicy = await computeUserEffectiveCutoff(userId)
         } else {
-            // No user, no game - no spoiler protection
             spoilerPolicy = { enabled: false, cutoffDate: null }
         }
         timer.mark('spoilerPolicy')
-        const shouldRevealAnswers = revealAnswers && canRevealAnswers
+        const shouldRevealAnswers = revealAnswers && (canRevealAnswers || (!gameId && isAdmin))
 
-        // If a specific question ID is provided, fetch that question directly
-        if (questionId) {
+        // Derive authoritative mode/config parameters from stored Game.config when gameId is present
+        const storedCfg = (gameRecord?.config && typeof gameRecord.config === 'object' && !Array.isArray(gameRecord.config)
+            ? gameRecord.config
+            : {}) as Record<string, unknown>
+        const effectiveMode = (gameRecord && typeof storedCfg.mode === 'string') ? storedCfg.mode : mode
+        const effectiveDate = (gameRecord && typeof storedCfg.date === 'string') ? storedCfg.date : date
+        const effectiveFinalCategoryMode =
+            (gameRecord && typeof storedCfg.finalCategoryMode === 'string')
+                ? storedCfg.finalCategoryMode
+                : finalCategoryMode
+        const effectiveFinalCategoryId =
+            (gameRecord && typeof storedCfg.finalCategoryId === 'string')
+                ? storedCfg.finalCategoryId
+                : finalCategoryId
+        const effectiveCategories: string[] =
+            gameRecord && Array.isArray(storedCfg.categories)
+                ? storedCfg.categories.filter((c): c is string => typeof c === 'string')
+                : searchParams.get('categories')?.split(',').filter(Boolean) || []
+        const effectiveCategoryIds: string[] =
+            gameRecord && Array.isArray(storedCfg.categoryIds)
+                ? storedCfg.categoryIds.filter((c): c is string => typeof c === 'string')
+                : searchParams.get('categoryIds')?.split(',').filter(Boolean) || []
+
+        // Resolve pinned Final question ID: stored game snapshot/pin always takes precedence.
+        // For non-admin gameId requests, never honor an arbitrary caller-supplied questionId.
+        const snapshotFinalId = gameRecord
+            ? parseBoardSnapshot(gameRecord.config).FINAL
+                ?? (typeof storedCfg.finalJeopardyQuestionId === 'string'
+                    ? storedCfg.finalJeopardyQuestionId
+                    : null)
+            : null
+
+        const isNonActiveGameReview =
+            Boolean(gameId && gameRecord) &&
+            gameRecord!.status !== 'IN_PROGRESS'
+
+        let resolvedQuestionId: string | null = snapshotFinalId || (!gameId || isAdmin ? questionId : null)
+
+        // For non-active games (COMPLETED or ABANDONED) without a pinned Final, resolve ONLY
+        // from an already-played FINAL GameQuestion (never probe the general pool or write a snapshot).
+        if (isNonActiveGameReview && !resolvedQuestionId) {
+            const playedFinal = await prisma.gameQuestion.findFirst({
+                where: {
+                    gameId: gameId!,
+                    question: { round: 'FINAL', source: contentSource }
+                },
+                select: { questionId: true }
+            })
+            if (!playedFinal) {
+                timer.log()
+                return notFoundResponse('No Final Jeopardy question was played in this game')
+            }
+            resolvedQuestionId = playedFinal.questionId
+        }
+
+        // Check cache AFTER authorization and contentSource resolution (never cache admin or completed review)
+        const allowCache = !isAdmin && gameRecord?.status !== 'COMPLETED'
+        if (!resolvedQuestionId && allowCache) {
+            const cacheKey = getFinalJeopardyCacheKey({ 
+                gameId, 
+                seed: gameSeed,
+                mode: effectiveMode, 
+                contentSource,
+                date: effectiveDate, 
+                finalCategoryMode: effectiveFinalCategoryMode, 
+                finalCategoryId: effectiveFinalCategoryId,
+                revealAnswers: shouldRevealAnswers,
+                isAdmin
+            })
+            if (cacheKey) {
+                const cached = getCachedFinalJeopardy(cacheKey)
+                if (cached) {
+                    const stillPublished = await prisma.question.findFirst({
+                        where: { id: cached.id, source: contentSource, publishStatus: 'PUBLISHED' },
+                        select: { id: true }
+                    })
+                    if (stillPublished) {
+                        timer.mark('cacheHit')
+                        timer.log()
+                        return jsonResponse(cached)
+                    }
+                }
+            }
+            timer.mark('cacheMiss')
+        }
+
+        // If a specific/snapshotted question ID is provided, fetch that question directly
+        if (resolvedQuestionId) {
             const question = await prisma.question.findUnique({
-                where: { id: questionId },
+                where: { id: resolvedQuestionId },
                 include: {
                     category: {
                         select: {
@@ -190,8 +287,19 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
                 return notFoundResponse('Final Jeopardy question not found')
             }
 
+            if (
+                !isAdmin &&
+                (
+                    question.source !== contentSource ||
+                    question.round !== 'FINAL' ||
+                    (gameRecord?.status !== 'COMPLETED' && question.publishStatus !== 'PUBLISHED')
+                )
+            ) {
+                return forbiddenResponse('Question does not belong to this game content pool')
+            }
+
             // When resuming, verify the stored question is still compatible with the spoiler policy
-            if (wouldViolateSpoilerPolicy(question.airDate, spoilerPolicy)) {
+            if (shouldApplySpoilerFilter(contentSource) && wouldViolateSpoilerPolicy(question.airDate, spoilerPolicy)) {
                 const cutoffStr = spoilerPolicy.cutoffDate?.toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
@@ -219,22 +327,23 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
 
         // Build the airDate condition from the spoiler policy
         const airDateCondition = buildSimpleAirDateCondition(spoilerPolicy)
+        const baseSourceWhere = getPlayableQuestionWhere(contentSource)
 
-        // Base where clause for Final Jeopardy questions
+        // Base where clause for Final Jeopardy questions (always scoped to contentSource + PUBLISHED)
         let whereClause: Prisma.QuestionWhereInput = {
+            ...baseSourceWhere,
             round: 'FINAL',
             ...(airDateCondition ? { airDate: airDateCondition } : {})
         }
 
         // Apply mode-specific filters
-        switch (mode) {
+        switch (effectiveMode) {
             case 'knowledge': {
-                const categories = searchParams.get('categories')?.split(',') || []
-                if (categories.length > 0) {
+                if (effectiveCategories.length > 0) {
                     whereClause = {
                         ...whereClause,
                         knowledgeCategory: {
-                            in: categories as KnowledgeCategory[]
+                            in: effectiveCategories as KnowledgeCategory[]
                         }
                     }
                 }
@@ -242,12 +351,12 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             }
 
             case 'custom': {
-                const categoryIds = searchParams.get('categoryIds')?.split(',') || []
-                if (categoryIds.length > 0) {
+                // Only filter Final by regular-board categoryIds if NOT explicitly in 'shuffle' (random Final) mode
+                if (effectiveFinalCategoryMode !== 'shuffle' && effectiveCategoryIds.length > 0) {
                     whereClause = {
                         ...whereClause,
                         categoryId: {
-                            in: categoryIds
+                            in: effectiveCategoryIds
                         }
                     }
                 }
@@ -255,11 +364,12 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             }
 
             case 'date': {
-                if (date) {
-                    // For date mode, we want the Final Jeopardy from that specific episode
+                if (effectiveDate) {
+                    // For date mode, we want the Final Jeopardy from that specific episode/pack within contentSource
                     whereClause = {
+                        ...baseSourceWhere,
                         round: 'FINAL',
-                        airDate: new Date(date)
+                        airDate: new Date(effectiveDate)
                     }
                 }
                 break
@@ -267,16 +377,17 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         }
 
         // Handle Final Jeopardy category selection mode
-        if (finalCategoryMode === 'specificCategory' && finalCategoryId) {
+        if (effectiveFinalCategoryMode === 'specificCategory' && effectiveFinalCategoryId) {
             whereClause = {
                 ...whereClause,
-                categoryId: finalCategoryId
+                categoryId: effectiveFinalCategoryId
             }
-        } else if (finalCategoryMode === 'byDate' && date) {
-            // For byDate mode, override to get the exact episode's Final Jeopardy
+        } else if (effectiveFinalCategoryMode === 'byDate' && effectiveDate) {
+            // For byDate mode, override to get the exact episode/pack's Final Jeopardy within contentSource
             whereClause = {
+                ...baseSourceWhere,
                 round: 'FINAL',
-                airDate: new Date(date)
+                airDate: new Date(effectiveDate)
             }
         }
 
@@ -340,23 +451,79 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
             }
         }
 
-        // Cache the result for future requests
-        const cacheKey = getFinalJeopardyCacheKey({ 
-            gameId, 
-            seed: gameSeed, 
-            mode, 
-            date, 
-            finalCategoryMode, 
-            finalCategoryId,
-            revealAnswers: shouldRevealAnswers
-        })
-        if (cacheKey) {
-            setCachedFinalJeopardy(cacheKey, result)
+        // Atomically persist pinned Final question ID in Game.config.boardSnapshot without clobbering concurrent fields
+        let finalResult: CachedFinalJeopardy = result
+        if (gameId && gameRecord && gameRecord.status === 'IN_PROGRESS') {
+            const payload = JSON.stringify(selectedQuestion.id)
+            const updatedRows = await prisma.$executeRaw`
+                UPDATE "Game"
+                SET "config" = jsonb_set(
+                    CASE
+                        WHEN jsonb_typeof(COALESCE("config", '{}'::jsonb) -> 'boardSnapshot') = 'object'
+                            THEN COALESCE("config", '{}'::jsonb)
+                        ELSE jsonb_set(COALESCE("config", '{}'::jsonb), '{boardSnapshot}', '{}'::jsonb, true)
+                    END,
+                    '{boardSnapshot,FINAL}',
+                    ${payload}::jsonb,
+                    true
+                )
+                WHERE "id" = ${gameId}
+                  AND (COALESCE("config", '{}'::jsonb) -> 'boardSnapshot' ->> 'FINAL') IS NULL
+            `
+            // If another concurrent request won the snapshot write, return the winning stored Final clue
+            if (Number(updatedRows) === 0) {
+                const freshGame = await prisma.game.findUnique({
+                    where: { id: gameId },
+                    select: { config: true }
+                })
+                const winningFinalId = parseBoardSnapshot(freshGame?.config).FINAL
+                if (winningFinalId && winningFinalId !== selectedQuestion.id) {
+                    const winningQuestion = await prisma.question.findFirst({
+                        where: {
+                            id: winningFinalId,
+                            source: contentSource,
+                            round: 'FINAL',
+                            ...(!isAdmin ? { publishStatus: 'PUBLISHED' } : {}),
+                        },
+                        include: { category: { select: { id: true, name: true } } }
+                    })
+                    if (!winningQuestion) {
+                        return forbiddenResponse('Pinned Final question is no longer available in this game content pool')
+                    }
+                    finalResult = {
+                        id: winningQuestion.id,
+                        question: winningQuestion.question,
+                        answer: shouldRevealAnswers ? winningQuestion.answer : null,
+                        category: {
+                            id: winningQuestion.category.id,
+                            name: winningQuestion.category.name
+                        }
+                    }
+                }
+            }
+        }
+
+        // Cache the result for future requests (never cache admin or completed review)
+        if (allowCache) {
+            const cacheKey = getFinalJeopardyCacheKey({ 
+                gameId, 
+                seed: gameSeed, 
+                mode: effectiveMode, 
+                contentSource,
+                date: effectiveDate, 
+                finalCategoryMode: effectiveFinalCategoryMode, 
+                finalCategoryId: effectiveFinalCategoryId,
+                revealAnswers: shouldRevealAnswers,
+                isAdmin
+            })
+            if (cacheKey) {
+                setCachedFinalJeopardy(cacheKey, finalResult)
+            }
         }
 
         timer.mark('done')
         timer.log()
-        return jsonResponse(result)
+        return jsonResponse(finalResult)
     } catch (error) {
         timer.mark('error')
         timer.log()

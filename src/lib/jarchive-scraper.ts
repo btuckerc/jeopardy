@@ -8,6 +8,7 @@
 import axios, { AxiosInstance } from 'axios'
 import { parse, HTMLElement } from 'node-html-parser'
 import { KnowledgeCategory } from '@prisma/client'
+import { assertJArchiveSyncEnabled } from './question-policy'
 
 // ============================================================================
 // Types
@@ -172,6 +173,7 @@ export function classifyDifficulty(value: number, round: JeopardyRound): 'EASY' 
  * This is the source of truth - no hardcoded season numbers
  */
 export async function discoverSeasons(): Promise<number[]> {
+    assertJArchiveSyncEnabled('discoverSeasons')
     try {
         const response = await httpClient.get('/listseasons.php')
         const root = parse(response.data)
@@ -201,6 +203,7 @@ export async function discoverSeasons(): Promise<number[]> {
  * Gets the current/latest season number by scraping the homepage
  */
 export async function getCurrentSeason(): Promise<number | null> {
+    assertJArchiveSyncEnabled('getCurrentSeason')
     try {
         const response = await httpClient.get('/')
         const root = parse(response.data)
@@ -232,6 +235,7 @@ export async function getCurrentSeason(): Promise<number | null> {
  * Fetches all games for a given season
  */
 export async function getSeasonGames(seasonNumber: number): Promise<SeasonGame[]> {
+    assertJArchiveSyncEnabled('getSeasonGames')
     try {
         const response = await httpClient.get(`/showseason.php?season=${seasonNumber}`)
         const root = parse(response.data)
@@ -488,6 +492,7 @@ function extractShowNumber(title: string): string | null {
  * Parses a complete game from j-archive by game ID
  */
 export async function parseGameById(gameId: string): Promise<ParsedGame | null> {
+    assertJArchiveSyncEnabled('parseGameById')
     try {
         const url = `/showgame.php?game_id=${gameId}`
         console.log(`Fetching game from: ${J_ARCHIVE_BASE_URL}${url}`)

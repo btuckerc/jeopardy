@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
 import { jsonResponse, unauthorizedResponse, serverErrorResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
+import { getLegacyInProgressPolicy } from '@/lib/question-policy'
 import type { GameConfig } from '@/types/game'
 
 /**
@@ -37,11 +38,15 @@ export const GET = withInstrumentation(async () => {
             return unauthorizedResponse()
         }
 
+        const hideRetiredLegacy =
+            appUser.role !== 'ADMIN' && getLegacyInProgressPolicy() === 'RETIRE'
+
         // Fetch in-progress games for this user
         const games = await prisma.game.findMany({
             where: {
                 userId: appUser.id,
-                status: 'IN_PROGRESS'
+                status: 'IN_PROGRESS',
+                ...(hideRetiredLegacy ? { contentSource: 'ORIGINAL_ENGINE' } : {})
             },
             orderBy: {
                 updatedAt: 'desc'

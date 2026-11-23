@@ -12,7 +12,8 @@ import { Prisma } from '@prisma/client'
 const searchParamsSchema = z.object({
     season: z.string().optional(),
     startDate: z.string().optional(),
-    endDate: z.string().optional()
+    endDate: z.string().optional(),
+    source: z.enum(['ORIGINAL_ENGINE', 'LEGACY_JEOPARDY', 'ALL']).optional().default('ALL')
 })
 
 export async function GET(request: Request) {
@@ -24,10 +25,11 @@ export async function GET(request: Request) {
     const { data: params, error } = parseSearchParams(searchParams, searchParamsSchema)
     if (error) return error
 
-    const { season, startDate, endDate } = params
+    const { season, startDate, endDate, source } = params
 
     // Build query filters
     const where: Prisma.QuestionWhereInput = {}
+    if (source && source !== 'ALL') where.source = source
     if (season) where.season = parseInt(season)
     
     // Handle date filtering - allow startDate only, endDate only, or both
@@ -80,11 +82,19 @@ export async function POST(request: Request) {
                 // Import new games
                 await prisma.$transaction(async (tx) => {
                     for (const game of data) {
-                        // Create or update categories
+                        // Create or update categories (admin import is legacy Jeopardy data)
                         const category = await tx.category.upsert({
-                            where: { name: game.category },
+                            where: {
+                                name_source: {
+                                    name: game.category,
+                                    source: 'LEGACY_JEOPARDY'
+                                }
+                            },
                             update: {},
-                            create: { name: game.category }
+                            create: {
+                                name: game.category,
+                                source: 'LEGACY_JEOPARDY'
+                            }
                         })
 
                         // Create questions
@@ -145,11 +155,19 @@ export async function POST(request: Request) {
                             continue
                         }
 
-                        // Create or update category
+                        // Create or update category (legacy J-Archive push)
                         const category = await tx.category.upsert({
-                            where: { name: question.category },
+                            where: {
+                                name_source: {
+                                    name: question.category,
+                                    source: 'LEGACY_JEOPARDY'
+                                }
+                            },
                             update: {},
-                            create: { name: question.category }
+                            create: {
+                                name: question.category,
+                                source: 'LEGACY_JEOPARDY'
+                            }
                         })
 
                         // Determine round - support both new 'round' field and legacy 'isDoubleJeopardy'/'isFinalJeopardy'

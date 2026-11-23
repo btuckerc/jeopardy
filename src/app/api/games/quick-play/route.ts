@@ -37,7 +37,7 @@ export const POST = withInstrumentation(async (_request: NextRequest) => {
             spoilerProtection
         } as unknown as Prisma.InputJsonValue
 
-        // Create the game
+        // Create the game (always ORIGINAL_ENGINE for new games)
         const game = await prisma.game.create({
             data: {
                 userId: appUser.id,
@@ -47,6 +47,7 @@ export const POST = withInstrumentation(async (_request: NextRequest) => {
                 currentRound: 'SINGLE',
                 currentScore: 0,
                 visibility: 'PRIVATE',
+                contentSource: 'ORIGINAL_ENGINE',
                 useKnowledgeCategories: false
             }
         })

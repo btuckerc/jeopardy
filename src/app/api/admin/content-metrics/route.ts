@@ -6,6 +6,7 @@ export const dynamic = 'force-dynamic'
 
 const contentMetricsParamsSchema = z.object({
     window: z.enum(['24h', '7d', '14d', '30d', '90d', 'all']).optional().default('30d'),
+    source: z.enum(['ALL', 'ORIGINAL_ENGINE', 'LEGACY_JEOPARDY']).optional().default('ALL'),
 })
 
 async function getContentMetricsWindowStart(now: Date, window: '24h' | '7d' | '14d' | '30d' | '90d' | 'all'): Promise<Date> {
@@ -54,10 +55,14 @@ export async function GET(request: Request) {
 
         const now = new Date()
         const activityWindowStart = await getContentMetricsWindowStart(now, params.window)
+        const sourceFilter = params.source === 'ALL' ? {} : { source: params.source }
 
         // Run all queries in parallel
         const [
             totalQuestions,
+            questionsBySource,
+            originalVerifiedCount,
+            generationRunCount,
             questionsByRound,
             questionsByKnowledgeCategory,
             questionsWithAirDate,
@@ -71,42 +76,59 @@ export async function GET(request: Request) {
             recentIssues,
             airDateRange,
         ] = await Promise.all([
-            // Total questions
-            prisma.question.count(),
+            // Total questions (scoped by source filter)
+            prisma.question.count({ where: sourceFilter }),
+
+            // Breakdown by source (always unfiltered for admin overview)
+            prisma.question.groupBy({
+                by: ['source', 'publishStatus'],
+                _count: { id: true },
+            }),
+
+            // Provenance-verified original questions
+            prisma.questionProvenance.count({
+                where: { overlapPassed: true, blindSolverPassed: true },
+            }),
+
+            // Total generation runs
+            prisma.questionGenerationRun.count(),
 
             // Questions by round
             prisma.question.groupBy({
                 by: ['round'],
+                where: sourceFilter,
                 _count: { id: true },
             }),
 
             // Questions by knowledge category
             prisma.question.groupBy({
                 by: ['knowledgeCategory'],
+                where: sourceFilter,
                 _count: { id: true },
             }),
 
             // Questions with air date
             prisma.question.count({
-                where: { airDate: { not: null } },
+                where: { ...sourceFilter, airDate: { not: null } },
             }),
 
             // Questions without air date
             prisma.question.count({
-                where: { airDate: null },
+                where: { ...sourceFilter, airDate: null },
             }),
 
             // Triple stumper count
             prisma.question.count({
-                where: { wasTripleStumper: true },
+                where: { ...sourceFilter, wasTripleStumper: true },
             }),
 
             // Total categories
-            prisma.category.count(),
+            prisma.category.count({ where: sourceFilter }),
 
             // Categories by knowledge category
             prisma.category.groupBy({
                 by: ['knowledgeCategory'],
+                where: sourceFilter,
                 _count: { id: true },
             }),
 
@@ -206,6 +228,7 @@ export async function GET(request: Request) {
 
         return jsonResponse({
             window: params.window,
+            source: params.source,
             overview: {
                 totalQuestions,
                 totalCategories: categoryCount,
@@ -216,6 +239,13 @@ export async function GET(request: Request) {
                     ? (tripleStumperCount / totalQuestions) * 100 
                     : 0,
                 dailyChallengesGenerated: dailyChallengeStats._count.id,
+                originalVerifiedCount,
+                generationRunCount,
+                bySource: questionsBySource.map(s => ({
+                    source: s.source,
+                    publishStatus: s.publishStatus,
+                    count: s._count.id,
+                })),
             },
             distribution: {
                 byRound: questionsByRound.map(r => ({

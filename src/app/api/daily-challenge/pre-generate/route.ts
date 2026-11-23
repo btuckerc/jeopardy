@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { jsonResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
-import { setupDailyChallenge } from '../route'
+import { ensureOriginalDailyChallenge } from '../route'
 import { z } from 'zod'
 
 const preGenerateSchema = z.object({
@@ -35,30 +35,47 @@ export async function POST(request: Request) {
         let created = 0
         let skipped = 0
         let errors = 0
+        const unfilledDates: string[] = []
 
         for (let i = 0; i < days; i++) {
             const targetDate = new Date(today)
             targetDate.setDate(targetDate.getDate() + i)
             targetDate.setHours(0, 0, 0, 0)
+            const dateKey = targetDate.toISOString().split('T')[0]
 
             try {
-                // Check if challenge already exists
+                // Check if an ORIGINAL_ENGINE challenge already exists; rotate unplayed legacy rows
                 const existing = await prisma.dailyChallenge.findUnique({
-                    where: { date: targetDate }
+                    where: { date: targetDate },
+                    include: {
+                        question: { select: { source: true, publishStatus: true } },
+                        _count: { select: { completions: true } },
+                    },
                 })
 
-                if (existing) {
+                if (
+                    existing &&
+                    (
+                        (existing.question.source === 'ORIGINAL_ENGINE' && existing.question.publishStatus === 'PUBLISHED') ||
+                        existing._count.completions > 0
+                    )
+                ) {
                     skipped++
                     continue
                 }
 
-                // Create challenge
-                const challenge = await setupDailyChallenge(targetDate)
+                // Create or rotate challenge into published ORIGINAL_ENGINE pool
+                const challenge = await ensureOriginalDailyChallenge(targetDate)
                 
-                if (challenge) {
+                if (
+                    challenge &&
+                    challenge.question.source === 'ORIGINAL_ENGINE' &&
+                    challenge.question.publishStatus === 'PUBLISHED'
+                ) {
                     created++
                 } else {
                     errors++
+                    unfilledDates.push(dateKey)
                 }
             } catch (error: unknown) {
                 if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
@@ -66,17 +83,19 @@ export async function POST(request: Request) {
                     skipped++
                 } else {
                     errors++
+                    unfilledDates.push(dateKey)
                     const errorMsg = error instanceof Error ? error.message : 'Unknown error'
-                    console.error(`Error creating challenge for ${targetDate.toISOString().split('T')[0]}:`, errorMsg)
+                    console.error(`Error creating challenge for ${dateKey}:`, errorMsg)
                 }
             }
         }
 
         return jsonResponse({
-            success: true,
+            success: errors === 0,
             created,
             skipped,
             errors,
+            unfilledDates,
             daysProcessed: days
         })
     } catch (error) {

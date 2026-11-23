@@ -5,9 +5,10 @@ import { jsonResponse, badRequestResponse, unauthorizedResponse, notFoundRespons
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const categoryName = searchParams.get('name')
+    const categoryId = searchParams.get('id')
 
-    if (!categoryName) {
-        return badRequestResponse('Category name is required')
+    if (!categoryName && !categoryId) {
+        return badRequestResponse('Category name or id is required')
     }
 
     try {
@@ -17,8 +18,11 @@ export async function GET(request: Request) {
             return unauthorizedResponse()
         }
 
-        const category = await prisma.category.findUnique({
-            where: { name: categoryName },
+        // Load matching category rows (by exact id, or across both ORIGINAL_ENGINE & LEGACY_JEOPARDY for name
+        // so historical legacy answers on colliding category names remain visible!)
+        const matchedCategories = await prisma.category.findMany({
+            where: categoryId ? { id: categoryId } : { name: categoryName! },
+            orderBy: { source: 'desc' },
             include: {
                 questions: {
                     orderBy: {
@@ -38,11 +42,19 @@ export async function GET(request: Request) {
             }
         })
 
-        if (!category) {
+        if (matchedCategories.length === 0) {
             return notFoundResponse('Category not found')
         }
 
-        const questions = category.questions.map(question => {
+        // Include all ORIGINAL_ENGINE published questions plus any LEGACY_JEOPARDY questions the user actually answered
+        const mergedQuestions = matchedCategories.flatMap(cat =>
+            cat.questions.filter(q =>
+                (q.source === 'ORIGINAL_ENGINE' && q.publishStatus === 'PUBLISHED') ||
+                q.gameHistory.length > 0
+            )
+        )
+
+        const questions = mergedQuestions.map(question => {
             const isCorrect = question.gameHistory.length > 0
             return {
                 id: question.id,
@@ -56,7 +68,7 @@ export async function GET(request: Request) {
 
         return jsonResponse({
             questions,
-            totalQuestions: category.questions.length,
+            totalQuestions: mergedQuestions.length,
             correctQuestions: questions.filter(q => q.correct).length
         })
     } catch (error) {

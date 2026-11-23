@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { canPlayGameContentSource } from '@/lib/question-policy'
 import { z } from 'zod'
 
 interface RouteParams {
@@ -133,10 +134,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
         const { gameId } = await params
 
-        // Verify ownership
+        // Verify ownership and content policy
         const existingGame = await prisma.game.findUnique({
             where: { id: gameId },
-            select: { userId: true }
+            select: { userId: true, status: true, contentSource: true }
         })
 
         if (!existingGame) {
@@ -150,13 +151,59 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         const { data: updates, error } = await parseBody(request, updateGameSchema)
         if (error) return error
 
+        const hasGameplayMutation =
+            updates.status !== undefined ||
+            updates.currentRound !== undefined ||
+            updates.currentScore !== undefined
+
+        if (hasGameplayMutation) {
+            if (existingGame.status !== 'IN_PROGRESS') {
+                return badRequestResponse('Cannot update gameplay state on a completed or abandoned game')
+            }
+
+            const isAdmin = appUser.role === 'ADMIN'
+            const playPolicy = canPlayGameContentSource(existingGame.contentSource, existingGame.status, isAdmin)
+            if (!playPolicy.allowed) {
+                return jsonResponse(
+                    {
+                        error: 'This legacy game has been retired. Your score, history, and stats remain preserved—start a new game from the Original question bank.',
+                        legacyRetired: true
+                    },
+                    410
+                )
+            }
+        }
+
+        const updatePayload = {
+            ...updates,
+            // Also update the legacy 'completed' field for backward compatibility
+            completed: updates.status === 'COMPLETED' ? true : updates.status === 'ABANDONED' ? true : undefined
+        }
+
+        if (hasGameplayMutation) {
+            // Enforce IN_PROGRESS atomically at the write boundary so racing completion cannot be overwritten
+            const result = await prisma.game.updateMany({
+                where: { id: gameId, userId: appUser.id, status: 'IN_PROGRESS' },
+                data: updatePayload
+            })
+            if (result.count === 0) {
+                return badRequestResponse('Cannot update gameplay state on a completed or abandoned game')
+            }
+            const game = await prisma.game.findUnique({ where: { id: gameId } })
+            if (!game) return notFoundResponse('Game not found')
+            return jsonResponse({
+                id: game.id,
+                status: game.status,
+                currentRound: game.currentRound,
+                currentScore: game.currentScore,
+                visibility: game.visibility,
+                updatedAt: game.updatedAt
+            })
+        }
+
         const game = await prisma.game.update({
             where: { id: gameId },
-            data: {
-                ...updates,
-                // Also update the legacy 'completed' field for backward compatibility
-                completed: updates.status === 'COMPLETED' ? true : updates.status === 'ABANDONED' ? true : undefined
-            }
+            data: updatePayload
         })
 
         return jsonResponse({

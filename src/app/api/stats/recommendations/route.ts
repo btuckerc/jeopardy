@@ -61,7 +61,10 @@ export const GET = withInstrumentation(async (request: NextRequest) => {
         const { maxRecommendations, maxSessionSize } = paramsResult.data
 
         const rawCategoryProgress = await prisma.userProgress.findMany({
-            where: { userId: appUser.id },
+            where: {
+                userId: appUser.id,
+                category: { source: 'ORIGINAL_ENGINE' }
+            },
             include: {
                 category: {
                     select: {

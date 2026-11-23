@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, notFoundResponse, serverErrorResponse } from '@/lib/api-utils'
+import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 
 export const dynamic = 'force-dynamic'
@@ -35,11 +35,40 @@ async function getHandler(request: NextRequest, context?: { params?: Record<stri
             return notFoundResponse('Question not found')
         }
 
+        const isAdmin = appUser.role === 'ADMIN'
+        if (question.source !== 'ORIGINAL_ENGINE' || question.publishStatus !== 'PUBLISHED') {
+            if (!isAdmin) {
+                // Allow non-admin access to a legacy question ONLY if the user has existing history/game/daily participation
+                const [hasGameQuestion, hasHistory, hasDaily] = await Promise.all([
+                    prisma.gameQuestion.findFirst({
+                        where: {
+                            questionId: question.id,
+                            game: { OR: [{ userId: appUser.id }, { opponentUserId: appUser.id }] }
+                        },
+                        select: { id: true }
+                    }),
+                    prisma.gameHistory.findFirst({
+                        where: { userId: appUser.id, questionId: question.id },
+                        select: { id: true }
+                    }),
+                    prisma.userDailyChallenge.findFirst({
+                        where: { userId: appUser.id, challenge: { questionId: question.id } },
+                        select: { id: true }
+                    })
+                ])
+
+                if (!hasGameQuestion && !hasHistory && !hasDaily) {
+                    return forbiddenResponse('Question is not available in the public question pool')
+                }
+            }
+        }
+
         return jsonResponse({
             id: question.id,
             question: question.question,
             answer: revealAnswers ? question.answer : null,
             value: question.value,
+            source: question.source,
             category: question.category
         })
     } catch (error) {

@@ -4,41 +4,17 @@ import { prisma } from '@/lib/prisma'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
 import crypto from 'crypto'
 import { Prisma, KnowledgeCategory, Question, Category, GameHistory } from '@prisma/client'
-import { startOfDay } from 'date-fns'
+import { getPlayableQuestionSql, getPlayableQuestionWhere } from '@/lib/question-policy'
 
 type GameHistoryWithTimestamp = {
     correct: boolean;
     timestamp: string | Date;
 }
 
-// Helper to get user's spoiler settings
-async function getUserSpoilerSettings(userId?: string) {
-    if (!userId) return { enabled: false, date: null }
-    
-    const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-            spoilerBlockEnabled: true,
-            spoilerBlockDate: true
-        }
-    })
-    
-    return {
-        enabled: user?.spoilerBlockEnabled ?? false,
-        // If enabled but no date set, default to today
-        date: user?.spoilerBlockEnabled 
-            ? (user?.spoilerBlockDate ?? startOfDay(new Date()))
-            : null
-    }
-}
-
 export async function getCategories(userId?: string) {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
-        
-        // Get total questions and correct questions per knowledge category
-        // Respecting spoiler date filter
+        const playableSql = getPlayableQuestionSql('q', 'ORIGINAL_ENGINE')
+        // Get total published ORIGINAL_ENGINE questions and correct questions per knowledge category
         const categories = await prisma.$queryRaw`
             WITH LatestCorrectAnswers AS (
                 SELECT DISTINCT ON (gh."questionId")
@@ -56,11 +32,7 @@ export async function getCategories(userId?: string) {
                     END) as correct_questions
             FROM "Question" q
             LEFT JOIN LatestCorrectAnswers lca ON lca."questionId" = q.id
-            WHERE (
-                ${!spoilerSettings.enabled}::boolean = true 
-                OR q."airDate" IS NULL 
-                OR q."airDate" < ${spoilerSettings.date}::timestamp
-            )
+            WHERE ${playableSql}
             GROUP BY q."knowledgeCategory"
             ORDER BY q."knowledgeCategory"
         ` as Array<{ knowledgeCategory: string; total_questions: number; correct_questions: number }>
@@ -91,8 +63,7 @@ export async function getKnowledgeCategoryDetails(
     sortDirection: 'asc' | 'desc' = 'desc'
 ) {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
+        const playableSql = getPlayableQuestionSql('q', 'ORIGINAL_ENGINE')
         
         // Build ORDER BY clause based on sortBy and sortDirection parameters
         const directionSql = sortDirection === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
@@ -100,8 +71,7 @@ export async function getKnowledgeCategoryDetails(
             ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN qh.correct THEN cq.question_id END)::float / NULLIF(cq.total_questions, 0)) ${directionSql} NULLS LAST, cq.most_recent_air_date DESC NULLS LAST`
             : Prisma.sql`ORDER BY cq.most_recent_air_date ${directionSql} NULLS LAST`;
         
-        // Get categories with their questions and game history
-        // Respecting spoiler date filter and excluding FINAL round if specified
+        // Get ORIGINAL_ENGINE categories with their questions and game history
         const result = await prisma.$queryRaw<Array<{
             id: string;
             name: string;
@@ -128,13 +98,9 @@ export async function getKnowledgeCategoryDetails(
                 FROM "Category" c
                 JOIN "Question" q ON q."categoryId" = c.id
                 WHERE q."knowledgeCategory"::text = ${knowledgeCategoryId}
+                AND ${playableSql}
                 ${searchQuery ? Prisma.sql`AND c.name ILIKE ${`%${searchQuery}%`}` : Prisma.empty}
                 ${excludeRound === 'FINAL' ? Prisma.sql`AND q.round != 'FINAL'` : Prisma.empty}
-                AND (
-                    ${!spoilerSettings.enabled}::boolean = true 
-                    OR q."airDate" IS NULL 
-                    OR q."airDate" < ${spoilerSettings.date}::timestamp
-                )
             ),
             QuestionHistory AS (
                 SELECT 
@@ -200,6 +166,7 @@ export async function getKnowledgeCategoryDetails(
             FROM "Category" c
             JOIN "Question" q ON q."categoryId" = c.id
             WHERE q."knowledgeCategory"::text = ${knowledgeCategoryId}
+            AND ${playableSql}
             ${searchQuery ? Prisma.sql`AND c.name ILIKE ${`%${searchQuery}%`}` : Prisma.empty}
             ${excludeRound === 'FINAL' ? Prisma.sql`AND q.round != 'FINAL'` : Prisma.empty}
         `;
@@ -226,25 +193,16 @@ export async function getRandomQuestion(
     round?: 'SINGLE' | 'DOUBLE' | 'FINAL'
 ) {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
-        
-        // Build the where clause based on provided filters
-        const where: Prisma.QuestionWhereInput = {}
+        // Build the where clause scoped to published ORIGINAL_ENGINE questions
+        const where: Prisma.QuestionWhereInput = {
+            ...getPlayableQuestionWhere('ORIGINAL_ENGINE')
+        }
         if (knowledgeCategoryId && Object.values(KnowledgeCategory).includes(knowledgeCategoryId as KnowledgeCategory)) {
             where.knowledgeCategory = knowledgeCategoryId as KnowledgeCategory
         }
         if (categoryId) where.categoryId = categoryId
         if (round) where.round = round
         if (excludeQuestionId) where.NOT = { id: excludeQuestionId }
-        
-        // Apply spoiler date filter
-        if (spoilerSettings.enabled && spoilerSettings.date) {
-            where.OR = [
-                { airDate: null },
-                { airDate: { lt: spoilerSettings.date } }
-            ]
-        }
 
         // Get all eligible question IDs first
         const eligibleQuestions = await prisma.question.findMany({
@@ -264,20 +222,15 @@ export async function getRandomQuestion(
         })
 
         if (eligibleQuestions.length === 0) {
-            // If no unanswered questions, get all questions except the excluded one
-            // Still respecting spoiler settings
-            const baseWhere: Prisma.QuestionWhereInput = {}
+            // If no unanswered questions, get all published ORIGINAL_ENGINE questions except the excluded one
+            const baseWhere: Prisma.QuestionWhereInput = {
+                ...getPlayableQuestionWhere('ORIGINAL_ENGINE')
+            }
             if (knowledgeCategoryId && Object.values(KnowledgeCategory).includes(knowledgeCategoryId as KnowledgeCategory)) {
                 baseWhere.knowledgeCategory = knowledgeCategoryId as KnowledgeCategory
             }
             if (categoryId) baseWhere.categoryId = categoryId
             if (round) baseWhere.round = round
-            if (spoilerSettings.enabled && spoilerSettings.date) {
-                baseWhere.OR = [
-                    { airDate: null },
-                    { airDate: { lt: spoilerSettings.date } }
-                ]
-            }
             
             const allQuestions = await prisma.question.findMany({
                 where: {
@@ -475,11 +428,9 @@ export async function saveAnswer(
 
 export async function getCategoryQuestions(categoryId: string, knowledgeCategoryId: string, userId?: string, excludeRound?: 'FINAL', round?: 'SINGLE' | 'DOUBLE' | 'FINAL') {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
-        
-        // Build the where clause based on whether we have a knowledge category or regular category
+        // Build the where clause scoped to published ORIGINAL_ENGINE questions
         const where: Prisma.QuestionWhereInput = {
+            ...getPlayableQuestionWhere('ORIGINAL_ENGINE'),
             categoryId
         };
 
@@ -494,14 +445,6 @@ export async function getCategoryQuestions(categoryId: string, knowledgeCategory
         } else if (excludeRound === 'FINAL') {
             // Exclude FINAL round if specified
             where.round = { not: 'FINAL' }
-        }
-        
-        // Apply spoiler date filter
-        if (spoilerSettings.enabled && spoilerSettings.date) {
-            where.OR = [
-                { airDate: null },
-                { airDate: { lt: spoilerSettings.date } }
-            ]
         }
 
         const questions = await prisma.question.findMany({
@@ -602,8 +545,7 @@ export async function getRoundCategories(
     sortDirection: 'asc' | 'desc' = 'desc'
 ) {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
+        const playableSql = getPlayableQuestionSql('q', 'ORIGINAL_ENGINE')
         
         // Build ORDER BY clause based on sortBy and sortDirection parameters
         const directionSql = sortDirection === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
@@ -611,7 +553,7 @@ export async function getRoundCategories(
             ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::float / NULLIF(cq.total_questions, 0)) ${directionSql} NULLS LAST, cq.most_recent_air_date DESC NULLS LAST`
             : Prisma.sql`ORDER BY cq.most_recent_air_date ${directionSql} NULLS LAST`;
         
-        // Get categories with their questions filtered by round
+        // Get categories with their published ORIGINAL_ENGINE questions filtered by round
         const result = await prisma.$queryRaw<Array<{
             id: string;
             name: string;
@@ -628,11 +570,7 @@ export async function getRoundCategories(
                 FROM "Category" c
                 JOIN "Question" q ON q."categoryId" = c.id
                 WHERE q.round = ${round}::"JeopardyRound"
-                AND (
-                    ${!spoilerSettings.enabled}::boolean = true 
-                    OR q."airDate" IS NULL 
-                    OR q."airDate" < ${spoilerSettings.date}::timestamp
-                )
+                AND ${playableSql}
                 GROUP BY c.id, c.name
             ),
             LatestCorrectAnswers AS (
@@ -650,7 +588,7 @@ export async function getRoundCategories(
                 COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::integer as "correctQuestions",
                 cq.most_recent_air_date as "mostRecentAirDate"
             FROM CategoryQuestions cq
-            JOIN "Question" q ON q."categoryId" = cq.category_id AND q.round = ${round}::"JeopardyRound"
+            JOIN "Question" q ON q."categoryId" = cq.category_id AND q.round = ${round}::"JeopardyRound" AND ${playableSql}
             LEFT JOIN LatestCorrectAnswers lca ON lca."questionId" = q.id
             GROUP BY cq.category_id, cq.category_name, cq.total_questions, cq.most_recent_air_date
             ${orderByClause}
@@ -672,11 +610,7 @@ export async function getRoundCategories(
             FROM "Category" c
             JOIN "Question" q ON q."categoryId" = c.id
             WHERE q.round = ${round}::"JeopardyRound"
-            AND (
-                ${!spoilerSettings.enabled}::boolean = true 
-                OR q."airDate" IS NULL 
-                OR q."airDate" < ${spoilerSettings.date}::timestamp
-            )
+            AND ${playableSql}
         `;
 
         const count = Number(totalCount[0].count);
@@ -699,26 +633,9 @@ export async function getTripleStumperQuestions(
     pageSize: number = 20
 ) {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
-        
-        // Build the where clause - if spoiler is enabled, combine with AND
-        let whereClause: Prisma.QuestionWhereInput
-        
-        if (spoilerSettings.enabled && spoilerSettings.date) {
-            whereClause = {
-                AND: [
-                    { wasTripleStumper: true },
-                    {
-                        OR: [
-                            { airDate: null },
-                            { airDate: { lt: spoilerSettings.date } }
-                        ]
-                    }
-                ]
-            }
-        } else {
-            whereClause = { wasTripleStumper: true }
+        const whereClause: Prisma.QuestionWhereInput = {
+            ...getPlayableQuestionWhere('ORIGINAL_ENGINE'),
+            OR: [{ wasTripleStumper: true }, { difficulty: 'HARD' }]
         }
         
         // Get triple stumper questions using Prisma's standard API for more reliability
@@ -794,8 +711,7 @@ export async function getTripleStumperCategories(
     sortDirection: 'asc' | 'desc' = 'desc'
 ) {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
+        const playableSql = getPlayableQuestionSql('q', 'ORIGINAL_ENGINE')
         
         // Build ORDER BY clause based on sortBy and sortDirection parameters
         const directionSql = sortDirection === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`
@@ -803,7 +719,7 @@ export async function getTripleStumperCategories(
             ? Prisma.sql`ORDER BY (COUNT(DISTINCT CASE WHEN lca.correct THEN q.id END)::float / NULLIF(COUNT(q.id), 0)) ${directionSql} NULLS LAST, MAX(q."airDate") DESC NULLS LAST`
             : Prisma.sql`ORDER BY MAX(q."airDate") ${directionSql} NULLS LAST`;
         
-        // Get categories that have triple stumper questions
+        // Get ORIGINAL_ENGINE categories that have triple stumper / hard challenge questions
         const result = await prisma.$queryRaw<Array<{
             id: string;
             name: string;
@@ -828,12 +744,8 @@ export async function getTripleStumperCategories(
             FROM "Category" c
             JOIN "Question" q ON q."categoryId" = c.id
             LEFT JOIN LatestCorrectAnswers lca ON lca."questionId" = q.id
-            WHERE q."wasTripleStumper" = true
-            AND (
-                ${!spoilerSettings.enabled}::boolean = true 
-                OR q."airDate" IS NULL 
-                OR q."airDate" < ${spoilerSettings.date}::timestamp
-            )
+            WHERE (q."wasTripleStumper" = true OR q.difficulty = 'HARD')
+            AND ${playableSql}
             GROUP BY c.id, c.name
             HAVING COUNT(q.id) > 0
             ${orderByClause}
@@ -854,12 +766,8 @@ export async function getTripleStumperCategories(
             SELECT COUNT(DISTINCT c.id)::integer as count
             FROM "Category" c
             JOIN "Question" q ON q."categoryId" = c.id
-            WHERE q."wasTripleStumper" = true
-            AND (
-                ${!spoilerSettings.enabled}::boolean = true 
-                OR q."airDate" IS NULL 
-                OR q."airDate" < ${spoilerSettings.date}::timestamp
-            )
+            WHERE (q."wasTripleStumper" = true OR q.difficulty = 'HARD')
+            AND ${playableSql}
         `;
 
         const count = Number(totalCount[0].count);
@@ -881,19 +789,11 @@ export async function getTripleStumperCategoryQuestions(
     userId?: string
 ) {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
-        
         const questions = await prisma.question.findMany({
             where: {
+                ...getPlayableQuestionWhere('ORIGINAL_ENGINE'),
                 categoryId,
-                wasTripleStumper: true,
-                ...(spoilerSettings.enabled && spoilerSettings.date ? {
-                    OR: [
-                        { airDate: null },
-                        { airDate: { lt: spoilerSettings.date } }
-                    ]
-                } : {})
+                OR: [{ wasTripleStumper: true }, { difficulty: 'HARD' }]
             },
             include: {
                 category: true,
@@ -947,25 +847,15 @@ export async function getRandomTripleStumper(
     excludeQuestionId?: string
 ) {
     try {
-        // Get user's spoiler settings
-        const spoilerSettings = await getUserSpoilerSettings(userId)
-        
-        // Build the where clause
+        // Build the where clause scoped to published ORIGINAL_ENGINE hard / triple-stumper questions
         const where: Prisma.QuestionWhereInput = {
-            wasTripleStumper: true
+            ...getPlayableQuestionWhere('ORIGINAL_ENGINE'),
+            OR: [{ wasTripleStumper: true }, { difficulty: 'HARD' }]
         }
         
         if (excludeQuestionId) where.NOT = { id: excludeQuestionId }
-        
-        // Apply spoiler date filter
-        if (spoilerSettings.enabled && spoilerSettings.date) {
-            where.OR = [
-                { airDate: null },
-                { airDate: { lt: spoilerSettings.date } }
-            ]
-        }
 
-        // Get all eligible question IDs first (unanswered triple stumpers)
+        // Get all eligible question IDs first (unanswered hard / triple stumper questions)
         const eligibleQuestions = await prisma.question.findMany({
             where: {
                 ...where,
@@ -983,17 +873,12 @@ export async function getRandomTripleStumper(
         })
 
         if (eligibleQuestions.length === 0) {
-            // If no unanswered questions, get all triple stumper questions except the excluded one
+            // If no unanswered questions, get all hard / triple stumper questions except the excluded one
             const allQuestions = await prisma.question.findMany({
                 where: {
-                    wasTripleStumper: true,
-                    NOT: excludeQuestionId ? { id: excludeQuestionId } : undefined,
-                    ...(spoilerSettings.enabled && spoilerSettings.date ? {
-                        OR: [
-                            { airDate: null },
-                            { airDate: { lt: spoilerSettings.date } }
-                        ]
-                    } : {})
+                    ...getPlayableQuestionWhere('ORIGINAL_ENGINE'),
+                    OR: [{ wasTripleStumper: true }, { difficulty: 'HARD' }],
+                    NOT: excludeQuestionId ? { id: excludeQuestionId } : undefined
                 },
                 select: { id: true }
             })

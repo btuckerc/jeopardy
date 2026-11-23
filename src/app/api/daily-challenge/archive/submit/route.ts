@@ -91,13 +91,24 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                 ...(revealAnswer ? { answer: challenge.question.answer } : {})
             })
         }
+
+        // Prevent non-admins from newly playing legacy or unpublished archived daily challenges
+        if (
+            user?.role !== 'ADMIN' &&
+            (challenge.question.source !== 'ORIGINAL_ENGINE' || challenge.question.publishStatus !== 'PUBLISHED')
+        ) {
+            return jsonResponse({
+                error: 'This historical archived challenge is read-only and no longer open for new submissions'
+            }, 403)
+        }
         
         // Grade the answer
         const overrides = await getQuestionOverrides(challenge.question.id)
         const grading = await evaluateAnswerWithOverridesAsync(
             answer.trim(),
             challenge.question.answer,
-            overrides
+            overrides,
+            challenge.question.acceptableAnswers
         )
         const isCorrect = grading.accepted
         
@@ -129,8 +140,14 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                 ...(revealAnswer ? { answer: challenge.question.answer } : {})
             })
         } else {
-            // Create guest session
-            const guestSession = await createGuestSession('DAILY_CHALLENGE')
+            // Create guest session with full attempt payload so claiming attaches to the exact challenge & clue
+            const guestSession = await createGuestSession('DAILY_CHALLENGE', {
+                challengeId: challenge.id,
+                questionId: challenge.questionId,
+                correct: isCorrect,
+                userAnswer: answer.trim(),
+                timestamp: new Date().toISOString(),
+            })
             guestSessionId = guestSession.id
             
             // Guest participation is stored in the session data for later claim

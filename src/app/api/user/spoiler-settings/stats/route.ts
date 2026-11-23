@@ -19,27 +19,15 @@ export async function GET(request: Request) {
             return jsonResponse({ error: 'Date parameter required' }, 400)
         }
 
-        const blockDate = new Date(dateParam)
-        
-        // Get total questions count
-        const totalQuestions = await prisma.question.count()
-        
-        // Get available questions (before the block date or with null air date)
-        const availableQuestions = await prisma.question.count({
-            where: {
-                OR: [
-                    { airDate: null },
-                    { airDate: { lt: blockDate } }
-                ]
-            }
+        // Spoiler settings only apply to LEGACY_JEOPARDY episodes (original packs are spoiler-free)
+        const totalQuestions = await prisma.question.count({
+            where: { source: 'ORIGINAL_ENGINE', publishStatus: 'PUBLISHED' }
         })
-        
-        const blockedQuestions = totalQuestions - availableQuestions
 
         return jsonResponse({
             totalQuestions,
-            availableQuestions,
-            blockedQuestions
+            availableQuestions: totalQuestions,
+            blockedQuestions: 0
         })
     } catch (error) {
         return serverErrorResponse('Error fetching spoiler stats', error)

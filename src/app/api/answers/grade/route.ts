@@ -1,11 +1,12 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
-import { jsonResponse, unauthorizedResponse, notFoundResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
+import { jsonResponse, unauthorizedResponse, forbiddenResponse, notFoundResponse, badRequestResponse, serverErrorResponse, parseBody } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
 import { evaluateAnswerWithOverridesAsync, getQuestionOverrides } from '@/lib/answer-overrides'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
+import { canPlayGameContentSource } from '@/lib/question-policy'
 import { FriendChallengeMode, FriendChallengeStatus } from '@prisma/client'
 import crypto from 'crypto'
 
@@ -68,15 +69,52 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             return notFoundResponse('Question not found')
         }
 
+        const isAdmin = appUser.role === 'ADMIN'
+        if (mode === 'PRACTICE') {
+            if (!isAdmin && (question.source !== 'ORIGINAL_ENGINE' || question.publishStatus !== 'PUBLISHED')) {
+                return forbiddenResponse('This question is not available in the active practice pool')
+            }
+        } else if (mode === 'GAME' && gameId) {
+            const targetGame = await prisma.game.findUnique({
+                where: { id: gameId },
+                select: { userId: true, status: true, contentSource: true }
+            })
+            if (!targetGame) {
+                return notFoundResponse('Game not found')
+            }
+            if (targetGame.userId !== appUser.id) {
+                return forbiddenResponse('You do not have access to this game')
+            }
+            if (targetGame.status !== 'IN_PROGRESS') {
+                return badRequestResponse('Cannot grade answers for a completed or abandoned game')
+            }
+            const playPolicy = canPlayGameContentSource(targetGame.contentSource, targetGame.status, isAdmin)
+            if (!playPolicy.allowed) {
+                return jsonResponse(
+                    {
+                        error: 'This legacy game has been retired. Your score, history, and stats remain preserved—start a new game from the Original question bank.',
+                        legacyRetired: true
+                    },
+                    410
+                )
+            }
+            if (question.source !== targetGame.contentSource || (!isAdmin && question.publishStatus !== 'PUBLISHED')) {
+                return forbiddenResponse('Question does not belong to this game content pool')
+            }
+        } else if (!isAdmin && (question.source !== 'ORIGINAL_ENGINE' || question.publishStatus !== 'PUBLISHED')) {
+            return forbiddenResponse('This question is not available in the active pool')
+        }
+
         // Get all overrides for this question
         const overrides = await getQuestionOverrides(questionId)
         const _overrideTexts = overrides.map(o => o.text)
 
-        // Grade the answer using canonical answer + overrides
+        // Grade the answer using canonical answer + acceptableAnswers + overrides
         const grading = await evaluateAnswerWithOverridesAsync(
             userAnswer,
             question.answer,
-            overrides
+            overrides,
+            question.acceptableAnswers
         )
         const correct = grading.accepted
 
@@ -96,10 +134,10 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
         await prisma.$transaction(async (tx) => {
             // For game mode, update GameQuestion if gameId provided
             if (mode === 'GAME' && gameId) {
-                // Verify game ownership
+                // Verify game ownership and IN_PROGRESS status inside the transaction write boundary
                 const game = await tx.game.findUnique({
                     where: { id: gameId },
-                    select: { userId: true, currentScore: true, config: true }
+                    select: { userId: true, status: true, currentScore: true, config: true }
                 })
 
                 if (!game) {
@@ -108,6 +146,10 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
 
                 if (game.userId !== appUser.id) {
                     throw new Error('Unauthorized')
+                }
+
+                if (game.status !== 'IN_PROGRESS') {
+                    throw new Error('GAME_NOT_IN_PROGRESS')
                 }
 
                 // Find or create GameQuestion
@@ -119,6 +161,8 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                         }
                     }
                 })
+
+                const wasAlreadyAnswered = Boolean(existingGameQuestion?.answered)
 
                 if (existingGameQuestion) {
                     await tx.gameQuestion.update({
@@ -141,17 +185,19 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                     })
                 }
 
-                // Update game score if correct
+                // Update game score atomically only when first answered and still IN_PROGRESS
                 let updatedCurrentScore = game.currentScore
-                if (correct && storedPoints > 0) {
-                    const updatedGame = await tx.game.update({
-                        where: { id: gameId },
+                if (correct && storedPoints > 0 && !wasAlreadyAnswered) {
+                    const scoreUpdated = await tx.game.updateMany({
+                        where: { id: gameId, status: 'IN_PROGRESS' },
                         data: {
                             currentScore: { increment: storedPoints }
                         },
-                        select: { currentScore: true },
                     })
-                    updatedCurrentScore = updatedGame.currentScore
+                    if (scoreUpdated.count === 0) {
+                        throw new Error('GAME_NOT_IN_PROGRESS')
+                    }
+                    updatedCurrentScore = game.currentScore + storedPoints
                 }
 
                 const challengeContext = parseChallengeConfig(game.config)
@@ -279,6 +325,9 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
             unlockedAchievements: unlockedAchievements.length > 0 ? unlockedAchievements : undefined
         })
     } catch (error) {
+        if (error instanceof Error && error.message === 'GAME_NOT_IN_PROGRESS') {
+            return badRequestResponse('Cannot grade answers for a completed or abandoned game')
+        }
         console.error('Error grading answer:', error)
         return serverErrorResponse('Failed to grade answer', error)
     }

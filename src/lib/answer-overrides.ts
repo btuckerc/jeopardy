@@ -77,11 +77,27 @@ export async function isAnswerAcceptedWithOverridesAsync(
 export function evaluateAnswerWithOverrides(
   userAnswer: string,
   canonicalAnswer: string,
-  overrides: AnswerOverride[]
+  overrides: AnswerOverride[],
+  acceptableAnswers?: string[]
 ): OverrideAwareAnswerMatchResult {
   const canonicalResult = checkAnswerDetailed(userAnswer, canonicalAnswer)
   if (canonicalResult.accepted) {
     return canonicalResult
+  }
+
+  if (acceptableAnswers?.length) {
+    for (const alias of acceptableAnswers) {
+      const aliasResult = checkAnswerDetailed(userAnswer, alias)
+      if (aliasResult.accepted) {
+        return {
+          accepted: true,
+          reason: aliasResult.reason,
+          matchedAnswer: alias,
+          matchReason: toDirectMatchReason(aliasResult.reason),
+          similarity: aliasResult.similarity
+        }
+      }
+    }
   }
 
   for (const override of overrides) {
@@ -106,11 +122,27 @@ export function evaluateAnswerWithOverrides(
 export async function evaluateAnswerWithOverridesAsync(
   userAnswer: string,
   canonicalAnswer: string,
-  overrides: AnswerOverride[]
+  overrides: AnswerOverride[],
+  acceptableAnswers?: string[]
 ): Promise<OverrideAwareAnswerMatchResult> {
   const canonicalResult = await checkAnswerDetailedAsync(userAnswer, canonicalAnswer)
   if (canonicalResult.accepted) {
     return canonicalResult
+  }
+
+  if (acceptableAnswers?.length) {
+    for (const alias of acceptableAnswers) {
+      const aliasResult = await checkAnswerDetailedAsync(userAnswer, alias)
+      if (aliasResult.accepted) {
+        return {
+          accepted: true,
+          reason: aliasResult.reason,
+          matchedAnswer: alias,
+          matchReason: toDirectMatchReason(aliasResult.reason),
+          similarity: aliasResult.similarity
+        }
+      }
+    }
   }
 
   for (const override of overrides) {

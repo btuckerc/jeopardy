@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { FriendActivityType, FriendChallengeMode, FriendChallengeStatus, Prisma } from '@prisma/client'
+import { FriendActivityType, FriendChallengeMode, FriendChallengeStatus, Prisma, type QuestionSource } from '@prisma/client'
 import { nanoid } from 'nanoid'
 import {
     badRequestResponse,
@@ -30,6 +30,7 @@ import {
     hasConflictingActiveChallengeForPair,
     reconcileGameChallengeState,
 } from '@/lib/friend-challenge-state'
+import { canPlayGameContentSource, getPlayableQuestionSql, getPlayableQuestionWhere } from '@/lib/question-policy'
 
 const customCategorySelectionSchema = z.object({
     categoryId: z.string(),
@@ -232,11 +233,13 @@ async function selectBoardCategoryIds(
         ? Prisma.sql`WHERE e."categoryId" NOT IN (${Prisma.join(excluded)})`
         : Prisma.empty
 
+    const playableSql = getPlayableQuestionSql('q', 'ORIGINAL_ENGINE')
     const rows = await prisma.$queryRaw<Array<{ categoryId: string }>>`
         WITH eligible AS (
             SELECT q."categoryId"
             FROM "Question" q
             WHERE q."round" = 'SINGLE'::"JeopardyRound"
+              AND ${playableSql}
             GROUP BY q."categoryId"
             HAVING COUNT(*) >= ${minQuestionCount}
         )
@@ -256,6 +259,7 @@ async function selectBoardCategoryIds(
             SELECT q."categoryId"
             FROM "Question" q
             WHERE q."round" = 'SINGLE'::"JeopardyRound"
+              AND ${playableSql}
             GROUP BY q."categoryId"
             HAVING COUNT(*) >= ${minQuestionCount}
         )
@@ -291,6 +295,7 @@ async function selectBoardCategorySelections(
         ? Prisma.sql`AND q."categoryId" NOT IN (${Prisma.join(excludedCategoryIds)})`
         : Prisma.empty
 
+    const playableSql = getPlayableQuestionSql('q', 'ORIGINAL_ENGINE')
     const rows = await prisma.$queryRaw<Array<{
         categoryId: string
         airDate: Date
@@ -300,6 +305,7 @@ async function selectBoardCategorySelections(
         FROM "Question" q
         WHERE q."round" = 'SINGLE'::"JeopardyRound"
           AND q."airDate" IS NOT NULL
+          AND ${playableSql}
           ${exclusionClause}
         GROUP BY q."categoryId", q."airDate", q."round"
         HAVING COUNT(*) >= ${FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT}
@@ -325,6 +331,7 @@ async function filterPlayableCategoryIds(
     const grouped = await prisma.question.groupBy({
         by: ['categoryId'],
         where: {
+            ...getPlayableQuestionWhere('ORIGINAL_ENGINE'),
             round: 'SINGLE',
             categoryId: { in: categoryIds },
         },
@@ -345,6 +352,7 @@ async function filterPlayableCategorySelections(
 
     const pairs = Prisma.join(selections.map((selection) => Prisma.sql`(${selection.categoryId}, ${new Date(selection.airDate)}, ${selection.round}::"JeopardyRound")`))
 
+    const playableSql = getPlayableQuestionSql('q', 'ORIGINAL_ENGINE')
     const rows = await prisma.$queryRaw<Array<{
         categoryId: string
         airDate: Date
@@ -359,6 +367,7 @@ async function filterPlayableCategorySelections(
             ON q."categoryId" = r."categoryId"
            AND q."airDate" = r."airDate"
            AND q."round" = r."round"
+        WHERE ${playableSql}
         GROUP BY q."categoryId", q."airDate", q."round"
         HAVING COUNT(*) >= ${FRIEND_CHALLENGE_MIN_SELECTED_QUESTION_COUNT}
     `
@@ -380,6 +389,8 @@ async function createChallengeGame(params: {
     role: ChallengeRole
     boardCategoryIds: string[]
     boardCategorySelections?: CustomCategorySelection[]
+    contentSource?: QuestionSource
+    boardSnapshot?: unknown
 }) {
     const gameSeed = nanoid(10)
 
@@ -387,6 +398,7 @@ async function createChallengeGame(params: {
         mode: 'custom',
         categoryIds: params.boardCategoryIds,
         categorySelections: params.boardCategorySelections,
+        ...(params.boardSnapshot ? { boardSnapshot: params.boardSnapshot } : {}),
         rounds: { single: true, double: false, final: false },
         preset: 'challenge',
         friendChallengeId: params.challengeId,
@@ -409,9 +421,62 @@ async function createChallengeGame(params: {
             currentRound: 'SINGLE',
             currentScore: 0,
             visibility: 'PRIVATE',
+            contentSource: params.contentSource ?? 'ORIGINAL_ENGINE',
             useKnowledgeCategories: false,
         },
     })
+}
+
+async function resolveChallengeTemplate(challengeId: string): Promise<{
+    contentSource: QuestionSource
+    boardCategoryIds: string[]
+    boardCategorySelections: CustomCategorySelection[]
+    boardSnapshot?: unknown
+}> {
+    const templateRows = await prisma.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Game"
+        WHERE "config"->>'friendChallengeId' = ${challengeId}
+        ORDER BY "createdAt" ASC
+        LIMIT 1
+    `
+
+    const templateId = templateRows[0]?.id
+    const templateGame = templateId
+        ? await prisma.game.findUnique({
+            where: { id: templateId },
+            select: { config: true, contentSource: true },
+        })
+        : null
+
+    const templateConfig = parseChallengeGameConfig(templateGame?.config)
+    const rawTemplateConfig = (templateGame?.config && typeof templateGame.config === 'object' && !Array.isArray(templateGame.config))
+        ? (templateGame.config as Record<string, unknown>)
+        : null
+    const boardCategoryIds = templateConfig.friendChallengeBoardCategoryIds && templateConfig.friendChallengeBoardCategoryIds.length > 0
+        ? templateConfig.friendChallengeBoardCategoryIds
+        : templateConfig.friendChallengeBoardCategoryId
+            ? [templateConfig.friendChallengeBoardCategoryId]
+            : await selectBoardCategoryIds(1)
+    const boardCategorySelections = templateConfig.friendChallengeBoardCategorySelections
+        || templateConfig.categorySelections
+        || []
+
+    let contentSource: QuestionSource = templateGame?.contentSource ?? 'ORIGINAL_ENGINE'
+    if (!templateGame && boardCategoryIds.length > 0) {
+        const firstCat = await prisma.category.findUnique({
+            where: { id: boardCategoryIds[0] },
+            select: { source: true },
+        })
+        if (firstCat) contentSource = firstCat.source
+    }
+
+    return {
+        contentSource,
+        boardCategoryIds,
+        boardCategorySelections,
+        boardSnapshot: rawTemplateConfig?.boardSnapshot,
+    }
 }
 
 async function ensureChallengeGameForUser(params: {
@@ -427,31 +492,7 @@ async function ensureChallengeGameForUser(params: {
         return existingGameId
     }
 
-    const templateRows = await prisma.$queryRaw<Array<{ id: string }>>`
-        SELECT "id"
-        FROM "Game"
-        WHERE "config"->>'friendChallengeId' = ${params.challengeId}
-        ORDER BY "createdAt" ASC
-        LIMIT 1
-    `
-
-    const templateId = templateRows[0]?.id
-    const templateGame = templateId
-        ? await prisma.game.findUnique({
-            where: { id: templateId },
-            select: { config: true },
-        })
-        : null
-
-    const templateConfig = parseChallengeGameConfig(templateGame?.config)
-    const boardCategoryIds = templateConfig.friendChallengeBoardCategoryIds && templateConfig.friendChallengeBoardCategoryIds.length > 0
-        ? templateConfig.friendChallengeBoardCategoryIds
-        : templateConfig.friendChallengeBoardCategoryId
-            ? [templateConfig.friendChallengeBoardCategoryId]
-            : await selectBoardCategoryIds(1)
-    const boardCategorySelections = templateConfig.friendChallengeBoardCategorySelections
-        || templateConfig.categorySelections
-        || []
+    const { contentSource, boardCategoryIds, boardCategorySelections, boardSnapshot } = await resolveChallengeTemplate(params.challengeId)
 
     if (!boardCategoryIds || boardCategoryIds.length === 0) {
         throw new Error('No eligible challenge category found for game mode')
@@ -463,6 +504,8 @@ async function ensureChallengeGameForUser(params: {
         role: params.role,
         boardCategoryIds,
         boardCategorySelections,
+        contentSource,
+        boardSnapshot,
     })
     return createdGame.id
 }
@@ -970,6 +1013,7 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
                             currentRound: 'SINGLE',
                             currentScore: 0,
                             visibility: 'PRIVATE',
+                            contentSource: 'ORIGINAL_ENGINE',
                             useKnowledgeCategories: false,
                         },
                     })
@@ -1144,6 +1188,25 @@ export const POST = withInstrumentation(async (request: NextRequest) => {
 
             if (challenge.status !== FriendChallengeStatus.PENDING) {
                 return badRequestResponse('Only pending challenges can be accepted')
+            }
+
+            // Before accepting a GAME challenge, check if its board belongs to a retired legacy source
+            if (challenge.mode === FriendChallengeMode.GAME) {
+                const template = await resolveChallengeTemplate(challenge.id)
+                const playPolicy = canPlayGameContentSource(
+                    template.contentSource,
+                    'IN_PROGRESS',
+                    user.role === 'ADMIN'
+                )
+                if (!playPolicy.allowed) {
+                    return jsonResponse(
+                        {
+                            error: 'This pre-cutover legacy friend challenge has been retired. Start a new challenge from the Original question bank.',
+                            legacyRetired: true,
+                        },
+                        410
+                    )
+                }
             }
 
             const updated = await prisma.$transaction(async (tx) => {

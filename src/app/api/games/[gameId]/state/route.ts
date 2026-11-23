@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAppUser } from '@/lib/clerk-auth'
+import { canPlayGameContentSource } from '@/lib/question-policy'
 import { jsonResponse, unauthorizedResponse, notFoundResponse, forbiddenResponse, serverErrorResponse, badRequestResponse } from '@/lib/api-utils'
 import { withInstrumentation } from '@/lib/api-instrumentation'
 import { z } from 'zod'
 import { checkAndUnlockAchievements } from '@/lib/achievements'
-import type { Prisma } from '@prisma/client'
 import { FriendActivityType, FriendChallengeMode, FriendChallengeStatus } from '@prisma/client'
 import {
     finalizeReconciledGameChallengeState,
@@ -13,21 +13,6 @@ import {
     hasConflictingActiveChallengeForPair,
     reconcileGameChallengeState,
 } from '@/lib/friend-challenge-state'
-
-interface GameConfig {
-    finalJeopardyQuestionId?: string
-    rounds?: {
-        single?: boolean
-        double?: boolean
-        final?: boolean
-    }
-    mode?: string
-    spoilerProtection?: {
-        enabled?: boolean
-        cutoffDate?: string | null
-    }
-    [key: string]: unknown
-}
 
 interface FriendChallengeContext {
     friendChallengeId?: string
@@ -204,6 +189,18 @@ async function patchHandler(request: NextRequest, context?: { params?: Record<st
             return badRequestResponse('Cannot update a completed or abandoned game')
         }
 
+        const isAdmin = appUser.role === 'ADMIN'
+        const playPolicy = canPlayGameContentSource(game.contentSource, game.status, isAdmin)
+        if (!playPolicy.allowed) {
+            return jsonResponse(
+                {
+                    error: 'This legacy game has been retired. Your score, history, and stats remain preserved—start a new game from the Original question bank.',
+                    legacyRetired: true
+                },
+                410
+            )
+        }
+
         // Parse the request body to determine the action
         let body: Record<string, unknown>
         try {
@@ -223,6 +220,18 @@ async function patchHandler(request: NextRequest, context?: { params?: Record<st
                 }
 
                 const { questionId, correct } = parsed.data
+
+                const targetQuestion = await prisma.question.findUnique({
+                    where: { id: questionId },
+                    select: { source: true, publishStatus: true }
+                })
+                if (
+                    !targetQuestion ||
+                    targetQuestion.source !== game.contentSource ||
+                    (!isAdmin && targetQuestion.publishStatus !== 'PUBLISHED')
+                ) {
+                    return forbiddenResponse('Question does not belong to this game content pool')
+                }
 
                 // Find or create the GameQuestion record
                 const gameQuestion = game.questions.find(gq => gq.questionId === questionId)
@@ -268,22 +277,38 @@ async function patchHandler(request: NextRequest, context?: { params?: Record<st
 
                 const { newRound, finalJeopardyQuestionId } = parsed.data
 
-                // If advancing to FINAL round and we have a question ID, store it in config
-                const updateData: Prisma.GameUpdateInput = { currentRound: newRound }
-                
+                // If advancing to FINAL round and we have a question ID, store it atomically in config without clobbering boardSnapshot
                 if (newRound === 'FINAL' && finalJeopardyQuestionId) {
-                    // Merge the FJ question ID into the existing config
-                    const existingConfig = (game.config as GameConfig) || {}
-                    updateData.config = {
-                        ...existingConfig,
-                        finalJeopardyQuestionId
+                    const fjQuestion = await prisma.question.findUnique({
+                        where: { id: finalJeopardyQuestionId },
+                        select: { source: true, publishStatus: true, round: true }
+                    })
+                    if (
+                        !fjQuestion ||
+                        fjQuestion.source !== game.contentSource ||
+                        fjQuestion.round !== 'FINAL' ||
+                        (!isAdmin && fjQuestion.publishStatus !== 'PUBLISHED')
+                    ) {
+                        return forbiddenResponse('Final question does not belong to this game content pool')
                     }
+                    const fjPayload = JSON.stringify(finalJeopardyQuestionId)
+                    await prisma.$executeRaw`
+                        UPDATE "Game"
+                        SET "currentRound" = ${newRound}::"JeopardyRound",
+                            "config" = jsonb_set(
+                                COALESCE("config", '{}'::jsonb),
+                                '{finalJeopardyQuestionId}',
+                                ${fjPayload}::jsonb,
+                                true
+                            )
+                        WHERE "id" = ${gameId}
+                    `
+                } else {
+                    await prisma.game.update({
+                        where: { id: gameId },
+                        data: { currentRound: newRound }
+                    })
                 }
-
-                await prisma.game.update({
-                    where: { id: gameId },
-                    data: updateData
-                })
 
                 return jsonResponse({
                     success: true,
@@ -402,18 +427,18 @@ async function patchHandler(request: NextRequest, context?: { params?: Record<st
                 }
 
                 const { stage, wager } = parsed.data
-                const existingConfig = (game.config as GameConfig) || {}
-                
-                const updatedConfig = {
-                    ...existingConfig,
+                const patchObj: Record<string, unknown> = {
                     ...(stage !== undefined && { finalJeopardyStage: stage }),
-                    ...(wager !== undefined && { finalJeopardyWager: wager })
+                    ...(wager !== undefined && { finalJeopardyWager: wager }),
                 }
+                const patchJson = JSON.stringify(patchObj)
 
-                await prisma.game.update({
-                    where: { id: gameId },
-                    data: { config: updatedConfig }
-                })
+                // Atomically merge only Final Jeopardy fields without clobbering concurrent boardSnapshot writes
+                await prisma.$executeRaw`
+                    UPDATE "Game"
+                    SET "config" = COALESCE("config", '{}'::jsonb) || ${patchJson}::jsonb
+                    WHERE "id" = ${gameId}
+                `
 
                 return jsonResponse({
                     success: true,

@@ -18,8 +18,9 @@ export async function GET(request: Request) {
         }
 
         // Get the category and its first question to determine the knowledge category
-        const category = await prisma.category.findUnique({
+        const category = await prisma.category.findFirst({
             where: { name: categoryName },
+            orderBy: { source: 'desc' },
             include: {
                 questions: {
                     take: 1,

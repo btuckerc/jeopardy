@@ -116,11 +116,13 @@ export function getBoardCacheKey(params: {
     seed?: string | null
     round: 'SINGLE' | 'DOUBLE'
     mode: string | null
+    contentSource?: string | null
     date?: string | null
     categories?: string | null
     categoryIds?: string | null
     categorySelections?: string | null
     revealAnswers?: boolean
+    isAdmin?: boolean
 }): string | null {
     // Only cache if we have a deterministic identifier (gameId or seed)
     const identifier = params.gameId || params.seed
@@ -130,6 +132,8 @@ export function getBoardCacheKey(params: {
     const parts = [
         'board',
         identifier,
+        params.contentSource || 'ORIGINAL_ENGINE',
+        params.isAdmin ? 'admin' : 'player',
         params.round,
         params.mode || 'random',
         params.revealAnswers ? 'reveal' : 'hide'
@@ -159,10 +163,12 @@ export function getFinalJeopardyCacheKey(params: {
     gameId?: string | null
     seed?: string | null
     mode: string | null
+    contentSource?: string | null
     date?: string | null
     finalCategoryMode?: string | null
     finalCategoryId?: string | null
     revealAnswers?: boolean
+    isAdmin?: boolean
 }): string | null {
     // Only cache if we have a deterministic identifier
     const identifier = params.gameId || params.seed
@@ -171,6 +177,8 @@ export function getFinalJeopardyCacheKey(params: {
     const parts = [
         'fj',
         identifier,
+        params.contentSource || 'ORIGINAL_ENGINE',
+        params.isAdmin ? 'admin' : 'player',
         params.mode || 'random',
         params.finalCategoryMode || 'shuffle',
         params.revealAnswers ? 'reveal' : 'hide'

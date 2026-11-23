@@ -125,12 +125,19 @@ async function getGamesByStatus(status: 'IN_PROGRESS' | 'COMPLETED', limit?: num
         return []
     }
 
+    const { getLegacyInProgressPolicy } = await import('@/lib/question-policy')
+    const hideRetiredLegacy =
+        status === 'IN_PROGRESS' &&
+        appUser.role !== 'ADMIN' &&
+        getLegacyInProgressPolicy() === 'RETIRE'
+
     // OPTIMIZED: Fetch games with minimal data
     // Don't include full questions - just get counts
     const games = await prisma.game.findMany({
         where: {
             userId: appUser.id,
-            status
+            status,
+            ...(hideRetiredLegacy ? { contentSource: 'ORIGINAL_ENGINE' } : {})
         },
         orderBy: {
             updatedAt: 'desc'
