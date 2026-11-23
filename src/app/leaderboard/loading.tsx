@@ -1,41 +1,36 @@
+import { PageShell } from '@/components/PageShell'
+
 export default function LeaderboardLoading() {
     return (
-        <div className="min-h-screen bg-gray-100 py-8 px-4">
-            <div className="max-w-4xl mx-auto">
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <div className="h-10 w-48 mx-auto bg-gray-200 rounded animate-pulse mb-4"></div>
-                    <div className="h-5 w-72 mx-auto bg-gray-200 rounded animate-pulse"></div>
-                </div>
-                
-                {/* Tabs skeleton */}
-                <div className="flex justify-center gap-2 mb-6">
-                    {[1, 2, 3].map((i) => (
-                        <div key={i} className="h-10 w-28 bg-gray-200 rounded-lg animate-pulse"></div>
-                    ))}
-                </div>
-                
-                {/* Leaderboard table skeleton */}
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                    {/* Table header */}
-                    <div className="bg-gray-50 px-6 py-3 flex gap-4">
-                        <div className="h-4 w-12 bg-gray-200 rounded animate-pulse"></div>
-                        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse flex-1"></div>
-                        <div className="h-4 w-16 bg-gray-200 rounded animate-pulse"></div>
+        <PageShell>
+            <div className="mb-6 md:mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-2.5">
+                    <div className="h-3.5 w-24 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-9 w-64 bg-slate-200 rounded-lg animate-pulse" />
+                    <div className="flex gap-2 pt-1">
+                        <div className="h-9 w-20 bg-slate-200 rounded-lg animate-pulse" />
+                        <div className="h-9 w-20 bg-slate-200 rounded-lg animate-pulse" />
                     </div>
-                    
-                    {/* Table rows */}
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-                        <div key={i} className="px-6 py-4 border-t border-gray-100 flex items-center gap-4">
-                            <div className="h-6 w-8 bg-gray-200 rounded animate-pulse"></div>
-                            <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
-                            <div className="h-5 w-32 bg-gray-200 rounded animate-pulse flex-1"></div>
-                            <div className="h-5 w-16 bg-gray-200 rounded animate-pulse"></div>
-                        </div>
-                    ))}
                 </div>
+                <div className="h-28 w-full md:w-56 bg-white rounded-2xl border border-slate-200 p-4 animate-pulse" />
             </div>
-        </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-slate-50 px-6 py-3 flex gap-4 border-b border-slate-200">
+                    <div className="h-4 w-12 bg-slate-200 rounded animate-pulse" />
+                    <div className="h-4 w-32 bg-slate-200 rounded animate-pulse flex-1" />
+                    <div className="h-4 w-16 bg-slate-200 rounded animate-pulse" />
+                </div>
+
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                    <div key={i} className="px-6 py-4 border-t border-slate-100 flex items-center gap-4">
+                        <div className="h-6 w-8 bg-slate-200 rounded animate-pulse" />
+                        <div className="h-10 w-10 bg-slate-200 rounded-full animate-pulse" />
+                        <div className="h-5 w-40 bg-slate-200 rounded animate-pulse flex-1" />
+                        <div className="h-5 w-20 bg-slate-200 rounded animate-pulse" />
+                    </div>
+                ))}
+            </div>
+        </PageShell>
     )
 }
-

@@ -12,6 +12,7 @@ import type { UnlockedAchievement } from '@/types/admin'
 import { getNextChallengeTimeISO } from '@/lib/daily-challenge-utils'
 import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
 import ShareResults from './components/ShareResults'
+import BackToTopButton from '@/components/BackToTopButton'
 import toast from 'react-hot-toast'
 
 // Helper to format date string without timezone conversion
@@ -106,7 +107,6 @@ export default function DailyChallengeClient({
     const [disputeSubmitting, setDisputeSubmitting] = useState(false)
     const [revealMyAnswer, setRevealMyAnswer] = useState(false)
     const [storedUserAnswer, setStoredUserAnswer] = useState<string | null>(null)
-    const [showBackToTop, setShowBackToTop] = useState(false)
     const [showQuestion, setShowQuestion] = useState(false)
     const [mounted, setMounted] = useState(false)
 
@@ -132,27 +132,13 @@ export default function DailyChallengeClient({
         }
     }, [challenge])
 
-    // Refresh challenge data when user changes (for guest -> authenticated transitions)
+    // Refresh challenge data only when authenticated user ID actually changes (e.g. guest -> signed in)
     useEffect(() => {
-        if (!authLoading && user !== initialUser) {
+        if (!authLoading && (user?.id ?? null) !== (initialUser?.id ?? null)) {
             loadChallenge()
             loadLeaderboard()
         }
-    }, [user, authLoading, initialUser])
-
-    // Handle scroll to show/hide back to top button
-    useEffect(() => {
-        const handleScroll = () => {
-            setShowBackToTop(window.scrollY > 400)
-        }
-        
-        window.addEventListener('scroll', handleScroll)
-        return () => window.removeEventListener('scroll', handleScroll)
-    }, [])
-
-    const scrollToTop = () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    }, [user?.id, authLoading, initialUser?.id])
 
     const loadChallenge = async () => {
         try {
@@ -287,7 +273,7 @@ export default function DailyChallengeClient({
 
     if (!challenge) {
         return (
-            <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen -mt-6 min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+            <div className="relative flex-1 w-full surface-immersive flex items-center justify-center py-16 px-4 sm:px-6 lg:px-8">
                 {/* Shadow under navbar */}
                 <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
                 <div className="bg-blue-800 rounded-2xl shadow-2xl p-8 max-w-md text-center">
@@ -302,7 +288,7 @@ export default function DailyChallengeClient({
     }
 
     return (
-        <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen -mt-6 min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+        <div className="relative flex-1 w-full surface-immersive py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
             {/* Shadow under navbar */}
             <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
             <div className="max-w-7xl mx-auto">
@@ -310,44 +296,37 @@ export default function DailyChallengeClient({
                 {/* Daily Challenge Badge */}
                 <div className="flex items-center justify-center mb-6 sm:mb-8">
                     <div className="px-4 sm:px-6 py-2 bg-amber-400 rounded-full shadow-lg">
-                        <span className="text-blue-900 font-bold text-xs sm:text-sm md:text-base tracking-wider uppercase">
+                        <span className="text-blue-950 font-bold text-xs sm:text-sm md:text-base tracking-wider uppercase">
                             Daily Challenge
                         </span>
                     </div>
                 </div>
 
-                {/* Unified Category Display - Transitions smoothly from Hero to Header */}
+                {/* Unified Category Display */}
                 <div 
-                    className={`relative overflow-hidden rounded-xl shadow-2xl mb-8 bg-gradient-to-b from-blue-700 to-blue-800 transition-all duration-500 ease-out ${
-                        showQuestion ? 'py-6 px-6 max-w-4xl mx-auto' : 'py-12 sm:py-16 px-8'
+                    className={`relative overflow-hidden rounded-2xl shadow-2xl mb-8 bg-gradient-to-b from-blue-700 to-blue-800 ${
+                        showQuestion ? 'py-6 px-6 max-w-4xl mx-auto' : 'py-10 sm:py-14 px-8'
                     }`}
                 >
                     <div className="text-center">
                         <p 
-                            className={`text-blue-300 uppercase tracking-widest transition-all duration-500 ease-out ${
-                                showQuestion ? 'text-xs mb-2' : 'text-lg sm:text-xl mb-4'
+                            className={`text-blue-200 uppercase tracking-widest ${
+                                showQuestion ? 'text-xs mb-2' : 'text-sm sm:text-base mb-3'
                             }`}
                         >
                             {showQuestion ? "The Category Is" : "Today's Category Is"}
                         </p>
                         <h1 
-                            className={`font-bold text-white uppercase tracking-wide leading-tight transition-all duration-500 ease-out ${
+                            className={`font-bold text-white uppercase tracking-wide leading-tight ${
                                 showQuestion ? 'text-xl sm:text-2xl md:text-3xl' : 'text-2xl sm:text-4xl md:text-5xl'
                             }`}
                         >
                             {challenge.question.category}
                         </h1>
-                        {/* Air Date - smoothly fades and collapses when revealed */}
-                        {challenge.question.airDate && (
-                            <div 
-                                className={`transition-all duration-300 ease-out overflow-hidden ${
-                                    showQuestion ? 'opacity-0 max-h-0 mt-0' : 'opacity-100 max-h-20 mt-4'
-                                }`}
-                            >
-                                <p className="text-blue-200 text-xs sm:text-sm">
-                                    Originally aired: {formatAirDate(challenge.question.airDate)}
-                                </p>
-                            </div>
+                        {challenge.question.airDate && !showQuestion && (
+                            <p className="mt-3 text-blue-200 text-xs sm:text-sm">
+                                Originally aired: {formatAirDate(challenge.question.airDate)}
+                            </p>
                         )}
                     </div>
                 </div>
@@ -725,28 +704,7 @@ export default function DailyChallengeClient({
                     </div>
                 </div>
 
-                {/* Back to Top Button */}
-                {showBackToTop && (
-                    <button
-                        onClick={scrollToTop}
-                        className="fixed bottom-4 right-4 md:bottom-8 md:right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-3 md:p-4 rounded-full shadow-2xl ring-2 md:ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110"
-                        aria-label="Back to top"
-                    >
-                        <svg 
-                            className="w-5 h-5 md:w-6 md:h-6" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                        >
-                            <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth={2.5} 
-                                d="M5 10l7-7m0 0l7 7m-7-7v18" 
-                            />
-                        </svg>
-                    </button>
-                )}
+                <BackToTopButton />
             </div>
         </div>
     )

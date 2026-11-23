@@ -915,10 +915,16 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         void loadInvitePreview({ token: inviteToken }).catch(markError)
     }, [loadInvitePreview, router, searchParams])
 
+    const sseConnectedRef = useRef(false)
+
     useEffect(() => {
         const pollId = window.setInterval(() => {
+            // Pause polling when tab is hidden or SSE live channel is healthy
+            if (document.hidden || sseConnectedRef.current) {
+                return
+            }
             void loadFriendData({ silent: true })
-        }, 5000)
+        }, 15000)
 
         const handleVisibilityRefresh = () => {
             if (!document.hidden) {
@@ -939,6 +945,10 @@ export default function FriendsClient({ user }: FriendsClientProps) {
     useEffect(() => {
         const eventSource = new EventSource('/api/friends/events')
 
+        eventSource.onopen = () => {
+            sseConnectedRef.current = true
+        }
+
         eventSource.addEventListener('social_update', () => {
             void loadFriendData({ silent: true })
             if (selectedFriendId) {
@@ -947,10 +957,12 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         })
 
         eventSource.onerror = () => {
+            sseConnectedRef.current = false
             eventSource.close()
         }
 
         return () => {
+            sseConnectedRef.current = false
             eventSource.close()
         }
     }, [loadComparison, loadFriendData, selectedFriendId])
@@ -2204,7 +2216,16 @@ export default function FriendsClient({ user }: FriendsClientProps) {
         : 'Create Challenge'
 
     if (isLoading) {
-        return <div className="container mx-auto px-4 py-8">Loading friends...</div>
+        return (
+            <div className="workspace-page">
+                <div className="flex items-center justify-center py-16">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="spinner text-blue-600" />
+                        <p className="text-sm font-medium text-slate-600">Loading friends...</p>
+                    </div>
+                </div>
+            </div>
+        )
     }
 
     return (

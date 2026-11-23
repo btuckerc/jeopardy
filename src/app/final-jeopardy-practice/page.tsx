@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { PageShell } from '@/components/PageShell'
+import { PageHeader } from '@/components/PageHeader'
 
 export const metadata: Metadata = {
     title: 'Final Jeopardy Practice | Daily Clues and Study Tips - trivrdy',
@@ -45,17 +47,16 @@ const faqSchema = {
 
 export default function FinalJeopardyPracticePage() {
     return (
-        <div className="container mx-auto max-w-4xl px-4 py-10">
-            <h1 className="text-4xl font-bold text-gray-900">Final Jeopardy practice that feels like real clue work</h1>
-            <p className="mt-4 text-lg leading-8 text-gray-700">
-                Final Jeopardy is a different skill from fast board play. You need to read the category carefully, narrow the field of
-                possible answers, and retrieve the right fact under pressure. trivrdy gives you a daily challenge and round-specific study
-                modes so you can practice that exact pattern without waiting for a live game.
-            </p>
+        <PageShell variant="narrow">
+            <PageHeader
+                kicker="Final Jeopardy"
+                title="Final Jeopardy practice that feels like real clue work"
+                subtitle="Read the category carefully, narrow the field of possible answers, and retrieve the right fact under pressure with daily challenges and round-specific study."
+            />
 
-            <section className="mt-10 rounded-2xl border border-blue-100 bg-blue-50 p-8">
-                <h2 className="text-2xl font-semibold text-gray-900">A simple Final Jeopardy training routine</h2>
-                <ol className="mt-4 list-decimal space-y-3 pl-5 text-gray-700 leading-7">
+            <section className="rounded-2xl border border-blue-100 bg-blue-50 p-6 sm:p-8">
+                <h2 className="text-2xl font-semibold text-slate-900">A simple Final Jeopardy training routine</h2>
+                <ol className="mt-4 list-decimal space-y-3 pl-5 text-slate-700 leading-7">
                     <li>Read the category and write down two or three likely subtopics before reading the clue.</li>
                     <li>Answer once under time pressure instead of overthinking.</li>
                     <li>Review the clue after the reveal and note whether you missed from knowledge, wording, or category inference.</li>
@@ -63,10 +64,10 @@ export default function FinalJeopardyPracticePage() {
                 </ol>
             </section>
 
-            <section className="mt-10 grid gap-6 md:grid-cols-2">
-                <article className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <h2 className="text-xl font-semibold text-gray-900">Use the daily challenge</h2>
-                    <p className="mt-3 text-gray-700 leading-7">
+            <section className="mt-6 grid gap-6 md:grid-cols-2">
+                <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h2 className="text-xl font-semibold text-slate-900">Use the daily challenge</h2>
+                    <p className="mt-3 text-slate-700 leading-7">
                         The daily challenge is the closest thing to a fresh Final Jeopardy workout. It is the best entry point if you want
                         one high-quality clue per day with a simple routine you can sustain.
                     </p>
@@ -75,9 +76,9 @@ export default function FinalJeopardyPracticePage() {
                     </Link>
                 </article>
 
-                <article className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-                    <h2 className="text-xl font-semibold text-gray-900">Practice by round</h2>
-                    <p className="mt-3 text-gray-700 leading-7">
+                <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h2 className="text-xl font-semibold text-slate-900">Practice by round</h2>
+                    <p className="mt-3 text-slate-700 leading-7">
                         When you want volume instead of one clue, use round-based study to focus on Final Jeopardy style clues and compare
                         them with Single and Double Jeopardy clue patterns.
                     </p>
@@ -87,9 +88,9 @@ export default function FinalJeopardyPracticePage() {
                 </article>
             </section>
 
-            <section className="mt-10 rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
-                <h2 className="text-2xl font-semibold text-gray-900">Why this matters</h2>
-                <p className="mt-4 text-gray-700 leading-7">
+            <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+                <h2 className="text-2xl font-semibold text-slate-900">Why this matters</h2>
+                <p className="mt-3 text-slate-700 leading-7">
                     Most players do not need more random facts. They need a repeatable process for reading clues, inferring the likely answer
                     class, and reviewing misses. Final Jeopardy practice is valuable because it slows the game down enough for that review loop
                     to become obvious.
@@ -100,6 +101,6 @@ export default function FinalJeopardyPracticePage() {
                 type="application/ld+json"
                 dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
             />
-        </div>
+        </PageShell>
     )
 }

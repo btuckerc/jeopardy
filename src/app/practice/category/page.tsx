@@ -1898,17 +1898,17 @@ function FreePracticeContent() {
 
     if (isInitializing) {
         return (
-            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <div className="flex-1 w-full flex items-center justify-center py-16">
                 <div className="text-center">
                     <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em] mb-4"></div>
-                    <div className="text-gray-600 font-medium">Loading study mode...</div>
+                    <div className="text-slate-600 font-medium">Loading study mode...</div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-10 sm:pt-8 sm:pb-14">
             {loading ? (
                 <LoadingSpinner />
             ) : (
@@ -1937,7 +1937,7 @@ function FreePracticeContent() {
                                     <StudyActionButton
                                         onClick={handleShuffle}
                                         disabled={loadingQuestions || isTransitioning || !!urlError || activeQuestionNavigation !== null}
-                                        className="w-full bg-purple-400 text-white hover:bg-purple-500 sm:w-auto"
+                                        className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:w-auto"
                                         icon={(loadingQuestions || activeQuestionNavigation === 'random') ? (
                                             <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
                                         ) : (
@@ -2510,7 +2510,7 @@ function FreePracticeContent() {
 // Loading fallback for Suspense boundary
 function PracticeLoadingFallback() {
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="flex-1 w-full flex items-center justify-center py-16">
             <div className="text-center">
                 <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em] mb-4"></div>
                 <div className="text-gray-600 font-medium">Loading study mode...</div>

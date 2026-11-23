@@ -605,7 +605,7 @@ export default function GameBoard() {
         const _effectiveWager = canWager ? Math.max(0, Math.min(finalJeopardyWager, maxWager)) : 0
 
         return (
-            <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-4 sm:py-8 px-4">
+            <div className="flex-1 w-full surface-immersive py-6 sm:py-10 px-4">
                 {/* Header */}
                 <div className="max-w-4xl mx-auto mb-6 sm:mb-8">
                     <div className="flex justify-between items-center">
@@ -768,7 +768,7 @@ export default function GameBoard() {
 
     // Main game board
     return (
-        <div className="min-h-screen bg-gray-100">
+        <div className="flex-1 w-full bg-slate-100">
             {/* Header - Redesigned */}
             <div className="bg-gradient-to-r from-blue-800 to-blue-900 text-white py-3 px-4 shadow-lg">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">

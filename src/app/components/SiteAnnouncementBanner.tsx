@@ -83,7 +83,7 @@ export default function SiteAnnouncementBanner() {
                 <button
                     type="button"
                     onClick={handleDismiss}
-                    className="inline-flex shrink-0 items-center rounded-full border border-slate-200/80 bg-white/75 px-3 py-1.5 text-sm font-medium text-slate-500 shadow-[0_1px_6px_rgba(15,23,42,0.05)] backdrop-blur-sm transition-all hover:border-blue-200 hover:bg-white hover:text-blue-700"
+                    className="inline-flex min-h-[40px] shrink-0 items-center rounded-full border border-slate-200/80 bg-white/85 px-3.5 py-2 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-white hover:text-blue-700"
                     aria-label={`Dismiss ${announcement.label.toLowerCase()}`}
                 >
                     Dismiss

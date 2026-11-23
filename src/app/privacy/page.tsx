@@ -1,5 +1,7 @@
 import { Metadata } from 'next'
 import { JsonLd } from '@/components/JsonLd'
+import { PageShell } from '@/components/PageShell'
+import { PageHeader } from '@/components/PageHeader'
 
 export const metadata: Metadata = {
     title: 'Privacy Policy | trivrdy',
@@ -44,10 +46,13 @@ export default function PrivacyPage() {
     return (
         <>
             <JsonLd data={breadcrumbSchema} />
-            <div className="container mx-auto px-4 py-8 max-w-4xl">
-                <h1 className="text-3xl font-bold text-gray-900 mb-8">Privacy Policy</h1>
+            <PageShell variant="narrow">
+                <PageHeader
+                    kicker="Legal"
+                    title="Privacy Policy"
+                />
 
-                <div className="prose prose-blue max-w-none">
+                <div className="card p-6 sm:p-8 prose prose-blue max-w-none">
                     <p className="text-gray-600 mb-6">
                         <strong>Last updated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                     </p>
@@ -159,7 +164,7 @@ export default function PrivacyPage() {
                         </p>
                     </section>
                 </div>
-            </div>
+            </PageShell>
         </>
     )
 }

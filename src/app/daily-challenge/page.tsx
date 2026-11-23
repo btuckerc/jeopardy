@@ -133,28 +133,45 @@ export default async function DailyChallengePage() {
         }
 
         if (challengeData) {
-            // Get user's answer if authenticated
-            let userAnswer = null
-            if (user) {
-                const userChallenge = await prisma.userDailyChallenge.findUnique({
-                    where: {
-                        userId_challengeId: {
-                            userId: user.id,
-                            challengeId: challengeData.id
+            // Fetch user answer, guest config, and leaderboard in parallel
+            const [userChallenge, guestConfig, completions] = await Promise.all([
+                user
+                    ? prisma.userDailyChallenge.findUnique({
+                        where: {
+                            userId_challengeId: {
+                                userId: user.id,
+                                challengeId: challengeData.id
+                            }
                         }
-                    }
+                    })
+                    : Promise.resolve(null),
+                getGuestConfig(),
+                prisma.userDailyChallenge.findMany({
+                    where: { challengeId: challengeData.id },
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                displayName: true,
+                                selectedIcon: true,
+                                avatarBackground: true
+                            }
+                        }
+                    },
+                    orderBy: [
+                        { correct: 'desc' },
+                        { completedAt: 'asc' }
+                    ]
                 })
-                if (userChallenge) {
-                    userAnswer = {
-                        correct: userChallenge.correct,
-                        completedAt: userChallenge.completedAt.toISOString(),
-                        userAnswerText: userChallenge.userAnswer || null
-                    }
-                }
-            }
+            ])
 
-            // Get guest config
-            const guestConfig = await getGuestConfig()
+            const userAnswer = userChallenge
+                ? {
+                    correct: userChallenge.correct,
+                    completedAt: userChallenge.completedAt.toISOString(),
+                    userAnswerText: userChallenge.userAnswer || null
+                }
+                : null
 
             challenge = {
                 id: challengeData.id,
@@ -172,25 +189,6 @@ export default async function DailyChallengePage() {
                     guestAppearsOnLeaderboard: guestConfig.dailyChallengeGuestAppearsOnLeaderboard
                 }
             }
-
-            // Fetch leaderboard data server-side
-            const completions = await prisma.userDailyChallenge.findMany({
-                where: { challengeId: challengeData.id },
-                include: {
-                    user: {
-                        select: {
-                            id: true,
-                            displayName: true,
-                            selectedIcon: true,
-                            avatarBackground: true
-                        }
-                    }
-                },
-                orderBy: [
-                    { correct: 'desc' },
-                    { completedAt: 'asc' }
-                ]
-            })
 
             leaderboard = completions.map((completion, index) => ({
                 rank: index + 1,

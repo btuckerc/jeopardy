@@ -121,18 +121,19 @@ export default async function HelpPage() {
     const supportEmail = process.env.SMTP_USER || null
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-amber-50">
-            <div className="relative overflow-hidden bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 text-white">
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100/40 via-transparent to-transparent"></div>
-                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-                    <h1 className="text-4xl sm:text-5xl font-bold mb-4">Help & Feedback</h1>
-                    <p className="text-xl text-blue-100 max-w-2xl">
+        <div className="flex-1 w-full bg-slate-100">
+            <div className="relative overflow-hidden surface-immersive text-white border-t border-white/10">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100/20 via-transparent to-transparent" />
+                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-300">Support</p>
+                    <h1 className="mt-1.5 text-3xl sm:text-4xl font-bold tracking-tight">Help &amp; Feedback</h1>
+                    <p className="mt-2 text-base sm:text-lg text-blue-100 max-w-2xl">
                         Have a question, found a bug, or want to suggest a feature? I&apos;m here to help.
                     </p>
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 sm:pt-8 sm:pb-14">
                 <HelpClient user={user} supportEmail={supportEmail} />
             </div>
             <JsonLd data={faqSchema} />

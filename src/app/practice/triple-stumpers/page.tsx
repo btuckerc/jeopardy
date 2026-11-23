@@ -780,17 +780,17 @@ function TripleStumpersContent() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <div className="flex-1 w-full flex items-center justify-center py-16">
                 <div className="text-center">
-                    <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-yellow-600 border-r-transparent align-[-0.125em] mb-4"></div>
-                    <div className="text-gray-600 font-medium">Loading triple stumpers...</div>
+                    <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-amber-600 border-r-transparent align-[-0.125em] mb-4"></div>
+                    <div className="text-slate-600 font-medium">Loading triple stumpers...</div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-10 sm:pt-8 sm:pb-14">
             <div className="relative">
                 {isTransitioning && (
                     <div className="absolute inset-0 bg-gray-100/50 z-10 flex items-start justify-center pt-32 pointer-events-none">
@@ -812,9 +812,9 @@ function TripleStumpersContent() {
                     <StudyActionButton
                         onClick={handleShuffle}
                         disabled={loadingQuestions || isTransitioning}
-                        className="w-full bg-yellow-500 text-white hover:bg-yellow-600 sm:w-auto"
+                        className="w-full bg-amber-400 text-blue-950 hover:bg-amber-500 sm:w-auto"
                         icon={loadingQuestions ? (
-                            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-white border-r-transparent" />
+                            <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-solid border-blue-950 border-r-transparent" />
                         ) : (
                             <svg className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -936,7 +936,7 @@ function TripleStumpersContent() {
                                 ) : (
                                     <button
                                         onClick={loadMoreCategories}
-                                        className="px-6 py-3 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors font-bold"
+                                        className="px-6 py-3 bg-amber-400 text-blue-950 rounded-xl hover:bg-amber-500 transition-colors font-bold shadow-sm"
                                     >
                                         Load More Categories
                                     </button>
@@ -1079,7 +1079,7 @@ function TripleStumpersContent() {
                                                     </div>
                                                     <StudyActionButton
                                                         onClick={handleAnswerSubmit}
-                                                        className="w-full bg-yellow-500 text-white hover:bg-yellow-600 sm:w-auto"
+                                                        className="w-full bg-amber-400 text-blue-950 hover:bg-amber-500 sm:w-auto"
                                                     >
                                                         Submit
                                                     </StudyActionButton>
@@ -1152,7 +1152,7 @@ function TripleStumpersContent() {
                                         </StudyActionButton>
                                         <StudyActionButton
                                             onClick={handleShuffle}
-                                            className="bg-yellow-500 text-white hover:bg-yellow-600"
+                                            className="bg-amber-400 text-blue-950 hover:bg-amber-500"
                                             icon={(
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1198,7 +1198,7 @@ function TripleStumpersContent() {
 
 function PracticeLoadingFallback() {
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+        <div className="flex-1 w-full flex items-center justify-center py-16">
             <div className="text-center">
                 <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-yellow-600 border-r-transparent align-[-0.125em] mb-4"></div>
                 <div className="text-gray-600 font-medium">Loading triple stumpers...</div>

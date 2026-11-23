@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import UserAvatar from '@/components/UserAvatar';
 import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt';
+import BackToTopButton from '@/components/BackToTopButton';
+import { PageShell } from '@/components/PageShell';
 import type { AppUser } from '@/lib/clerk-auth';
 
 interface LeaderboardEntry {
@@ -36,30 +38,22 @@ async function fetchLeaderboard(scope: 'global' | 'friends'): Promise<Leaderboar
 }
 
 export default function LeaderboardClient({ user, initialLeaderboard, scope }: LeaderboardClientProps) {
-    const [showBackToTop, setShowBackToTop] = useState(false);
     const [achievementBadges, setAchievementBadges] = useState<Record<string, string[]>>({});
     const [previousRank, setPreviousRank] = useState<number | null>(null);
     const queryClient = useQueryClient();
     const searchParams = useSearchParams();
     const activeScope = searchParams.get('scope') === 'friends' ? 'friends' : scope;
 
-    // Use React Query with stale-while-revalidate pattern
-    // - initialData: Server-rendered data for instant display
-    // - staleTime: Consider data fresh for 30 seconds (no refetch)
-    // - refetchOnWindowFocus: Refetch when user returns to tab
-    // - refetchOnMount: Always check for fresh data on navigation
     const { data: leaderboard = initialLeaderboard } = useQuery({
         queryKey: ['leaderboard', activeScope],
         queryFn: () => fetchLeaderboard(activeScope),
         initialData: initialLeaderboard,
-        staleTime: 30 * 1000, // Data is fresh for 30 seconds
-        gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
-        refetchOnWindowFocus: true, // Refetch when tab becomes active
-        refetchOnMount: 'always', // Always check on navigation
+        staleTime: 30 * 1000,
+        gcTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: true,
     });
 
     // Listen for user profile updates (dispatched from UserSettings)
-    // Invalidate the query to trigger a refetch
     useEffect(() => {
         const handleProfileUpdate = () => {
             queryClient.invalidateQueries({ queryKey: ['leaderboard', activeScope] });
@@ -68,20 +62,6 @@ export default function LeaderboardClient({ user, initialLeaderboard, scope }: L
         window.addEventListener('user-profile-updated', handleProfileUpdate);
         return () => window.removeEventListener('user-profile-updated', handleProfileUpdate);
     }, [queryClient, activeScope]);
-
-    // Handle scroll to show/hide back to top button
-    useEffect(() => {
-        const handleScroll = () => {
-            setShowBackToTop(window.scrollY > 400);
-        };
-        
-        window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
-    const scrollToTop = () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
 
     // Compute current user's position
     const currentUserEntry = leaderboard.find(e => e.id === user.id);
@@ -156,40 +136,40 @@ export default function LeaderboardClient({ user, initialLeaderboard, scope }: L
     };
 
     return (
-        <div className="container mx-auto px-3 py-5 md:px-4 md:py-8">
+        <PageShell>
             {/* Profile Customization Prompt - Show if user hasn't customized */}
             {user && (!user.displayName || !user.selectedIcon) && (
                 <ProfileCustomizationPrompt trigger="leaderboard" />
             )}
 
-            {/* Rich Page Header */}
-            <div className="page-header mb-5 md:mb-8">
+            {/* Page Header */}
+            <div className="mb-6 md:mb-8">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between md:gap-6">
                     <div className="flex-1">
-                        <span className="text-[10px] md:text-xs font-semibold text-gray-900 uppercase tracking-wider">Competition</span>
-                        <h1 className="page-title text-2xl sm:text-3xl md:text-4xl lg:text-5xl flex items-center gap-2 md:gap-3 mt-1 mb-1 md:mb-2">
-                            <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-9 md:h-9 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <p className="text-xs font-semibold text-blue-700 uppercase tracking-[0.18em]">Competition</p>
+                        <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                            <svg className="w-7 h-7 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
                             </svg>
                             <span>{activeScope === 'friends' ? 'Friends Leaderboard' : 'Global Leaderboard'}</span>
                         </h1>
-                        <div className="flex gap-2 mt-3" role="radiogroup" aria-label="Leaderboard scope">
+                        <nav className="flex gap-2 mt-3" aria-label="Leaderboard scope">
                             <Link
                                 href="/leaderboard?scope=global"
-                                className={`btn-sm rounded-md border ${activeScope === 'global' ? 'btn-primary border-blue-600' : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50'}`}
+                                className={`btn-sm rounded-lg border ${activeScope === 'global' ? 'btn-primary border-blue-600' : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50'}`}
                                 aria-current={activeScope === 'global' ? 'page' : undefined}
                             >
                                 Global
                             </Link>
                             <Link
                                 href="/leaderboard?scope=friends"
-                                className={`btn-sm rounded-md border ${activeScope === 'friends' ? 'btn-primary border-blue-600' : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50'}`}
+                                className={`btn-sm rounded-lg border ${activeScope === 'friends' ? 'btn-primary border-blue-600' : 'bg-white text-slate-900 border-slate-300 hover:bg-slate-50'}`}
                                 aria-current={activeScope === 'friends' ? 'page' : undefined}
                             >
                                 Friends
                             </Link>
-                        </div>
-                        <p className="page-subtitle text-sm md:text-base lg:text-lg text-slate-800">
+                        </nav>
+                        <p className="mt-2 text-sm sm:text-base text-slate-600">
                             {activeScope === 'friends'
                                 ? 'See how you rank against your friends only.'
                                 : 'See how you rank against other players.'}
@@ -506,28 +486,7 @@ export default function LeaderboardClient({ user, initialLeaderboard, scope }: L
                 </div>
             </div>
 
-            {/* Back to Top Button */}
-            {showBackToTop && (
-                <button
-                    onClick={scrollToTop}
-                    className="fixed bottom-4 right-4 md:bottom-8 md:right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-3 md:p-4 rounded-full shadow-2xl ring-2 md:ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110"
-                    aria-label="Back to top"
-                >
-                    <svg 
-                        className="w-5 h-5 md:w-6 md:h-6" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        viewBox="0 0 24 24"
-                    >
-                        <path 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                            strokeWidth={2.5} 
-                            d="M5 10l7-7m0 0l7 7m-7-7v18" 
-                        />
-                    </svg>
-                </button>
-            )}
-        </div>
+            <BackToTopButton />
+        </PageShell>
     );
 }

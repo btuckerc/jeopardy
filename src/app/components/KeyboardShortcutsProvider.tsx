@@ -4,6 +4,16 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import KeyboardShortcuts from './KeyboardShortcuts'
 
+function isEditableTarget(target: HTMLElement | null): boolean {
+    if (!target) return false
+    const tag = target.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+        return true
+    }
+    const role = target.getAttribute('role')
+    return role === 'combobox' || role === 'listbox' || role === 'textbox'
+}
+
 export default function KeyboardShortcutsProvider({ children }: { children: React.ReactNode }) {
     const router = useRouter()
     const [showShortcuts, setShowShortcuts] = useState(false)
@@ -17,65 +27,53 @@ export default function KeyboardShortcutsProvider({ children }: { children: Reac
         if (!mounted) return
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Don't trigger shortcuts if user is typing in an input/textarea
-            const target = e.target as HTMLElement
-            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+            if (isEditableTarget(e.target as HTMLElement | null)) {
                 return
             }
 
-            // Show help modal with ?
             if (e.key === '?') {
                 e.preventDefault()
-                setShowShortcuts(true)
+                setShowShortcuts((prev) => !prev)
                 return
             }
 
-            // Close help modal with Escape
             if (e.key === 'Escape' && showShortcuts) {
                 setShowShortcuts(false)
                 return
             }
 
-            // Only trigger shortcuts if not in a modal/dialog (except our shortcuts modal)
-            const hasOpenModal = document.querySelector('[role="dialog"]:not([data-shortcuts-modal])')
+            // Do not trigger navigation shortcuts when any modal/dialog is open or with modifiers
+            if (showShortcuts || e.ctrlKey || e.metaKey || e.altKey) {
+                return
+            }
+
+            const hasOpenModal = document.querySelector('[role="dialog"]')
             if (hasOpenModal) return
 
             switch (e.key.toLowerCase()) {
                 case 'g':
-                    if (!e.ctrlKey && !e.metaKey) {
-                        e.preventDefault()
-                        router.push('/game')
-                    }
+                    e.preventDefault()
+                    router.push('/game')
                     break
                 case 'd':
-                    if (!e.ctrlKey && !e.metaKey) {
-                        e.preventDefault()
-                        router.push('/daily-challenge')
-                    }
+                    e.preventDefault()
+                    router.push('/daily-challenge')
                     break
                 case 's':
-                    if (!e.ctrlKey && !e.metaKey) {
-                        e.preventDefault()
-                        router.push('/stats')
-                    }
+                    e.preventDefault()
+                    router.push('/stats')
                     break
                 case 'l':
-                    if (!e.ctrlKey && !e.metaKey) {
-                        e.preventDefault()
-                        router.push('/leaderboard')
-                    }
+                    e.preventDefault()
+                    router.push('/leaderboard')
                     break
                 case 'p':
-                    if (!e.ctrlKey && !e.metaKey) {
-                        e.preventDefault()
-                        router.push('/practice')
-                    }
+                    e.preventDefault()
+                    router.push('/practice')
                     break
                 case 'h':
-                    if (!e.ctrlKey && !e.metaKey) {
-                        e.preventDefault()
-                        router.push('/')
-                    }
+                    e.preventDefault()
+                    router.push('/')
                     break
             }
         }

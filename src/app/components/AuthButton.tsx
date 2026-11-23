@@ -3,13 +3,15 @@
 import { useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import UserSettings from '@/components/UserSettings'
-import AchievementsModal from '@/components/AchievementsModal'
+import dynamic from 'next/dynamic'
 import UserAvatar from '@/components/UserAvatar'
 import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt'
 import { useClerk, SignInButton } from '@clerk/nextjs'
 import type { AppUser } from '@/lib/clerk-auth'
 import { useDisputesStats, useIssuesStats } from '@/app/admin/hooks/useAdminQueries'
+
+const UserSettings = dynamic(() => import('@/components/UserSettings'), { ssr: false })
+const AchievementsModal = dynamic(() => import('@/components/AchievementsModal'), { ssr: false })
 
 interface AuthButtonProps {
     appUser: AppUser | null
@@ -68,13 +70,10 @@ export function AuthButton({ appUser }: AuthButtonProps) {
 
         if (showUserMenu) {
             document.addEventListener('mousedown', handleClickOutside)
-            // Prevent body scroll when menu is open on mobile
-            document.body.style.overflow = 'hidden'
         }
 
         return () => {
             document.removeEventListener('mousedown', handleClickOutside)
-            document.body.style.overflow = ''
         }
     }, [showUserMenu])
 
@@ -312,21 +311,25 @@ export function AuthButton({ appUser }: AuthButtonProps) {
                 )}
             </div>
 
-            <UserSettings
-                isOpen={showSettings}
-                onClose={() => setShowSettings(false)}
-                onDisplayNameUpdate={(newDisplayName: string) => setDisplayName(newDisplayName)}
-                onIconUpdate={(newIcon: string | null) => setSelectedIcon(newIcon)}
-                onAvatarBackgroundUpdate={(newBackground: string | null) => setAvatarBackground(newBackground)}
-                email={appUser.email}
-                displayName={displayName}
-                selectedIcon={selectedIcon}
-                avatarBackground={avatarBackground}
-            />
-            <AchievementsModal
-                isOpen={showAchievements}
-                onClose={() => setShowAchievements(false)}
-            />
+            {showSettings ? (
+                <UserSettings
+                    isOpen={showSettings}
+                    onClose={() => setShowSettings(false)}
+                    onDisplayNameUpdate={(newDisplayName: string) => setDisplayName(newDisplayName)}
+                    onIconUpdate={(newIcon: string | null) => setSelectedIcon(newIcon)}
+                    onAvatarBackgroundUpdate={(newBackground: string | null) => setAvatarBackground(newBackground)}
+                    email={appUser.email}
+                    displayName={displayName}
+                    selectedIcon={selectedIcon}
+                    avatarBackground={avatarBackground}
+                />
+            ) : null}
+            {showAchievements ? (
+                <AchievementsModal
+                    isOpen={showAchievements}
+                    onClose={() => setShowAchievements(false)}
+                />
+            ) : null}
         </>
     )
 }

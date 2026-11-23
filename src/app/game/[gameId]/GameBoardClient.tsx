@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../../lib/auth'
 import { checkAnswer } from '../../lib/answer-checker'
 import { useMobileKeyboard } from '@/app/hooks/useMobileKeyboard'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import type { Player } from '@/components/Scoreboard'
 import { showAchievementUnlock } from '@/app/components/AchievementUnlockToast'
 import ProfileCustomizationPrompt from '@/app/components/ProfileCustomizationPrompt'
@@ -173,6 +174,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     const challengeCompletionRequestedRef = useRef(false)
     const hasInitialized = useRef(false)
     const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
+    const lastFocusedClueRef = useRef<HTMLElement | null>(null)
     const [userAnswer, setUserAnswer] = useState('')
     const [showAnswer, setShowAnswer] = useState(false)
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null)
@@ -195,6 +197,27 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
     useEffect(() => {
         scoreRef.current = score
     }, [score])
+
+    useScrollLock(Boolean(selectedQuestion))
+
+    useEffect(() => {
+        if (!selectedQuestion) return
+
+        lastFocusedClueRef.current = document.activeElement as HTMLElement | null
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setSelectedQuestion(null)
+                setRevealMyAnswer(false)
+            }
+        }
+
+        document.addEventListener('keydown', handleKeyDown)
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown)
+            lastFocusedClueRef.current?.focus?.()
+        }
+    }, [selectedQuestion])
 
     const [gameStats, setGameStats] = useState({ correct: 0, incorrect: 0 })
     const [showCelebrationModal, setShowCelebrationModal] = useState(false)
@@ -1558,7 +1581,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
         const maxWager = Math.max(0, score)
 
         return (
-            <div className="min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-4 sm:py-8 px-4">
+            <div className="flex-1 w-full surface-immersive py-6 sm:py-10 px-4">
                 {/* Header */}
                 <div className="max-w-4xl mx-auto mb-6 sm:mb-8">
                     <div className="flex justify-between items-center">
@@ -1876,9 +1899,9 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
     // Main game board
     return (
-        <div className="min-h-screen bg-gray-100">
-            {/* Header - Redesigned */}
-            <div className="bg-gradient-to-r from-blue-800 to-blue-900 text-white py-3 px-4 shadow-lg">
+        <div className="flex-1 w-full bg-slate-100">
+            {/* Header */}
+            <div className="surface-immersive text-white py-3 px-4 shadow-md border-t border-white/10">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <button
@@ -2143,16 +2166,29 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
 
             {/* Question Modal */}
             {selectedQuestion && (
-                <div className="question-modal-overlay">
-                    <div className="question-modal-card relative">
+                <div
+                    className="question-modal-overlay"
+                    onClick={() => {
+                        setSelectedQuestion(null)
+                        setRevealMyAnswer(false)
+                    }}
+                >
+                    <div
+                        className="question-modal-card relative"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="clue-modal-category"
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         {/* Close Button */}
                         <button
+                            type="button"
                             onClick={() => {
                                 setSelectedQuestion(null)
                                 setRevealMyAnswer(false)
                             }}
                             className="question-modal-close"
-                            aria-label="Close"
+                            aria-label="Close clue"
                         >
                             ×
                         </button>
@@ -2160,7 +2196,7 @@ export default function GameBoardById({ initialGameData }: GameBoardByIdProps = 
                         {/* Scrollable Content Area - Question Display */}
                         <div className="question-modal-scroll-area">
                             {/* Category name */}
-                            <div className="question-category">
+                            <div id="clue-modal-category" className="question-category">
                                 {categories.find(c => c.id === selectedQuestion.categoryId)?.name}
                             </div>
 

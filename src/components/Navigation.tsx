@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import { usePathname, useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { AuthButton } from '@/app/components/AuthButton'
-import DownloadModal from './DownloadModal'
 import type { AppUser } from '@/lib/clerk-auth'
+
+const DownloadModal = dynamic(() => import('./DownloadModal'), { ssr: false })
 
 interface NavigationProps {
     fredokaClassName: string
@@ -29,14 +31,29 @@ interface AcceptedChallengeItem {
 
 export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
     const router = useRouter()
+    const pathname = usePathname()
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
     const [showDownloadModal, setShowDownloadModal] = useState(false)
     const [showPracticeDropdown, setShowPracticeDropdown] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
     const mobileMenuRef = useRef<HTMLDivElement>(null)
+    const mobileMenuButtonRef = useRef<HTMLButtonElement>(null)
     const practiceButtonRef = useRef<HTMLButtonElement>(null)
     const acceptedChallengeSeenRef = useRef<Set<string>>(new Set())
     const acceptedChallengeInitializedRef = useRef(false)
+
+    const isRouteActive = (href: string) => {
+        if (href === '/') return pathname === '/'
+        return pathname === href || pathname.startsWith(`${href}/`)
+    }
+
+    const isPracticeActive = isRouteActive('/practice')
+
+    // Close open menus on route navigation
+    useEffect(() => {
+        setShowPracticeDropdown(false)
+        setIsMobileMenuOpen(false)
+    }, [pathname])
 
     useEffect(() => {
         acceptedChallengeSeenRef.current = new Set()
@@ -63,6 +80,8 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
             return
         }
 
+        let lastPollAt = 0
+
         const persistSeen = () => {
             try {
                 const seenKeys = Array.from(acceptedChallengeSeenRef.current).slice(-200)
@@ -73,6 +92,15 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
         }
 
         const pollAcceptedChallenges = async () => {
+            if (document.hidden) {
+                return
+            }
+            const now = Date.now()
+            if (now - lastPollAt < 10000) {
+                return
+            }
+            lastPollAt = now
+
             try {
                 const response = await fetch('/api/challenges/friends?status=ACCEPTED&includeExpired=false&limit=50', {
                     cache: 'no-store',
@@ -112,12 +140,12 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
 
                     const accepterName = challenge.opponent?.displayName || 'Your friend'
                     toast.custom((t) => (
-                        <div className="w-[min(24rem,calc(100vw-2rem))] rounded-lg border border-blue-200 bg-white p-3 shadow-lg">
-                            <p className="text-sm font-semibold text-gray-900">Challenge Accepted</p>
-                            <p className="mt-1 text-xs text-gray-700">
+                        <div className="w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-blue-200 bg-white p-3.5 shadow-lg">
+                            <p className="text-sm font-semibold text-slate-900">Challenge Accepted</p>
+                            <p className="mt-1 text-xs text-slate-600">
                                 {accepterName} accepted your challenge.
                             </p>
-                            <div className="mt-2 flex justify-end gap-2">
+                            <div className="mt-2.5 flex justify-end gap-2">
                                 <button
                                     type="button"
                                     className="btn-outline btn-sm"
@@ -146,53 +174,74 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
             }
         }
 
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                void pollAcceptedChallenges()
+            }
+        }
+
         void pollAcceptedChallenges()
         const interval = window.setInterval(() => {
             void pollAcceptedChallenges()
-        }, 15000)
+        }, 45000)
+        document.addEventListener('visibilitychange', handleVisibilityChange)
 
         return () => {
             window.clearInterval(interval)
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
         }
     }, [appUser?.id, router])
 
     // Handle click outside to close dropdowns
     useEffect(() => {
+        if (!showPracticeDropdown && !isMobileMenuOpen) return
+
         const handleClickOutside = (event: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            const target = event.target as Node
+            if (showPracticeDropdown && dropdownRef.current && !dropdownRef.current.contains(target)) {
                 setShowPracticeDropdown(false)
             }
-            if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+            if (
+                isMobileMenuOpen
+                && mobileMenuRef.current
+                && !mobileMenuRef.current.contains(target)
+                && mobileMenuButtonRef.current
+                && !mobileMenuButtonRef.current.contains(target)
+            ) {
                 setIsMobileMenuOpen(false)
             }
         }
 
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [])
+    }, [showPracticeDropdown, isMobileMenuOpen])
 
-    // Handle keyboard navigation
+    // Only intercept Escape and restore focus when a nav menu is actually open
     useEffect(() => {
+        if (!showPracticeDropdown && !isMobileMenuOpen) return
+
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
+            if (event.key !== 'Escape') return
+            if (showPracticeDropdown) {
                 setShowPracticeDropdown(false)
-                setIsMobileMenuOpen(false)
                 practiceButtonRef.current?.focus()
+            } else if (isMobileMenuOpen) {
+                setIsMobileMenuOpen(false)
+                mobileMenuButtonRef.current?.focus()
             }
         }
 
         document.addEventListener('keydown', handleKeyDown)
         return () => document.removeEventListener('keydown', handleKeyDown)
-    }, [])
+    }, [showPracticeDropdown, isMobileMenuOpen])
 
-    // Nav items configuration
     const navItems = [
         {
             href: '/game',
             label: 'Play Game',
             shortLabel: 'Play',
             icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -203,7 +252,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
             label: 'Daily Challenge',
             shortLabel: 'Daily',
             icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
             )
@@ -213,7 +262,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
             label: 'Stats',
             shortLabel: 'Stats',
             icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
             )
@@ -223,7 +272,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
             label: 'Leaderboard',
             shortLabel: 'Leaderboard',
             icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 4v12l-4-2-4 2V4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
             )
@@ -233,7 +282,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
             label: 'Friends',
             shortLabel: 'Friends',
             icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden="true">
                     <circle cx="8.5" cy="8.5" r="3.5" />
                     <circle cx="16.5" cy="9.5" r="2.5" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 20a6 6 0 0112 0" />
@@ -249,7 +298,7 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
         { href: '/practice/round/single', text: 'Single Jeopardy' },
         { href: '/practice/round/double', text: 'Double Jeopardy' },
         { href: '/practice/round/final', text: 'Final Jeopardy' },
-        { href: '/practice/triple-stumpers', text: 'Triple Stumpers', className: 'text-amber-700 hover:bg-amber-50' }
+        { href: '/practice/triple-stumpers', text: 'Triple Stumpers', className: 'text-amber-700 hover:bg-amber-50 font-medium' }
     ]
 
     const primaryNavItems = [
@@ -260,75 +309,91 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
             label: 'Study',
             shortLabel: 'Study',
             icon: (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
             )
         }
     ]
 
+    const getDesktopLinkClasses = (active: boolean) =>
+        `flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors duration-150 ${
+            active
+                ? 'bg-white/15 text-white ring-1 ring-white/25 shadow-sm'
+                : 'text-blue-50 hover:text-white hover:bg-white/10'
+        }`
+
     return (
-        <nav className="bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 text-white shadow-lg">
+        <nav aria-label="Main navigation" className="surface-immersive text-white shadow-md">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex h-16 items-center">
                     {/* Left side: Logo + Mobile button */}
-                    <div className="flex items-center gap-3">
-                        {/* Mobile/Tablet menu button - shows below xl */}
+                    <div className="flex items-center gap-2.5">
                         <button
+                            ref={mobileMenuButtonRef}
+                            type="button"
                             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                            className="xl:hidden inline-flex items-center justify-center p-2 rounded-md text-white hover:text-blue-200 hover:bg-blue-700/50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-900"
+                            className="xl:hidden inline-flex h-11 w-11 items-center justify-center rounded-lg text-white hover:text-blue-100 hover:bg-white/10 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-blue-900"
                             aria-expanded={isMobileMenuOpen}
-                            aria-label="Open main menu"
+                            aria-controls="mobile-nav-menu"
+                            aria-label={isMobileMenuOpen ? 'Close main menu' : 'Open main menu'}
                         >
-                            <span className="sr-only">Open main menu</span>
                             {!isMobileMenuOpen ? (
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                                 </svg>
                             ) : (
-                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             )}
                         </button>
 
                         {/* Logo */}
-                        <Link href="/" className="flex items-center">
-                            <span className={`${fredokaClassName} text-2xl text-white leading-none`}>
+                        <Link
+                            href="/"
+                            className="flex items-center rounded-md px-1 py-0.5 focus-visible:ring-offset-blue-900"
+                            aria-current={pathname === '/' ? 'page' : undefined}
+                        >
+                            <span className={`${fredokaClassName} text-2xl font-medium text-white leading-none tracking-tight`}>
                                 trivrdy
                             </span>
                         </Link>
                     </div>
 
-                    {/* Core nav for intermediate widths (md-lg): keep primary actions visible */}
+                    {/* Core nav for intermediate widths (md-lg) */}
                     <div className="hidden md:flex xl:hidden items-center gap-1 ml-4">
-                        {primaryNavItems.map((item) => (
-                            <Link
-                                key={`primary-${item.href}`}
-                                href={item.href}
-                                className="flex items-center gap-2 px-2.5 py-1.5 text-sm font-semibold text-white hover:text-blue-200 hover:bg-blue-700/40 rounded-md transition-colors duration-200"
-                            >
-                                {item.icon}
-                                <span>{item.shortLabel}</span>
-                            </Link>
-                        ))}
+                        {primaryNavItems.map((item) => {
+                            const active = isRouteActive(item.href)
+                            return (
+                                <Link
+                                    key={`primary-${item.href}`}
+                                    href={item.href}
+                                    aria-current={active ? 'page' : undefined}
+                                    className={getDesktopLinkClasses(active)}
+                                >
+                                    {item.icon}
+                                    <span>{item.shortLabel}</span>
+                                </Link>
+                            )
+                        })}
                     </div>
 
-                    {/* Nav items - left-aligned, hidden on tablet/mobile */}
+                    {/* Full desktop nav (xl+) */}
                     <div className="hidden xl:flex items-center gap-1 ml-6">
-                        {/* Play */}
                         <Link
                             href="/game"
-                            className="flex items-center gap-2 px-3 py-1.5 text-base font-semibold text-white hover:text-blue-200 hover:bg-blue-700/40 rounded-md transition-colors duration-200"
+                            aria-current={isRouteActive('/game') ? 'page' : undefined}
+                            className={getDesktopLinkClasses(isRouteActive('/game'))}
                         >
                             {navItems[0].icon}
                             <span>{navItems[0].shortLabel}</span>
                         </Link>
 
-                        {/* Daily */}
                         <Link
                             href="/daily-challenge"
-                            className="flex items-center gap-2 px-3 py-1.5 text-base font-semibold text-white hover:text-blue-200 hover:bg-blue-700/40 rounded-md transition-colors duration-200"
+                            aria-current={isRouteActive('/daily-challenge') ? 'page' : undefined}
+                            className={getDesktopLinkClasses(isRouteActive('/daily-challenge'))}
                         >
                             {navItems[1].icon}
                             <span>{navItems[1].shortLabel}</span>
@@ -338,51 +403,61 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                         <div className="relative" ref={dropdownRef}>
                             <button
                                 ref={practiceButtonRef}
+                                type="button"
                                 onClick={() => setShowPracticeDropdown(!showPracticeDropdown)}
-                                className="flex items-center gap-2 px-3 py-1.5 text-base font-semibold text-white hover:text-blue-200 hover:bg-blue-700/40 rounded-md transition-colors duration-200"
+                                className={getDesktopLinkClasses(isPracticeActive || showPracticeDropdown)}
                                 aria-expanded={showPracticeDropdown}
                                 aria-haspopup="true"
+                                aria-controls="study-nav-dropdown"
                             >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                 </svg>
                                 <span>Study</span>
-                                <svg className={`w-4 h-4 transition-transform duration-200 ${showPracticeDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className={`w-4 h-4 transition-transform duration-150 ${showPracticeDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
                             </button>
 
                             {showPracticeDropdown && (
-                                <div className="absolute top-full left-0 pt-2 w-56 z-50">
-                                    <div className="bg-white rounded-md shadow-xl border border-blue-200 py-1">
-                                        {practiceItems.map((item) => (
-                                            <Link
-                                                key={item.href}
-                                                href={item.href}
-                                                className={`block px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 ${item.className || ''}`}
-                                                onClick={() => setShowPracticeDropdown(false)}
-                                            >
-                                                {item.text}
-                                            </Link>
-                                        ))}
+                                <div id="study-nav-dropdown" className="absolute top-full left-0 pt-2 w-56 z-50">
+                                    <div className="bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 overflow-hidden">
+                                        {practiceItems.map((item) => {
+                                            const active = pathname === item.href
+                                            return (
+                                                <Link
+                                                    key={item.href}
+                                                    href={item.href}
+                                                    aria-current={active ? 'page' : undefined}
+                                                    className={`block px-4 py-2.5 text-sm transition-colors ${
+                                                        active
+                                                            ? 'bg-blue-50 text-blue-800 font-semibold'
+                                                            : 'text-slate-700 hover:bg-slate-50'
+                                                    } ${item.className || ''}`}
+                                                    onClick={() => setShowPracticeDropdown(false)}
+                                                >
+                                                    {item.text}
+                                                </Link>
+                                            )
+                                        })}
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* Stats */}
                         <Link
                             href="/stats"
-                            className="flex items-center gap-2 px-3 py-1.5 text-base font-semibold text-white hover:text-blue-200 hover:bg-blue-700/40 rounded-md transition-colors duration-200"
+                            aria-current={isRouteActive('/stats') ? 'page' : undefined}
+                            className={getDesktopLinkClasses(isRouteActive('/stats'))}
                         >
                             {navItems[2].icon}
                             <span>{navItems[2].shortLabel}</span>
                         </Link>
 
-                        {/* Leaderboard - hidden on small tablets */}
                         <Link
                             href="/leaderboard"
-                            className="flex items-center gap-2 px-3 py-1.5 text-base font-semibold text-white hover:text-blue-200 hover:bg-blue-700/40 rounded-md transition-colors duration-200"
+                            aria-current={isRouteActive('/leaderboard') ? 'page' : undefined}
+                            className={getDesktopLinkClasses(isRouteActive('/leaderboard'))}
                         >
                             {navItems[3].icon}
                             <span>{navItems[3].shortLabel}</span>
@@ -390,14 +465,14 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
 
                         <Link
                             href="/friends"
-                            className="flex items-center gap-2 px-3 py-1.5 text-base font-semibold text-white hover:text-blue-200 hover:bg-blue-700/40 rounded-md transition-colors duration-200"
+                            aria-current={isRouteActive('/friends') ? 'page' : undefined}
+                            className={getDesktopLinkClasses(isRouteActive('/friends'))}
                         >
                             {navItems[4].icon}
                             <span>{navItems[4].shortLabel}</span>
                         </Link>
                     </div>
 
-                    {/* Spacer - pushes auth to the right */}
                     <div className="flex-1" />
 
                     {/* Right: Auth */}
@@ -407,51 +482,69 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                 </div>
             </div>
 
-                        {/* Mobile menu - shows below xl */}
+            {/* Mobile menu - shows below xl */}
             <div
+                id="mobile-nav-menu"
                 ref={mobileMenuRef}
-                className={`${isMobileMenuOpen ? 'block' : 'hidden'} xl:hidden border-t border-blue-700`}
+                className={`${isMobileMenuOpen ? 'block' : 'hidden'} xl:hidden border-t border-white/15`}
             >
-                <div className="py-2 space-y-1">
-                    {navItems.map((item) => (
-                        <Link
-                            key={item.href}
-                            href={item.href}
-                            className="flex items-center gap-3 px-4 py-3 text-base font-semibold text-white hover:bg-blue-700/50 transition-colors duration-200"
-                            onClick={() => setIsMobileMenuOpen(false)}
-                        >
-                            {item.icon}
-                            {item.label}
-                        </Link>
-                    ))}
+                <div className="py-2 space-y-1 px-2">
+                    {navItems.map((item) => {
+                        const active = isRouteActive(item.href)
+                        return (
+                            <Link
+                                key={item.href}
+                                href={item.href}
+                                aria-current={active ? 'page' : undefined}
+                                className={`flex items-center gap-3 px-3 py-3 text-base font-semibold rounded-lg transition-colors duration-150 ${
+                                    active
+                                        ? 'bg-white/15 text-white'
+                                        : 'text-blue-50 hover:text-white hover:bg-white/10'
+                                }`}
+                                onClick={() => setIsMobileMenuOpen(false)}
+                            >
+                                {item.icon}
+                                {item.label}
+                            </Link>
+                        )
+                    })}
 
                     {/* Study Links in Mobile */}
-                    <div className="px-4 pt-2 pb-2">
-                        <div className="text-blue-200 text-sm font-semibold mb-2">Study</div>
+                    <div className="px-3 pt-3 pb-2">
+                        <div className="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-2">Study</div>
                         <div className="space-y-1">
-                            {practiceItems.map((item) => (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    className={`block px-4 py-2 text-sm text-white/90 hover:text-white hover:bg-blue-700/50 rounded ${item.className || ''}`}
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                >
-                                    {item.text}
-                                </Link>
-                            ))}
+                            {practiceItems.map((item) => {
+                                const active = pathname === item.href
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        aria-current={active ? 'page' : undefined}
+                                        className={`block px-3 py-2.5 text-sm rounded-lg transition-colors ${
+                                            active
+                                                ? 'bg-white/15 text-white font-semibold'
+                                                : 'text-white/90 hover:text-white hover:bg-white/10'
+                                        }`}
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        {item.text}
+                                    </Link>
+                                )
+                            })}
                         </div>
                     </div>
 
                     {/* Download Button */}
-                    <div className="border-t border-blue-700 mt-2 pt-2">
+                    <div className="border-t border-white/15 mt-2 pt-2">
                         <button
+                            type="button"
                             onClick={() => {
                                 setShowDownloadModal(true)
                                 setIsMobileMenuOpen(false)
                             }}
-                            className="flex items-center gap-3 px-4 py-3 w-full text-base font-semibold text-white hover:bg-blue-700/50 transition-colors duration-200"
+                            className="flex items-center gap-3 px-3 py-3 w-full text-base font-semibold text-blue-50 hover:text-white hover:bg-white/10 rounded-lg transition-colors duration-150"
                         >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l3 3m0 0l3-3m-3 3V2.25" />
                             </svg>
                             Add to Home Screen
@@ -460,10 +553,12 @@ export function Navigation({ fredokaClassName, appUser }: NavigationProps) {
                 </div>
             </div>
 
-            <DownloadModal
-                isOpen={showDownloadModal}
-                onClose={() => setShowDownloadModal(false)}
-            />
+            {showDownloadModal ? (
+                <DownloadModal
+                    isOpen={showDownloadModal}
+                    onClose={() => setShowDownloadModal(false)}
+                />
+            ) : null}
         </nav>
     )
 }

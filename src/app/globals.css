@@ -28,26 +28,15 @@
     --card-bg: #ffffff;
     --card-border: #e2e8f0;
     
-    /* Game board colors */
+    /* Game board & immersive surfaces */
     --board-bg: #1e3a8a;
     --clue-bg: #1e40af;
     --clue-hover: #2563eb;
-}
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --background: #0f172a;
-        --foreground: #f1f5f9;
-        --muted: #94a3b8;
-        --border: #334155;
-        --card-bg: #1e293b;
-        --card-border: #334155;
-    }
+    --surface-immersive: linear-gradient(135deg, #1e3a8a 0%, #1e40af 55%, #312e81 100%);
 }
 
 @layer base {
     html {
-        scroll-behavior: smooth;
         /* Prevent layout shift when scrollbar appears/disappears */
         overflow-y: scroll;
     }
@@ -101,7 +90,7 @@
     }
     
     .btn-gold {
-        @apply btn bg-amber-400 text-gray-900 hover:bg-amber-500 
+        @apply btn bg-amber-400 text-blue-950 hover:bg-amber-500 
                focus:ring-amber-500 font-bold;
     }
     
@@ -113,11 +102,16 @@
         @apply px-3 py-1.5 text-sm;
     }
 
+    /* Unified immersive Jeopardy navy/indigo surface */
+    .surface-immersive {
+        background: var(--surface-immersive);
+    }
+
     /* ==========================================================================
        Cards
        ========================================================================== */
     .card {
-        @apply bg-white rounded-xl shadow-sm border border-gray-200 
+        @apply bg-white rounded-2xl shadow-sm border border-slate-200 
                overflow-hidden transition-shadow duration-200;
     }
     
@@ -159,19 +153,20 @@
     .clue-cell {
         @apply bg-blue-700 text-amber-400 text-center py-4 sm:py-6 
                font-bold text-lg sm:text-2xl cursor-pointer
-               transition-all duration-200 rounded-lg
-               hover:bg-blue-600 hover:shadow-lg hover:z-10
+               transition-colors duration-150 rounded-lg
                flex items-center justify-center;
-        /* Removed hover:scale-105 to prevent overflow issues */
+    }
+
+    .clue-cell:not(.answered):hover {
+        @apply bg-blue-600 shadow-lg z-10;
     }
     
-    .clue-cell:active {
+    .clue-cell:not(.answered):active {
         @apply scale-95;
     }
     
     .clue-cell.answered {
-        @apply bg-blue-900/50 text-blue-700 cursor-default 
-               hover:shadow-none;
+        @apply bg-blue-900/50 text-blue-700 cursor-default;
     }
     
     .clue-cell.correct {
@@ -299,43 +294,24 @@
     
     /*
      * Mobile input optimizations - larger tap targets, better focus states
-     * Has a subtle glow animation on mobile to draw attention
      */
     .mobile-answer-input {
-        @apply w-full rounded-lg border-2 transition-all duration-200;
-        @apply px-4 py-3 sm:py-3;
+        @apply w-full rounded-lg border-2 transition-colors duration-150;
+        @apply px-4 py-3;
         @apply text-base sm:text-lg;
-        @apply text-gray-900 bg-white;
+        @apply text-slate-900 bg-white;
         @apply border-amber-400;
         @apply focus:border-blue-500 focus:ring-2 focus:ring-blue-200;
-        @apply placeholder:text-gray-400 placeholder:italic;
+        @apply placeholder:text-slate-400 placeholder:italic;
         
         /* Prevent iOS zoom on focus (font-size >= 16px) */
         font-size: 16px;
-        
-        /* Subtle glow animation to draw attention on mobile */
-        animation: inputGlow 2s ease-in-out infinite;
-    }
-    
-    .mobile-answer-input:focus {
-        animation: none; /* Stop animation when focused */
-        @apply border-blue-500;
-    }
-    
-    @keyframes inputGlow {
-        0%, 100% {
-            box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
-        }
-        50% {
-            box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.3);
-        }
     }
     
     @media (min-width: 640px) {
         .mobile-answer-input {
             font-size: 1.125rem; /* text-lg */
-            animation: none; /* No animation needed on desktop */
-            @apply border-gray-300;
+            @apply border-slate-300;
         }
     }
     
@@ -350,17 +326,16 @@
     }
     
     /*
-     * Practice question area - adds bottom padding to allow scrolling
-     * input to center of screen when keyboard opens
+     * Practice question area - intentional compact spacing on desktop;
+     * modest keyboard headroom only on coarse-pointer touch devices.
      */
     .practice-question-area {
-        padding-bottom: 50vh;
-        padding-bottom: 50dvh; /* Dynamic viewport height for keyboard-aware padding */
+        padding-bottom: 1.5rem;
     }
-    
-    @media (min-width: 640px) {
+
+    @media (hover: none) and (pointer: coarse) {
         .practice-question-area {
-            padding-bottom: 30vh;
+            padding-bottom: 12vh;
         }
     }
 
@@ -462,12 +437,12 @@
     }
 
     .workspace-page {
-        @apply box-border w-full overflow-x-hidden px-4 py-6 md:px-6 md:py-8;
+        @apply box-border w-full max-w-7xl mx-auto px-4 pt-5 pb-10 sm:px-6 sm:pt-6 sm:pb-14 lg:px-8;
     }
 
     .workspace-shell {
-        --workspace-sidebar-width: 18rem;
-        --workspace-gap: 1.75rem;
+        --workspace-sidebar-width: 17.5rem;
+        --workspace-gap: 1.5rem;
         @apply grid w-full items-start gap-6;
     }
 
@@ -476,35 +451,17 @@
     }
 
     .workspace-sidebar-card {
-        @apply overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm;
+        @apply overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-sm;
     }
 
     .workspace-sidebar-scroll {
-        @apply h-full;
         overscroll-behavior: contain;
-        scrollbar-gutter: auto;
-        -ms-overflow-style: none;
-        scrollbar-width: none;
         min-height: 0;
-        padding-bottom: 0.75rem;
-        scroll-padding-bottom: 1.5rem;
-    }
-
-    .workspace-sidebar-scroll::-webkit-scrollbar {
-        display: none;
-    }
-
-    .workspace-sidebar-scroll::after {
-        content: '';
-        display: block;
-        height: 1rem;
-        flex-shrink: 0;
+        padding-bottom: 0.25rem;
     }
 
     .workspace-main {
         @apply min-w-0 w-full space-y-5;
-        overscroll-behavior: contain;
-        scrollbar-gutter: stable;
     }
 
     .workspace-main > * {
@@ -512,11 +469,11 @@
     }
 
     .workspace-main-header {
-        @apply w-full max-w-full rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-sm md:px-6;
+        @apply w-full max-w-full rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm md:px-6;
     }
 
     .workspace-main-header-sticky {
-        @apply lg:sticky lg:top-0 lg:z-20 lg:bg-white/95 lg:backdrop-blur;
+        @apply lg:sticky lg:top-4 lg:z-20 lg:bg-white;
     }
 
     .workspace-main-header-layout {
@@ -536,19 +493,19 @@
     }
 
     .workspace-nav-group {
-        @apply border-t border-slate-100 px-3 py-4 first:border-t-0;
+        @apply border-t border-slate-100 px-3 py-3.5 first:border-t-0;
     }
 
     .workspace-nav-group:last-child {
-        @apply pb-3;
+        @apply pb-2.5;
     }
 
     .workspace-nav-label {
-        @apply mb-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400;
+        @apply mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500;
     }
 
     .workspace-nav-button {
-        @apply flex w-full items-center justify-between gap-3 rounded-2xl border border-transparent px-4 py-3 text-left text-sm font-medium text-slate-600 transition-all duration-200 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900;
+        @apply flex w-full items-center justify-between gap-3 rounded-xl border border-transparent px-3.5 py-2.5 text-left text-sm font-medium text-slate-700 transition-colors duration-150 hover:border-slate-200 hover:bg-slate-50 hover:text-slate-900;
     }
 
     .workspace-nav-button.active {
@@ -556,7 +513,7 @@
     }
 
     .workspace-nav-badge {
-        @apply inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600;
+        @apply inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700;
     }
 
     .workspace-nav-button.active .workspace-nav-badge {
@@ -564,11 +521,11 @@
     }
 
     .workspace-surface {
-        @apply w-full max-w-full rounded-3xl border border-slate-200 bg-white shadow-sm;
+        @apply w-full max-w-full rounded-2xl border border-slate-200 bg-white shadow-sm;
     }
 
     .workspace-muted-card {
-        @apply rounded-2xl border border-slate-200 bg-slate-50;
+        @apply rounded-xl border border-slate-200 bg-slate-50;
     }
 
     .friends-cta-banner {
@@ -579,7 +536,7 @@
             radial-gradient(circle at right center, rgb(191 219 254 / 0.45), transparent 32%),
             linear-gradient(135deg, rgb(248 250 252), rgb(239 246 255));
         box-shadow: 0 12px 28px -24px rgba(37, 99, 235, 0.45);
-        @apply flex items-center justify-between gap-3 rounded-[1.6rem] px-4 py-3 md:px-5;
+        @apply flex items-center justify-between gap-3 rounded-2xl px-4 py-3 md:px-5;
     }
 
     .friends-cta-banner::after {
@@ -606,7 +563,7 @@
     }
 
     .workspace-floating-action {
-        @apply fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700 hover:shadow-xl;
+        @apply fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors duration-150 hover:bg-blue-700 hover:shadow-xl;
     }
 
     .workspace-mobile-nav {
@@ -614,7 +571,7 @@
     }
 
     .workspace-mobile-nav-card {
-        @apply rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur;
+        @apply rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm;
     }
 
     .workspace-mobile-nav-row {
@@ -626,7 +583,7 @@
     }
 
     .workspace-mobile-nav-kicker {
-        @apply text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400;
+        @apply text-xs font-semibold uppercase tracking-[0.16em] text-slate-500;
     }
 
     .workspace-mobile-nav-title {
@@ -634,15 +591,15 @@
     }
 
     .workspace-mobile-nav-subtitle {
-        @apply mt-0.5 truncate text-xs text-slate-500;
+        @apply mt-0.5 truncate text-xs text-slate-600;
     }
 
     .workspace-mobile-nav-trigger {
-        @apply inline-flex shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition-colors duration-200 hover:bg-slate-100;
+        @apply inline-flex min-h-[44px] shrink-0 items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-100;
     }
 
     .workspace-mobile-nav-secondary {
-        @apply mt-3 inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors duration-200 hover:bg-slate-50;
+        @apply mt-3 inline-flex min-h-[44px] items-center justify-center rounded-full border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50;
     }
 
     .workspace-mobile-sheet {
@@ -650,11 +607,11 @@
     }
 
     .workspace-mobile-sheet-backdrop {
-        @apply absolute inset-0 bg-slate-950/45 backdrop-blur-[2px];
+        @apply absolute inset-0 bg-slate-950/45;
     }
 
     .workspace-mobile-sheet-panel {
-        @apply absolute inset-x-3 bottom-3 max-h-[min(78svh,42rem)] overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-2xl;
+        @apply absolute inset-x-3 bottom-3 max-h-[min(78svh,42rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl;
     }
 
     .workspace-mobile-sheet-header {
@@ -671,64 +628,53 @@
     }
 
     .workspace-mobile-sheet-close {
-        @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition-colors duration-200 hover:bg-slate-100;
+        @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition-colors duration-150 hover:bg-slate-100;
     }
 
     @media (min-width: 1024px) {
-        .workspace-page {
-            height: calc(100svh - 5.5rem);
-            padding-inline: clamp(1.5rem, 2.2vw, 2.5rem);
-            padding-block: 1.5rem;
-        }
-
         .workspace-shell {
             display: flex;
-            align-items: stretch;
+            align-items: flex-start;
             gap: var(--workspace-gap);
             max-width: 100%;
             width: 100%;
-            height: 100%;
-            margin-inline: auto;
-            overflow: hidden;
-            min-height: 0;
         }
 
         .workspace-sidebar {
-            align-self: stretch;
+            position: sticky;
+            top: 1.5rem;
             display: flex;
             flex: 0 0 var(--workspace-sidebar-width);
             width: var(--workspace-sidebar-width);
-            min-height: 0;
+            max-height: calc(100svh - 3rem);
         }
 
         .workspace-sidebar-card {
-            @apply flex h-full min-h-0 w-full flex-1 flex-col;
+            @apply flex max-h-full w-full flex-col;
         }
 
         .workspace-sidebar-scroll {
-            @apply flex-1 overflow-y-auto pr-1;
+            @apply flex-1 overflow-y-auto;
         }
 
         .workspace-main {
             flex: 1 1 auto;
             width: auto;
-            margin-left: 0;
-            @apply h-full overflow-y-auto pr-1;
-            min-height: 0;
+            min-width: 0;
         }
     }
 
     @media (max-width: 639px) {
         .workspace-main-header {
-            @apply rounded-[1.6rem] px-4 py-3;
+            @apply rounded-2xl px-4 py-3;
         }
 
         .workspace-main-title {
-            @apply text-[1.9rem];
+            @apply text-xl;
         }
 
         .friends-cta-banner {
-            @apply rounded-[1.35rem] px-3.5 py-3;
+            @apply rounded-xl px-3.5 py-3;
         }
     }
 
@@ -765,37 +711,6 @@
     
     .form-select {
         @apply form-input appearance-none bg-white cursor-pointer;
-    }
-
-    @media (prefers-color-scheme: dark) {
-        .form-input {
-            color: #f1f5f9;
-            border-color: #334155;
-            background-color: #1e293b;
-        }
-
-        .form-input::placeholder {
-            color: #94a3b8;
-        }
-
-        .form-label {
-            color: #e2e8f0;
-        }
-
-        .page-subtitle {
-            color: #e2e8f0;
-        }
-    }
-
-    /* Keep Friends Hub inputs aligned with the light settings-panel treatment. */
-    .friends-hub .form-input {
-        color: #111827;
-        border-color: #d1d5db;
-        background-color: #ffffff;
-    }
-
-    .friends-hub .form-input::placeholder {
-        color: #6b7280;
     }
 
     /* ==========================================================================
@@ -902,16 +817,6 @@
     
     .animate-fade-in {
         animation: fadeIn 0.2s ease-out forwards;
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .animate-fade-in-slide-down,
-        .animate-slide-up,
-        .animate-fade-in {
-            animation: none;
-            opacity: 1;
-            transform: none;
-        }
     }
 
     /* ==========================================================================
@@ -1070,5 +975,25 @@
     
     .animate-progress-fill {
         animation: progressFill 1s ease-out forwards;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .animate-fade-in-slide-down,
+    .animate-slide-up,
+    .animate-fade-in,
+    .animate-fade-in-up,
+    .animate-bounce-in {
+        opacity: 1;
+        transform: none;
     }
 }

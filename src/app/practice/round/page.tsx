@@ -127,17 +127,17 @@ export default function RoundSelection() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+            <div className="flex-1 w-full flex items-center justify-center py-16">
                 <div className="text-center">
                     <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent align-[-0.125em] mb-4"></div>
-                    <div className="text-gray-600 font-medium">Loading round selection...</div>
+                    <div className="text-slate-600 font-medium">Loading round selection...</div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
+        <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-10 sm:pt-8 sm:pb-14">
             <div className="mb-6">
                 <StudyBackLink href="/practice">
                     Back to Study Modes

@@ -67,11 +67,11 @@ export default function GuestProgressBanner() {
     }
     
     return (
-        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-blue-800 rounded-xl shadow-2xl border border-blue-700 p-4 z-50 animate-fade-in-up">
+        <div className="fixed bottom-4 left-4 right-4 md:left-4 md:right-auto md:w-96 bg-blue-900 rounded-2xl shadow-2xl border border-blue-700/80 p-4 z-40 animate-fade-in-up">
             <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
                     <div className="w-10 h-10 bg-amber-400 rounded-full flex items-center justify-center">
-                        <svg className="w-6 h-6 text-blue-900" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-blue-950" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
@@ -83,17 +83,18 @@ export default function GuestProgressBanner() {
                             <p className="text-white font-semibold">
                                 Question {progress.questionsAnswered} answered
                             </p>
-                            <p className="text-blue-200 text-sm mt-1">
+                            <p className="text-blue-200 text-sm mt-0.5">
                                 Progress saved • Sign in to keep it forever
                             </p>
                         </div>
                         
                         <button
+                            type="button"
                             onClick={handleDismiss}
-                            className="text-blue-300 hover:text-white transition-colors"
-                            aria-label="Dismiss"
+                            className="-mr-1.5 -mt-1.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-blue-200 hover:bg-white/10 hover:text-white transition-colors"
+                            aria-label="Dismiss progress banner"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
@@ -102,13 +103,13 @@ export default function GuestProgressBanner() {
                     <div className="mt-3 flex gap-2">
                         <Link
                             href="/sign-up"
-                            className="flex-1 bg-amber-400 hover:bg-amber-500 text-blue-900 px-4 py-2 rounded-lg font-bold text-sm text-center transition-colors"
+                            className="flex-1 bg-amber-400 hover:bg-amber-500 text-blue-950 px-4 py-2.5 rounded-lg font-bold text-sm text-center transition-colors"
                         >
                             Sign Up
                         </Link>
                         <Link
                             href="/sign-in"
-                            className="flex-1 bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium text-sm text-center transition-colors"
+                            className="flex-1 bg-blue-800 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-medium text-sm text-center transition-colors"
                         >
                             Sign In
                         </Link>

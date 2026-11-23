@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/app/lib/auth'
+import { useScrollLock } from '@/hooks/useScrollLock'
+import BackToTopButton from '@/components/BackToTopButton'
+import { PageShell } from '@/components/PageShell'
 
 type Question = {
     id: string
@@ -145,12 +148,7 @@ function StatsDetailModal({
     const [summary, setSummary] = useState({ totalCorrect: 0, totalIncorrect: 0, totalTripleStumpers: 0, totalAttempted: 0 })
 
     // Prevent background scrolling when modal is open
-    useEffect(() => {
-        document.body.style.overflow = 'hidden'
-        return () => {
-            document.body.style.overflow = 'unset'
-        }
-    }, [])
+    useScrollLock(true)
 
     const fetchQuestions = useCallback(async (tab: 'correct' | 'incorrect' | undefined) => {
         setLoading(true)
@@ -520,12 +518,7 @@ function CategoryModal({ category, onClose, onPractice }: {
     const isComplete = category.correct === category.total
 
     // Prevent background scrolling when modal is open
-    useEffect(() => {
-        document.body.style.overflow = 'hidden'
-        return () => {
-            document.body.style.overflow = 'unset'
-        }
-    }, [])
+    useScrollLock(true)
 
     const toggleAnswer = (questionId: string) => {
         setRevealedAnswers(prev => ({
@@ -676,12 +669,7 @@ function RoundHistoryModal({
     const [viewMode, setViewMode] = useState<'questions' | 'categories'>('questions')
 
     // Prevent background scrolling when modal is open
-    useEffect(() => {
-        document.body.style.overflow = 'hidden'
-        return () => {
-            document.body.style.overflow = 'unset'
-        }
-    }, [])
+    useScrollLock(true)
 
     useEffect(() => {
         if (round) {
@@ -1142,12 +1130,7 @@ function DailyChallengeHistoryModal({
     const [disputeSubmitted, setDisputeSubmitted] = useState<Record<string, boolean>>({})
 
     // Prevent background scrolling when modal is open
-    useEffect(() => {
-        document.body.style.overflow = 'hidden'
-        return () => {
-            document.body.style.overflow = 'unset'
-        }
-    }, [])
+    useScrollLock(true)
 
     const toggleAnswer = (questionId: string) => {
         setRevealedAnswers(prev => ({
@@ -1432,7 +1415,6 @@ export default function StatsPage() {
     const [selectedCategory, setSelectedCategory] = useState<CategoryStats | null>(null)
     const [selectedRound, setSelectedRound] = useState<SelectedRound>(null)
     const [showUnstarted, setShowUnstarted] = useState(false)
-    const [showBackToTop, setShowBackToTop] = useState(false)
     const [activeCategoryFilter, setActiveCategoryFilter] = useState<CategoryFilter>('ALL')
     const [dailyChallengeStats, setDailyChallengeStats] = useState<DailyChallengeStats | null>(null)
     const [dailyChallengeLoading, setDailyChallengeLoading] = useState(true)
@@ -1452,20 +1434,6 @@ export default function StatsPage() {
     const [unstartedVisibleCount, setUnstartedVisibleCount] = useState(UNSTARTED_PAGE_SIZE)
     const [isLoadingMore, setIsLoadingMore] = useState(false)
     const sentinelRef = useRef<HTMLDivElement | null>(null)
-
-    // Handle scroll to show/hide back to top button
-    useEffect(() => {
-        const handleScroll = () => {
-            setShowBackToTop(window.scrollY > 400)
-        }
-        
-        window.addEventListener('scroll', handleScroll)
-        return () => window.removeEventListener('scroll', handleScroll)
-    }, [])
-
-    const scrollToTop = () => {
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
 
     // Handle section navigation - on mobile, switch tabs; on desktop, scroll to section
     const handleSectionNav = (section: SectionTab) => {
@@ -1586,37 +1554,35 @@ export default function StatsPage() {
 
             setDailyChallengeLoading(true)
             try {
-                // Fetch stats
-                const statsResponse = await fetch('/api/daily-challenge/stats')
+                // Fetch daily challenge stats and today's status in parallel
+                const [statsResponse, todayResponse] = await Promise.all([
+                    fetch('/api/daily-challenge/stats'),
+                    fetch('/api/daily-challenge'),
+                ])
+
                 if (statsResponse.ok) {
                     const statsData = await statsResponse.json()
                     if (mounted) {
                         setDailyChallengeStats(statsData)
                     }
                 } else if (statsResponse.status === 401) {
-                    // Not authenticated, skip silently
                     if (mounted) {
                         setDailyChallengeStats(null)
                     }
                 } else {
-                    // Other error, log but don't show error to user
                     console.error('Error fetching daily challenge stats:', await statsResponse.text())
                     if (mounted) {
                         setDailyChallengeStats(null)
                     }
                 }
 
-                // Check if today's challenge is completed
-                const todayResponse = await fetch('/api/daily-challenge')
                 if (todayResponse.ok) {
                     const todayData = await todayResponse.json()
                     if (mounted) {
                         setTodayChallengeCompleted(todayData.userAnswer !== null)
                     }
-                } else {
-                    if (mounted) {
-                        setTodayChallengeCompleted(false)
-                    }
+                } else if (mounted) {
+                    setTodayChallengeCompleted(false)
                 }
             } catch (err) {
                 console.error('Error fetching daily challenge data:', err)
@@ -1727,10 +1693,10 @@ export default function StatsPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-100 flex justify-center items-center">
+            <div className="flex-1 w-full flex justify-center items-center py-16">
                 <div className="flex flex-col items-center gap-3">
                     <div className="spinner text-blue-600"></div>
-                    <p className="text-gray-600">Loading your statistics...</p>
+                    <p className="text-slate-600">Loading your statistics...</p>
                 </div>
             </div>
         )
@@ -1738,15 +1704,15 @@ export default function StatsPage() {
 
     if (error) {
         return (
-            <div className="min-h-screen bg-gray-100 flex justify-center items-center px-4">
+            <div className="flex-1 w-full flex justify-center items-center px-4 py-16">
                 <div className="card p-8 text-center max-w-md">
                     <div className="w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
-                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
-                    <p className="text-lg text-gray-900 font-medium mb-2">Something went wrong</p>
-                    <p className="text-gray-600">{error}</p>
+                    <p className="text-lg text-slate-900 font-medium mb-2">Something went wrong</p>
+                    <p className="text-slate-600">{error}</p>
                 </div>
             </div>
         )
@@ -1754,15 +1720,15 @@ export default function StatsPage() {
 
     if (!stats) {
         return (
-            <div className="min-h-screen bg-gray-100 flex justify-center items-center px-4">
+            <div className="flex-1 w-full flex justify-center items-center px-4 py-16">
                 <div className="card p-8 text-center max-w-md">
                     <div className="w-14 h-14 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
-                        <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-7 h-7 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                     </div>
-                    <p className="text-lg text-gray-900 font-medium mb-2">No statistics yet</p>
-                    <p className="text-gray-600 mb-4">Start playing to see your progress!</p>
+                    <p className="text-lg text-slate-900 font-medium mb-2">No statistics yet</p>
+                    <p className="text-slate-600 mb-4">Start playing to see your progress!</p>
                     <Link href="/game" className="btn-primary">
                         Play Game
                     </Link>
@@ -1809,24 +1775,24 @@ export default function StatsPage() {
     const hasMoreUnstarted = visibleNotStartedPage.length < visibleNotStarted.length
 
     return (
-        <div className="min-h-screen bg-gray-100 py-6 md:py-8">
-            <div className="container mx-auto px-4 sm:px-6">
+        <PageShell>
+            <div>
                 {/* Page Header */}
-                <div className="page-header mb-4 md:mb-6">
-                    <span className="text-[10px] md:text-xs font-semibold text-gray-500 uppercase tracking-wider">Progress</span>
-                    <h1 className="page-title text-2xl sm:text-3xl md:text-4xl flex items-center gap-2 md:gap-3 mt-1 mb-1 md:mb-2">
-                        <svg className="w-6 h-6 sm:w-7 sm:h-7 md:w-9 md:h-9 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="mb-5 md:mb-6">
+                    <p className="text-xs font-semibold text-blue-700 uppercase tracking-[0.18em]">Progress</p>
+                    <h1 className="mt-1 flex items-center gap-2.5 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                        <svg className="w-7 h-7 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                         <span>Your Statistics</span>
                     </h1>
-                    <p className="page-subtitle text-sm md:text-base text-gray-600">
+                    <p className="mt-1.5 text-sm sm:text-base text-slate-600">
                         Track your performance and progress across all categories.
                     </p>
                 </div>
 
                 {/* Sticky Section Navigation Pills */}
-                <div className="sticky top-0 z-40 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 bg-gray-100/95 backdrop-blur-sm border-b border-gray-200 mb-4 md:mb-6">
+                <div className="sticky top-0 z-30 bg-slate-100 py-3 border-b border-slate-200 mb-5 md:mb-6">
                     <nav className="flex gap-2" role="tablist" aria-label="Statistics sections">
                         {([
                             { id: 'overview' as SectionTab, label: 'Overview', icon: (
@@ -2534,29 +2500,8 @@ export default function StatsPage() {
                     />
                 )}
 
-                {/* Back to Top Button */}
-                {showBackToTop && (
-                    <button
-                        onClick={scrollToTop}
-                        className="fixed bottom-4 right-4 md:bottom-8 md:right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-3 md:p-4 rounded-full shadow-2xl ring-2 md:ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110"
-                        aria-label="Back to top"
-                    >
-                        <svg 
-                            className="w-5 h-5 md:w-6 md:h-6" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                        >
-                            <path 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth={2.5} 
-                                d="M5 10l7-7m0 0l7 7m-7-7v18" 
-                            />
-                        </svg>
-                    </button>
-                )}
+                <BackToTopButton />
             </div>
-        </div>
+        </PageShell>
     )
 } 

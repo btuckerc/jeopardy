@@ -1,9 +1,10 @@
 'use client'
 
 import { useUser, useClerk } from '@clerk/nextjs'
-import { useState, useEffect } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import type { AppUser } from '@/lib/clerk-auth'
 
-interface SessionUser {
+export interface SessionUser {
     id: string
     email?: string | null
     name?: string | null
@@ -14,28 +15,70 @@ interface SessionUser {
     avatarBackground?: string | null
 }
 
-/**
- * Client-side auth hook that works with Clerk.
- * 
- * This hook fetches the full user data from our API (including role from Prisma)
- * since Clerk doesn't store our custom user fields.
- */
-export function useAuth() {
+interface AuthContextValue {
+    user: SessionUser | null
+    loading: boolean
+    signIn: () => Promise<void>
+    signOut: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthContextValue | null>(null)
+
+function toSessionUser(appUser: AppUser | null | undefined): SessionUser | null {
+    if (!appUser) return null
+    return {
+        id: appUser.id,
+        email: appUser.email,
+        name: appUser.name,
+        image: appUser.image,
+        role: appUser.role,
+        displayName: appUser.displayName,
+        selectedIcon: appUser.selectedIcon,
+        avatarBackground: appUser.avatarBackground,
+    }
+}
+
+export function AuthProvider({
+    initialUser,
+    children,
+}: {
+    initialUser: AppUser | null
+    children: React.ReactNode
+}) {
     const { isLoaded, isSignedIn, user: clerkUser } = useUser()
     const { signOut, openSignIn } = useClerk()
-    const [appUser, setAppUser] = useState<SessionUser | null>(null)
-    const [fetchingUser, setFetchingUser] = useState(false)
-    const [hasFetched, setHasFetched] = useState(false)
-    
-    // Fetch app user data from our API when Clerk is loaded and signed in
+    const [appUser, setAppUser] = useState<SessionUser | null>(() => toSessionUser(initialUser))
+    const [hasFetched, setHasFetched] = useState<boolean>(() => Boolean(initialUser))
+    const fetchingRef = useRef(false)
+
+    // Keep state aligned when server props update (e.g. after router.refresh())
     useEffect(() => {
+        if (initialUser) {
+            setAppUser(toSessionUser(initialUser))
+            setHasFetched(true)
+        }
+    }, [initialUser])
+
+    // Only fetch /api/user/me once for the whole app if Clerk signs in client-side without server user
+    useEffect(() => {
+        if (!isLoaded) return
+
+        if (!isSignedIn) {
+            setAppUser(null)
+            setHasFetched(true)
+            return
+        }
+
+        if (hasFetched || fetchingRef.current) return
+
+        let cancelled = false
+        fetchingRef.current = true
+
         async function fetchAppUser() {
-            if (!isLoaded || !isSignedIn || fetchingUser || hasFetched) return
-            
-            setFetchingUser(true)
             try {
-                // Fetch user data including role from our API
                 const response = await fetch('/api/user/me')
+                if (cancelled) return
+
                 if (response.ok) {
                     const data = await response.json()
                     setAppUser({
@@ -48,13 +91,12 @@ export function useAuth() {
                         selectedIcon: data.user.selectedIcon,
                         avatarBackground: data.user.avatarBackground,
                     })
-                } else {
-                    // If fetch fails, use basic Clerk data
+                } else if (clerkUser) {
                     setAppUser({
-                        id: clerkUser?.id || '',
-                        email: clerkUser?.emailAddresses[0]?.emailAddress,
-                        name: clerkUser?.fullName,
-                        image: clerkUser?.imageUrl,
+                        id: clerkUser.id || '',
+                        email: clerkUser.emailAddresses[0]?.emailAddress,
+                        name: clerkUser.fullName,
+                        image: clerkUser.imageUrl,
                         role: null,
                         displayName: null,
                         selectedIcon: null,
@@ -62,8 +104,8 @@ export function useAuth() {
                     })
                 }
             } catch (error) {
+                if (cancelled) return
                 console.error('Error fetching app user:', error)
-                // Fallback to basic Clerk data
                 if (clerkUser) {
                     setAppUser({
                         id: clerkUser.id,
@@ -77,33 +119,51 @@ export function useAuth() {
                     })
                 }
             } finally {
-                setFetchingUser(false)
-                setHasFetched(true)
+                fetchingRef.current = false
+                if (!cancelled) {
+                    setHasFetched(true)
+                }
             }
         }
-        
-        fetchAppUser()
-    }, [isLoaded, isSignedIn, clerkUser, fetchingUser, hasFetched])
-    
-    // Reset state when user signs out
-    useEffect(() => {
-        if (isLoaded && !isSignedIn) {
-            setAppUser(null)
-            setHasFetched(false)
+
+        void fetchAppUser()
+
+        return () => {
+            cancelled = true
         }
-    }, [isLoaded, isSignedIn])
-    
-    const loading = !isLoaded || (isSignedIn && !hasFetched)
+    }, [isLoaded, isSignedIn, clerkUser, hasFetched])
 
-    const signIn = async () => {
+    const handleSignIn = useCallback(async () => {
         openSignIn()
-    }
+    }, [openSignIn])
 
-    const handleSignOut = async () => {
+    const handleSignOut = useCallback(async () => {
         await signOut()
         setAppUser(null)
-        setHasFetched(false)
-    }
+        setHasFetched(true)
+    }, [signOut])
 
-    return { user: appUser, loading, signIn, signOut: handleSignOut }
+    // If we already have initialUser from SSR, don't block UI waiting for Clerk client hydration
+    const loading = !appUser && (!isLoaded || (Boolean(isSignedIn) && !hasFetched))
+
+    const value = useMemo<AuthContextValue>(() => ({
+        user: appUser,
+        loading,
+        signIn: handleSignIn,
+        signOut: handleSignOut,
+    }), [appUser, loading, handleSignIn, handleSignOut])
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+/**
+ * Client-side auth hook backed by server-hydrated AuthProvider context.
+ * Eliminates duplicate /api/user/me fetches and authLoading flashes across components.
+ */
+export function useAuth(): AuthContextValue {
+    const context = useContext(AuthContext)
+    if (!context) {
+        throw new Error('useAuth must be used within AuthProvider')
+    }
+    return context
 }

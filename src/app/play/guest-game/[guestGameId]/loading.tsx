@@ -1,31 +1,20 @@
 export default function GuestGameLoading() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-2 md:p-4">
-            {/* Score bar */}
-            <div className="flex justify-between items-center mb-4 px-2">
-                <div className="h-6 w-24 bg-white/20 rounded animate-pulse"></div>
-                <div className="h-8 w-20 bg-white/20 rounded animate-pulse"></div>
-                <div className="h-6 w-24 bg-white/20 rounded animate-pulse"></div>
-            </div>
-            
-            {/* Game board skeleton */}
-            <div className="grid grid-cols-6 gap-1 md:gap-2">
-                {/* Category headers */}
-                {[1, 2, 3, 4, 5, 6].map((col) => (
-                    <div key={`header-${col}`} className="h-16 bg-blue-800/50 rounded animate-pulse"></div>
-                ))}
-                
-                {/* Question cells */}
-                {[1, 2, 3, 4, 5].map((row) => (
-                    [1, 2, 3, 4, 5, 6].map((col) => (
-                        <div 
-                            key={`cell-${row}-${col}`} 
-                            className="h-16 md:h-20 bg-blue-700/50 rounded animate-pulse"
-                        ></div>
-                    ))
-                ))}
+        <div className="flex-1 w-full bg-gradient-to-b from-purple-50 to-white py-6 sm:py-10 px-4">
+            <div className="max-w-4xl mx-auto">
+                <div className="text-center mb-8 space-y-2">
+                    <div className="h-9 w-64 mx-auto bg-purple-200/70 rounded-lg animate-pulse" />
+                    <div className="h-5 w-32 mx-auto bg-purple-100 rounded animate-pulse" />
+                </div>
+                <div className="card p-8 space-y-5 animate-pulse">
+                    <div className="h-7 w-40 bg-purple-100 rounded-full" />
+                    <div className="space-y-3">
+                        <div className="h-6 w-full bg-slate-200 rounded" />
+                        <div className="h-6 w-4/5 bg-slate-200 rounded" />
+                    </div>
+                    <div className="h-12 w-full bg-slate-100 rounded-xl" />
+                </div>
             </div>
         </div>
     )
 }
-

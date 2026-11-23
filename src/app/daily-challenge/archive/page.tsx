@@ -51,7 +51,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function ArchivePage() {
     return (
-        <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen -mt-6 min-h-screen bg-gradient-to-b from-blue-900 to-blue-950 py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
+        <div className="relative flex-1 w-full surface-immersive py-6 sm:py-10 px-4 sm:px-6 lg:px-8">
             {/* Shadow under navbar */}
             <div className="absolute top-0 left-0 right-0 h-4 bg-gradient-to-b from-black/20 to-transparent pointer-events-none" />
             

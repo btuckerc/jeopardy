@@ -29,13 +29,13 @@ export default async function SignInPage({
     const redirectUrl = params?.redirect_url || '/'
     
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-md w-full space-y-8">
+        <div className="flex-1 w-full flex items-center justify-center bg-slate-100 py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+            <div className="max-w-md w-full space-y-6">
                 <div>
-                    <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    <h1 className="text-center text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
                         Sign in to trivrdy
-                    </h2>
-                    <p className="mt-2 text-center text-sm text-gray-600">
+                    </h1>
+                    <p className="mt-2 text-center text-sm text-slate-600">
                         Track your progress and compete on the leaderboard
                     </p>
                 </div>

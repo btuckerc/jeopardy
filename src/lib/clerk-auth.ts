@@ -9,10 +9,17 @@
  * - Providing a unified interface for accessing user data
  */
 
+import * as React from 'react'
 import { auth, currentUser } from '@clerk/nextjs/server'
 import { prisma } from './prisma'
 import { generateUniqueDisplayName } from './display-name'
 import type { UserRole } from '@prisma/client'
+
+type CacheFn = <T extends (...args: never[]) => unknown>(fn: T) => T
+const perRequestCache: CacheFn =
+    typeof (React as unknown as { cache?: CacheFn }).cache === 'function'
+        ? (React as unknown as { cache: CacheFn }).cache
+        : (fn) => fn
 
 function getConfiguredAdminEmails(): string[] {
     return (process.env.ADMIN_EMAILS || '')
@@ -329,10 +336,11 @@ function toAppUser(user: {
 
 /**
  * Get the current app user (Prisma User synced from Clerk)
- * This is the main function to use in server components and API routes
+ * Memoized per server request via React cache() so RootLayout and pages
+ * don't duplicate Clerk auth + Prisma user queries.
  * Returns null if not authenticated
  */
-export async function getAppUser(): Promise<AppUser | null> {
+export const getAppUser = perRequestCache(async function getAppUserImpl(): Promise<AppUser | null> {
     const clerkUserId = await getClerkUserId()
     
     if (!clerkUserId) {
@@ -367,7 +375,7 @@ export async function getAppUser(): Promise<AppUser | null> {
     
     // User not found by Clerk ID - sync them
     return syncClerkUserToPrisma(clerkUserId)
-}
+})
 
 /**
  * Get the current app user ID

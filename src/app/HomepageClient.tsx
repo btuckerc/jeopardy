@@ -98,9 +98,10 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
     if (mode === 'game') {
         return (
             <button
+                type="button"
                 onClick={handleGameMode}
                 disabled={isStarting}
-                className="group relative h-full rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 p-8 md:p-12 transition-all duration-300 hover:shadow-3xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-wait disabled:hover:scale-100"
+                className="group relative w-full h-full rounded-2xl overflow-hidden shadow-lg bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 p-6 sm:p-8 transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-wait disabled:hover:translate-y-0"
             >
                 {/* Subtle pattern overlay */}
                 <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')]"></div>
@@ -155,9 +156,10 @@ export default function HomepageClient({ user, mode }: HomepageClientProps) {
     // Study Mode
     return (
         <button
+            type="button"
             onClick={handlePracticeMode}
             disabled={isStarting}
-            className="group relative h-full rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 p-8 md:p-12 transition-all duration-300 hover:shadow-3xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-wait disabled:hover:scale-100"
+            className="group relative w-full h-full rounded-2xl overflow-hidden shadow-lg bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 p-6 sm:p-8 transition-all duration-200 hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-wait disabled:hover:translate-y-0"
         >
             {/* Subtle pattern overlay */}
             <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')]"></div>

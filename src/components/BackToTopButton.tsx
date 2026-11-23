@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface BackToTopButtonProps {
     threshold?: number
@@ -12,13 +12,19 @@ export default function BackToTopButton({
     ariaLabel = 'Back to top'
 }: BackToTopButtonProps) {
     const [showBackToTop, setShowBackToTop] = useState(false)
+    const visibleRef = useRef(false)
 
     useEffect(() => {
         const handleScroll = () => {
-            setShowBackToTop(window.scrollY > threshold)
+            const shouldShow = window.scrollY > threshold
+            if (shouldShow !== visibleRef.current) {
+                visibleRef.current = shouldShow
+                setShowBackToTop(shouldShow)
+            }
         }
 
-        window.addEventListener('scroll', handleScroll)
+        handleScroll()
+        window.addEventListener('scroll', handleScroll, { passive: true })
         return () => window.removeEventListener('scroll', handleScroll)
     }, [threshold])
 
@@ -31,15 +37,16 @@ export default function BackToTopButton({
     return (
         <button
             onClick={scrollToTop}
-            className="fixed bottom-4 right-4 md:bottom-8 md:right-8 bg-amber-400 hover:bg-amber-500 text-blue-900 p-3 md:p-4 rounded-full shadow-2xl ring-2 md:ring-4 ring-white/50 transition-all duration-300 z-50 flex items-center justify-center hover:scale-110"
+            className="fixed bottom-4 right-4 md:bottom-6 md:right-6 h-12 w-12 bg-amber-400 hover:bg-amber-500 text-blue-950 rounded-full shadow-lg ring-2 ring-white/70 transition-all duration-150 z-40 flex items-center justify-center hover:scale-105"
             aria-label={ariaLabel}
             type="button"
         >
             <svg
-                className="w-5 h-5 md:w-6 md:h-6"
+                className="w-5 h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
             >
                 <path
                     strokeLinecap="round"

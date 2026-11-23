@@ -179,13 +179,13 @@ export default function GuestGamePage() {
 
     if (checkingAuth || authLoading || loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white flex items-center justify-center px-4">
+            <div className="flex-1 w-full bg-gradient-to-b from-purple-50 to-white flex items-center justify-center px-4 py-16">
                 <div className="text-center max-w-md">
-                    <div className="inline-block h-16 w-16 animate-spin rounded-full border-4 border-solid border-purple-600 border-r-transparent mb-6"></div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                    <div className="inline-block h-14 w-14 animate-spin rounded-full border-4 border-solid border-purple-600 border-r-transparent mb-5"></div>
+                    <h2 className="text-2xl font-bold text-slate-900 mb-2">
                         {checkingAuth || authLoading ? 'Signing you in...' : 'Loading Game'}
                     </h2>
-                    <p className="text-gray-600 text-lg">
+                    <p className="text-slate-600 text-base">
                         {checkingAuth || authLoading ? 'Saving your progress...' : 'Preparing your game...'}
                     </p>
                 </div>
@@ -195,10 +195,10 @@ export default function GuestGamePage() {
 
     if (error || !gameState) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="flex-1 w-full bg-slate-100 flex items-center justify-center px-4 py-16">
                 <div className="card p-8 max-w-md text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-4">Game Not Available</h1>
-                    <p className="text-gray-600 mb-6">{error || 'Unable to load game'}</p>
+                    <h1 className="text-2xl font-bold text-slate-900 mb-4">Game Not Available</h1>
+                    <p className="text-slate-600 mb-6">{error || 'Unable to load game'}</p>
                     <Link href="/" className="btn-primary">
                         Back to Home
                     </Link>
@@ -209,11 +209,11 @@ export default function GuestGamePage() {
 
     if (gameState.limitReached && !showResult) {
         return (
-            <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white py-8 px-4">
+            <div className="flex-1 w-full bg-gradient-to-b from-purple-50 to-white py-8 sm:py-12 px-4">
                 <div className="max-w-4xl mx-auto">
                     <div className="card p-8 text-center">
-                        <h1 className="text-3xl font-bold text-gray-900 mb-4">Guest Limit Reached</h1>
-                        <p className="text-gray-600 mb-6 text-lg">
+                        <h1 className="text-3xl font-bold text-slate-900 mb-4">Guest Limit Reached</h1>
+                        <p className="text-slate-600 mb-6 text-lg">
                             You&apos;ve reached the guest limit. Sign in to continue playing and save your progress!
                         </p>
                         <div className="flex gap-3 justify-center">
@@ -231,7 +231,7 @@ export default function GuestGamePage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white py-8 px-4">
+        <div className="flex-1 w-full bg-gradient-to-b from-purple-50 to-white py-6 sm:py-10 px-4">
             <div className="max-w-4xl mx-auto">
                 {/* Header */}
                 <div className="text-center mb-8">

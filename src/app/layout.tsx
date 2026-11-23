@@ -14,7 +14,7 @@ import GuestProgressBanner from './components/GuestProgressBanner'
 import SiteAnnouncementBanner from './components/SiteAnnouncementBanner'
 
 const inter = Inter({ subsets: ['latin'] })
-const fredoka = Fredoka({ weight: '500', subsets: ['latin'] })
+const fredoka = Fredoka({ weight: ['400', '500'], subsets: ['latin'], variable: '--font-fredoka' })
 
 export const viewport = {
     width: 'device-width',
@@ -165,68 +165,71 @@ export default async function RootLayout({
                     <JsonLd data={websiteSchema} />
                     <JsonLd data={softwareApplicationSchema} />
                 </head>
-                <body className={inter.className}>
-                    <Providers>
+                <body className={`${inter.className} ${fredoka.variable}`}>
+                    <Providers initialUser={appUser}>
                         <KeyboardShortcutsProvider>
                             {/* Skip link for accessibility */}
                             <a
                                 href="#main-content"
-                                className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-amber-400 focus:text-gray-900 focus:font-semibold focus:rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
+                                className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-4 focus:py-2 focus:bg-amber-400 focus:text-blue-950 focus:font-semibold focus:rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500"
                             >
                                 Skip to main content
                             </a>
-                            <div className="min-h-screen bg-gray-100 flex flex-col">
+                            <div className="min-h-screen bg-slate-100 flex flex-col">
                                 <Navigation fredokaClassName={fredoka.className} appUser={appUser} />
                                 <SiteAnnouncementBanner />
-                                <main id="main-content" className="flex-1 w-full min-w-0 max-w-7xl mx-auto pt-6 pb-0 sm:px-6 lg:px-8">
+                                <main id="main-content" className="flex-1 w-full min-w-0 flex flex-col">
                                     {children}
                                 </main>
 
                             {/* Global footer */}
-                            <footer className="border-t border-gray-200 bg-gray-50">
+                            <footer className="border-t border-slate-200 bg-white">
                                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                                     <div className="text-center space-y-2">
-                                        <div className="flex flex-wrap justify-center gap-4 text-sm text-gray-600 mb-2">
+                                        <div className="flex flex-wrap justify-center items-center gap-x-4 gap-y-1 text-sm text-slate-600 mb-2">
                                             <Link
                                                 href="/help"
-                                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                                className="text-blue-700 hover:text-blue-900 font-medium transition-colors"
                                             >
                                                 Help & Feedback
                                             </Link>
-                                            <span className="text-gray-400">•</span>
+                                            <span className="text-slate-300" aria-hidden="true">•</span>
                                             <Link
                                                 href="/help#report"
-                                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                                className="text-blue-700 hover:text-blue-900 font-medium transition-colors"
                                             >
                                                 Report an Issue
                                             </Link>
-                                            <span className="text-gray-400">•</span>
+                                            <span className="text-slate-300" aria-hidden="true">•</span>
                                             <Link
                                                 href="/privacy"
-                                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                                className="text-blue-700 hover:text-blue-900 font-medium transition-colors"
                                             >
                                                 Privacy Policy
                                             </Link>
                                         </div>
-                                        <p className="text-gray-600 text-sm">
+                                        <p className="text-slate-600 text-sm">
                                             Made by{' '}
                                             <a
                                                 href="https://tuckercraig.com"
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                                                className="text-blue-700 hover:text-blue-900 font-medium transition-colors"
                                             >
                                                 Tucker Craig
                                             </a>
                                         </p>
-                                        <p className="text-gray-500 text-xs">
+                                        <p className="text-slate-500 text-xs">
                                             Real Jeopardy questions, real practice, real improvement.
                                         </p>
                                     </div>
                                 </div>
                             </footer>
                         </div>
-                        <Toaster position="bottom-right" />
+                        <Toaster
+                            position="bottom-right"
+                            containerStyle={{ bottom: 84, right: 16 }}
+                        />
                         <GuestProgressBanner />
                         </KeyboardShortcutsProvider>
                     </Providers>

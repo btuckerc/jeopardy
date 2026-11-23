@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { useRouter } from 'next/navigation';
 import UserAvatar, { AVATAR_BACKGROUNDS, AvatarBackgroundKey } from './UserAvatar'
 import { getEmojisByCategory, type EmojiCategory } from '@/lib/avatar'
+import { useScrollLock } from '@/hooks/useScrollLock'
 import toast from 'react-hot-toast'
 
 interface SpoilerSettings {
@@ -22,6 +23,7 @@ interface Props {
     displayName?: string | null;
     selectedIcon?: string | null;
     avatarBackground?: string | null;
+    embedded?: boolean;
 }
 
 export default function UserSettings({ 
@@ -33,7 +35,8 @@ export default function UserSettings({
     email, 
     displayName, 
     selectedIcon,
-    avatarBackground 
+    avatarBackground,
+    embedded = false,
 }: Props) {
     const [settings, setSettings] = useState<SpoilerSettings>({
         spoilerBlockDate: null,
@@ -65,27 +68,32 @@ export default function UserSettings({
         return normalizedNew.toLowerCase() !== normalizedCurrent.toLowerCase();
     };
 
-    // Handle ESC key to close modal
+    const isModalActive = isOpen && !embedded;
+
+    useScrollLock(isModalActive);
+
+    // Handle ESC key to close modal (only in modal mode, never embedded)
     useEffect(() => {
+        if (!isModalActive) return;
+
         const handleEscape = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && isOpen) {
+            if (event.key === 'Escape') {
                 onClose();
             }
         };
 
-        if (isOpen) {
-            document.addEventListener('keydown', handleEscape);
-            setTimeout(() => closeButtonRef.current?.focus(), 100);
-        }
+        document.addEventListener('keydown', handleEscape);
+        const timer = window.setTimeout(() => closeButtonRef.current?.focus(), 100);
 
         return () => {
+            window.clearTimeout(timer);
             document.removeEventListener('keydown', handleEscape);
         };
-    }, [isOpen, onClose]);
+    }, [isModalActive, onClose]);
 
-    // Trap focus within modal
+    // Trap focus within modal (only in modal mode, never embedded)
     useEffect(() => {
-        if (!isOpen || !modalRef.current) return;
+        if (!isModalActive || !modalRef.current) return;
 
         const modal = modalRef.current;
         const focusableElements = modal.querySelectorAll<HTMLElement>(
@@ -114,7 +122,7 @@ export default function UserSettings({
         return () => {
             modal.removeEventListener('keydown', handleTab);
         };
-    }, [isOpen]);
+    }, [isModalActive]);
 
     // Sync props to local state when they change
     useEffect(() => {
@@ -304,55 +312,25 @@ export default function UserSettings({
         }
     };
 
-    if (!isOpen) return null;
+    if (!isOpen && !embedded) return null;
 
-    return (
-        <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-start justify-center z-50 overflow-y-auto overflow-x-hidden p-4 sm:p-6 animate-fade-in" 
-            onClick={onClose}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="settings-title"
-        >
-            <div 
-                ref={modalRef}
-                className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full my-8 animate-fade-in-slide-down overflow-x-hidden" 
-                onClick={e => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="sticky top-0 bg-white border-b border-gray-100 px-5 py-4 rounded-t-2xl z-10">
-                    <div className="flex justify-between items-center">
-                        <h2 id="settings-title" className="text-xl font-semibold text-gray-900">Settings</h2>
-                        <button 
-                            ref={closeButtonRef}
-                            onClick={onClose} 
-                            className="text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            aria-label="Close settings"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
-                    </div>
+    const settingsBody = (
+        <div className={embedded ? 'space-y-6' : 'px-5 py-5 overflow-x-hidden'}>
+            {error && (
+                <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-start gap-2">
+                    <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{error}</span>
                 </div>
+            )}
 
-                {/* Content */}
-                <div className="px-5 py-5 overflow-x-hidden">
-                    {error && (
-                        <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-start gap-2">
-                            <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span>{error}</span>
-                        </div>
-                    )}
-
-                    {isLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <div className="spinner text-blue-600"></div>
-                        </div>
-                    ) : (
-                        <div className="space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto overflow-x-hidden scrollbar-hide">
+            {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                    <div className="spinner text-blue-600"></div>
+                </div>
+            ) : (
+                <div className={embedded ? 'space-y-6' : 'space-y-6 max-h-[calc(100vh-12rem)] overflow-y-auto overflow-x-hidden scrollbar-hide'}>
                             {/* Avatar & Icon Section */}
                             <div className="bg-gradient-to-br from-gray-50 to-gray-100/50 rounded-xl p-4 border border-gray-200">
                                 <div className="flex items-start gap-4 mb-4">
@@ -669,6 +647,44 @@ export default function UserSettings({
                         </div>
                     )}
                 </div>
+    );
+
+    if (embedded) {
+        return settingsBody;
+    }
+
+    return (
+        <div
+            className="fixed inset-0 bg-slate-950/50 flex items-start justify-center z-50 overflow-y-auto overflow-x-hidden p-4 sm:p-6 animate-fade-in"
+            onClick={onClose}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+        >
+            <div
+                ref={modalRef}
+                className="relative bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full my-8 animate-fade-in-slide-down overflow-x-hidden"
+                onClick={e => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 rounded-t-2xl z-10">
+                    <div className="flex justify-between items-center">
+                        <h2 id="settings-title" className="text-xl font-semibold text-slate-900">Settings</h2>
+                        <button
+                            ref={closeButtonRef}
+                            type="button"
+                            onClick={onClose}
+                            className="flex h-11 w-11 items-center justify-center text-slate-500 hover:text-slate-700 transition-colors rounded-full hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            aria-label="Close settings"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                {settingsBody}
             </div>
         </div>
     );

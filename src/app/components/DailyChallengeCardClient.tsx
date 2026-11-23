@@ -66,24 +66,15 @@ export default function DailyChallengeCardClient({ challenge: initialChallenge, 
         }
     }, [])
     
-    // Track if this is the initial mount
-    const isInitialMount = useRef(true)
-    
-    // Refresh data on mount and when tab becomes visible
+    // Track last refresh timestamp so tab switches don't spam refetches
+    const lastRefreshRef = useRef<number>(Date.now())
+
+    // Refresh data when tab becomes visible after at least 60s
     useEffect(() => {
-        // Skip initial mount - we already have server-provided initial data
-        // This prevents the Daily Challenge flash when the page first loads
-        if (isInitialMount.current) {
-            isInitialMount.current = false
-        } else {
-            // Only refresh on subsequent calls (e.g., when returning from daily challenge page)
-            refreshData()
-        }
-        
-        // Always refresh when tab becomes visible (user navigating back from another page)
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                refreshData()
+            if (document.visibilityState === 'visible' && Date.now() - lastRefreshRef.current > 60_000) {
+                lastRefreshRef.current = Date.now()
+                void refreshData()
             }
         }
         
@@ -99,7 +90,7 @@ export default function DailyChallengeCardClient({ challenge: initialChallenge, 
         return (
             <div className="space-y-4">
                 <Link href="/daily-challenge" className="block group">
-                    <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-8 md:p-12 transition-all duration-300 group-hover:shadow-3xl group-hover:scale-[1.02]">
+                    <div className="relative rounded-2xl overflow-hidden shadow-lg surface-immersive p-6 sm:p-8 md:p-10 transition-all duration-200 group-hover:shadow-xl group-hover:-translate-y-0.5">
                         <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')]"></div>
                         <div className="relative z-10">
                             <div className="flex items-center justify-center mb-6">
@@ -139,7 +130,7 @@ export default function DailyChallengeCardClient({ challenge: initialChallenge, 
     return (
         <div className="space-y-4">
             <Link href="/daily-challenge" className="block group">
-                <div className="relative rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 p-8 md:p-12 transition-all duration-300 group-hover:shadow-3xl group-hover:scale-[1.02]">
+                <div className="relative rounded-2xl overflow-hidden shadow-lg surface-immersive p-6 sm:p-8 md:p-10 transition-all duration-200 group-hover:shadow-xl group-hover:-translate-y-0.5">
                     <div className="absolute inset-0 opacity-10 bg-[url('/grid.svg')]"></div>
                     <div className="relative z-10">
                         <div className="flex items-center justify-center mb-6">

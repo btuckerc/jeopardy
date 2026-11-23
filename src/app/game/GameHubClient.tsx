@@ -39,6 +39,7 @@ import GameResumableList from './components/GameResumableList'
 import GameCompletedList from './components/GameCompletedList'
 import GameModeSelector from './components/GameModeSelector'
 import QuickPlayCards from './components/QuickPlayCards'
+import { PageShell } from '@/components/PageShell'
 
 interface Category {
     id: string
@@ -199,11 +200,14 @@ export default function GameHubClient({
         }
     }, [user?.id, refreshGames])
 
-    // Refresh games when window regains focus (e.g., after playing a game)
+    const lastRefreshRef = useRef<number>(Date.now())
+
+    // Refresh games when window regains focus (throttled to avoid refetch storms)
     useEffect(() => {
         const handleFocus = () => {
-            if (user?.id) {
-                refreshGames()
+            if (user?.id && Date.now() - lastRefreshRef.current > 15_000) {
+                lastRefreshRef.current = Date.now()
+                void refreshGames()
             }
         }
 
@@ -689,9 +693,9 @@ export default function GameHubClient({
 
 
     return (
-        <div className="workspace-page" style={{ scrollbarGutter: 'stable' }}>
+        <PageShell variant="workspace">
             <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-                <section className="rounded-3xl border border-blue-200 bg-gradient-to-r from-white via-blue-50 to-slate-50 p-6 shadow-sm sm:p-7">
+                <section className="rounded-2xl border border-blue-200 bg-gradient-to-r from-white via-blue-50 to-slate-50 p-6 shadow-sm sm:p-7">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                         <div>
                             <h1 className="text-3xl font-bold text-gray-900">Play Game</h1>
@@ -1211,6 +1215,6 @@ export default function GameHubClient({
                 onProceed={handleProceedWithSpoiler}
                 onUpdateSpoilerDate={handleUpdateSpoilerDate}
             />
-        </div>
+        </PageShell>
     )
 }
